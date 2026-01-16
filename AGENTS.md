@@ -1,0 +1,6 @@
+# Agent Instructions
+
+- Use `BLUEPRINT.md` as the primary architecture reference for this project.
+- When making architectural or significant product changes, update `BLUEPRINT.md` first or in the same change set.
+- If new components, data flows, or system constraints are introduced, reflect them in `BLUEPRINT.md`.
+- Always use the latest version of a file. If the file contains changes you did not make, assume they were intentionally added, and incorporate them in your decision making.
