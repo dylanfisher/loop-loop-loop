@@ -32,6 +32,14 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Primary UI in React (Vite-based SPA) to maximize ecosystem and AI-assisted development.
 - Canvas/WebGL for waveform, spectrum, and experimental visual feedback.
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
+- Layout sketch (2-up decks on wide screens, stacked on small screens):
+```
+[Header]
+[Global FX]
+[Deck 1] [Deck 2]
+[Deck 3] [Deck 4]
+[Transport]
+```
 
 ### State & Presets
 - Session state stored in memory with optional persistence to IndexedDB.

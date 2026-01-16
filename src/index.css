@@ -1,0 +1,212 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 15% 20%, #f7f1e9, #f0f4f8 45%, #e6eef2);
+  color: #101418;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 24px;
+  padding: 24px;
+}
+
+.app__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 2px solid #111;
+  padding: 16px 20px;
+  background: #fef8ef;
+}
+
+.app__brand {
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.app__status {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.app__main {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+.panel {
+  border: 2px solid #111;
+  background: #ffffff;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  box-shadow: 6px 6px 0 #111;
+}
+
+.panel__title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.panel__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.deck-stack__list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
+.deck {
+  border: 2px solid #111;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  background: #fefefe;
+}
+
+.deck__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.deck__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0.75;
+}
+
+.deck__remove {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+.deck__waveform {
+  height: 120px;
+  border: 2px dashed #222;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(120deg, #f6f9ff, #fef7ed);
+}
+
+.deck__controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.deck__fx {
+  border-top: 2px dashed #111;
+  padding-top: 10px;
+  display: grid;
+  gap: 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.deck__fx-title {
+  opacity: 0.6;
+}
+
+.deck__fx-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  text-align: center;
+}
+
+button {
+  border: 2px solid #111;
+  background: #f9fbff;
+  font: inherit;
+  padding: 10px 8px;
+  cursor: pointer;
+}
+
+.panel__actions button {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+.fx--global {
+  background: #fef8ef;
+}
+
+.fx__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fx__unit {
+  border: 2px solid #111;
+  padding: 12px;
+  text-align: center;
+  background: #f2f6f2;
+}
+
+.app__transport {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  border: 2px solid #111;
+  padding: 16px;
+  background: #fef8ef;
+}
+
+.transport__block {
+  border: 2px solid #111;
+  padding: 8px 16px;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .deck-stack__list {
+    grid-template-columns: 1fr;
+  }
+
+  .deck__controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .deck__fx-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 901px) {
+  .deck-stack__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
