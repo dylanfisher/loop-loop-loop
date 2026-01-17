@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 type WaveformProps = {
   buffer?: AudioBuffer;
@@ -95,7 +95,7 @@ const Waveform = ({
   const velocityRef = useRef(0);
   const inertiaRef = useRef<number | null>(null);
 
-  const renderOverlay = () => {
+  const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
     if (!overlay || !buffer || !duration) return;
 
@@ -135,7 +135,7 @@ const Waveform = ({
     overlayContext.moveTo(x, 0);
     overlayContext.lineTo(x, overlay.clientHeight);
     overlayContext.stroke();
-  };
+  }, [buffer, duration, isPlaying, offsetSeconds, startedAtMs, zoom]);
 
   const clampWindowStart = (nextStart: number, durationSeconds: number, zoomValue: number) => {
     const visualDuration = durationSeconds / Math.max(1, zoomValue);
@@ -186,7 +186,7 @@ const Waveform = ({
     resize();
 
     return () => observer.disconnect();
-  }, [buffer, zoom]);
+  }, [buffer, renderOverlay, zoom]);
 
   useEffect(() => {
     const overlay = overlayRef.current;
@@ -247,7 +247,7 @@ const Waveform = ({
         rafRef.current = null;
       }
     };
-  }, [buffer, duration, follow, isPlaying, offsetSeconds, startedAtMs, zoom]);
+  }, [buffer, duration, follow, isPlaying, offsetSeconds, renderOverlay, startedAtMs, zoom]);
 
   if (!buffer) {
     return <div className="deck__waveform deck__waveform--empty">Waveform / Spectrum</div>;

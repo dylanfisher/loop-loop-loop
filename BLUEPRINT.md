@@ -114,11 +114,11 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - [ ] Plan AudioWorklet structure (worklet modules, messaging, shared buffers).
 
 ## Next Steps (Project Ops and Release)
-- [ ] Decide package manager (npm/pnpm/yarn) and standardize lockfile.
-- [ ] Add linting/formatting (ESLint + Prettier) and editor config.
-- [ ] Set up Vitest for unit/integration tests and add a baseline test.
+- [x] Decide package manager (npm/pnpm/yarn) and standardize lockfile.
+- [x] Add linting/formatting (ESLint + Prettier) and editor config.
+- [x] Set up Vitest for unit/integration tests and add a baseline test.
 - [ ] Define environment requirements (Node version, browsers supported).
-- [ ] Add a minimal README with run steps and contribution notes.
+- [x] Add a minimal README with run steps and contribution notes.
 - [ ] Set up basic CI (lint + build) when repo is ready.
 - [ ] Add asset pipeline plan (icons, SVGs, waveform caching).
 - [ ] Add integration test plan for load->play->loop and multi-deck concurrency.

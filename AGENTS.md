@@ -6,3 +6,4 @@
 - Always use the latest version of a file. If the file contains changes you did not make, assume they were intentionally added, and incorporate them in your decision making.
 - Keep the UI layout sketch in `BLUEPRINT.md` updated as the layout evolves.
 - Run `npm test` after modifying files that should be covered by unit/integration tests (hooks, audio engine, or core UI logic), and report results.
+- Run `npm run lint` after modifying JS/TS source files, and fix any lint errors.
