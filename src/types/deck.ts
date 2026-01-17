@@ -9,4 +9,6 @@ export type DeckState = {
   startedAtMs?: number;
   duration?: number;
   offsetSeconds?: number;
+  zoom: number;
+  follow: boolean;
 };

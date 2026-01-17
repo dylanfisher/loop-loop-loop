@@ -6,7 +6,7 @@ const useDecks = () => {
   const nextDeckId = useRef(2);
   const fileInputRefs = useRef<Map<number, HTMLInputElement | null>>(new Map());
   const [decks, setDecks] = useState<DeckState[]>([
-    { id: 1, status: "idle", gain: 0.9, offsetSeconds: 0 },
+    { id: 1, status: "idle", gain: 0.9, offsetSeconds: 0, zoom: 1, follow: true },
   ]);
   const { decodeFile, playBuffer, stop, setDeckGain, removeDeck: removeDeckNodes } =
     useAudioEngine();
@@ -22,7 +22,7 @@ const useDecks = () => {
     nextDeckId.current += 1;
     setDecks((prev) => [
       ...prev,
-      { id, status: "idle", gain: 0.9, offsetSeconds: 0 },
+      { id, status: "idle", gain: 0.9, offsetSeconds: 0, zoom: 1, follow: true },
     ]);
   };
 
@@ -53,6 +53,8 @@ const useDecks = () => {
       fileName: file.name,
       startedAtMs: undefined,
       offsetSeconds: 0,
+      zoom: 1,
+      follow: true,
     });
     try {
       const buffer = await decodeFile(file);
@@ -61,6 +63,8 @@ const useDecks = () => {
         buffer,
         duration: buffer.duration,
         offsetSeconds: 0,
+        zoom: 1,
+        follow: true,
       });
     } catch (error) {
       updateDeck(id, { status: "error" });
@@ -131,6 +135,14 @@ const useDecks = () => {
     updateDeck(id, { gain: value });
   };
 
+  const setDeckZoomValue = (id: number, value: number) => {
+    updateDeck(id, { zoom: value });
+  };
+
+  const setDeckFollowValue = (id: number, value: boolean) => {
+    updateDeck(id, { follow: value });
+  };
+
   return {
     decks,
     addDeck,
@@ -141,6 +153,8 @@ const useDecks = () => {
     pauseDeck,
     setDeckGain: setDeckGainValue,
     seekDeck,
+    setDeckZoom: setDeckZoomValue,
+    setDeckFollow: setDeckFollowValue,
     setFileInputRef,
   };
 };

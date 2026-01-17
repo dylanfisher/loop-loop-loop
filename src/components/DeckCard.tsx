@@ -11,6 +11,8 @@ type DeckCardProps = {
   onPause: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
+  onZoomChange: (id: number, value: number) => void;
+  onFollowChange: (id: number, value: boolean) => void;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
@@ -24,6 +26,8 @@ const DeckCard = ({
   onPause,
   onGainChange,
   onSeek,
+  onZoomChange,
+  onFollowChange,
   setFileInputRef,
 }: DeckCardProps) => {
   return (
@@ -49,6 +53,8 @@ const DeckCard = ({
         startedAtMs={deck.startedAtMs}
         duration={deck.duration}
         offsetSeconds={deck.offsetSeconds}
+        zoom={deck.zoom}
+        follow={deck.follow}
         onSeek={(progress) => onSeek(deck.id, progress)}
       />
       <div className="deck__controls">
@@ -87,6 +93,25 @@ const DeckCard = ({
           step="0.01"
           value={deck.gain}
           onChange={(event) => onGainChange(deck.id, Number(event.target.value))}
+        />
+      </label>
+      <label className="deck__zoom">
+        <span>Zoom</span>
+        <input
+          type="range"
+          min="1"
+          max="64"
+          step="1"
+          value={deck.zoom}
+          onChange={(event) => onZoomChange(deck.id, Number(event.target.value))}
+        />
+      </label>
+      <label className="deck__follow">
+        <span>Follow</span>
+        <input
+          type="checkbox"
+          checked={deck.follow}
+          onChange={(event) => onFollowChange(deck.id, event.target.checked)}
         />
       </label>
       <div className="deck__file-name">{deck.fileName ?? "No file loaded"}</div>

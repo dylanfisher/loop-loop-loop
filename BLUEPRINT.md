@@ -84,7 +84,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - [ ] Build a minimal Web Audio engine (AudioContext, per-deck gain, master bus).
 - [ ] Implement transport controls (play/stop, loop toggle) with stable scheduling.
 - [ ] Add initial per-deck FX nodes (filter + delay) in the audio graph.
-- [ ] Render a simple waveform preview with Canvas for loaded buffers.
+- [x] Render a simple waveform preview with Canvas for loaded buffers.
 - [ ] Add error handling UX (decode failures, AudioContext resume prompts).
 - [ ] Implement basic keyboard navigation for transport and deck controls.
 

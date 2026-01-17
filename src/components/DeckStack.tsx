@@ -11,6 +11,8 @@ type DeckStackProps = {
   onPause: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
+  onZoomChange: (id: number, value: number) => void;
+  onFollowChange: (id: number, value: boolean) => void;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
@@ -24,6 +26,8 @@ const DeckStack = ({
   onPause,
   onGainChange,
   onSeek,
+  onZoomChange,
+  onFollowChange,
   setFileInputRef,
 }: DeckStackProps) => {
   return (
@@ -50,6 +54,8 @@ const DeckStack = ({
             onPause={onPause}
             onGainChange={onGainChange}
             onSeek={onSeek}
+            onZoomChange={onZoomChange}
+            onFollowChange={onFollowChange}
             setFileInputRef={setFileInputRef}
           />
         ))}

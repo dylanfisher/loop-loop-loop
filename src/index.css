@@ -156,6 +156,10 @@ body {
   cursor: pointer;
 }
 
+.deck__waveform--interactive:active {
+  cursor: grabbing;
+}
+
 .deck__controls {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -184,6 +188,27 @@ body {
 
 .deck__gain input {
   width: 100%;
+}
+
+.deck__zoom {
+  display: grid;
+  gap: 6px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.deck__zoom input {
+  width: 100%;
+}
+
+.deck__follow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .deck__fx {
