@@ -106,6 +106,22 @@ body {
   opacity: 0.75;
 }
 
+.deck__status {
+  font-size: 0.75rem;
+}
+
+.deck__status--loading {
+  color: #7a4b00;
+}
+
+.deck__status--playing {
+  color: #0b5d4a;
+}
+
+.deck__status--error {
+  color: #9c1f1f;
+}
+
 .deck__remove {
   padding: 4px 8px;
   font-size: 0.75rem;
@@ -123,6 +139,30 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+
+.deck__file-input {
+  display: none;
+}
+
+.deck__file-name {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck__gain {
+  display: grid;
+  gap: 6px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.deck__gain input {
+  width: 100%;
 }
 
 .deck__fx {

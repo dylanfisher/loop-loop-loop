@@ -52,7 +52,17 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 ## Build & Tooling
 - TypeScript + Vite.
 - WASM toolchain for DSP modules.
-- Tests for DSP and scheduling behavior.
+- Tests for DSP and scheduling behavior (Vitest for unit/integration).
+
+## Code Structure (Current)
+- UI components in `src/components/` (DeckStack, DeckCard, GlobalFxRack, TransportBar).
+- Audio + deck state in hooks under `src/hooks/` (`useDecks`, `useAudioEngine`).
+- Shared types in `src/types/` (deck state/status).
+
+## Code Structure (Planned Audio Engine Module)
+- `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.
+- `src/audio/deck.ts`: Deck source lifecycle (buffer sources, gain, per-deck FX chain).
+- `src/audio/analysis.ts`: Metering/FFT/onset analysis and UI data feeds.
 
 ## Open Questions
 - UI visual direction and interaction style.
@@ -60,11 +70,23 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Minimum viable controller mapping and default devices.
 
 ## Next Steps (Web Frontend and Technical Implementation)
-- [ ] Initialize the React + TypeScript app with Vite to generate `package.json` and base tooling.
-- [ ] Install dependencies (`react`, `react-dom`) and dev tooling (`vite`, `@vitejs/plugin-react`, `typescript`).
-- [ ] Add minimal `index.html`, `src/main.tsx`, and `src/App.tsx` to render a simple MVP shell.
-- [ ] Create a basic layout scaffold (deck panel placeholder, transport bar, FX rack placeholder).
-- [ ] Add `npm` scripts for `dev`, `build`, and `preview` to verify local browser rendering.
+- [x] Initialize the React + TypeScript app with Vite to generate `package.json` and base tooling.
+- [x] Install dependencies (`react`, `react-dom`) and dev tooling (`vite`, `@vitejs/plugin-react`, `typescript`).
+- [x] Add minimal `index.html`, `src/main.tsx`, and `src/App.tsx` to render a simple MVP shell.
+- [x] Create a basic layout scaffold (deck panel placeholder, transport bar, FX rack placeholder).
+- [x] Add `npm` scripts for `dev`, `build`, and `preview` to verify local browser rendering.
+- [ ] Wire up per-deck file loading and decode to AudioBuffer.
+  - [ ] Add per-deck file input and store selected file in state.
+  - [ ] Decode via `AudioContext.decodeAudioData` and store `AudioBuffer`.
+  - [ ] Implement play/stop for one deck with a `GainNode` and `AudioBufferSourceNode`.
+  - [ ] Generalize play/stop to multiple decks with independent sources.
+  - [ ] Add a simple status indicator (loaded/playing/error).
+- [ ] Build a minimal Web Audio engine (AudioContext, per-deck gain, master bus).
+- [ ] Implement transport controls (play/stop, loop toggle) with stable scheduling.
+- [ ] Add initial per-deck FX nodes (filter + delay) in the audio graph.
+- [ ] Render a simple waveform preview with Canvas for loaded buffers.
+- [ ] Add error handling UX (decode failures, AudioContext resume prompts).
+- [ ] Implement basic keyboard navigation for transport and deck controls.
 
 ## Next Steps (High-Level Application Design)
 - [ ] Define MVP scope (single deck vs. dual, core FX set, baseline controls) to bound architecture.
@@ -75,3 +97,35 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - [ ] Draft engine API surface (deck controls, transport, routing, automation) to drive UI wiring.
 - [ ] Sketch UI layout and interaction model aligned with the engine API and controller mappings.
 - [ ] Establish timing/scheduling strategy and write a minimal audio graph prototype.
+- [ ] Define session state model (deck state, FX params, routing, mappings) and persistence plan.
+- [ ] Specify controller mapping strategy (Web MIDI defaults, learn mode, conflict handling).
+- [ ] Decide on analysis features (onset/beat detection, metering) and their impact on UI.
+- [ ] Set a visual language direction (type, color, density) consistent with performance use.
+- [ ] Outline testing strategy (audio node unit tests, scheduling tests, manual UX checks).
+- [ ] Define session file format (JSON schema) and import/export flows.
+- [ ] Set performance budgets (latency target, CPU per deck, max decks).
+- [ ] Define local file handling policy and permission messaging.
+
+## Next Steps (Audio Engine and DSP)
+- [ ] Define core audio graph (deck source -> per-deck FX -> deck bus -> master FX -> output).
+- [ ] Specify time-stretch/pitch approach and decide on initial quality/perf tradeoffs.
+- [ ] Add analysis pipeline plan (meters, FFT, onset) and data flow to UI.
+- [ ] Establish automation/modulation model (LFOs, envelopes, random) and parameter routing.
+- [ ] Plan AudioWorklet structure (worklet modules, messaging, shared buffers).
+
+## Next Steps (Project Ops and Release)
+- [ ] Decide package manager (npm/pnpm/yarn) and standardize lockfile.
+- [ ] Add linting/formatting (ESLint + Prettier) and editor config.
+- [ ] Set up Vitest for unit/integration tests and add a baseline test.
+- [ ] Define environment requirements (Node version, browsers supported).
+- [ ] Add a minimal README with run steps and contribution notes.
+- [ ] Set up basic CI (lint + build) when repo is ready.
+- [ ] Add asset pipeline plan (icons, SVGs, waveform caching).
+- [ ] Add integration test plan for load->play->loop and multi-deck concurrency.
+
+## Next Steps (Controller and Hardware Integration)
+- [ ] Inventory target controllers (Launchpad, MIDI Fighter, generic MIDI) and select defaults.
+- [ ] Define mapping schema (per-deck vs. global controls, shift layers, learn mode).
+- [ ] Implement basic Web MIDI device discovery and event routing.
+- [ ] Add a lightweight mapping UI for test devices (bind, clear, save).
+- [ ] Plan fallback controls for keyboard/gamepad.
