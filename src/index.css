@@ -134,6 +134,7 @@ body {
   display: grid;
   place-items: center;
   background: linear-gradient(120deg, #f6f9ff, #fef7ed);
+  overflow: visible;
 }
 
 .deck__waveform canvas {
@@ -146,6 +147,49 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.deck__loop-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 116, 255, 0.08);
+  pointer-events: none;
+  opacity: 0.2;
+  transition: opacity 0.25s ease;
+}
+
+.deck__loop-region.is-active {
+  opacity: 1;
+}
+
+.deck__loop-handle {
+  position: absolute;
+  top: -20px;
+  width: 36px;
+  height: 20px;
+  margin-left: -18px;
+  background: #0074ff;
+  color: #fff;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  display: grid;
+  place-items: center;
+  border: 2px solid #0b2d5f;
+  cursor: grab;
+  user-select: none;
+  opacity: 0.35;
+  transition: opacity 0.25s ease;
+  pointer-events: auto;
+}
+
+.deck__loop-handle.is-active {
+  opacity: 1;
+}
+
+.deck__loop-handle:active {
+  cursor: grabbing;
 }
 
 .deck__waveform--empty {
@@ -238,6 +282,10 @@ button {
   font: inherit;
   padding: 10px 8px;
   cursor: pointer;
+}
+
+button.is-active {
+  background: #e6f0ff;
 }
 
 .panel__actions button {

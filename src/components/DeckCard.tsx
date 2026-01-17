@@ -13,6 +13,8 @@ type DeckCardProps = {
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
   onFollowChange: (id: number, value: boolean) => void;
+  onLoopChange: (id: number, value: boolean) => void;
+  onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
@@ -28,6 +30,8 @@ const DeckCard = ({
   onSeek,
   onZoomChange,
   onFollowChange,
+  onLoopChange,
+  onLoopBoundsChange,
   setFileInputRef,
 }: DeckCardProps) => {
   return (
@@ -55,7 +59,13 @@ const DeckCard = ({
         offsetSeconds={deck.offsetSeconds}
         zoom={deck.zoom}
         follow={deck.follow}
+        loopEnabled={deck.loopEnabled}
+        loopStartSeconds={deck.loopStartSeconds}
+        loopEndSeconds={deck.loopEndSeconds}
         onSeek={(progress) => onSeek(deck.id, progress)}
+        onLoopBoundsChange={(startSeconds, endSeconds) =>
+          onLoopBoundsChange(deck.id, startSeconds, endSeconds)
+        }
       />
       <div className="deck__controls">
         <input
@@ -81,7 +91,13 @@ const DeckCard = ({
             {deck.status === "paused" ? "Resume" : "Play"}
           </button>
         )}
-        <button type="button">Loop</button>
+        <button
+          type="button"
+          className={deck.loopEnabled ? "is-active" : undefined}
+          onClick={() => onLoopChange(deck.id, !deck.loopEnabled)}
+        >
+          {deck.loopEnabled ? "Looping" : "Loop"}
+        </button>
         <button type="button">Slice</button>
       </div>
       <label className="deck__gain">

@@ -36,6 +36,9 @@ export const playDeckBuffer = (
   buffer: AudioBuffer,
   gain: number,
   offsetSeconds: number,
+  loopEnabled: boolean,
+  loopStartSeconds: number,
+  loopEndSeconds: number,
   onEnded?: DeckEndedCallback
 ) => {
   stopDeckPlayback(deckId, true);
@@ -43,6 +46,11 @@ export const playDeckBuffer = (
 
   const source = context.createBufferSource();
   source.buffer = buffer;
+  source.loop = loopEnabled;
+  if (loopEnabled) {
+    source.loopStart = loopStartSeconds;
+    source.loopEnd = loopEndSeconds;
+  }
   source.connect(nodes.gain);
   source.onended = () => {
     if (nodes.source === source) {

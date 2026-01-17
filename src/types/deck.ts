@@ -11,4 +11,7 @@ export type DeckState = {
   offsetSeconds?: number;
   zoom: number;
   follow: boolean;
+  loopEnabled: boolean;
+  loopStartSeconds: number;
+  loopEndSeconds: number;
 };

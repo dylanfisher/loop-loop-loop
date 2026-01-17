@@ -9,7 +9,10 @@ const playBuffer = vi.fn(
     _buffer: AudioBuffer,
     onEnded?: () => void,
     _gain?: number,
-    _offsetSeconds?: number
+    _offsetSeconds?: number,
+    _loopEnabled?: boolean,
+    _loopStartSeconds?: number,
+    _loopEndSeconds?: number
   ) => {
     onEnded?.();
   }

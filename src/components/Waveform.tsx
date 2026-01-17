@@ -8,7 +8,14 @@ type WaveformProps = {
   offsetSeconds?: number;
   zoom?: number;
   follow?: boolean;
+  loopEnabled?: boolean;
+  loopStartSeconds?: number;
+  loopEndSeconds?: number;
   onSeek?: (progress: number) => void;
+  onLoopBoundsChange?: (
+    startSeconds: number,
+    endSeconds: number,
+  ) => void;
 };
 
 const buildPeaks = (
@@ -80,7 +87,11 @@ const Waveform = ({
   offsetSeconds,
   zoom = 1,
   follow = true,
+  loopEnabled = false,
+  loopStartSeconds = 0,
+  loopEndSeconds = 0,
   onSeek,
+  onLoopBoundsChange,
 }: WaveformProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
@@ -88,12 +99,17 @@ const Waveform = ({
   const peaksRef = useRef<Array<{ min: number; max: number }>>([]);
   const windowStartRef = useRef(0);
   const visualDurationRef = useRef(0);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
   const lastXRef = useRef(0);
   const lastTimeRef = useRef(0);
   const dragMovedRef = useRef(false);
   const velocityRef = useRef(0);
   const inertiaRef = useRef<number | null>(null);
+  const activeLoopDragRef = useRef<"start" | "end" | null>(null);
+  const loopStartHandleRef = useRef<HTMLDivElement | null>(null);
+  const loopEndHandleRef = useRef<HTMLDivElement | null>(null);
+  const loopRegionRef = useRef<HTMLDivElement | null>(null);
 
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
@@ -110,7 +126,14 @@ const Waveform = ({
       isPlaying && startedAtMs !== undefined
         ? (performance.now() - startedAtMs) / 1000
         : 0;
-    const currentSeconds = Math.min(baseOffset + elapsed, duration);
+    let currentSeconds = Math.min(baseOffset + elapsed, duration);
+    if (loopEnabled && loopEndSeconds > loopStartSeconds) {
+      const loopDuration = loopEndSeconds - loopStartSeconds;
+      const loopOffset = currentSeconds - loopStartSeconds;
+      const wrapped =
+        ((loopOffset % loopDuration) + loopDuration) % loopDuration;
+      currentSeconds = loopStartSeconds + wrapped;
+    }
     const progress = Math.min(
       (currentSeconds - windowStartRef.current) / visualDuration,
       1
@@ -135,7 +158,82 @@ const Waveform = ({
     overlayContext.moveTo(x, 0);
     overlayContext.lineTo(x, overlay.clientHeight);
     overlayContext.stroke();
-  }, [buffer, duration, isPlaying, offsetSeconds, startedAtMs, zoom]);
+
+    if (duration) {
+      const loopStartProgress = Math.min(
+        Math.max((loopStartSeconds - windowStartRef.current) / visualDuration, 0),
+        1
+      );
+      const loopEndProgress = Math.min(
+        Math.max((loopEndSeconds - windowStartRef.current) / visualDuration, 0),
+        1
+      );
+      const clampedStart = Math.min(Math.max(loopStartProgress, 0), 1);
+      const clampedEnd = Math.min(Math.max(loopEndProgress, 0), 1);
+      const loopStartHandle = loopStartHandleRef.current;
+      const loopEndHandle = loopEndHandleRef.current;
+      const loopRegion = loopRegionRef.current;
+
+      if (loopStartHandle) {
+        loopStartHandle.style.left = `${clampedStart * 100}%`;
+      }
+      if (loopEndHandle) {
+        loopEndHandle.style.left = `${clampedEnd * 100}%`;
+      }
+      if (loopRegion) {
+        const left = Math.min(clampedStart, clampedEnd);
+        const width = Math.max(0, Math.abs(clampedEnd - clampedStart));
+        loopRegion.style.left = `${left * 100}%`;
+        loopRegion.style.width = `${width * 100}%`;
+      }
+
+      if (loopEnabled) {
+        const startX = loopStartProgress * overlay.clientWidth;
+        const endX = loopEndProgress * overlay.clientWidth;
+
+        overlayContext.strokeStyle = "#0074FF";
+        overlayContext.lineWidth = 2;
+        overlayContext.beginPath();
+        overlayContext.moveTo(startX, 0);
+        overlayContext.lineTo(startX, overlay.clientHeight);
+        overlayContext.stroke();
+
+        overlayContext.beginPath();
+        overlayContext.moveTo(endX, 0);
+        overlayContext.lineTo(endX, overlay.clientHeight);
+        overlayContext.stroke();
+      }
+    }
+  }, [
+    buffer,
+    duration,
+    isPlaying,
+    loopEnabled,
+    loopEndSeconds,
+    loopStartSeconds,
+    offsetSeconds,
+    startedAtMs,
+    zoom,
+  ]);
+
+  const updateLoopFromPointer = (clientX: number) => {
+    if (!duration || !onLoopBoundsChange) return;
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    if (!rect.width) return;
+
+    const visualDuration = duration / Math.max(1, zoom);
+    const progress = (clientX - rect.left) / rect.width;
+    const seconds = windowStartRef.current + progress * visualDuration;
+    const minGap = 0.05;
+
+    if (activeLoopDragRef.current === "start") {
+      onLoopBoundsChange(seconds, Math.max(seconds + minGap, loopEndSeconds));
+    } else if (activeLoopDragRef.current === "end") {
+      onLoopBoundsChange(Math.min(seconds - minGap, loopStartSeconds), seconds);
+    }
+  };
 
   const clampWindowStart = (nextStart: number, durationSeconds: number, zoomValue: number) => {
     const visualDuration = durationSeconds / Math.max(1, zoomValue);
@@ -188,6 +286,7 @@ const Waveform = ({
     return () => observer.disconnect();
   }, [buffer, renderOverlay, zoom]);
 
+
   useEffect(() => {
     const overlay = overlayRef.current;
     if (!overlay) return;
@@ -207,16 +306,27 @@ const Waveform = ({
             : 0;
         const currentSeconds = Math.min(baseOffset + elapsed, duration);
         const maxWindowStart = Math.max(0, duration - visualDuration);
-        const needsShift =
-          follow &&
-          !isDraggingRef.current &&
-          currentSeconds - windowStartRef.current > visualDuration &&
-          windowStartRef.current < maxWindowStart;
-        const desiredWindowStart = needsShift
-          ? Math.min(currentSeconds, maxWindowStart)
-          : windowStartRef.current;
+        let desiredWindowStart = windowStartRef.current;
+        if (follow && !isDraggingRef.current) {
+          if (loopEnabled && loopEndSeconds > loopStartSeconds) {
+            const loopDuration = loopEndSeconds - loopStartSeconds;
+            if (loopDuration > visualDuration) {
+              desiredWindowStart = Math.min(loopStartSeconds, maxWindowStart);
+            }
+          } else {
+            const windowEnd = windowStartRef.current + visualDuration;
+            if (currentSeconds >= windowEnd) {
+              desiredWindowStart = Math.min(currentSeconds, maxWindowStart);
+            } else if (currentSeconds < windowStartRef.current) {
+              desiredWindowStart = Math.max(0, Math.min(currentSeconds, maxWindowStart));
+            }
+          }
+        }
 
-        if (desiredWindowStart !== windowStartRef.current && canvasRef.current) {
+        if (
+          Math.abs(desiredWindowStart - windowStartRef.current) > 0.0001 &&
+          canvasRef.current
+        ) {
           const width = Math.max(1, Math.floor(canvasRef.current.clientWidth));
           peaksRef.current = buildPeaks(buffer, width, zoom, desiredWindowStart);
           drawWaveform(canvasRef.current, peaksRef.current, "#111111");
@@ -247,7 +357,19 @@ const Waveform = ({
         rafRef.current = null;
       }
     };
-  }, [buffer, duration, follow, isPlaying, offsetSeconds, renderOverlay, startedAtMs, zoom]);
+  }, [
+    buffer,
+    duration,
+    follow,
+    isPlaying,
+    loopEnabled,
+    loopEndSeconds,
+    loopStartSeconds,
+    offsetSeconds,
+    renderOverlay,
+    startedAtMs,
+    zoom,
+  ]);
 
   if (!buffer) {
     return <div className="deck__waveform deck__waveform--empty">Waveform / Spectrum</div>;
@@ -256,6 +378,7 @@ const Waveform = ({
   return (
     <div
       className="deck__waveform deck__waveform--interactive"
+      ref={wrapperRef}
       onClick={(event) => {
         if (dragMovedRef.current) {
           dragMovedRef.current = false;
@@ -273,6 +396,7 @@ const Waveform = ({
       }}
       onPointerDown={(event) => {
         if (!buffer) return;
+        activeLoopDragRef.current = null;
         if (inertiaRef.current) {
           cancelAnimationFrame(inertiaRef.current);
           inertiaRef.current = null;
@@ -286,6 +410,11 @@ const Waveform = ({
       }}
       onPointerMove={(event) => {
         if (!isDraggingRef.current || !buffer || !duration) return;
+        if (activeLoopDragRef.current && onLoopBoundsChange) {
+          updateLoopFromPointer(event.clientX);
+          dragMovedRef.current = true;
+          return;
+        }
         const now = performance.now();
         const deltaX = event.clientX - lastXRef.current;
         const deltaT = Math.max(1, now - lastTimeRef.current);
@@ -320,6 +449,7 @@ const Waveform = ({
         if (!isDraggingRef.current) return;
         isDraggingRef.current = false;
         event.currentTarget.releasePointerCapture(event.pointerId);
+        activeLoopDragRef.current = null;
         if (!buffer || !duration) return;
 
         const friction = 6;
@@ -367,8 +497,75 @@ const Waveform = ({
       }}
       onPointerLeave={() => {
         isDraggingRef.current = false;
+        activeLoopDragRef.current = null;
       }}
     >
+      {buffer && (
+        <>
+          <div
+            ref={loopRegionRef}
+            className={`deck__loop-region ${loopEnabled ? "is-active" : ""}`}
+          />
+          <div
+            ref={loopStartHandleRef}
+            className={`deck__loop-handle ${loopEnabled ? "is-active" : ""}`}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              if (inertiaRef.current) {
+                cancelAnimationFrame(inertiaRef.current);
+                inertiaRef.current = null;
+              }
+              activeLoopDragRef.current = "start";
+              isDraggingRef.current = true;
+              dragMovedRef.current = true;
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (!isDraggingRef.current || activeLoopDragRef.current !== "start") return;
+              updateLoopFromPointer(event.clientX);
+              renderOverlay();
+            }}
+            onPointerUp={(event) => {
+              if (activeLoopDragRef.current === "start") {
+                activeLoopDragRef.current = null;
+                isDraggingRef.current = false;
+              }
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+          >
+            IN
+          </div>
+          <div
+            ref={loopEndHandleRef}
+            className={`deck__loop-handle ${loopEnabled ? "is-active" : ""}`}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              if (inertiaRef.current) {
+                cancelAnimationFrame(inertiaRef.current);
+                inertiaRef.current = null;
+              }
+              activeLoopDragRef.current = "end";
+              isDraggingRef.current = true;
+              dragMovedRef.current = true;
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (!isDraggingRef.current || activeLoopDragRef.current !== "end") return;
+              updateLoopFromPointer(event.clientX);
+              renderOverlay();
+            }}
+            onPointerUp={(event) => {
+              if (activeLoopDragRef.current === "end") {
+                activeLoopDragRef.current = null;
+                isDraggingRef.current = false;
+              }
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+          >
+            OUT
+          </div>
+        </>
+      )}
       <canvas ref={canvasRef} />
       <canvas ref={overlayRef} className="deck__waveform-overlay" />
     </div>

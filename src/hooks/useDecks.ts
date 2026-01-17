@@ -6,7 +6,17 @@ const useDecks = () => {
   const nextDeckId = useRef(2);
   const fileInputRefs = useRef<Map<number, HTMLInputElement | null>>(new Map());
   const [decks, setDecks] = useState<DeckState[]>([
-    { id: 1, status: "idle", gain: 0.9, offsetSeconds: 0, zoom: 1, follow: true },
+    {
+      id: 1,
+      status: "idle",
+      gain: 0.9,
+      offsetSeconds: 0,
+      zoom: 1,
+      follow: true,
+      loopEnabled: false,
+      loopStartSeconds: 0,
+      loopEndSeconds: 0,
+    },
   ]);
   const { decodeFile, playBuffer, stop, setDeckGain, removeDeck: removeDeckNodes } =
     useAudioEngine();
@@ -22,7 +32,17 @@ const useDecks = () => {
     nextDeckId.current += 1;
     setDecks((prev) => [
       ...prev,
-      { id, status: "idle", gain: 0.9, offsetSeconds: 0, zoom: 1, follow: true },
+      {
+        id,
+        status: "idle",
+        gain: 0.9,
+        offsetSeconds: 0,
+        zoom: 1,
+        follow: true,
+        loopEnabled: false,
+        loopStartSeconds: 0,
+        loopEndSeconds: 0,
+      },
     ]);
   };
 
@@ -55,6 +75,9 @@ const useDecks = () => {
       offsetSeconds: 0,
       zoom: 1,
       follow: true,
+      loopEnabled: false,
+      loopStartSeconds: 0,
+      loopEndSeconds: 0,
     });
     try {
       const buffer = await decodeFile(file);
@@ -65,6 +88,9 @@ const useDecks = () => {
         offsetSeconds: 0,
         zoom: 1,
         follow: true,
+        loopEnabled: false,
+        loopStartSeconds: 0,
+        loopEndSeconds: buffer.duration,
       });
     } catch (error) {
       updateDeck(id, { status: "error" });
@@ -82,9 +108,18 @@ const useDecks = () => {
       duration: deck.buffer.duration,
       offsetSeconds,
     });
-    await playBuffer(deck.id, deck.buffer, () => {
-      updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
-    }, deck.gain, offsetSeconds);
+    await playBuffer(
+      deck.id,
+      deck.buffer,
+      () => {
+        updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
+      },
+      deck.gain,
+      offsetSeconds,
+      deck.loopEnabled,
+      deck.loopStartSeconds,
+      deck.loopEndSeconds
+    );
   };
 
   const pauseDeck = (deck: DeckState) => {
@@ -122,7 +157,10 @@ const useDecks = () => {
         deck.buffer,
         () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
         deck.gain,
-        offsetSeconds
+        offsetSeconds,
+        deck.loopEnabled,
+        deck.loopStartSeconds,
+        deck.loopEndSeconds
       );
       return;
     }
@@ -143,6 +181,81 @@ const useDecks = () => {
     updateDeck(id, { follow: value });
   };
 
+  const setDeckLoopValue = (id: number, value: boolean) => {
+    setDecks((prev) =>
+      prev.map((deck) => {
+        if (deck.id !== id) return deck;
+        const nextDeck = { ...deck, loopEnabled: value };
+        if (deck.status !== "playing" || !deck.buffer) {
+          return nextDeck;
+        }
+
+        const startedAtMs = deck.startedAtMs ?? performance.now();
+        const elapsedSeconds = (performance.now() - startedAtMs) / 1000;
+        const baseOffset = deck.offsetSeconds ?? 0;
+        const duration = deck.duration ?? deck.buffer.duration ?? 0;
+        const offsetSeconds = Math.min(baseOffset + elapsedSeconds, duration);
+
+        void playBuffer(
+          deck.id,
+          deck.buffer,
+          () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
+          deck.gain,
+          offsetSeconds,
+          value,
+          deck.loopStartSeconds,
+          deck.loopEndSeconds
+        );
+
+        return {
+          ...nextDeck,
+          status: "playing",
+          startedAtMs: performance.now(),
+          offsetSeconds,
+          duration,
+        };
+      })
+    );
+  };
+
+  const setDeckLoopBounds = (id: number, startSeconds: number, endSeconds: number) => {
+    setDecks((prev) =>
+      prev.map((deck) => {
+        if (deck.id !== id || !deck.buffer) return deck;
+        const duration = deck.duration ?? deck.buffer.duration;
+        const nextStart = Math.min(Math.max(0, startSeconds), duration);
+        const nextEnd = Math.min(Math.max(nextStart + 0.05, endSeconds), duration);
+
+        if (deck.status === "playing" && deck.loopEnabled) {
+          const startedAtMs = deck.startedAtMs ?? performance.now();
+          const elapsedSeconds = (performance.now() - startedAtMs) / 1000;
+          const baseOffset = deck.offsetSeconds ?? 0;
+          const offsetSeconds = Math.min(baseOffset + elapsedSeconds, duration);
+          void playBuffer(
+            deck.id,
+            deck.buffer,
+            () =>
+              updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
+            deck.gain,
+            offsetSeconds,
+            true,
+            nextStart,
+            nextEnd
+          );
+          return {
+            ...deck,
+            loopStartSeconds: nextStart,
+            loopEndSeconds: nextEnd,
+            startedAtMs: performance.now(),
+            offsetSeconds,
+          };
+        }
+
+        return { ...deck, loopStartSeconds: nextStart, loopEndSeconds: nextEnd };
+      })
+    );
+  };
+
   return {
     decks,
     addDeck,
@@ -155,6 +268,8 @@ const useDecks = () => {
     seekDeck,
     setDeckZoom: setDeckZoomValue,
     setDeckFollow: setDeckFollowValue,
+    setDeckLoop: setDeckLoopValue,
+    setDeckLoopBounds,
     setFileInputRef,
   };
 };
