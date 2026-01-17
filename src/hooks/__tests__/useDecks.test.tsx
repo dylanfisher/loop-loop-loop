@@ -8,6 +8,7 @@ const playBuffer = vi.fn(async (_id: number, _buffer: AudioBuffer, onEnded?: () 
 });
 const stop = vi.fn();
 const setDeckGain = vi.fn();
+const removeDeck = vi.fn();
 
 vi.mock("../useAudioEngine", () => ({
   default: () => ({
@@ -15,6 +16,7 @@ vi.mock("../useAudioEngine", () => ({
     playBuffer,
     stop,
     setDeckGain,
+    removeDeck,
   }),
 }));
 
@@ -24,6 +26,7 @@ describe("useDecks", () => {
     playBuffer.mockClear();
     stop.mockClear();
     setDeckGain.mockClear();
+    removeDeck.mockClear();
   });
 
   it("starts with one deck and keeps at least one", () => {
@@ -32,6 +35,8 @@ describe("useDecks", () => {
 
     act(() => result.current.removeDeck(result.current.decks[0].id));
     expect(result.current.decks).toHaveLength(1);
+    expect(removeDeck).not.toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
   });
 
   it("adds and removes decks by id", () => {
@@ -43,6 +48,8 @@ describe("useDecks", () => {
     const idToRemove = result.current.decks[1].id;
     act(() => result.current.removeDeck(idToRemove));
     expect(result.current.decks).toHaveLength(1);
+    expect(removeDeck).toHaveBeenCalledWith(idToRemove);
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 
   it("loads a file and stores buffer + filename", async () => {

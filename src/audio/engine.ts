@@ -1,3 +1,10 @@
+import {
+  playDeckBuffer,
+  removeDeckNodes,
+  setDeckGainValue,
+  stopDeckPlayback,
+} from "./deck";
+
 type DeckEndedCallback = () => void;
 
 type AudioEngine = {
@@ -10,13 +17,11 @@ type AudioEngine = {
   ) => Promise<void>;
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
+  removeDeck: (deckId: number) => void;
 };
 
 let audioContext: AudioContext | null = null;
 let masterGain: GainNode | null = null;
-const sources = new Map<number, AudioBufferSourceNode>();
-const deckGains = new Map<number, GainNode>();
-const pendingGains = new Map<number, number>();
 
 const ensureContext = async () => {
   if (!audioContext) {
@@ -46,49 +51,22 @@ const playBuffer = async (
   gain = 0.9
 ) => {
   const context = await ensureContext();
-  stop(deckId);
-
-  let deckGain = deckGains.get(deckId);
-  if (!deckGain) {
-    deckGain = context.createGain();
-    deckGain.gain.value = pendingGains.get(deckId) ?? gain;
-    deckGain.connect(masterGain ?? context.destination);
-    deckGains.set(deckId, deckGain);
-  } else {
-    deckGain.gain.value = gain;
-  }
-  pendingGains.delete(deckId);
-
-  const source = context.createBufferSource();
-  source.buffer = buffer;
-  source.connect(deckGain);
-  source.onended = () => {
-    sources.delete(deckId);
-    onEnded?.();
-  };
-  sources.set(deckId, source);
-  source.start();
+  const output = masterGain ?? context.destination;
+  playDeckBuffer(context, output, deckId, buffer, gain, onEnded);
 };
 
 const stop = (deckId: number) => {
-  const source = sources.get(deckId);
-  if (source) {
-    source.stop();
-    source.disconnect();
-    sources.delete(deckId);
-  }
+  stopDeckPlayback(deckId);
 };
 
 const setDeckGain = (deckId: number, value: number) => {
-  const gain = deckGains.get(deckId);
-  if (gain) {
-    gain.gain.value = value;
-    pendingGains.delete(deckId);
-  } else {
-    pendingGains.set(deckId, value);
-  }
+  setDeckGainValue(deckId, value);
+};
+
+const removeDeck = (deckId: number) => {
+  removeDeckNodes(deckId);
 };
 
 export const getAudioEngine = (): AudioEngine => {
-  return { decodeFile, playBuffer, stop, setDeckGain };
+  return { decodeFile, playBuffer, stop, setDeckGain, removeDeck };
 };

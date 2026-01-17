@@ -8,7 +8,8 @@ const useDecks = () => {
   const [decks, setDecks] = useState<DeckState[]>([
     { id: 1, status: "idle", gain: 0.9 },
   ]);
-  const { decodeFile, playBuffer, stop, setDeckGain } = useAudioEngine();
+  const { decodeFile, playBuffer, stop, setDeckGain, removeDeck: removeDeckNodes } =
+    useAudioEngine();
 
   const updateDeck = (id: number, updates: Partial<DeckState>) => {
     setDecks((prev) =>
@@ -23,8 +24,14 @@ const useDecks = () => {
   };
 
   const removeDeck = (id: number) => {
-    stop(id);
-    setDecks((prev) => (prev.length > 1 ? prev.filter((deck) => deck.id !== id) : prev));
+    setDecks((prev) => {
+      if (prev.length <= 1) {
+        return prev;
+      }
+      stop(id);
+      removeDeckNodes(id);
+      return prev.filter((deck) => deck.id !== id);
+    });
   };
 
   const setFileInputRef = (id: number, node: HTMLInputElement | null) => {

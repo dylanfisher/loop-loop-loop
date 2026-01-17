@@ -59,7 +59,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Audio + deck state in hooks under `src/hooks/` (`useDecks`, `useAudioEngine`).
 - Shared types in `src/types/` (deck state/status).
 
-## Code Structure (Planned Audio Engine Module)
+## Code Structure (Audio Engine Module)
 - `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.
 - `src/audio/deck.ts`: Deck source lifecycle (buffer sources, gain, per-deck FX chain).
 - `src/audio/analysis.ts`: Metering/FFT/onset analysis and UI data feeds.
