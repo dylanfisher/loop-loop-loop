@@ -3,9 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import useDecks from "../useDecks";
 
 const decodeFile = vi.fn(async () => ({} as AudioBuffer));
-const playBuffer = vi.fn(async (_id: number, _buffer: AudioBuffer, onEnded?: () => void) => {
-  onEnded?.();
-});
+const playBuffer = vi.fn(
+  async (
+    _id: number,
+    _buffer: AudioBuffer,
+    onEnded?: () => void,
+    _gain?: number,
+    _offsetSeconds?: number
+  ) => {
+    onEnded?.();
+  }
+);
 const stop = vi.fn();
 const setDeckGain = vi.fn();
 const removeDeck = vi.fn();
@@ -66,7 +74,7 @@ describe("useDecks", () => {
     expect(result.current.decks[0].status).toBe("ready");
   });
 
-  it("plays and stops a deck", async () => {
+  it("plays and pauses a deck", async () => {
     const { result } = renderHook(() => useDecks());
     const deck = {
       ...result.current.decks[0],
@@ -74,16 +82,19 @@ describe("useDecks", () => {
       buffer: {} as AudioBuffer,
     };
 
+    playBuffer.mockImplementationOnce(async () => {});
     await act(async () => {
       await result.current.playDeck(deck);
     });
 
     expect(playBuffer).toHaveBeenCalledTimes(1);
-    expect(result.current.decks[0].status).toBe("ready");
+    expect(result.current.decks[0].status).toBe("playing");
 
     stop.mockClear();
-    act(() => result.current.stopDeck(deck));
+    const playingDeck = result.current.decks[0];
+    act(() => result.current.pauseDeck(playingDeck));
     expect(stop).toHaveBeenCalledTimes(1);
+    expect(result.current.decks[0].status).toBe("paused");
   });
 
   it("updates gain per deck", () => {

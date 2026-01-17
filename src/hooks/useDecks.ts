@@ -6,7 +6,7 @@ const useDecks = () => {
   const nextDeckId = useRef(2);
   const fileInputRefs = useRef<Map<number, HTMLInputElement | null>>(new Map());
   const [decks, setDecks] = useState<DeckState[]>([
-    { id: 1, status: "idle", gain: 0.9 },
+    { id: 1, status: "idle", gain: 0.9, offsetSeconds: 0 },
   ]);
   const { decodeFile, playBuffer, stop, setDeckGain, removeDeck: removeDeckNodes } =
     useAudioEngine();
@@ -20,7 +20,10 @@ const useDecks = () => {
   const addDeck = () => {
     const id = nextDeckId.current;
     nextDeckId.current += 1;
-    setDecks((prev) => [...prev, { id, status: "idle", gain: 0.9 }]);
+    setDecks((prev) => [
+      ...prev,
+      { id, status: "idle", gain: 0.9, offsetSeconds: 0 },
+    ]);
   };
 
   const removeDeck = (id: number) => {
@@ -45,10 +48,20 @@ const useDecks = () => {
   const handleFileSelected = async (id: number, file: File | null) => {
     if (!file) return;
 
-    updateDeck(id, { status: "loading", fileName: file.name });
+    updateDeck(id, {
+      status: "loading",
+      fileName: file.name,
+      startedAtMs: undefined,
+      offsetSeconds: 0,
+    });
     try {
       const buffer = await decodeFile(file);
-      updateDeck(id, { status: "ready", buffer });
+      updateDeck(id, {
+        status: "ready",
+        buffer,
+        duration: buffer.duration,
+        offsetSeconds: 0,
+      });
     } catch (error) {
       updateDeck(id, { status: "error" });
       console.error("Failed to decode audio", error);
@@ -58,15 +71,59 @@ const useDecks = () => {
   const playDeck = async (deck: DeckState) => {
     if (!deck.buffer) return;
     stop(deck.id);
-    updateDeck(deck.id, { status: "playing" });
+    const offsetSeconds = deck.offsetSeconds ?? 0;
+    updateDeck(deck.id, {
+      status: "playing",
+      startedAtMs: performance.now(),
+      duration: deck.buffer.duration,
+      offsetSeconds,
+    });
     await playBuffer(deck.id, deck.buffer, () => {
-      updateDeck(deck.id, { status: "ready" });
-    }, deck.gain);
+      updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
+    }, deck.gain, offsetSeconds);
   };
 
-  const stopDeck = (deck: DeckState) => {
+  const pauseDeck = (deck: DeckState) => {
+    if (deck.status !== "playing") return;
+
+    const startedAtMs = deck.startedAtMs ?? performance.now();
+    const elapsedSeconds = (performance.now() - startedAtMs) / 1000;
+    const baseOffset = deck.offsetSeconds ?? 0;
+    const duration = deck.duration ?? deck.buffer?.duration ?? 0;
+    const offsetSeconds = Math.min(baseOffset + elapsedSeconds, duration);
+
     stop(deck.id);
-    updateDeck(deck.id, { status: deck.buffer ? "ready" : "idle" });
+    updateDeck(deck.id, {
+      status: "paused",
+      startedAtMs: undefined,
+      offsetSeconds,
+    });
+  };
+
+  const seekDeck = (id: number, progress: number) => {
+    const deck = decks.find((item) => item.id === id);
+    if (!deck || !deck.duration || !deck.buffer) return;
+
+    const clamped = Math.min(Math.max(0, progress), 1);
+    const offsetSeconds = clamped * deck.duration;
+
+    if (deck.status === "playing") {
+      updateDeck(id, {
+        startedAtMs: performance.now(),
+        offsetSeconds,
+        status: "playing",
+      });
+      void playBuffer(
+        deck.id,
+        deck.buffer,
+        () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
+        deck.gain,
+        offsetSeconds
+      );
+      return;
+    }
+
+    updateDeck(id, { offsetSeconds });
   };
 
   const setDeckGainValue = (id: number, value: number) => {
@@ -81,8 +138,9 @@ const useDecks = () => {
     handleLoadClick,
     handleFileSelected,
     playDeck,
-    stopDeck,
+    pauseDeck,
     setDeckGain: setDeckGainValue,
+    seekDeck,
     setFileInputRef,
   };
 };

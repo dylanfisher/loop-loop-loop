@@ -11,9 +11,10 @@ const App = () => {
     handleLoadClick,
     handleFileSelected,
     playDeck,
-    stopDeck,
+    pauseDeck,
     setFileInputRef,
     setDeckGain,
+    seekDeck,
   } = useDecks();
 
   return (
@@ -32,8 +33,9 @@ const App = () => {
           onLoadClick={handleLoadClick}
           onFileSelected={handleFileSelected}
           onPlay={playDeck}
-          onStop={stopDeck}
+          onPause={pauseDeck}
           onGainChange={setDeckGain}
+          onSeek={seekDeck}
           setFileInputRef={setFileInputRef}
         />
       </main>

@@ -1,4 +1,4 @@
-export type DeckStatus = "idle" | "loading" | "ready" | "playing" | "error";
+export type DeckStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
 export type DeckState = {
   id: number;
@@ -6,4 +6,7 @@ export type DeckState = {
   fileName?: string;
   buffer?: AudioBuffer;
   gain: number;
+  startedAtMs?: number;
+  duration?: number;
+  offsetSeconds?: number;
 };

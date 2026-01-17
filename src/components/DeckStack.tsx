@@ -8,8 +8,9 @@ type DeckStackProps = {
   onLoadClick: (id: number) => void;
   onFileSelected: (id: number, file: File | null) => void;
   onPlay: (deck: DeckState) => void;
-  onStop: (deck: DeckState) => void;
+  onPause: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
+  onSeek: (id: number, progress: number) => void;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
@@ -20,8 +21,9 @@ const DeckStack = ({
   onLoadClick,
   onFileSelected,
   onPlay,
-  onStop,
+  onPause,
   onGainChange,
+  onSeek,
   setFileInputRef,
 }: DeckStackProps) => {
   return (
@@ -45,8 +47,9 @@ const DeckStack = ({
             onLoadClick={onLoadClick}
             onFileSelected={onFileSelected}
             onPlay={onPlay}
-            onStop={onStop}
+            onPause={onPause}
             onGainChange={onGainChange}
+            onSeek={onSeek}
             setFileInputRef={setFileInputRef}
           />
         ))}

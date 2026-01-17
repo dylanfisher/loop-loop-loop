@@ -35,9 +35,10 @@ export const playDeckBuffer = (
   deckId: number,
   buffer: AudioBuffer,
   gain: number,
+  offsetSeconds: number,
   onEnded?: DeckEndedCallback
 ) => {
-  stopDeckPlayback(deckId);
+  stopDeckPlayback(deckId, true);
   const nodes = ensureDeckNodes(context, output, deckId, gain);
 
   const source = context.createBufferSource();
@@ -50,12 +51,19 @@ export const playDeckBuffer = (
     onEnded?.();
   };
   nodes.source = source;
-  source.start();
+  const clampedOffset = Math.min(
+    Math.max(0, offsetSeconds),
+    Math.max(0, buffer.duration - 0.01)
+  );
+  source.start(0, clampedOffset);
 };
 
-export const stopDeckPlayback = (deckId: number) => {
+export const stopDeckPlayback = (deckId: number, suppressEnded = true) => {
   const nodes = deckNodes.get(deckId);
   if (nodes?.source) {
+    if (suppressEnded) {
+      nodes.source.onended = null;
+    }
     nodes.source.stop();
     nodes.source.disconnect();
     nodes.source = undefined;
@@ -75,6 +83,9 @@ export const setDeckGainValue = (deckId: number, value: number) => {
 export const removeDeckNodes = (deckId: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
+    if (nodes.source) {
+      nodes.source.onended = null;
+    }
     nodes.source?.stop();
     nodes.source?.disconnect();
     nodes.gain.disconnect();

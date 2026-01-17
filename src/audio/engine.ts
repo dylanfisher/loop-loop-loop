@@ -13,7 +13,8 @@ type AudioEngine = {
     deckId: number,
     buffer: AudioBuffer,
     onEnded?: DeckEndedCallback,
-    gain?: number
+    gain?: number,
+    offsetSeconds?: number
   ) => Promise<void>;
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
@@ -48,11 +49,12 @@ const playBuffer = async (
   deckId: number,
   buffer: AudioBuffer,
   onEnded?: DeckEndedCallback,
-  gain = 0.9
+  gain = 0.9,
+  offsetSeconds = 0
 ) => {
   const context = await ensureContext();
   const output = masterGain ?? context.destination;
-  playDeckBuffer(context, output, deckId, buffer, gain, onEnded);
+  playDeckBuffer(context, output, deckId, buffer, gain, offsetSeconds, onEnded);
 };
 
 const stop = (deckId: number) => {

@@ -1,4 +1,5 @@
 import type { DeckState } from "../types/deck";
+import Waveform from "./Waveform";
 
 type DeckCardProps = {
   deck: DeckState;
@@ -7,8 +8,9 @@ type DeckCardProps = {
   onLoadClick: (id: number) => void;
   onFileSelected: (id: number, file: File | null) => void;
   onPlay: (deck: DeckState) => void;
-  onStop: (deck: DeckState) => void;
+  onPause: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
+  onSeek: (id: number, progress: number) => void;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
@@ -19,8 +21,9 @@ const DeckCard = ({
   onLoadClick,
   onFileSelected,
   onPlay,
-  onStop,
+  onPause,
   onGainChange,
+  onSeek,
   setFileInputRef,
 }: DeckCardProps) => {
   return (
@@ -40,7 +43,14 @@ const DeckCard = ({
           </button>
         </div>
       </div>
-      <div className="deck__waveform">Waveform / Spectrum</div>
+      <Waveform
+        buffer={deck.buffer}
+        isPlaying={deck.status === "playing"}
+        startedAtMs={deck.startedAtMs}
+        duration={deck.duration}
+        offsetSeconds={deck.offsetSeconds}
+        onSeek={(progress) => onSeek(deck.id, progress)}
+      />
       <div className="deck__controls">
         <input
           ref={(node) => setFileInputRef(deck.id, node)}
@@ -53,8 +63,8 @@ const DeckCard = ({
           {deck.fileName ? "Replace" : "Load"}
         </button>
         {deck.status === "playing" ? (
-          <button type="button" onClick={() => onStop(deck)}>
-            Stop
+          <button type="button" onClick={() => onPause(deck)}>
+            Pause
           </button>
         ) : (
           <button
@@ -62,7 +72,7 @@ const DeckCard = ({
             disabled={!deck.buffer || deck.status === "loading"}
             onClick={() => onPlay(deck)}
           >
-            Play
+            {deck.status === "paused" ? "Resume" : "Play"}
           </button>
         )}
         <button type="button">Loop</button>
