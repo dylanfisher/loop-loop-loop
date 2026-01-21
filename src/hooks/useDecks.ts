@@ -1,10 +1,16 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
 import type { DeckState } from "../types/deck";
+import { estimateBpmFromBuffer } from "../audio/bpm";
+
+const clampBpm = (value: number) => Math.min(Math.max(value, 40), 240);
 
 const useDecks = () => {
   const nextDeckId = useRef(2);
   const fileInputRefs = useRef<Map<number, HTMLInputElement | null>>(new Map());
+  const bpmWorkerRef = useRef<Worker | null>(null);
+  const bpmRequestIdRef = useRef<Map<number, number>>(new Map());
+  const bpmWorkerReadyRef = useRef(false);
   const [decks, setDecks] = useState<DeckState[]>([
     {
       id: 1,
@@ -16,8 +22,12 @@ const useDecks = () => {
       loopEnabled: false,
       loopStartSeconds: 0,
       loopEndSeconds: 0,
+      bpm: null,
+      bpmConfidence: 0,
+      bpmOverride: null,
     },
   ]);
+  const tapTempoRefs = useRef<Map<number, number[]>>(new Map());
   const {
     decodeFile,
     playBuffer,
@@ -27,6 +37,69 @@ const useDecks = () => {
     getDeckPosition,
     setDeckLoopParams,
   } = useAudioEngine();
+
+  useEffect(() => {
+    return () => {
+      bpmWorkerRef.current?.terminate();
+      bpmWorkerRef.current = null;
+      bpmWorkerReadyRef.current = false;
+    };
+  }, []);
+
+  const getBpmWorker = () => {
+    if (bpmWorkerReadyRef.current || typeof Worker === "undefined") {
+      return bpmWorkerRef.current;
+    }
+
+    const worker = new Worker(new URL("../workers/bpmWorker.ts", import.meta.url), {
+      type: "module",
+    });
+    worker.onmessage = (
+      event: MessageEvent<{
+        deckId: number;
+        requestId: number;
+        bpm: number | null;
+        confidence: number;
+      }>
+    ) => {
+      const { deckId, requestId, bpm, confidence } = event.data;
+      const latestRequestId = bpmRequestIdRef.current.get(deckId);
+      if (latestRequestId !== requestId) return;
+      updateDeck(deckId, { bpm, bpmConfidence: confidence });
+    };
+    bpmWorkerRef.current = worker;
+    bpmWorkerReadyRef.current = true;
+    return worker;
+  };
+
+  const startBpmAnalysis = (id: number, buffer: AudioBuffer) => {
+    if (!buffer || typeof buffer.getChannelData !== "function") return;
+
+    const nextRequestId = (bpmRequestIdRef.current.get(id) ?? 0) + 1;
+    bpmRequestIdRef.current.set(id, nextRequestId);
+
+    const worker = getBpmWorker();
+    if (worker) {
+      const channelData = buffer.getChannelData(0);
+      const samplesCopy = new Float32Array(channelData.length);
+      samplesCopy.set(channelData);
+      worker.postMessage(
+        {
+          deckId: id,
+          requestId: nextRequestId,
+          samplesBuffer: samplesCopy.buffer,
+          sampleRate: buffer.sampleRate,
+        },
+        [samplesCopy.buffer]
+      );
+      return;
+    }
+
+    const { bpm, confidence } = estimateBpmFromBuffer(buffer);
+    const latestRequestId = bpmRequestIdRef.current.get(id);
+    if (latestRequestId !== nextRequestId) return;
+    updateDeck(id, { bpm, bpmConfidence: confidence });
+  };
 
   const updateDeck = (id: number, updates: Partial<DeckState>) => {
     setDecks((prev) =>
@@ -49,6 +122,9 @@ const useDecks = () => {
         loopEnabled: false,
         loopStartSeconds: 0,
         loopEndSeconds: 0,
+        bpm: null,
+        bpmConfidence: 0,
+        bpmOverride: null,
       },
     ]);
   };
@@ -60,6 +136,8 @@ const useDecks = () => {
       }
       stop(id);
       removeDeckNodes(id);
+      tapTempoRefs.current.delete(id);
+      bpmRequestIdRef.current.delete(id);
       return prev.filter((deck) => deck.id !== id);
     });
   };
@@ -85,7 +163,12 @@ const useDecks = () => {
       loopEnabled: false,
       loopStartSeconds: 0,
       loopEndSeconds: 0,
+      bpm: null,
+      bpmConfidence: 0,
+      bpmOverride: null,
     });
+    tapTempoRefs.current.delete(id);
+    bpmRequestIdRef.current.delete(id);
     try {
       const buffer = await decodeFile(file);
       updateDeck(id, {
@@ -98,7 +181,11 @@ const useDecks = () => {
         loopEnabled: false,
         loopStartSeconds: 0,
         loopEndSeconds: buffer.duration,
+        bpm: null,
+        bpmConfidence: 0,
+        bpmOverride: null,
       });
+      startBpmAnalysis(id, buffer);
     } catch (error) {
       updateDeck(id, { status: "error" });
       console.error("Failed to decode audio", error);
@@ -292,6 +379,39 @@ const useDecks = () => {
     );
   };
 
+  const setDeckBpmOverride = (id: number, value: number | null) => {
+    const nextValue = value === null ? null : clampBpm(value);
+    updateDeck(id, { bpmOverride: nextValue });
+  };
+
+  const tapTempo = (id: number) => {
+    const now = performance.now();
+    const history = tapTempoRefs.current.get(id) ?? [];
+    const lastTap = history[history.length - 1];
+
+    if (lastTap !== undefined && now - lastTap > 2000) {
+      history.length = 0;
+    }
+
+    history.push(now);
+    if (history.length > 6) {
+      history.shift();
+    }
+    tapTempoRefs.current.set(id, history);
+
+    if (history.length < 2) return;
+
+    const intervals = history.slice(1).map((tap, index) => tap - history[index]);
+    const averageInterval =
+      intervals.reduce((sum, value) => sum + value, 0) / intervals.length;
+
+    if (!Number.isFinite(averageInterval) || averageInterval <= 0) {
+      return;
+    }
+
+    setDeckBpmOverride(id, clampBpm(60000 / averageInterval));
+  };
+
   return {
     decks,
     addDeck,
@@ -306,6 +426,8 @@ const useDecks = () => {
     setDeckFollow: setDeckFollowValue,
     setDeckLoop: setDeckLoopValue,
     setDeckLoopBounds,
+    setDeckBpmOverride,
+    tapTempo,
     getDeckPosition,
     setFileInputRef,
   };

@@ -14,4 +14,7 @@ export type DeckState = {
   loopEnabled: boolean;
   loopStartSeconds: number;
   loopEndSeconds: number;
+  bpm: number | null;
+  bpmConfidence: number;
+  bpmOverride: number | null;
 };

@@ -15,6 +15,8 @@ type DeckStackProps = {
   onFollowChange: (id: number, value: boolean) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
+  onBpmOverrideChange: (id: number, value: number | null) => void;
+  onTapTempo: (id: number) => void;
   getDeckPosition: (id: number) => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
@@ -33,6 +35,8 @@ const DeckStack = ({
   onFollowChange,
   onLoopChange,
   onLoopBoundsChange,
+  onBpmOverrideChange,
+  onTapTempo,
   getDeckPosition,
   setFileInputRef,
 }: DeckStackProps) => {
@@ -64,6 +68,8 @@ const DeckStack = ({
             onFollowChange={onFollowChange}
             onLoopChange={onLoopChange}
             onLoopBoundsChange={onLoopBoundsChange}
+            onBpmOverrideChange={onBpmOverrideChange}
+            onTapTempo={onTapTempo}
             getDeckPosition={() => getDeckPosition(deck.id)}
             setFileInputRef={setFileInputRef}
           />

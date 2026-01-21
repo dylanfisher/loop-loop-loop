@@ -23,6 +23,18 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - FX chain: filters, delay, reverb, granular, spectral freeze, bitcrush.
 - Modulation system: LFOs, envelopes, random/stochastic sources.
 
+## BPM Detection & Control (Planned)
+- Per-deck BPM analysis pipeline (offline on load + optional real-time refine).
+- Store detected BPM with confidence + offset alignment for playhead/loop snapping.
+- UI control to override BPM (manual entry + tap tempo + nudge).
+- Optional warp/tempo map for non-constant tempo tracks (post-MVP).
+- Implementation outline:
+  - Decode buffer -> downmix to mono -> resample to analysis rate (e.g., 11-22k).
+  - Run tempo analysis (autocorrelation + onset envelope or third-party WASM) in a worker.
+  - Persist `bpm`, `bpmConfidence`, and `bpmOverride` per deck; expose effective BPM.
+  - Add tap tempo + manual entry UI; allow reset to detected BPM.
+  - If BPM is known, enable beat-grid snapping for loop/seek (post-MVP).
+
 ### Deck Model
 - Deck as a graph: source -> per-deck FX -> deck bus.
 - Sources: file drop, mic input, oscillator/sampler, granular buffer.
@@ -63,6 +75,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.
 - `src/audio/deck.ts`: Deck source lifecycle (buffer sources, gain, per-deck FX chain).
 - `src/audio/analysis.ts`: Metering/FFT/onset analysis and UI data feeds.
+- `src/audio/bpm.ts`: Offline BPM estimation helper for deck metadata.
+- `src/workers/bpmWorker.ts`: Worker for BPM estimation off the main thread.
 
 ## Open Questions
 - UI visual direction and interaction style.
@@ -112,6 +126,12 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - [ ] Add analysis pipeline plan (meters, FFT, onset) and data flow to UI.
 - [ ] Establish automation/modulation model (LFOs, envelopes, random) and parameter routing.
 - [ ] Plan AudioWorklet structure (worklet modules, messaging, shared buffers).
+- [ ] Implement per-deck BPM detection (offline) and expose BPM in deck state.
+- [ ] Add BPM override controls (manual input + tap tempo) with confidence display.
+  - [ ] Add analysis helper (standalone module or worker) to compute BPM from AudioBuffer.
+  - [ ] Add deck state fields and UI to display detected/override/effective BPM.
+  - [ ] Store tap history per deck and compute BPM from recent taps.
+  - [ ] Integrate BPM into loop/seek snapping (optional, later).
 
 ## Next Steps (Project Ops and Release)
 - [x] Decide package manager (npm/pnpm/yarn) and standardize lockfile.

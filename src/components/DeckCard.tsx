@@ -15,6 +15,8 @@ type DeckCardProps = {
   onFollowChange: (id: number, value: boolean) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
+  onBpmOverrideChange: (id: number, value: number | null) => void;
+  onTapTempo: (id: number) => void;
   getDeckPosition: () => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
@@ -33,9 +35,17 @@ const DeckCard = ({
   onFollowChange,
   onLoopChange,
   onLoopBoundsChange,
+  onBpmOverrideChange,
+  onTapTempo,
   getDeckPosition,
   setFileInputRef,
 }: DeckCardProps) => {
+  const formatBpm = (value: number | null) =>
+    typeof value === "number" && Number.isFinite(value) ? value.toFixed(1) : "--";
+  const effectiveBpm = deck.bpmOverride ?? deck.bpm;
+  const confidenceLabel =
+    deck.bpmConfidence > 0 ? `${Math.round(deck.bpmConfidence * 100)}%` : "--";
+
   return (
     <div className="deck">
       <div className="deck__header">
@@ -133,6 +143,49 @@ const DeckCard = ({
           onChange={(event) => onFollowChange(deck.id, event.target.checked)}
         />
       </label>
+      <div className="deck__bpm">
+        <div className="deck__bpm-header">BPM</div>
+        <div className="deck__bpm-values">
+          <div>
+            Detected: <strong>{formatBpm(deck.bpm)}</strong>{" "}
+            <span className="deck__bpm-confidence">{confidenceLabel}</span>
+          </div>
+          <div>
+            Effective: <strong>{formatBpm(effectiveBpm)}</strong>
+          </div>
+        </div>
+        <div className="deck__bpm-controls">
+          <input
+            type="number"
+            min="40"
+            max="240"
+            step="0.1"
+            placeholder="Override"
+            value={deck.bpmOverride ?? ""}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (next === "") {
+                onBpmOverrideChange(deck.id, null);
+                return;
+              }
+              const parsed = Number(next);
+              if (Number.isFinite(parsed)) {
+                onBpmOverrideChange(deck.id, parsed);
+              }
+            }}
+          />
+          <button type="button" onClick={() => onTapTempo(deck.id)}>
+            Tap
+          </button>
+          <button
+            type="button"
+            disabled={deck.bpmOverride === null}
+            onClick={() => onBpmOverrideChange(deck.id, null)}
+          >
+            Reset
+          </button>
+        </div>
+      </div>
       <div className="deck__file-name">{deck.fileName ?? "No file loaded"}</div>
       <div className="deck__fx">
         <div className="deck__fx-title">Deck FX</div>

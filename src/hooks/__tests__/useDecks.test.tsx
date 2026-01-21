@@ -20,6 +20,12 @@ const playBuffer = vi.fn(
 const stop = vi.fn();
 const setDeckGain = vi.fn();
 const removeDeck = vi.fn();
+const getDeckPosition = vi.fn(() => null);
+const setDeckLoopParams = vi.fn();
+
+vi.mock("../../audio/bpm", () => ({
+  estimateBpmFromBuffer: () => ({ bpm: null, confidence: 0 }),
+}));
 
 vi.mock("../useAudioEngine", () => ({
   default: () => ({
@@ -28,6 +34,8 @@ vi.mock("../useAudioEngine", () => ({
     stop,
     setDeckGain,
     removeDeck,
+    getDeckPosition,
+    setDeckLoopParams,
   }),
 }));
 
@@ -38,11 +46,15 @@ describe("useDecks", () => {
     stop.mockClear();
     setDeckGain.mockClear();
     removeDeck.mockClear();
+    getDeckPosition.mockClear();
+    setDeckLoopParams.mockClear();
   });
 
   it("starts with one deck and keeps at least one", () => {
     const { result } = renderHook(() => useDecks());
     expect(result.current.decks).toHaveLength(1);
+    expect(result.current.decks[0].bpm).toBeNull();
+    expect(result.current.decks[0].bpmOverride).toBeNull();
 
     act(() => result.current.removeDeck(result.current.decks[0].id));
     expect(result.current.decks).toHaveLength(1);
@@ -107,5 +119,21 @@ describe("useDecks", () => {
     act(() => result.current.setDeckGain(deckId, 1.1));
     expect(setDeckGain).toHaveBeenCalledWith(deckId, 1.1);
     expect(result.current.decks[0].gain).toBe(1.1);
+  });
+
+  it("supports bpm override and tap tempo", () => {
+    const { result } = renderHook(() => useDecks());
+    const deckId = result.current.decks[0].id;
+
+    act(() => result.current.setDeckBpmOverride(deckId, 150));
+    expect(result.current.decks[0].bpmOverride).toBe(150);
+
+    const nowSpy = vi.spyOn(performance, "now");
+    nowSpy.mockReturnValueOnce(0).mockReturnValueOnce(500);
+    act(() => result.current.tapTempo(deckId));
+    act(() => result.current.tapTempo(deckId));
+    nowSpy.mockRestore();
+
+    expect(result.current.decks[0].bpmOverride).toBeCloseTo(120, 1);
   });
 });
