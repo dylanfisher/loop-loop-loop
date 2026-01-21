@@ -15,6 +15,7 @@ type DeckCardProps = {
   onFollowChange: (id: number, value: boolean) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
+  getDeckPosition: () => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
@@ -32,6 +33,7 @@ const DeckCard = ({
   onFollowChange,
   onLoopChange,
   onLoopBoundsChange,
+  getDeckPosition,
   setFileInputRef,
 }: DeckCardProps) => {
   return (
@@ -66,6 +68,7 @@ const DeckCard = ({
         onLoopBoundsChange={(startSeconds, endSeconds) =>
           onLoopBoundsChange(deck.id, startSeconds, endSeconds)
         }
+        getCurrentSeconds={getDeckPosition}
       />
       <div className="deck__controls">
         <input

@@ -19,6 +19,7 @@ const App = () => {
     setDeckFollow,
     setDeckLoop,
     setDeckLoopBounds,
+    getDeckPosition,
   } = useDecks();
 
   return (
@@ -44,6 +45,7 @@ const App = () => {
           onFollowChange={setDeckFollow}
           onLoopChange={setDeckLoop}
           onLoopBoundsChange={setDeckLoopBounds}
+          getDeckPosition={getDeckPosition}
           setFileInputRef={setFileInputRef}
         />
       </main>

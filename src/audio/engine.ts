@@ -1,4 +1,5 @@
 import {
+  getDeckPlaybackPosition,
   playDeckBuffer,
   removeDeckNodes,
   setDeckGainValue,
@@ -22,6 +23,7 @@ type AudioEngine = {
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
   removeDeck: (deckId: number) => void;
+  getDeckPosition: (deckId: number) => number | null;
 };
 
 let audioContext: AudioContext | null = null;
@@ -75,7 +77,11 @@ const playBuffer = async (
 };
 
 const stop = (deckId: number) => {
-  stopDeckPlayback(deckId);
+  if (!audioContext) {
+    stopDeckPlayback(deckId);
+    return;
+  }
+  stopDeckPlayback(deckId, true, audioContext.currentTime);
 };
 
 const setDeckGain = (deckId: number, value: number) => {
@@ -86,6 +92,11 @@ const removeDeck = (deckId: number) => {
   removeDeckNodes(deckId);
 };
 
+const getDeckPosition = (deckId: number) => {
+  if (!audioContext) return null;
+  return getDeckPlaybackPosition(deckId, audioContext.currentTime);
+};
+
 export const getAudioEngine = (): AudioEngine => {
-  return { decodeFile, playBuffer, stop, setDeckGain, removeDeck };
+  return { decodeFile, playBuffer, stop, setDeckGain, removeDeck, getDeckPosition };
 };

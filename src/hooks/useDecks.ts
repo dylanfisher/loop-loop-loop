@@ -18,8 +18,14 @@ const useDecks = () => {
       loopEndSeconds: 0,
     },
   ]);
-  const { decodeFile, playBuffer, stop, setDeckGain, removeDeck: removeDeckNodes } =
-    useAudioEngine();
+  const {
+    decodeFile,
+    playBuffer,
+    stop,
+    setDeckGain,
+    removeDeck: removeDeckNodes,
+    getDeckPosition,
+  } = useAudioEngine();
 
   const updateDeck = (id: number, updates: Partial<DeckState>) => {
     setDecks((prev) =>
@@ -289,6 +295,7 @@ const useDecks = () => {
     setDeckFollow: setDeckFollowValue,
     setDeckLoop: setDeckLoopValue,
     setDeckLoopBounds,
+    getDeckPosition,
     setFileInputRef,
   };
 };

@@ -5,7 +5,18 @@ type DeckNodes = {
   source?: AudioBufferSourceNode;
 };
 
+type DeckPlaybackState = {
+  startTime: number;
+  offsetSeconds: number;
+  loopEnabled: boolean;
+  loopStart: number;
+  loopEnd: number;
+  duration: number;
+  playing: boolean;
+};
+
 const deckNodes = new Map<number, DeckNodes>();
+const deckPlayback = new Map<number, DeckPlaybackState>();
 const pendingGains = new Map<number, number>();
 
 const ensureDeckNodes = (
@@ -66,10 +77,23 @@ export const playDeckBuffer = (
     Math.max(0, offsetSeconds),
     Math.max(0, buffer.duration - 0.01)
   );
+  deckPlayback.set(deckId, {
+    startTime: context.currentTime,
+    offsetSeconds: clampedOffset,
+    loopEnabled,
+    loopStart: loopStartSeconds,
+    loopEnd: loopEndSeconds,
+    duration: buffer.duration,
+    playing: true,
+  });
   source.start(0, clampedOffset);
 };
 
-export const stopDeckPlayback = (deckId: number, suppressEnded = true) => {
+export const stopDeckPlayback = (
+  deckId: number,
+  suppressEnded = true,
+  currentTime?: number
+) => {
   const nodes = deckNodes.get(deckId);
   if (nodes?.source) {
     if (suppressEnded) {
@@ -78,6 +102,13 @@ export const stopDeckPlayback = (deckId: number, suppressEnded = true) => {
     nodes.source.stop();
     nodes.source.disconnect();
     nodes.source = undefined;
+  }
+
+  const playback = deckPlayback.get(deckId);
+  if (playback && playback.playing && currentTime !== undefined) {
+    const elapsed = Math.max(0, currentTime - playback.startTime);
+    const nextOffset = Math.min(playback.offsetSeconds + elapsed, playback.duration);
+    deckPlayback.set(deckId, { ...playback, offsetSeconds: nextOffset, playing: false });
   }
 };
 
@@ -102,5 +133,23 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.gain.disconnect();
     deckNodes.delete(deckId);
   }
+  deckPlayback.delete(deckId);
   pendingGains.delete(deckId);
+};
+
+export const getDeckPlaybackPosition = (deckId: number, currentTime: number) => {
+  const playback = deckPlayback.get(deckId);
+  if (!playback) return null;
+
+  const elapsed = playback.playing ? Math.max(0, currentTime - playback.startTime) : 0;
+  let position = Math.min(playback.offsetSeconds + elapsed, playback.duration);
+
+  if (playback.loopEnabled && playback.loopEnd > playback.loopStart) {
+    const loopDuration = playback.loopEnd - playback.loopStart;
+    const loopOffset = position - playback.loopStart;
+    const wrapped = ((loopOffset % loopDuration) + loopDuration) % loopDuration;
+    position = playback.loopStart + wrapped;
+  }
+
+  return position;
 };

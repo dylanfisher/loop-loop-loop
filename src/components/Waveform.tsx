@@ -16,6 +16,7 @@ type WaveformProps = {
     startSeconds: number,
     endSeconds: number,
   ) => void;
+  getCurrentSeconds?: () => number | null;
 };
 
 const buildPeaks = (
@@ -92,6 +93,7 @@ const Waveform = ({
   loopEndSeconds = 0,
   onSeek,
   onLoopBoundsChange,
+  getCurrentSeconds,
 }: WaveformProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
@@ -114,6 +116,7 @@ const Waveform = ({
   const loopStartRef = useRef(loopStartSeconds);
   const loopEndRef = useRef(loopEndSeconds);
   const loopDragOffsetRef = useRef(0);
+  const pointerDownRef = useRef(false);
 
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
@@ -126,18 +129,11 @@ const Waveform = ({
 
     const baseOffset = offsetSeconds ?? 0;
     const visualDuration = duration / Math.max(1, zoom);
-    const elapsed =
-      isPlaying && startedAtMs !== undefined
-        ? (performance.now() - startedAtMs) / 1000
-        : 0;
-    let currentSeconds = Math.min(baseOffset + elapsed, duration);
-    if (!activeLoopDragRef.current && loopEnabled && loopEndSeconds > loopStartSeconds) {
-      const loopDuration = loopEndSeconds - loopStartSeconds;
-      const loopOffset = currentSeconds - loopStartSeconds;
-      const wrapped =
-        ((loopOffset % loopDuration) + loopDuration) % loopDuration;
-      currentSeconds = loopStartSeconds + wrapped;
-    }
+    const engineSeconds = getCurrentSeconds?.();
+    const currentSeconds =
+      engineSeconds !== null && engineSeconds !== undefined
+        ? Math.min(engineSeconds, duration)
+        : Math.min(baseOffset, duration);
     const progress = Math.min(
       (currentSeconds - windowStartRef.current) / visualDuration,
       1
@@ -222,12 +218,11 @@ const Waveform = ({
   }, [
     buffer,
     duration,
-    isPlaying,
+    getCurrentSeconds,
     loopEnabled,
     loopEndSeconds,
     loopStartSeconds,
     offsetSeconds,
-    startedAtMs,
     zoom,
   ]);
 
@@ -284,30 +279,14 @@ const Waveform = ({
     return Math.min(Math.max(0, nextStart), maxWindowStart);
   };
 
-  const getCurrentSeconds = useCallback(() => {
+  const getDisplaySeconds = useCallback(() => {
     if (!duration) return 0;
-    const baseOffset = offsetSeconds ?? 0;
-    const elapsed =
-      isPlaying && startedAtMs !== undefined
-        ? (performance.now() - startedAtMs) / 1000
-        : 0;
-    let currentSeconds = Math.min(baseOffset + elapsed, duration);
-    if (loopEnabled && loopEndSeconds > loopStartSeconds) {
-      const loopDuration = loopEndSeconds - loopStartSeconds;
-      const loopOffset = currentSeconds - loopStartSeconds;
-      const wrapped = ((loopOffset % loopDuration) + loopDuration) % loopDuration;
-      currentSeconds = loopStartSeconds + wrapped;
+    const engineSeconds = getCurrentSeconds?.();
+    if (engineSeconds !== null && engineSeconds !== undefined) {
+      return Math.min(engineSeconds, duration);
     }
-    return currentSeconds;
-  }, [
-    duration,
-    isPlaying,
-    loopEnabled,
-    loopEndSeconds,
-    loopStartSeconds,
-    offsetSeconds,
-    startedAtMs,
-  ]);
+    return Math.min(offsetSeconds ?? 0, duration);
+  }, [duration, getCurrentSeconds, offsetSeconds]);
 
   useEffect(() => {
     if (!buffer || !canvasRef.current) return;
@@ -319,7 +298,7 @@ const Waveform = ({
       let nextStart = startSeconds;
       if (duration && !activeLoopDragRef.current) {
         const visualDuration = duration / Math.max(1, zoom);
-        const currentSeconds = getCurrentSeconds();
+        const currentSeconds = getDisplaySeconds();
         nextStart = clampWindowStart(currentSeconds - visualDuration / 2, duration, zoom);
       }
       windowStartRef.current = nextStart;
@@ -358,7 +337,7 @@ const Waveform = ({
     resize();
 
     return () => observer.disconnect();
-  }, [buffer, duration, getCurrentSeconds, renderOverlay, zoom]);
+  }, [buffer, duration, getDisplaySeconds, renderOverlay, zoom]);
 
   useEffect(() => {
     if (activeLoopDragRef.current === "region") return;
@@ -378,13 +357,8 @@ const Waveform = ({
       overlayContext.clearRect(0, 0, overlay.width, overlay.height);
 
       if (buffer && duration) {
-        const baseOffset = offsetSeconds ?? 0;
         const visualDuration = duration / Math.max(1, zoom);
-        const elapsed =
-          isPlaying && startedAtMs !== undefined
-            ? (performance.now() - startedAtMs) / 1000
-            : 0;
-        const currentSeconds = Math.min(baseOffset + elapsed, duration);
+        const currentSeconds = getDisplaySeconds();
         const maxWindowStart = Math.max(0, duration - visualDuration);
         let desiredWindowStart = windowStartRef.current;
         if (follow && !isDraggingRef.current) {
@@ -446,6 +420,7 @@ const Waveform = ({
     loopEndSeconds,
     loopStartSeconds,
     offsetSeconds,
+    getDisplaySeconds,
     renderOverlay,
     startedAtMs,
     zoom,
@@ -475,6 +450,7 @@ const Waveform = ({
         onSeek(clampedProgress);
       }}
       onPointerDown={(event) => {
+        pointerDownRef.current = true;
         if (!buffer) return;
         activeLoopDragRef.current = null;
         if (inertiaRef.current) {
@@ -530,6 +506,7 @@ const Waveform = ({
         isDraggingRef.current = false;
         event.currentTarget.releasePointerCapture(event.pointerId);
         activeLoopDragRef.current = null;
+        pointerDownRef.current = false;
         if (!buffer || !duration) return;
 
         const friction = 6;
@@ -578,6 +555,7 @@ const Waveform = ({
       onPointerLeave={() => {
         isDraggingRef.current = false;
         activeLoopDragRef.current = null;
+        pointerDownRef.current = false;
       }}
     >
       {buffer && (
@@ -633,6 +611,7 @@ const Waveform = ({
                 activeLoopDragRef.current = null;
                 isDraggingRef.current = false;
               }
+              pointerDownRef.current = false;
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           />
@@ -688,6 +667,7 @@ const Waveform = ({
                   activeLoopDragRef.current = null;
                   isDraggingRef.current = false;
                 }
+                pointerDownRef.current = false;
                 event.currentTarget.releasePointerCapture(event.pointerId);
               }}
             />
@@ -716,6 +696,7 @@ const Waveform = ({
                 activeLoopDragRef.current = null;
                 isDraggingRef.current = false;
               }
+              pointerDownRef.current = false;
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           >
@@ -745,6 +726,7 @@ const Waveform = ({
                 activeLoopDragRef.current = null;
                 isDraggingRef.current = false;
               }
+              pointerDownRef.current = false;
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           >
