@@ -137,6 +137,34 @@ export const removeDeckNodes = (deckId: number) => {
   pendingGains.delete(deckId);
 };
 
+export const setDeckLoopParams = (
+  deckId: number,
+  loopEnabled: boolean,
+  loopStart: number,
+  loopEnd: number
+) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes?.source) {
+    nodes.source.loop = loopEnabled;
+    if (loopEnabled) {
+      const safeStart = Math.max(0, loopStart);
+      const safeEnd = loopEnd > safeStart + 0.01 ? loopEnd : safeStart + 0.01;
+      nodes.source.loopStart = safeStart;
+      nodes.source.loopEnd = safeEnd;
+    }
+  }
+
+  const playback = deckPlayback.get(deckId);
+  if (playback) {
+    deckPlayback.set(deckId, {
+      ...playback,
+      loopEnabled,
+      loopStart,
+      loopEnd,
+    });
+  }
+};
+
 export const getDeckPlaybackPosition = (deckId: number, currentTime: number) => {
   const playback = deckPlayback.get(deckId);
   if (!playback) return null;

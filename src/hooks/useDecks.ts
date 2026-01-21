@@ -25,6 +25,7 @@ const useDecks = () => {
     setDeckGain,
     removeDeck: removeDeckNodes,
     getDeckPosition,
+    setDeckLoopParams,
   } = useAudioEngine();
 
   const updateDeck = (id: number, updates: Partial<DeckState>) => {
@@ -248,12 +249,22 @@ const useDecks = () => {
         const nextEnd = Math.min(Math.max(nextStart + 0.05, endSeconds), duration);
 
         if (deck.status === "playing" && deck.loopEnabled) {
-          const startedAtMs = deck.startedAtMs ?? performance.now();
-          const elapsedSeconds = (performance.now() - startedAtMs) / 1000;
-          const baseOffset = deck.offsetSeconds ?? 0;
-          const offsetSeconds = Math.min(baseOffset + elapsedSeconds, duration);
+          const currentPosition = getDeckPosition(deck.id);
+          if (
+            currentPosition !== null &&
+            currentPosition >= nextStart &&
+            currentPosition <= nextEnd
+          ) {
+            setDeckLoopParams(deck.id, true, nextStart, nextEnd);
+            return {
+              ...deck,
+              loopStartSeconds: nextStart,
+              loopEndSeconds: nextEnd,
+            };
+          }
+
           const clampedOffset = Math.min(
-            Math.max(offsetSeconds, nextStart),
+            Math.max(currentPosition ?? nextStart, nextStart),
             Math.max(nextStart, nextEnd - 0.01)
           );
           void playBuffer(

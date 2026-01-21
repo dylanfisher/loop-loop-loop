@@ -117,6 +117,7 @@ const Waveform = ({
   const loopEndRef = useRef(loopEndSeconds);
   const loopDragOffsetRef = useRef(0);
   const pointerDownRef = useRef(false);
+  const lastDisplaySecondsRef = useRef(0);
 
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
@@ -130,10 +131,18 @@ const Waveform = ({
     const baseOffset = offsetSeconds ?? 0;
     const visualDuration = duration / Math.max(1, zoom);
     const engineSeconds = getCurrentSeconds?.();
-    const currentSeconds =
+    const nextSeconds =
       engineSeconds !== null && engineSeconds !== undefined
         ? Math.min(engineSeconds, duration)
         : Math.min(baseOffset, duration);
+    let currentSeconds = nextSeconds;
+    if (activeLoopDragRef.current && loopEnabled && loopEndSeconds > loopStartSeconds) {
+      currentSeconds = Math.min(
+        Math.max(currentSeconds, loopStartSeconds),
+        Math.max(loopStartSeconds, loopEndSeconds - 0.01)
+      );
+    }
+    lastDisplaySecondsRef.current = currentSeconds;
     const progress = Math.min(
       (currentSeconds - windowStartRef.current) / visualDuration,
       1
@@ -239,14 +248,14 @@ const Waveform = ({
     const minGap = 0.05;
 
     if (activeLoopDragRef.current === "start") {
-      const nextStart = seconds;
-      const nextEnd = Math.max(seconds + minGap, loopEndRef.current);
+      const nextEnd = loopEndRef.current;
+      const nextStart = Math.min(seconds, nextEnd - minGap);
       loopStartRef.current = nextStart;
       loopEndRef.current = nextEnd;
       onLoopBoundsChange(nextStart, nextEnd);
     } else if (activeLoopDragRef.current === "end") {
-      const nextEnd = seconds;
-      const nextStart = Math.min(seconds - minGap, loopStartRef.current);
+      const nextStart = loopStartRef.current;
+      const nextEnd = Math.max(seconds, nextStart + minGap);
       loopStartRef.current = nextStart;
       loopEndRef.current = nextEnd;
       onLoopBoundsChange(nextStart, nextEnd);
@@ -573,6 +582,7 @@ const Waveform = ({
               activeLoopDragRef.current = "region";
               isDraggingRef.current = true;
               dragMovedRef.current = true;
+              lastDisplaySecondsRef.current = getDisplaySeconds();
               if (duration && wrapperRef.current) {
                 const rect = wrapperRef.current.getBoundingClientRect();
                 const visualDuration = duration / Math.max(1, zoom);
@@ -684,6 +694,7 @@ const Waveform = ({
               activeLoopDragRef.current = "start";
               isDraggingRef.current = true;
               dragMovedRef.current = true;
+              lastDisplaySecondsRef.current = getDisplaySeconds();
               event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onPointerMove={(event) => {
@@ -714,6 +725,7 @@ const Waveform = ({
               activeLoopDragRef.current = "end";
               isDraggingRef.current = true;
               dragMovedRef.current = true;
+              lastDisplaySecondsRef.current = getDisplaySeconds();
               event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onPointerMove={(event) => {
