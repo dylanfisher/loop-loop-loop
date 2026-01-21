@@ -106,10 +106,11 @@ const Waveform = ({
   const dragMovedRef = useRef(false);
   const velocityRef = useRef(0);
   const inertiaRef = useRef<number | null>(null);
-  const activeLoopDragRef = useRef<"start" | "end" | null>(null);
+  const activeLoopDragRef = useRef<"start" | "end" | "region" | null>(null);
   const loopStartHandleRef = useRef<HTMLDivElement | null>(null);
   const loopEndHandleRef = useRef<HTMLDivElement | null>(null);
   const loopRegionRef = useRef<HTMLDivElement | null>(null);
+  const loopConnectorRef = useRef<HTMLDivElement | null>(null);
 
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
@@ -127,7 +128,7 @@ const Waveform = ({
         ? (performance.now() - startedAtMs) / 1000
         : 0;
     let currentSeconds = Math.min(baseOffset + elapsed, duration);
-    if (loopEnabled && loopEndSeconds > loopStartSeconds) {
+    if (!activeLoopDragRef.current && loopEnabled && loopEndSeconds > loopStartSeconds) {
       const loopDuration = loopEndSeconds - loopStartSeconds;
       const loopOffset = currentSeconds - loopStartSeconds;
       const wrapped =
@@ -173,6 +174,7 @@ const Waveform = ({
       const loopStartHandle = loopStartHandleRef.current;
       const loopEndHandle = loopEndHandleRef.current;
       const loopRegion = loopRegionRef.current;
+      const loopConnector = loopConnectorRef.current;
 
       if (loopStartHandle) {
         loopStartHandle.style.left = `${clampedStart * 100}%`;
@@ -185,6 +187,12 @@ const Waveform = ({
         const width = Math.max(0, Math.abs(clampedEnd - clampedStart));
         loopRegion.style.left = `${left * 100}%`;
         loopRegion.style.width = `${width * 100}%`;
+      }
+      if (loopConnector) {
+        const left = Math.min(clampedStart, clampedEnd);
+        const width = Math.max(0, Math.abs(clampedEnd - clampedStart));
+        loopConnector.style.left = `${left * 100}%`;
+        loopConnector.style.width = `${width * 100}%`;
       }
 
       if (loopEnabled) {
@@ -235,11 +243,46 @@ const Waveform = ({
     }
   };
 
+  const shiftLoopByDelta = (deltaSeconds: number) => {
+    if (!duration || !onLoopBoundsChange) return;
+    const loopDuration = Math.max(0.05, loopEndSeconds - loopStartSeconds);
+    const maxStart = Math.max(0, duration - loopDuration);
+    const nextStart = Math.min(Math.max(0, loopStartSeconds + deltaSeconds), maxStart);
+    const nextEnd = nextStart + loopDuration;
+    onLoopBoundsChange(nextStart, nextEnd);
+  };
+
   const clampWindowStart = (nextStart: number, durationSeconds: number, zoomValue: number) => {
     const visualDuration = durationSeconds / Math.max(1, zoomValue);
     const maxWindowStart = Math.max(0, durationSeconds - visualDuration);
     return Math.min(Math.max(0, nextStart), maxWindowStart);
   };
+  const regionDragScale = 0.05;
+
+  const getCurrentSeconds = useCallback(() => {
+    if (!duration) return 0;
+    const baseOffset = offsetSeconds ?? 0;
+    const elapsed =
+      isPlaying && startedAtMs !== undefined
+        ? (performance.now() - startedAtMs) / 1000
+        : 0;
+    let currentSeconds = Math.min(baseOffset + elapsed, duration);
+    if (loopEnabled && loopEndSeconds > loopStartSeconds) {
+      const loopDuration = loopEndSeconds - loopStartSeconds;
+      const loopOffset = currentSeconds - loopStartSeconds;
+      const wrapped = ((loopOffset % loopDuration) + loopDuration) % loopDuration;
+      currentSeconds = loopStartSeconds + wrapped;
+    }
+    return currentSeconds;
+  }, [
+    duration,
+    isPlaying,
+    loopEnabled,
+    loopEndSeconds,
+    loopStartSeconds,
+    offsetSeconds,
+    startedAtMs,
+  ]);
 
   useEffect(() => {
     if (!buffer || !canvasRef.current) return;
@@ -248,8 +291,14 @@ const Waveform = ({
     const overlay = overlayRef.current;
 
     const updateWindow = (startSeconds: number, width: number) => {
-      windowStartRef.current = startSeconds;
-      peaksRef.current = buildPeaks(buffer, width, zoom, startSeconds);
+      let nextStart = startSeconds;
+      if (duration && !activeLoopDragRef.current) {
+        const visualDuration = duration / Math.max(1, zoom);
+        const currentSeconds = getCurrentSeconds();
+        nextStart = clampWindowStart(currentSeconds - visualDuration / 2, duration, zoom);
+      }
+      windowStartRef.current = nextStart;
+      peaksRef.current = buildPeaks(buffer, width, zoom, nextStart);
       drawWaveform(canvas, peaksRef.current, "#111111");
       renderOverlay();
     };
@@ -284,7 +333,7 @@ const Waveform = ({
     resize();
 
     return () => observer.disconnect();
-  }, [buffer, renderOverlay, zoom]);
+  }, [buffer, duration, getCurrentSeconds, renderOverlay, zoom]);
 
 
   useEffect(() => {
@@ -505,7 +554,75 @@ const Waveform = ({
           <div
             ref={loopRegionRef}
             className={`deck__loop-region ${loopEnabled ? "is-active" : ""}`}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              if (!loopEnabled) return;
+              if (inertiaRef.current) {
+                cancelAnimationFrame(inertiaRef.current);
+                inertiaRef.current = null;
+              }
+              activeLoopDragRef.current = "region";
+              isDraggingRef.current = true;
+              dragMovedRef.current = true;
+              lastXRef.current = event.clientX;
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (!isDraggingRef.current || activeLoopDragRef.current !== "region") return;
+              const rect = event.currentTarget.getBoundingClientRect();
+              const width = rect.width || 1;
+              const deltaX = event.clientX - lastXRef.current;
+              lastXRef.current = event.clientX;
+              const visualDuration = duration / Math.max(1, zoom);
+              const deltaSeconds = (deltaX / width) * visualDuration * regionDragScale;
+              shiftLoopByDelta(deltaSeconds);
+              renderOverlay();
+            }}
+            onPointerUp={(event) => {
+              if (activeLoopDragRef.current === "region") {
+                activeLoopDragRef.current = null;
+                isDraggingRef.current = false;
+              }
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
           />
+          {loopEnabled && (
+            <div
+              ref={loopConnectorRef}
+              className="deck__loop-connector is-active"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              if (!loopEnabled) return;
+              if (inertiaRef.current) {
+                cancelAnimationFrame(inertiaRef.current);
+                inertiaRef.current = null;
+              }
+              activeLoopDragRef.current = "region";
+              isDraggingRef.current = true;
+              dragMovedRef.current = true;
+              lastXRef.current = event.clientX;
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (!isDraggingRef.current || activeLoopDragRef.current !== "region") return;
+              const rect = event.currentTarget.getBoundingClientRect();
+              const width = rect.width || 1;
+              const deltaX = event.clientX - lastXRef.current;
+              lastXRef.current = event.clientX;
+              const visualDuration = duration / Math.max(1, zoom);
+              const deltaSeconds = (deltaX / width) * visualDuration;
+              shiftLoopByDelta(deltaSeconds);
+              renderOverlay();
+            }}
+              onPointerUp={(event) => {
+                if (activeLoopDragRef.current === "region") {
+                  activeLoopDragRef.current = null;
+                  isDraggingRef.current = false;
+                }
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }}
+            />
+          )}
           <div
             ref={loopStartHandleRef}
             className={`deck__loop-handle ${loopEnabled ? "is-active" : ""}`}

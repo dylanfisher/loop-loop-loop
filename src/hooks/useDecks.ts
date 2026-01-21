@@ -101,7 +101,11 @@ const useDecks = () => {
   const playDeck = async (deck: DeckState) => {
     if (!deck.buffer) return;
     stop(deck.id);
-    const offsetSeconds = deck.offsetSeconds ?? 0;
+    let offsetSeconds = deck.offsetSeconds ?? 0;
+    if (deck.loopEnabled && deck.loopEndSeconds > deck.loopStartSeconds) {
+      const maxOffset = Math.max(deck.loopStartSeconds, deck.loopEndSeconds - 0.01);
+      offsetSeconds = Math.min(Math.max(offsetSeconds, deck.loopStartSeconds), maxOffset);
+    }
     updateDeck(deck.id, {
       status: "playing",
       startedAtMs: performance.now(),
@@ -185,7 +189,16 @@ const useDecks = () => {
     setDecks((prev) =>
       prev.map((deck) => {
         if (deck.id !== id) return deck;
-        const nextDeck = { ...deck, loopEnabled: value };
+        const duration = deck.duration ?? deck.buffer?.duration ?? 0;
+        const nextStart = deck.loopStartSeconds ?? 0;
+        const nextEnd =
+          deck.loopEndSeconds > nextStart + 0.01 ? deck.loopEndSeconds : duration;
+        const nextDeck = {
+          ...deck,
+          loopEnabled: value,
+          loopStartSeconds: nextStart,
+          loopEndSeconds: nextEnd,
+        };
         if (deck.status !== "playing" || !deck.buffer) {
           return nextDeck;
         }
@@ -193,25 +206,27 @@ const useDecks = () => {
         const startedAtMs = deck.startedAtMs ?? performance.now();
         const elapsedSeconds = (performance.now() - startedAtMs) / 1000;
         const baseOffset = deck.offsetSeconds ?? 0;
-        const duration = deck.duration ?? deck.buffer.duration ?? 0;
         const offsetSeconds = Math.min(baseOffset + elapsedSeconds, duration);
+        const clampedOffset = value
+          ? Math.min(Math.max(offsetSeconds, nextStart), Math.max(nextStart, nextEnd - 0.01))
+          : offsetSeconds;
 
         void playBuffer(
           deck.id,
           deck.buffer,
           () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
           deck.gain,
-          offsetSeconds,
+          clampedOffset,
           value,
-          deck.loopStartSeconds,
-          deck.loopEndSeconds
+          nextDeck.loopStartSeconds,
+          nextDeck.loopEndSeconds
         );
 
         return {
           ...nextDeck,
           status: "playing",
           startedAtMs: performance.now(),
-          offsetSeconds,
+          offsetSeconds: clampedOffset,
           duration,
         };
       })
@@ -231,13 +246,17 @@ const useDecks = () => {
           const elapsedSeconds = (performance.now() - startedAtMs) / 1000;
           const baseOffset = deck.offsetSeconds ?? 0;
           const offsetSeconds = Math.min(baseOffset + elapsedSeconds, duration);
+          const clampedOffset = Math.min(
+            Math.max(offsetSeconds, nextStart),
+            Math.max(nextStart, nextEnd - 0.01)
+          );
           void playBuffer(
             deck.id,
             deck.buffer,
             () =>
               updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
             deck.gain,
-            offsetSeconds,
+            clampedOffset,
             true,
             nextStart,
             nextEnd
@@ -247,7 +266,7 @@ const useDecks = () => {
             loopStartSeconds: nextStart,
             loopEndSeconds: nextEnd,
             startedAtMs: performance.now(),
-            offsetSeconds,
+            offsetSeconds: clampedOffset,
           };
         }
 

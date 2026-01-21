@@ -48,8 +48,11 @@ export const playDeckBuffer = (
   source.buffer = buffer;
   source.loop = loopEnabled;
   if (loopEnabled) {
-    source.loopStart = loopStartSeconds;
-    source.loopEnd = loopEndSeconds;
+    const safeStart = Math.max(0, loopStartSeconds);
+    const safeEnd =
+      loopEndSeconds > safeStart + 0.01 ? loopEndSeconds : buffer.duration;
+    source.loopStart = safeStart;
+    source.loopEnd = Math.min(safeEnd, buffer.duration);
   }
   source.connect(nodes.gain);
   source.onended = () => {

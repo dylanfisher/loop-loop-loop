@@ -165,10 +165,10 @@ body {
 
 .deck__loop-handle {
   position: absolute;
-  top: -20px;
-  width: 36px;
-  height: 20px;
-  margin-left: -18px;
+  top: -24px;
+  width: 40px;
+  height: 24px;
+  margin-left: -20px;
   background: #0074ff;
   color: #fff;
   font-size: 0.6rem;
@@ -190,6 +190,24 @@ body {
 
 .deck__loop-handle:active {
   cursor: grabbing;
+}
+
+.deck__loop-connector {
+  position: absolute;
+  top: -32px;
+  height: 6px;
+  background: #0074ff;
+  left: 0;
+  width: 0;
+  border-radius: 999px;
+  opacity: 0.35;
+  cursor: grab;
+  pointer-events: auto;
+  transition: opacity 0.25s ease;
+}
+
+.deck__loop-connector.is-active {
+  opacity: 0.9;
 }
 
 .deck__waveform--empty {

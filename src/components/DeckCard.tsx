@@ -116,7 +116,7 @@ const DeckCard = ({
         <input
           type="range"
           min="1"
-          max="64"
+          max="256"
           step="1"
           value={deck.zoom}
           onChange={(event) => onZoomChange(deck.id, Number(event.target.value))}
