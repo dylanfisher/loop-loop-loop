@@ -17,6 +17,7 @@ type DeckStackProps = {
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
   onTapTempo: (id: number) => void;
+  onPreservePitchChange: (id: number, value: boolean) => void;
   getDeckPosition: (id: number) => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
@@ -37,6 +38,7 @@ const DeckStack = ({
   onLoopBoundsChange,
   onBpmOverrideChange,
   onTapTempo,
+  onPreservePitchChange,
   getDeckPosition,
   setFileInputRef,
 }: DeckStackProps) => {
@@ -70,6 +72,7 @@ const DeckStack = ({
             onLoopBoundsChange={onLoopBoundsChange}
             onBpmOverrideChange={onBpmOverrideChange}
             onTapTempo={onTapTempo}
+            onPreservePitchChange={onPreservePitchChange}
             getDeckPosition={() => getDeckPosition(deck.id)}
             setFileInputRef={setFileInputRef}
           />

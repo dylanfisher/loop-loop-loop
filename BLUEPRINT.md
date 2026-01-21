@@ -18,7 +18,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Routing matrix for decks, buses, and master chain.
 
 ### DSP Modules
-- Time-stretch/pitch (WASM-based, e.g., rubberband/soundtouch).
+- Time-stretch/pitch (WASM-based; Rubber Band planned for pitch-locked tempo changes).
 - Beat/onset detection (WASM or lightweight JS analysis).
 - FX chain: filters, delay, reverb, granular, spectral freeze, bitcrush.
 - Modulation system: LFOs, envelopes, random/stochastic sources.
@@ -27,6 +27,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Per-deck BPM analysis pipeline (offline on load + optional real-time refine).
 - Store detected BPM with confidence + offset alignment for playhead/loop snapping.
 - UI control to override BPM (manual entry + tap tempo + nudge).
+- BPM changes should alter playback speed; pitch lock uses time-stretch DSP.
+- Pitch lock is expected to route through a Rubber Band WASM worker (offline stretch per change).
 - Optional warp/tempo map for non-constant tempo tracks (post-MVP).
 - Implementation outline:
   - Decode buffer -> downmix to mono -> resample to analysis rate (e.g., 11-22k).

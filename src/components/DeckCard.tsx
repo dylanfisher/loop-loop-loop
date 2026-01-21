@@ -17,6 +17,7 @@ type DeckCardProps = {
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
   onTapTempo: (id: number) => void;
+  onPreservePitchChange: (id: number, value: boolean) => void;
   getDeckPosition: () => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
@@ -37,12 +38,14 @@ const DeckCard = ({
   onLoopBoundsChange,
   onBpmOverrideChange,
   onTapTempo,
+  onPreservePitchChange,
   getDeckPosition,
   setFileInputRef,
 }: DeckCardProps) => {
   const formatBpm = (value: number | null) =>
     typeof value === "number" && Number.isFinite(value) ? value.toFixed(1) : "--";
   const effectiveBpm = deck.bpmOverride ?? deck.bpm;
+  const sliderValue = effectiveBpm ?? 120;
   const confidenceLabel =
     deck.bpmConfidence > 0 ? `${Math.round(deck.bpmConfidence * 100)}%` : "--";
 
@@ -157,8 +160,8 @@ const DeckCard = ({
         <div className="deck__bpm-controls">
           <input
             type="number"
-            min="40"
-            max="240"
+            min="1"
+            max="999"
             step="0.1"
             placeholder="Override"
             value={deck.bpmOverride ?? ""}
@@ -185,6 +188,24 @@ const DeckCard = ({
             Reset
           </button>
         </div>
+        <div className="deck__bpm-slider">
+          <input
+            type="range"
+            min="1"
+            max="999"
+            step="0.1"
+            value={sliderValue}
+            onChange={(event) => onBpmOverrideChange(deck.id, Number(event.target.value))}
+          />
+        </div>
+        <label className="deck__bpm-toggle">
+          <span>Pitch lock</span>
+          <input
+            type="checkbox"
+            checked={deck.preservePitch}
+            onChange={(event) => onPreservePitchChange(deck.id, event.target.checked)}
+          />
+        </label>
       </div>
       <div className="deck__file-name">{deck.fileName ?? "No file loaded"}</div>
       <div className="deck__fx">

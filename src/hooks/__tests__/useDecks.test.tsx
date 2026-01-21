@@ -10,6 +10,7 @@ const playBuffer = vi.fn(
     onEnded?: () => void,
     _gain?: number,
     _offsetSeconds?: number,
+    _playbackRate?: number,
     _loopEnabled?: boolean,
     _loopStartSeconds?: number,
     _loopEndSeconds?: number
@@ -22,6 +23,17 @@ const setDeckGain = vi.fn();
 const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
 const setDeckLoopParams = vi.fn();
+const setDeckPlaybackRate = vi.fn();
+const createBuffer = vi.fn(
+  (_channels: number, length: number, sampleRate: number) =>
+    ({
+      length,
+      sampleRate,
+      duration: length / sampleRate,
+      numberOfChannels: 1,
+      getChannelData: () => new Float32Array(length),
+    } as AudioBuffer)
+);
 
 vi.mock("../../audio/bpm", () => ({
   estimateBpmFromBuffer: () => ({ bpm: null, confidence: 0 }),
@@ -36,6 +48,8 @@ vi.mock("../useAudioEngine", () => ({
     removeDeck,
     getDeckPosition,
     setDeckLoopParams,
+    setDeckPlaybackRate,
+    createBuffer,
   }),
 }));
 
@@ -48,6 +62,8 @@ describe("useDecks", () => {
     removeDeck.mockClear();
     getDeckPosition.mockClear();
     setDeckLoopParams.mockClear();
+    setDeckPlaybackRate.mockClear();
+    createBuffer.mockClear();
   });
 
   it("starts with one deck and keeps at least one", () => {
@@ -55,6 +71,7 @@ describe("useDecks", () => {
     expect(result.current.decks).toHaveLength(1);
     expect(result.current.decks[0].bpm).toBeNull();
     expect(result.current.decks[0].bpmOverride).toBeNull();
+    expect(result.current.decks[0].preservePitch).toBe(false);
 
     act(() => result.current.removeDeck(result.current.decks[0].id));
     expect(result.current.decks).toHaveLength(1);

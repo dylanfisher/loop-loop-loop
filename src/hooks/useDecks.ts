@@ -3,7 +3,8 @@ import useAudioEngine from "./useAudioEngine";
 import type { DeckState } from "../types/deck";
 import { estimateBpmFromBuffer } from "../audio/bpm";
 
-const clampBpm = (value: number) => Math.min(Math.max(value, 40), 240);
+const clampBpm = (value: number) => Math.min(Math.max(value, 1), 999);
+const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
 
 const useDecks = () => {
   const nextDeckId = useRef(2);
@@ -11,6 +12,10 @@ const useDecks = () => {
   const bpmWorkerRef = useRef<Worker | null>(null);
   const bpmRequestIdRef = useRef<Map<number, number>>(new Map());
   const bpmWorkerReadyRef = useRef(false);
+  const stretchWorkerRef = useRef<Worker | null>(null);
+  const stretchRequestIdRef = useRef<Map<number, number>>(new Map());
+  const stretchWorkerReadyRef = useRef(false);
+  const playbackRateRef = useRef<Map<number, number>>(new Map());
   const [decks, setDecks] = useState<DeckState[]>([
     {
       id: 1,
@@ -25,6 +30,8 @@ const useDecks = () => {
       bpm: null,
       bpmConfidence: 0,
       bpmOverride: null,
+      preservePitch: false,
+      sourceBuffer: undefined,
     },
   ]);
   const tapTempoRefs = useRef<Map<number, number[]>>(new Map());
@@ -36,15 +43,51 @@ const useDecks = () => {
     removeDeck: removeDeckNodes,
     getDeckPosition,
     setDeckLoopParams,
+    setDeckPlaybackRate,
+    createBuffer,
   } = useAudioEngine();
+
+  const getDeckPlaybackRate = (deck: DeckState) => {
+    if (deck.preservePitch && deck.bpmOverride && deck.bpm) {
+      return 1;
+    }
+    if (!deck.bpmOverride || !deck.bpm) return 1;
+    return clampPlaybackRate(deck.bpmOverride / deck.bpm);
+  };
 
   useEffect(() => {
     return () => {
       bpmWorkerRef.current?.terminate();
       bpmWorkerRef.current = null;
       bpmWorkerReadyRef.current = false;
+      stretchWorkerRef.current?.terminate();
+      stretchWorkerRef.current = null;
+      stretchWorkerReadyRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const seen = new Set<number>();
+    decks.forEach((deck) => {
+      seen.add(deck.id);
+      const targetRate = getDeckPlaybackRate(deck);
+      const prevRate = playbackRateRef.current.get(deck.id);
+      if (prevRate === undefined) {
+        playbackRateRef.current.set(deck.id, targetRate);
+        return;
+      }
+      if (prevRate !== targetRate) {
+        playbackRateRef.current.set(deck.id, targetRate);
+        setDeckPlaybackRate(deck.id, targetRate);
+      }
+    });
+
+    Array.from(playbackRateRef.current.keys()).forEach((deckId) => {
+      if (!seen.has(deckId)) {
+        playbackRateRef.current.delete(deckId);
+      }
+    });
+  }, [decks, setDeckPlaybackRate]);
 
   const getBpmWorker = () => {
     if (bpmWorkerReadyRef.current || typeof Worker === "undefined") {
@@ -65,10 +108,52 @@ const useDecks = () => {
       const { deckId, requestId, bpm, confidence } = event.data;
       const latestRequestId = bpmRequestIdRef.current.get(deckId);
       if (latestRequestId !== requestId) return;
-      updateDeck(deckId, { bpm, bpmConfidence: confidence });
+      applyBpmResult(deckId, bpm, confidence);
     };
     bpmWorkerRef.current = worker;
     bpmWorkerReadyRef.current = true;
+    return worker;
+  };
+
+  const getStretchWorker = () => {
+    if (stretchWorkerReadyRef.current || typeof Worker === "undefined") {
+      return stretchWorkerRef.current;
+    }
+
+    const worker = new Worker(new URL("../workers/timeStretchWorker.ts", import.meta.url), {
+      type: "module",
+    });
+    worker.onmessage = (
+      event: MessageEvent<{
+        deckId: number;
+        requestId: number;
+        channels?: ArrayBuffer[];
+        sampleRate?: number;
+        error?: string;
+      }>
+    ) => {
+      const { deckId, requestId, channels, sampleRate, error } = event.data;
+      const latestRequestId = stretchRequestIdRef.current.get(deckId);
+      if (latestRequestId !== requestId) return;
+
+      if (!channels || !sampleRate || channels.length === 0) {
+        console.error("Time-stretch failed", error);
+        return;
+      }
+
+      const nextBuffer = createBuffer(
+        channels.length,
+        new Float32Array(channels[0]).length,
+        sampleRate
+      );
+      channels.forEach((buffer, index) => {
+        nextBuffer.getChannelData(index).set(new Float32Array(buffer));
+      });
+
+      applyStretchedBuffer(deckId, nextBuffer);
+    };
+    stretchWorkerRef.current = worker;
+    stretchWorkerReadyRef.current = true;
     return worker;
   };
 
@@ -98,7 +183,129 @@ const useDecks = () => {
     const { bpm, confidence } = estimateBpmFromBuffer(buffer);
     const latestRequestId = bpmRequestIdRef.current.get(id);
     if (latestRequestId !== nextRequestId) return;
-    updateDeck(id, { bpm, bpmConfidence: confidence });
+    applyBpmResult(id, bpm, confidence);
+  };
+
+  const applyStretchedBuffer = (deckId: number, nextBuffer: AudioBuffer) => {
+    let restartPlayback = false;
+    let nextOffsetSeconds = 0;
+    let loopStartSeconds = 0;
+    let loopEndSeconds = nextBuffer.duration;
+    let shouldLoop = false;
+    let deckGain = 0.9;
+
+    setDecks((prev) =>
+      prev.map((deck) => {
+        if (deck.id !== deckId) return deck;
+        const prevDuration = deck.duration ?? deck.buffer?.duration ?? nextBuffer.duration;
+        const durationScale = prevDuration > 0 ? nextBuffer.duration / prevDuration : 1;
+        const currentPosition = getDeckPosition(deck.id);
+        const progress =
+          prevDuration > 0
+            ? Math.min(Math.max((currentPosition ?? deck.offsetSeconds ?? 0) / prevDuration, 0), 1)
+            : 0;
+        nextOffsetSeconds = progress * nextBuffer.duration;
+        shouldLoop = deck.loopEnabled;
+        loopStartSeconds = deck.loopStartSeconds * durationScale;
+        loopEndSeconds = deck.loopEndSeconds * durationScale;
+        restartPlayback = deck.status === "playing";
+        deckGain = deck.gain;
+
+        return {
+          ...deck,
+          buffer: nextBuffer,
+          duration: nextBuffer.duration,
+          offsetSeconds: nextOffsetSeconds,
+          loopStartSeconds,
+          loopEndSeconds: loopEndSeconds || nextBuffer.duration,
+          startedAtMs: restartPlayback ? performance.now() : deck.startedAtMs,
+        };
+      })
+    );
+
+    if (restartPlayback) {
+      void playBuffer(
+        deckId,
+        nextBuffer,
+        () => updateDeck(deckId, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
+        deckGain,
+        nextOffsetSeconds,
+        1,
+        shouldLoop,
+        loopStartSeconds,
+        loopEndSeconds
+      );
+    }
+  };
+
+  const startTimeStretch = (deck: DeckState, targetBpm: number) => {
+    const sourceBuffer = deck.sourceBuffer ?? deck.buffer;
+    if (!sourceBuffer || !deck.bpm) return;
+    if (!deck.sourceBuffer) {
+      updateDeck(deck.id, { sourceBuffer });
+    }
+    const tempoRatio = clampPlaybackRate(targetBpm / deck.bpm);
+
+    const nextRequestId = (stretchRequestIdRef.current.get(deck.id) ?? 0) + 1;
+    stretchRequestIdRef.current.set(deck.id, nextRequestId);
+
+    const worker = getStretchWorker();
+    if (worker) {
+      const channelBuffers = Array.from(
+        { length: sourceBuffer.numberOfChannels },
+        (_, index) => {
+          const channelData = sourceBuffer.getChannelData(index);
+          const copy = new Float32Array(channelData.length);
+          copy.set(channelData);
+          return copy.buffer;
+        }
+      );
+
+      worker.postMessage(
+        {
+          deckId: deck.id,
+          requestId: nextRequestId,
+          channels: channelBuffers,
+          sampleRate: sourceBuffer.sampleRate,
+          tempoRatio,
+        },
+        channelBuffers
+      );
+      return;
+    }
+
+    console.warn("Time-stretch worker unavailable; falling back to playback rate.");
+    setDeckPlaybackRate(deck.id, clampPlaybackRate(tempoRatio));
+  };
+
+  const applyBpmResult = (deckId: number, bpm: number | null, confidence: number) => {
+    let nextRate: number | null = null;
+    let shouldUpdateRate = false;
+    let shouldStretch = false;
+    let stretchTarget = 0;
+    let deckSnapshot: DeckState | null = null;
+    setDecks((prev) =>
+      prev.map((deck) => {
+        if (deck.id !== deckId) return deck;
+        const nextDeck = { ...deck, bpm, bpmConfidence: confidence };
+        deckSnapshot = nextDeck;
+        if (nextDeck.bpmOverride && nextDeck.bpm && !nextDeck.preservePitch) {
+          nextRate = clampPlaybackRate(nextDeck.bpmOverride / nextDeck.bpm);
+          shouldUpdateRate = true;
+        }
+        if (nextDeck.bpmOverride && nextDeck.bpm && nextDeck.preservePitch) {
+          shouldStretch = true;
+          stretchTarget = nextDeck.bpmOverride;
+        }
+        return nextDeck;
+      })
+    );
+    if (shouldUpdateRate && nextRate !== null) {
+      setDeckPlaybackRate(deckId, nextRate);
+    }
+    if (shouldStretch && deckSnapshot) {
+      startTimeStretch(deckSnapshot, stretchTarget);
+    }
   };
 
   const updateDeck = (id: number, updates: Partial<DeckState>) => {
@@ -125,6 +332,8 @@ const useDecks = () => {
         bpm: null,
         bpmConfidence: 0,
         bpmOverride: null,
+        preservePitch: false,
+        sourceBuffer: undefined,
       },
     ]);
   };
@@ -138,6 +347,7 @@ const useDecks = () => {
       removeDeckNodes(id);
       tapTempoRefs.current.delete(id);
       bpmRequestIdRef.current.delete(id);
+      stretchRequestIdRef.current.delete(id);
       return prev.filter((deck) => deck.id !== id);
     });
   };
@@ -166,9 +376,12 @@ const useDecks = () => {
       bpm: null,
       bpmConfidence: 0,
       bpmOverride: null,
+      preservePitch: false,
+      sourceBuffer: undefined,
     });
     tapTempoRefs.current.delete(id);
     bpmRequestIdRef.current.delete(id);
+    stretchRequestIdRef.current.delete(id);
     try {
       const buffer = await decodeFile(file);
       updateDeck(id, {
@@ -184,6 +397,8 @@ const useDecks = () => {
         bpm: null,
         bpmConfidence: 0,
         bpmOverride: null,
+        preservePitch: false,
+        sourceBuffer: buffer,
       });
       startBpmAnalysis(id, buffer);
     } catch (error) {
@@ -206,6 +421,7 @@ const useDecks = () => {
       duration: deck.buffer.duration,
       offsetSeconds,
     });
+    const playbackRate = getDeckPlaybackRate(deck);
     await playBuffer(
       deck.id,
       deck.buffer,
@@ -214,6 +430,7 @@ const useDecks = () => {
       },
       deck.gain,
       offsetSeconds,
+      playbackRate,
       deck.loopEnabled,
       deck.loopStartSeconds,
       deck.loopEndSeconds
@@ -222,12 +439,10 @@ const useDecks = () => {
 
   const pauseDeck = (deck: DeckState) => {
     if (deck.status !== "playing") return;
-
-    const startedAtMs = deck.startedAtMs ?? performance.now();
-    const elapsedSeconds = (performance.now() - startedAtMs) / 1000;
-    const baseOffset = deck.offsetSeconds ?? 0;
+    const position = getDeckPosition(deck.id);
     const duration = deck.duration ?? deck.buffer?.duration ?? 0;
-    const offsetSeconds = Math.min(baseOffset + elapsedSeconds, duration);
+    const offsetSeconds =
+      position !== null ? Math.min(Math.max(0, position), duration) : deck.offsetSeconds ?? 0;
 
     stop(deck.id);
     updateDeck(deck.id, {
@@ -250,12 +465,14 @@ const useDecks = () => {
         offsetSeconds,
         status: "playing",
       });
+      const playbackRate = getDeckPlaybackRate(deck);
       void playBuffer(
         deck.id,
         deck.buffer,
         () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
         deck.gain,
         offsetSeconds,
+        playbackRate,
         deck.loopEnabled,
         deck.loopStartSeconds,
         deck.loopEndSeconds
@@ -297,13 +514,13 @@ const useDecks = () => {
           return nextDeck;
         }
 
-        const startedAtMs = deck.startedAtMs ?? performance.now();
-        const elapsedSeconds = (performance.now() - startedAtMs) / 1000;
-        const baseOffset = deck.offsetSeconds ?? 0;
-        const offsetSeconds = Math.min(baseOffset + elapsedSeconds, duration);
+        const currentPosition = getDeckPosition(deck.id);
+        const offsetSeconds =
+          currentPosition !== null ? currentPosition : deck.offsetSeconds ?? 0;
         const clampedOffset = value
           ? Math.min(Math.max(offsetSeconds, nextStart), Math.max(nextStart, nextEnd - 0.01))
           : offsetSeconds;
+        const playbackRate = getDeckPlaybackRate(deck);
 
         void playBuffer(
           deck.id,
@@ -311,6 +528,7 @@ const useDecks = () => {
           () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
           deck.gain,
           clampedOffset,
+          playbackRate,
           value,
           nextDeck.loopStartSeconds,
           nextDeck.loopEndSeconds
@@ -361,6 +579,7 @@ const useDecks = () => {
               updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
             deck.gain,
             clampedOffset,
+            getDeckPlaybackRate(deck),
             true,
             nextStart,
             nextEnd
@@ -381,7 +600,34 @@ const useDecks = () => {
 
   const setDeckBpmOverride = (id: number, value: number | null) => {
     const nextValue = value === null ? null : clampBpm(value);
-    updateDeck(id, { bpmOverride: nextValue });
+    let nextDeck: DeckState | null = null;
+    setDecks((prev) =>
+      prev.map((deck) => {
+        if (deck.id !== id) return deck;
+        nextDeck = { ...deck, bpmOverride: nextValue };
+        return nextDeck;
+      })
+    );
+
+    if (!nextDeck) return;
+
+    if (nextValue === null) {
+      stretchRequestIdRef.current.set(id, (stretchRequestIdRef.current.get(id) ?? 0) + 1);
+      if (nextDeck.sourceBuffer && nextDeck.buffer !== nextDeck.sourceBuffer) {
+        applyStretchedBuffer(id, nextDeck.sourceBuffer);
+      }
+      setDeckPlaybackRate(id, 1);
+      return;
+    }
+
+    if (!nextDeck.bpm) return;
+    if (nextDeck.preservePitch) {
+      startTimeStretch(nextDeck, nextValue);
+      setDeckPlaybackRate(id, 1);
+      return;
+    }
+
+    setDeckPlaybackRate(id, clampPlaybackRate(nextValue / nextDeck.bpm));
   };
 
   const tapTempo = (id: number) => {
@@ -412,6 +658,37 @@ const useDecks = () => {
     setDeckBpmOverride(id, clampBpm(60000 / averageInterval));
   };
 
+  const setDeckPreservePitch = (id: number, value: boolean) => {
+    let nextDeck: DeckState | null = null;
+    setDecks((prev) =>
+      prev.map((deck) => {
+        if (deck.id !== id) return deck;
+        nextDeck = { ...deck, preservePitch: value };
+        return nextDeck;
+      })
+    );
+
+    if (!nextDeck) return;
+
+    if (!value) {
+      stretchRequestIdRef.current.set(id, (stretchRequestIdRef.current.get(id) ?? 0) + 1);
+      if (nextDeck.sourceBuffer && nextDeck.buffer !== nextDeck.sourceBuffer) {
+        applyStretchedBuffer(id, nextDeck.sourceBuffer);
+      }
+      if (nextDeck.bpmOverride && nextDeck.bpm) {
+        setDeckPlaybackRate(id, clampPlaybackRate(nextDeck.bpmOverride / nextDeck.bpm));
+      } else {
+        setDeckPlaybackRate(id, 1);
+      }
+      return;
+    }
+
+    if (nextDeck.bpmOverride && nextDeck.bpm) {
+      startTimeStretch(nextDeck, nextDeck.bpmOverride);
+      setDeckPlaybackRate(id, 1);
+    }
+  };
+
   return {
     decks,
     addDeck,
@@ -428,6 +705,7 @@ const useDecks = () => {
     setDeckLoopBounds,
     setDeckBpmOverride,
     tapTempo,
+    setDeckPreservePitch,
     getDeckPosition,
     setFileInputRef,
   };

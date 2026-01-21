@@ -4,6 +4,7 @@ import {
   removeDeckNodes,
   setDeckGainValue,
   setDeckLoopParams,
+  setDeckPlaybackRate,
   stopDeckPlayback,
 } from "./deck";
 
@@ -11,12 +12,14 @@ type DeckEndedCallback = () => void;
 
 type AudioEngine = {
   decodeFile: (file: File) => Promise<AudioBuffer>;
+  createBuffer: (channels: number, length: number, sampleRate: number) => AudioBuffer;
   playBuffer: (
     deckId: number,
     buffer: AudioBuffer,
     onEnded?: DeckEndedCallback,
     gain?: number,
     offsetSeconds?: number,
+    playbackRate?: number,
     loopEnabled?: boolean,
     loopStartSeconds?: number,
     loopEndSeconds?: number
@@ -26,10 +29,21 @@ type AudioEngine = {
   removeDeck: (deckId: number) => void;
   getDeckPosition: (deckId: number) => number | null;
   setDeckLoopParams: (deckId: number, loopEnabled: boolean, start: number, end: number) => void;
+  setDeckPlaybackRate: (deckId: number, value: number) => void;
 };
 
 let audioContext: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+
+const ensureContextSync = () => {
+  if (!audioContext) {
+    audioContext = new AudioContext();
+    masterGain = audioContext.createGain();
+    masterGain.gain.value = 0.9;
+    masterGain.connect(audioContext.destination);
+  }
+  return audioContext;
+};
 
 const ensureContext = async () => {
   if (!audioContext) {
@@ -52,12 +66,18 @@ const decodeFile = async (file: File) => {
   return context.decodeAudioData(arrayBuffer);
 };
 
+const createBuffer = (channels: number, length: number, sampleRate: number) => {
+  const context = ensureContextSync();
+  return context.createBuffer(channels, length, sampleRate);
+};
+
 const playBuffer = async (
   deckId: number,
   buffer: AudioBuffer,
   onEnded?: DeckEndedCallback,
   gain = 0.9,
   offsetSeconds = 0,
+  playbackRate = 1,
   loopEnabled = false,
   loopStartSeconds = 0,
   loopEndSeconds = buffer.duration
@@ -71,6 +91,7 @@ const playBuffer = async (
     buffer,
     gain,
     offsetSeconds,
+    playbackRate,
     loopEnabled,
     loopStartSeconds,
     loopEndSeconds,
@@ -103,14 +124,24 @@ const updateDeckLoopParams = (deckId: number, loopEnabled: boolean, start: numbe
   setDeckLoopParams(deckId, loopEnabled, start, end);
 };
 
+const updateDeckPlaybackRate = (deckId: number, value: number) => {
+  if (!audioContext) {
+    setDeckPlaybackRate(deckId, value);
+    return;
+  }
+  setDeckPlaybackRate(deckId, value, audioContext.currentTime);
+};
+
 export const getAudioEngine = (): AudioEngine => {
   return {
     decodeFile,
+    createBuffer,
     playBuffer,
     stop,
     setDeckGain,
     removeDeck,
     getDeckPosition,
     setDeckLoopParams: updateDeckLoopParams,
+    setDeckPlaybackRate: updateDeckPlaybackRate,
   };
 };

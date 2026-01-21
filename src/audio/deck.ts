@@ -12,12 +12,14 @@ type DeckPlaybackState = {
   loopStart: number;
   loopEnd: number;
   duration: number;
+  playbackRate: number;
   playing: boolean;
 };
 
 const deckNodes = new Map<number, DeckNodes>();
 const deckPlayback = new Map<number, DeckPlaybackState>();
 const pendingGains = new Map<number, number>();
+const pendingPlaybackRates = new Map<number, number>();
 
 const ensureDeckNodes = (
   context: AudioContext,
@@ -47,6 +49,7 @@ export const playDeckBuffer = (
   buffer: AudioBuffer,
   gain: number,
   offsetSeconds: number,
+  playbackRate: number,
   loopEnabled: boolean,
   loopStartSeconds: number,
   loopEndSeconds: number,
@@ -57,6 +60,9 @@ export const playDeckBuffer = (
 
   const source = context.createBufferSource();
   source.buffer = buffer;
+  const nextRate = pendingPlaybackRates.get(deckId) ?? playbackRate;
+  source.playbackRate.value = nextRate;
+  pendingPlaybackRates.delete(deckId);
   source.loop = loopEnabled;
   if (loopEnabled) {
     const safeStart = Math.max(0, loopStartSeconds);
@@ -84,6 +90,7 @@ export const playDeckBuffer = (
     loopStart: loopStartSeconds,
     loopEnd: loopEndSeconds,
     duration: buffer.duration,
+    playbackRate: nextRate,
     playing: true,
   });
   source.start(0, clampedOffset);
@@ -107,8 +114,15 @@ export const stopDeckPlayback = (
   const playback = deckPlayback.get(deckId);
   if (playback && playback.playing && currentTime !== undefined) {
     const elapsed = Math.max(0, currentTime - playback.startTime);
-    const nextOffset = Math.min(playback.offsetSeconds + elapsed, playback.duration);
-    deckPlayback.set(deckId, { ...playback, offsetSeconds: nextOffset, playing: false });
+    const nextOffset = Math.min(
+      playback.offsetSeconds + elapsed * playback.playbackRate,
+      playback.duration
+    );
+    deckPlayback.set(deckId, {
+      ...playback,
+      offsetSeconds: nextOffset,
+      playing: false,
+    });
   }
 };
 
@@ -135,6 +149,7 @@ export const removeDeckNodes = (deckId: number) => {
   }
   deckPlayback.delete(deckId);
   pendingGains.delete(deckId);
+  pendingPlaybackRates.delete(deckId);
 };
 
 export const setDeckLoopParams = (
@@ -170,7 +185,10 @@ export const getDeckPlaybackPosition = (deckId: number, currentTime: number) => 
   if (!playback) return null;
 
   const elapsed = playback.playing ? Math.max(0, currentTime - playback.startTime) : 0;
-  let position = Math.min(playback.offsetSeconds + elapsed, playback.duration);
+  let position = Math.min(
+    playback.offsetSeconds + elapsed * playback.playbackRate,
+    playback.duration
+  );
 
   if (playback.loopEnabled && playback.loopEnd > playback.loopStart) {
     const loopDuration = playback.loopEnd - playback.loopStart;
@@ -180,4 +198,34 @@ export const getDeckPlaybackPosition = (deckId: number, currentTime: number) => 
   }
 
   return position;
+};
+
+export const setDeckPlaybackRate = (
+  deckId: number,
+  playbackRate: number,
+  currentTime?: number
+) => {
+  const nodes = deckNodes.get(deckId);
+  const clampedRate = Math.min(Math.max(playbackRate, 0.01), 16);
+
+  if (nodes?.source) {
+    nodes.source.playbackRate.value = clampedRate;
+  } else {
+    pendingPlaybackRates.set(deckId, clampedRate);
+  }
+
+  const playback = deckPlayback.get(deckId);
+  if (playback && currentTime !== undefined) {
+    const elapsed = playback.playing ? Math.max(0, currentTime - playback.startTime) : 0;
+    const nextOffset = Math.min(
+      playback.offsetSeconds + elapsed * playback.playbackRate,
+      playback.duration
+    );
+    deckPlayback.set(deckId, {
+      ...playback,
+      startTime: currentTime,
+      offsetSeconds: nextOffset,
+      playbackRate: clampedRate,
+    });
+  }
 };

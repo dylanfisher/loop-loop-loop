@@ -313,6 +313,19 @@ body {
   background: #fff;
 }
 
+.deck__bpm-slider input {
+  width: 100%;
+}
+
+.deck__bpm-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .deck__fx {
   border-top: 2px dashed #111;
   padding-top: 10px;
