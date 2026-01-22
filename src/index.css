@@ -326,6 +326,13 @@ body {
   letter-spacing: 0.08em;
 }
 
+.deck__bpm-status {
+  font-size: 0.65rem;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .deck__fx {
   border-top: 2px dashed #111;
   padding-top: 10px;

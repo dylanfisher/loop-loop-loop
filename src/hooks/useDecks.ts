@@ -1,10 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
 import type { DeckState } from "../types/deck";
 import { estimateBpmFromBuffer } from "../audio/bpm";
 
 const clampBpm = (value: number) => Math.min(Math.max(value, 1), 999);
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
+const isTestEnv = import.meta.env.MODE === "test";
+const debugLog = (...args: unknown[]) => {
+  if (!isTestEnv) {
+    console.log(...args);
+  }
+};
+const debugInfo = (...args: unknown[]) => {
+  if (!isTestEnv) {
+    console.info(...args);
+  }
+};
 
 const useDecks = () => {
   const nextDeckId = useRef(2);
@@ -15,7 +26,18 @@ const useDecks = () => {
   const stretchWorkerRef = useRef<Worker | null>(null);
   const stretchRequestIdRef = useRef<Map<number, number>>(new Map());
   const stretchWorkerReadyRef = useRef(false);
+  const stretchFallbackRef = useRef<Map<number, boolean>>(new Map());
+  const stretchTargetBpmRef = useRef<Map<number, number>>(new Map());
+  const stretchPendingRef = useRef<Map<number, boolean>>(new Map());
+  const stretchStatusRef = useRef<"idle" | "loading" | "ready" | "error">("idle");
+  const stretchTimeoutRef = useRef<Map<number, number>>(new Map());
+  const [deckStretchStatus, setDeckStretchStatus] = useState<Map<number, "idle" | "stretching" | "stretched">>(
+    new Map()
+  );
   const playbackRateRef = useRef<Map<number, number>>(new Map());
+  const [stretchEngineStatus, setStretchEngineStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
   const [decks, setDecks] = useState<DeckState[]>([
     {
       id: 1,
@@ -45,17 +67,26 @@ const useDecks = () => {
     setDeckLoopParams,
     setDeckPlaybackRate,
     createBuffer,
+    setDeckTempoRatio,
+    ensureTimeStretchWorklet,
   } = useAudioEngine();
 
-  const getDeckPlaybackRate = (deck: DeckState) => {
-    if (deck.preservePitch && deck.bpmOverride && deck.bpm) {
-      return 1;
-    }
+  const getDeckTempoRatio = (deck: DeckState) => {
+    const shouldFallback = stretchFallbackRef.current.get(deck.id) ?? false;
     if (!deck.bpmOverride || !deck.bpm) return 1;
-    return clampPlaybackRate(deck.bpmOverride / deck.bpm);
+    const ratio = clampPlaybackRate(deck.bpmOverride / deck.bpm);
+    if (deck.preservePitch && !shouldFallback) {
+      return ratio;
+    }
+    return ratio;
   };
 
   useEffect(() => {
+    const fallbackRef = stretchFallbackRef;
+    const targetRef = stretchTargetBpmRef;
+    const pendingRef = stretchPendingRef;
+    const timeoutRef = stretchTimeoutRef;
+    const statusRef = stretchStatusRef;
     return () => {
       bpmWorkerRef.current?.terminate();
       bpmWorkerRef.current = null;
@@ -63,31 +94,55 @@ const useDecks = () => {
       stretchWorkerRef.current?.terminate();
       stretchWorkerRef.current = null;
       stretchWorkerReadyRef.current = false;
+      fallbackRef.current.clear();
+      targetRef.current.clear();
+      pendingRef.current.clear();
+      statusRef.current = "idle";
+      timeoutRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      timeoutRef.current.clear();
     };
   }, []);
 
-  useEffect(() => {
-    const seen = new Set<number>();
-    decks.forEach((deck) => {
-      seen.add(deck.id);
-      const targetRate = getDeckPlaybackRate(deck);
-      const prevRate = playbackRateRef.current.get(deck.id);
-      if (prevRate === undefined) {
-        playbackRateRef.current.set(deck.id, targetRate);
-        return;
-      }
-      if (prevRate !== targetRate) {
-        playbackRateRef.current.set(deck.id, targetRate);
-        setDeckPlaybackRate(deck.id, targetRate);
-      }
+  const setDeckStretchState = (deckId: number, status: "idle" | "stretching" | "stretched") => {
+    setDeckStretchStatus((prev) => {
+      const next = new Map(prev);
+      next.set(deckId, status);
+      return next;
     });
+  };
 
-    Array.from(playbackRateRef.current.keys()).forEach((deckId) => {
-      if (!seen.has(deckId)) {
-        playbackRateRef.current.delete(deckId);
-      }
-    });
-  }, [decks, setDeckPlaybackRate]);
+  const ensureStretchEngineReady = () => {
+    setStretchEngineStatus("loading");
+    return ensureTimeStretchWorklet()
+      .then(() => {
+        setStretchEngineStatus("ready");
+      })
+      .catch((error) => {
+        console.error("Time-stretch worklet failed to load", error);
+        setStretchEngineStatus("error");
+      });
+  };
+
+  const updateDeck = useCallback((id: number, updates: Partial<DeckState>) => {
+    setDecks((prev) =>
+      prev.map((deck) => (deck.id === id ? { ...deck, ...updates } : deck))
+    );
+  }, []);
+
+  const applyStretchedBuffer = useCallback(
+    (deckId: number, nextBuffer: AudioBuffer) => {
+      updateDeck(deckId, {
+        buffer: nextBuffer,
+        duration: nextBuffer.duration,
+      });
+    },
+    [updateDeck]
+  );
+
+  useEffect(() => {
+    stretchStatusRef.current = stretchEngineStatus;
+    debugLog("stretchEngineStatus", stretchEngineStatus);
+  }, [stretchEngineStatus]);
 
   const getBpmWorker = () => {
     if (bpmWorkerReadyRef.current || typeof Worker === "undefined") {
@@ -97,6 +152,8 @@ const useDecks = () => {
     const worker = new Worker(new URL("../workers/bpmWorker.ts", import.meta.url), {
       type: "module",
     });
+    debugInfo("BPM worker: created");
+    debugInfo("BPM worker: url", new URL("../workers/bpmWorker.ts", import.meta.url).toString());
     worker.onmessage = (
       event: MessageEvent<{
         deckId: number;
@@ -115,29 +172,128 @@ const useDecks = () => {
     return worker;
   };
 
-  const getStretchWorker = () => {
+  const getStretchWorker = useCallback(() => {
+    debugLog("getStretchWorker: called", {
+      ready: stretchWorkerReadyRef.current,
+      hasWorker: typeof Worker !== "undefined",
+      status: stretchEngineStatus,
+    });
     if (stretchWorkerReadyRef.current || typeof Worker === "undefined") {
+      debugLog("getStretchWorker: returning existing/unsupported", {
+        ready: stretchWorkerReadyRef.current,
+        hasWorker: typeof Worker !== "undefined",
+        current: Boolean(stretchWorkerRef.current),
+      });
       return stretchWorkerRef.current;
     }
 
-    const worker = new Worker(new URL("../workers/timeStretchWorker.ts", import.meta.url), {
-      type: "module",
-    });
+    let worker: Worker;
+    try {
+      setStretchEngineStatus("loading");
+      debugLog("Time-stretch worker: creating");
+      debugLog(
+        "Time-stretch worker: url",
+        new URL("../workers/timeStretchWorker.ts", import.meta.url).toString()
+      );
+      worker = new Worker(new URL("../workers/timeStretchWorker.ts", import.meta.url), {
+        type: "module",
+      });
+    } catch (error) {
+      console.error("Failed to initialize time-stretch worker", error);
+      setStretchEngineStatus("error");
+      return null;
+    }
+    const handleStretchFallback = (deckId: number) => {
+      stretchFallbackRef.current.set(deckId, true);
+      stretchPendingRef.current.set(deckId, false);
+      const timeoutId = stretchTimeoutRef.current.get(deckId);
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+        stretchTimeoutRef.current.delete(deckId);
+      }
+      const targetBpm = stretchTargetBpmRef.current.get(deckId);
+      if (!targetBpm) return;
+      setDecks((prev) => {
+        const deck = prev.find((item) => item.id === deckId);
+        if (!deck || !deck.bpm) return prev;
+        setDeckPlaybackRate(deckId, clampPlaybackRate(targetBpm / deck.bpm));
+        return prev;
+      });
+    };
     worker.onmessage = (
       event: MessageEvent<{
+        type?: string;
         deckId: number;
         requestId: number;
         channels?: ArrayBuffer[];
         sampleRate?: number;
         error?: string;
+        attempt?: number;
+        hasDefault?: boolean;
+        hasConstructor?: boolean;
       }>
     ) => {
+      if (event.data.type === "rubberband:load") {
+        debugInfo("Time-stretch: loading Rubber Band", {
+          attempt: event.data.attempt,
+        });
+        return;
+      }
+      if (event.data.type === "rubberband:ready") {
+        debugInfo("Time-stretch: Rubber Band ready", {
+          attempt: event.data.attempt,
+          hasDefault: event.data.hasDefault,
+          hasConstructor: event.data.hasConstructor,
+          hasInterface: event.data.hasInterface,
+        });
+        setStretchEngineStatus("ready");
+        return;
+      }
+      if (event.data.type === "rubberband:pong") {
+        debugInfo("Time-stretch: worker pong");
+        return;
+      }
+      if (event.data.type === "rubberband:wasm-url") {
+        debugInfo("Time-stretch: Rubber Band wasm URL", event.data.url);
+        return;
+      }
+      if (event.data.type === "rubberband:module-imported") {
+        debugInfo("Time-stretch: Rubber Band module imported");
+        return;
+      }
+      if (event.data.type === "rubberband:init") {
+        debugInfo("Time-stretch: Rubber Band init", {
+          hasDefault: event.data.hasDefault,
+        });
+        return;
+      }
+      if (event.data.type === "rubberband:result") {
+        // fall through to handle buffer update
+      }
+      if (event.data.type === "rubberband:error") {
+        console.error("Time-stretch: Rubber Band error", event.data.error);
+        setStretchEngineStatus("error");
+        const deckId = event.data.deckId;
+        if (typeof deckId === "number") {
+          handleStretchFallback(deckId);
+        }
+        return;
+      }
+
       const { deckId, requestId, channels, sampleRate, error } = event.data;
       const latestRequestId = stretchRequestIdRef.current.get(deckId);
       if (latestRequestId !== requestId) return;
 
+      const timeoutId = stretchTimeoutRef.current.get(deckId);
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+        stretchTimeoutRef.current.delete(deckId);
+      }
+
       if (!channels || !sampleRate || channels.length === 0) {
-        console.error("Time-stretch failed", error);
+        console.error("Time-stretch failed", { error, data: event.data });
+        handleStretchFallback(deckId);
+        setDeckStretchState(deckId, "idle");
         return;
       }
 
@@ -150,12 +306,71 @@ const useDecks = () => {
         nextBuffer.getChannelData(index).set(new Float32Array(buffer));
       });
 
+      stretchFallbackRef.current.set(deckId, false);
+      stretchPendingRef.current.set(deckId, false);
+      if (channels.length > 0) {
+        console.info("Time-stretch result", {
+          deckId,
+          length: new Float32Array(channels[0]).length,
+          sampleRate,
+          channels: channels.length,
+        });
+      }
+      setDeckStretchState(deckId, "stretched");
       applyStretchedBuffer(deckId, nextBuffer);
     };
+    worker.onerror = (event) => {
+      console.error("Time-stretch worker error", event);
+      setStretchEngineStatus("error");
+      stretchPendingRef.current.forEach((_value, deckId) => {
+        handleStretchFallback(deckId);
+      });
+    };
+    worker.onmessageerror = (event) => {
+      console.error("Time-stretch worker message error", event);
+      setStretchEngineStatus("error");
+      stretchPendingRef.current.forEach((_value, deckId) => {
+        handleStretchFallback(deckId);
+      });
+    };
+    worker.postMessage({ type: "ping" });
+    setTimeout(() => {
+      debugLog("Time-stretch worker: post-ping status", {
+        ready: stretchWorkerReadyRef.current,
+        status: stretchEngineStatus,
+      });
+    }, 0);
     stretchWorkerRef.current = worker;
     stretchWorkerReadyRef.current = true;
     return worker;
-  };
+  }, [applyStretchedBuffer, createBuffer, setDeckPlaybackRate, stretchEngineStatus]);
+
+  useEffect(() => {
+    const seen = new Set<number>();
+    decks.forEach((deck) => {
+      seen.add(deck.id);
+      const targetRate = getDeckTempoRatio(deck);
+      const prevRate = playbackRateRef.current.get(deck.id);
+      if (prevRate === undefined) {
+        playbackRateRef.current.set(deck.id, targetRate);
+        return;
+      }
+      if (prevRate !== targetRate) {
+        playbackRateRef.current.set(deck.id, targetRate);
+        if (deck.preservePitch) {
+          setDeckTempoRatio(deck.id, targetRate);
+        } else {
+          setDeckPlaybackRate(deck.id, targetRate);
+        }
+      }
+    });
+
+    Array.from(playbackRateRef.current.keys()).forEach((deckId) => {
+      if (!seen.has(deckId)) {
+        playbackRateRef.current.delete(deckId);
+      }
+    });
+  }, [decks, setDeckPlaybackRate, setDeckTempoRatio]);
 
   const startBpmAnalysis = (id: number, buffer: AudioBuffer) => {
     if (!buffer || typeof buffer.getChannelData !== "function") return;
@@ -186,65 +401,24 @@ const useDecks = () => {
     applyBpmResult(id, bpm, confidence);
   };
 
-  const applyStretchedBuffer = (deckId: number, nextBuffer: AudioBuffer) => {
-    let restartPlayback = false;
-    let nextOffsetSeconds = 0;
-    let loopStartSeconds = 0;
-    let loopEndSeconds = nextBuffer.duration;
-    let shouldLoop = false;
-    let deckGain = 0.9;
-
-    setDecks((prev) =>
-      prev.map((deck) => {
-        if (deck.id !== deckId) return deck;
-        const prevDuration = deck.duration ?? deck.buffer?.duration ?? nextBuffer.duration;
-        const durationScale = prevDuration > 0 ? nextBuffer.duration / prevDuration : 1;
-        const currentPosition = getDeckPosition(deck.id);
-        const progress =
-          prevDuration > 0
-            ? Math.min(Math.max((currentPosition ?? deck.offsetSeconds ?? 0) / prevDuration, 0), 1)
-            : 0;
-        nextOffsetSeconds = progress * nextBuffer.duration;
-        shouldLoop = deck.loopEnabled;
-        loopStartSeconds = deck.loopStartSeconds * durationScale;
-        loopEndSeconds = deck.loopEndSeconds * durationScale;
-        restartPlayback = deck.status === "playing";
-        deckGain = deck.gain;
-
-        return {
-          ...deck,
-          buffer: nextBuffer,
-          duration: nextBuffer.duration,
-          offsetSeconds: nextOffsetSeconds,
-          loopStartSeconds,
-          loopEndSeconds: loopEndSeconds || nextBuffer.duration,
-          startedAtMs: restartPlayback ? performance.now() : deck.startedAtMs,
-        };
-      })
-    );
-
-    if (restartPlayback) {
-      void playBuffer(
-        deckId,
-        nextBuffer,
-        () => updateDeck(deckId, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
-        deckGain,
-        nextOffsetSeconds,
-        1,
-        shouldLoop,
-        loopStartSeconds,
-        loopEndSeconds
-      );
-    }
-  };
-
-  const startTimeStretch = (deck: DeckState, targetBpm: number) => {
+  const _startTimeStretch = (deck: DeckState, targetBpm: number) => {
     const sourceBuffer = deck.sourceBuffer ?? deck.buffer;
     if (!sourceBuffer || !deck.bpm) return;
     if (!deck.sourceBuffer) {
       updateDeck(deck.id, { sourceBuffer });
     }
     const tempoRatio = clampPlaybackRate(targetBpm / deck.bpm);
+    stretchFallbackRef.current.set(deck.id, false);
+    stretchTargetBpmRef.current.set(deck.id, targetBpm);
+    stretchPendingRef.current.set(deck.id, true);
+    setDeckStretchState(deck.id, "stretching");
+    const timeoutId = window.setTimeout(() => {
+      if (stretchPendingRef.current.get(deck.id)) {
+        stretchFallbackRef.current.set(deck.id, true);
+        stretchPendingRef.current.set(deck.id, false);
+      }
+    }, 1500);
+    stretchTimeoutRef.current.set(deck.id, timeoutId);
 
     const nextRequestId = (stretchRequestIdRef.current.get(deck.id) ?? 0) + 1;
     stretchRequestIdRef.current.set(deck.id, nextRequestId);
@@ -275,14 +449,15 @@ const useDecks = () => {
     }
 
     console.warn("Time-stretch worker unavailable; falling back to playback rate.");
+    stretchFallbackRef.current.set(deck.id, true);
+    stretchPendingRef.current.set(deck.id, false);
+    setDeckStretchState(deck.id, "idle");
     setDeckPlaybackRate(deck.id, clampPlaybackRate(tempoRatio));
   };
 
   const applyBpmResult = (deckId: number, bpm: number | null, confidence: number) => {
     let nextRate: number | null = null;
     let shouldUpdateRate = false;
-    let shouldStretch = false;
-    let stretchTarget = 0;
     let deckSnapshot: DeckState | null = null;
     setDecks((prev) =>
       prev.map((deck) => {
@@ -293,25 +468,15 @@ const useDecks = () => {
           nextRate = clampPlaybackRate(nextDeck.bpmOverride / nextDeck.bpm);
           shouldUpdateRate = true;
         }
-        if (nextDeck.bpmOverride && nextDeck.bpm && nextDeck.preservePitch) {
-          shouldStretch = true;
-          stretchTarget = nextDeck.bpmOverride;
-        }
         return nextDeck;
       })
     );
     if (shouldUpdateRate && nextRate !== null) {
       setDeckPlaybackRate(deckId, nextRate);
     }
-    if (shouldStretch && deckSnapshot) {
-      startTimeStretch(deckSnapshot, stretchTarget);
+    if (deckSnapshot?.preservePitch && deckSnapshot.bpmOverride && deckSnapshot.bpm) {
+      setDeckTempoRatio(deckId, getDeckTempoRatio(deckSnapshot));
     }
-  };
-
-  const updateDeck = (id: number, updates: Partial<DeckState>) => {
-    setDecks((prev) =>
-      prev.map((deck) => (deck.id === id ? { ...deck, ...updates } : deck))
-    );
   };
 
   const addDeck = () => {
@@ -348,6 +513,15 @@ const useDecks = () => {
       tapTempoRefs.current.delete(id);
       bpmRequestIdRef.current.delete(id);
       stretchRequestIdRef.current.delete(id);
+      stretchFallbackRef.current.delete(id);
+      stretchTargetBpmRef.current.delete(id);
+      stretchPendingRef.current.delete(id);
+      setDeckStretchState(id, "idle");
+      const timeoutId = stretchTimeoutRef.current.get(id);
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+        stretchTimeoutRef.current.delete(id);
+      }
       return prev.filter((deck) => deck.id !== id);
     });
   };
@@ -382,6 +556,15 @@ const useDecks = () => {
     tapTempoRefs.current.delete(id);
     bpmRequestIdRef.current.delete(id);
     stretchRequestIdRef.current.delete(id);
+    stretchFallbackRef.current.delete(id);
+    stretchTargetBpmRef.current.delete(id);
+    stretchPendingRef.current.delete(id);
+    setDeckStretchState(id, "idle");
+    const timeoutId = stretchTimeoutRef.current.get(id);
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+      stretchTimeoutRef.current.delete(id);
+    }
     try {
       const buffer = await decodeFile(file);
       updateDeck(id, {
@@ -421,7 +604,8 @@ const useDecks = () => {
       duration: deck.buffer.duration,
       offsetSeconds,
     });
-    const playbackRate = getDeckPlaybackRate(deck);
+    const tempoRatio = getDeckTempoRatio(deck);
+    const playbackRate = deck.preservePitch ? 1 : tempoRatio;
     await playBuffer(
       deck.id,
       deck.buffer,
@@ -433,7 +617,9 @@ const useDecks = () => {
       playbackRate,
       deck.loopEnabled,
       deck.loopStartSeconds,
-      deck.loopEndSeconds
+      deck.loopEndSeconds,
+      deck.preservePitch,
+      tempoRatio
     );
   };
 
@@ -465,7 +651,8 @@ const useDecks = () => {
         offsetSeconds,
         status: "playing",
       });
-      const playbackRate = getDeckPlaybackRate(deck);
+      const tempoRatio = getDeckTempoRatio(deck);
+      const playbackRate = deck.preservePitch ? 1 : tempoRatio;
       void playBuffer(
         deck.id,
         deck.buffer,
@@ -475,7 +662,9 @@ const useDecks = () => {
         playbackRate,
         deck.loopEnabled,
         deck.loopStartSeconds,
-        deck.loopEndSeconds
+        deck.loopEndSeconds,
+        deck.preservePitch,
+        tempoRatio
       );
       return;
     }
@@ -520,7 +709,8 @@ const useDecks = () => {
         const clampedOffset = value
           ? Math.min(Math.max(offsetSeconds, nextStart), Math.max(nextStart, nextEnd - 0.01))
           : offsetSeconds;
-        const playbackRate = getDeckPlaybackRate(deck);
+        const tempoRatio = getDeckTempoRatio(deck);
+        const playbackRate = deck.preservePitch ? 1 : tempoRatio;
 
         void playBuffer(
           deck.id,
@@ -531,7 +721,9 @@ const useDecks = () => {
           playbackRate,
           value,
           nextDeck.loopStartSeconds,
-          nextDeck.loopEndSeconds
+          nextDeck.loopEndSeconds,
+          deck.preservePitch,
+          tempoRatio
         );
 
         return {
@@ -579,10 +771,12 @@ const useDecks = () => {
               updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
             deck.gain,
             clampedOffset,
-            getDeckPlaybackRate(deck),
+            deck.preservePitch ? 1 : getDeckTempoRatio(deck),
             true,
             nextStart,
-            nextEnd
+            nextEnd,
+            deck.preservePitch,
+            getDeckTempoRatio(deck)
           );
           return {
             ...deck,
@@ -612,20 +806,35 @@ const useDecks = () => {
     if (!nextDeck) return;
 
     if (nextValue === null) {
+      stretchFallbackRef.current.set(id, false);
+      stretchTargetBpmRef.current.delete(id);
+      stretchPendingRef.current.set(id, false);
+      const timeoutId = stretchTimeoutRef.current.get(id);
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+        stretchTimeoutRef.current.delete(id);
+      }
       stretchRequestIdRef.current.set(id, (stretchRequestIdRef.current.get(id) ?? 0) + 1);
       if (nextDeck.sourceBuffer && nextDeck.buffer !== nextDeck.sourceBuffer) {
         applyStretchedBuffer(id, nextDeck.sourceBuffer);
       }
+      setDeckTempoRatio(id, 1);
       setDeckPlaybackRate(id, 1);
+      setDeckStretchState(id, "idle");
+      return;
+    }
+
+    if (nextDeck.preservePitch) {
+      setDeckStretchState(id, "stretching");
+      void ensureStretchEngineReady().then(() => setDeckStretchState(id, "stretched"));
+      if (nextDeck.bpm) {
+        stretchFallbackRef.current.set(id, false);
+        setDeckTempoRatio(id, getDeckTempoRatio(nextDeck));
+      }
       return;
     }
 
     if (!nextDeck.bpm) return;
-    if (nextDeck.preservePitch) {
-      startTimeStretch(nextDeck, nextValue);
-      setDeckPlaybackRate(id, 1);
-      return;
-    }
 
     setDeckPlaybackRate(id, clampPlaybackRate(nextValue / nextDeck.bpm));
   };
@@ -659,34 +868,92 @@ const useDecks = () => {
   };
 
   const setDeckPreservePitch = (id: number, value: boolean) => {
-    let nextDeck: DeckState | null = null;
+    debugLog("setDeckPreservePitch", { deckId: id, value });
+    const currentDeck = decks.find((deck) => deck.id === id);
+    if (!currentDeck) {
+      console.warn("setDeckPreservePitch: deck missing", { deckId: id });
+      return;
+    }
+    const nextDeck: DeckState = { ...currentDeck, preservePitch: value };
     setDecks((prev) =>
-      prev.map((deck) => {
-        if (deck.id !== id) return deck;
-        nextDeck = { ...deck, preservePitch: value };
-        return nextDeck;
-      })
+      prev.map((deck) => (deck.id === id ? { ...deck, preservePitch: value } : deck))
     );
 
-    if (!nextDeck) return;
-
     if (!value) {
+      debugLog("Pitch lock disabled", { deckId: id });
+      stretchFallbackRef.current.set(id, false);
+      stretchTargetBpmRef.current.delete(id);
+      stretchPendingRef.current.set(id, false);
+      const timeoutId = stretchTimeoutRef.current.get(id);
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+        stretchTimeoutRef.current.delete(id);
+      }
       stretchRequestIdRef.current.set(id, (stretchRequestIdRef.current.get(id) ?? 0) + 1);
       if (nextDeck.sourceBuffer && nextDeck.buffer !== nextDeck.sourceBuffer) {
         applyStretchedBuffer(id, nextDeck.sourceBuffer);
       }
+      setDeckStretchState(id, "idle");
+      const tempoRatio = getDeckTempoRatio(nextDeck);
+      if (nextDeck.status === "playing" && nextDeck.buffer) {
+        const position = getDeckPosition(id) ?? nextDeck.offsetSeconds ?? 0;
+        stop(id);
+        updateDeck(id, {
+          status: "playing",
+          startedAtMs: performance.now(),
+          offsetSeconds: position,
+        });
+        void playBuffer(
+          id,
+          nextDeck.buffer,
+          () => updateDeck(id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
+          nextDeck.gain,
+          position,
+          tempoRatio,
+          nextDeck.loopEnabled,
+          nextDeck.loopStartSeconds,
+          nextDeck.loopEndSeconds,
+          false,
+          tempoRatio
+        );
+      }
       if (nextDeck.bpmOverride && nextDeck.bpm) {
-        setDeckPlaybackRate(id, clampPlaybackRate(nextDeck.bpmOverride / nextDeck.bpm));
+        setDeckPlaybackRate(id, tempoRatio);
       } else {
         setDeckPlaybackRate(id, 1);
       }
       return;
     }
 
-    if (nextDeck.bpmOverride && nextDeck.bpm) {
-      startTimeStretch(nextDeck, nextDeck.bpmOverride);
-      setDeckPlaybackRate(id, 1);
+    debugLog("Pitch lock enabled", { deckId: id });
+    setDeckStretchState(id, "stretching");
+    void ensureStretchEngineReady().then(() => setDeckStretchState(id, "stretched"));
+    stretchFallbackRef.current.set(id, false);
+    const currentRate = playbackRateRef.current.get(id);
+    const tempoRatio = currentRate ?? getDeckTempoRatio(nextDeck);
+    if (nextDeck.status === "playing" && nextDeck.buffer) {
+      const position = getDeckPosition(id) ?? nextDeck.offsetSeconds ?? 0;
+      stop(id);
+      updateDeck(id, {
+        status: "playing",
+        startedAtMs: performance.now(),
+        offsetSeconds: position,
+      });
+      void playBuffer(
+        id,
+        nextDeck.buffer,
+        () => updateDeck(id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
+        nextDeck.gain,
+        position,
+        1,
+        nextDeck.loopEnabled,
+        nextDeck.loopStartSeconds,
+        nextDeck.loopEndSeconds,
+        true,
+        tempoRatio
+      );
     }
+    setDeckTempoRatio(id, tempoRatio);
   };
 
   return {
@@ -706,6 +973,8 @@ const useDecks = () => {
     setDeckBpmOverride,
     tapTempo,
     setDeckPreservePitch,
+    stretchEngineStatus,
+    deckStretchStatus,
     getDeckPosition,
     setFileInputRef,
   };

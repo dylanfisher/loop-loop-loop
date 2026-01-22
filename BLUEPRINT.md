@@ -18,7 +18,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Routing matrix for decks, buses, and master chain.
 
 ### DSP Modules
-- Time-stretch/pitch (WASM-based; Rubber Band planned for pitch-locked tempo changes).
+- Time-stretch/pitch (WASM-based; Rubber Band in an AudioWorklet for real-time pitch lock).
 - Beat/onset detection (WASM or lightweight JS analysis).
 - FX chain: filters, delay, reverb, granular, spectral freeze, bitcrush.
 - Modulation system: LFOs, envelopes, random/stochastic sources.
@@ -28,7 +28,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Store detected BPM with confidence + offset alignment for playhead/loop snapping.
 - UI control to override BPM (manual entry + tap tempo + nudge).
 - BPM changes should alter playback speed; pitch lock uses time-stretch DSP.
-- Pitch lock is expected to route through a Rubber Band WASM worker (offline stretch per change).
+- Pitch lock routes through a Rubber Band WASM AudioWorklet for streaming time-stretch.
 - Optional warp/tempo map for non-constant tempo tracks (post-MVP).
 - Implementation outline:
   - Decode buffer -> downmix to mono -> resample to analysis rate (e.g., 11-22k).
@@ -79,6 +79,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - `src/audio/analysis.ts`: Metering/FFT/onset analysis and UI data feeds.
 - `src/audio/bpm.ts`: Offline BPM estimation helper for deck metadata.
 - `src/workers/bpmWorker.ts`: Worker for BPM estimation off the main thread.
+- `src/audio/worklets/timeStretchProcessor.ts`: AudioWorklet processor for streaming pitch-locked tempo.
 
 ## Open Questions
 - UI visual direction and interaction style.

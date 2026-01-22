@@ -13,7 +13,9 @@ const playBuffer = vi.fn(
     _playbackRate?: number,
     _loopEnabled?: boolean,
     _loopStartSeconds?: number,
-    _loopEndSeconds?: number
+    _loopEndSeconds?: number,
+    _preservePitch?: boolean,
+    _tempoRatio?: number
   ) => {
     onEnded?.();
   }
@@ -24,6 +26,8 @@ const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
 const setDeckLoopParams = vi.fn();
 const setDeckPlaybackRate = vi.fn();
+const setDeckTempoRatio = vi.fn();
+const ensureTimeStretchWorklet = vi.fn(async () => {});
 const createBuffer = vi.fn(
   (_channels: number, length: number, sampleRate: number) =>
     ({
@@ -49,6 +53,8 @@ vi.mock("../useAudioEngine", () => ({
     getDeckPosition,
     setDeckLoopParams,
     setDeckPlaybackRate,
+    setDeckTempoRatio,
+    ensureTimeStretchWorklet,
     createBuffer,
   }),
 }));
@@ -64,6 +70,8 @@ describe("useDecks", () => {
     setDeckLoopParams.mockClear();
     setDeckPlaybackRate.mockClear();
     createBuffer.mockClear();
+    setDeckTempoRatio.mockClear();
+    ensureTimeStretchWorklet.mockClear();
   });
 
   it("starts with one deck and keeps at least one", () => {

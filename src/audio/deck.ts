@@ -3,6 +3,7 @@ type DeckEndedCallback = () => void;
 type DeckNodes = {
   gain: GainNode;
   source?: AudioBufferSourceNode;
+  timeStretch?: AudioWorkletNode;
 };
 
 type DeckPlaybackState = {
@@ -13,6 +14,7 @@ type DeckPlaybackState = {
   loopEnd: number;
   duration: number;
   playbackRate: number;
+  preservePitch: boolean;
   playing: boolean;
 };
 
@@ -20,6 +22,11 @@ const deckNodes = new Map<number, DeckNodes>();
 const deckPlayback = new Map<number, DeckPlaybackState>();
 const pendingGains = new Map<number, number>();
 const pendingPlaybackRates = new Map<number, number>();
+let timeStretchWasmBytes: ArrayBuffer | null = null;
+
+export const setTimeStretchWasmBytes = (bytes: ArrayBuffer) => {
+  timeStretchWasmBytes = bytes;
+};
 
 const ensureDeckNodes = (
   context: AudioContext,
@@ -53,6 +60,8 @@ export const playDeckBuffer = (
   loopEnabled: boolean,
   loopStartSeconds: number,
   loopEndSeconds: number,
+  preservePitch = false,
+  tempoRatio = 1,
   onEnded?: DeckEndedCallback
 ) => {
   stopDeckPlayback(deckId, true);
@@ -61,8 +70,12 @@ export const playDeckBuffer = (
   const source = context.createBufferSource();
   source.buffer = buffer;
   const nextRate = pendingPlaybackRates.get(deckId) ?? playbackRate;
-  source.playbackRate.value = nextRate;
-  pendingPlaybackRates.delete(deckId);
+  if (!preservePitch) {
+    source.playbackRate.value = nextRate;
+    pendingPlaybackRates.delete(deckId);
+  } else {
+    source.playbackRate.value = 1;
+  }
   source.loop = loopEnabled;
   if (loopEnabled) {
     const safeStart = Math.max(0, loopStartSeconds);
@@ -71,7 +84,47 @@ export const playDeckBuffer = (
     source.loopStart = safeStart;
     source.loopEnd = Math.min(safeEnd, buffer.duration);
   }
-  source.connect(nodes.gain);
+  if (preservePitch) {
+    if (!nodes.timeStretch) {
+      nodes.timeStretch = new AudioWorkletNode(context, "time-stretch-processor", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        channelCount: buffer.numberOfChannels,
+        channelCountMode: "explicit",
+        outputChannelCount: [buffer.numberOfChannels],
+      });
+      nodes.timeStretch.onprocessorerror = (event) => {
+        console.error("Time-stretch worklet error", event);
+      };
+      nodes.timeStretch.port.onmessage = (event) => {
+        if (event.data?.type === "stretch:error") {
+          console.error("Time-stretch worklet init error", event.data.error);
+        }
+        if (event.data?.type === "stretch:ready") {
+          console.info("Time-stretch worklet ready");
+        }
+      };
+      nodes.timeStretch.connect(nodes.gain);
+    }
+    nodes.timeStretch.port.postMessage({
+      type: "init",
+      channelCount: buffer.numberOfChannels,
+      wasmBytes: timeStretchWasmBytes ? timeStretchWasmBytes.slice(0) : undefined,
+    });
+    const safeTempoRatio = tempoRatio > 0 ? tempoRatio : 1;
+    const timeRatio = 1 / safeTempoRatio;
+    nodes.timeStretch.port.postMessage({
+      type: "set-tempo",
+      timeRatio,
+    });
+    source.connect(nodes.timeStretch);
+  } else {
+    if (nodes.timeStretch) {
+      nodes.timeStretch.disconnect();
+      nodes.timeStretch = undefined;
+    }
+    source.connect(nodes.gain);
+  }
   source.onended = () => {
     if (nodes.source === source) {
       nodes.source = undefined;
@@ -90,7 +143,8 @@ export const playDeckBuffer = (
     loopStart: loopStartSeconds,
     loopEnd: loopEndSeconds,
     duration: buffer.duration,
-    playbackRate: nextRate,
+    playbackRate: preservePitch ? tempoRatio : nextRate,
+    preservePitch,
     playing: true,
   });
   source.start(0, clampedOffset);
@@ -136,6 +190,39 @@ export const setDeckGainValue = (deckId: number, value: number) => {
   }
 };
 
+export const setDeckTempoRatio = (
+  deckId: number,
+  tempoRatio: number,
+  currentTime?: number
+) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes?.timeStretch) {
+    const safeTempoRatio = tempoRatio > 0 ? tempoRatio : 1;
+    nodes.timeStretch.port.postMessage({ type: "set-tempo", timeRatio: 1 / safeTempoRatio });
+  }
+  const playback = deckPlayback.get(deckId);
+  if (playback && currentTime !== undefined) {
+    const elapsed = playback.playing ? Math.max(0, currentTime - playback.startTime) : 0;
+    const nextOffset = Math.min(
+      playback.offsetSeconds + elapsed * playback.playbackRate,
+      playback.duration
+    );
+    deckPlayback.set(deckId, {
+      ...playback,
+      startTime: currentTime,
+      offsetSeconds: nextOffset,
+      playbackRate: tempoRatio,
+    });
+    return;
+  }
+  if (playback) {
+    deckPlayback.set(deckId, {
+      ...playback,
+      playbackRate: tempoRatio,
+    });
+  }
+};
+
 export const removeDeckNodes = (deckId: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
@@ -144,6 +231,7 @@ export const removeDeckNodes = (deckId: number) => {
     }
     nodes.source?.stop();
     nodes.source?.disconnect();
+    nodes.timeStretch?.disconnect();
     nodes.gain.disconnect();
     deckNodes.delete(deckId);
   }
@@ -208,13 +296,13 @@ export const setDeckPlaybackRate = (
   const nodes = deckNodes.get(deckId);
   const clampedRate = Math.min(Math.max(playbackRate, 0.01), 16);
 
-  if (nodes?.source) {
+  const playback = deckPlayback.get(deckId);
+  if (nodes?.source && !playback?.preservePitch) {
     nodes.source.playbackRate.value = clampedRate;
   } else {
     pendingPlaybackRates.set(deckId, clampedRate);
   }
 
-  const playback = deckPlayback.get(deckId);
   if (playback && currentTime !== undefined) {
     const elapsed = playback.playing ? Math.max(0, currentTime - playback.startTime) : 0;
     const nextOffset = Math.min(

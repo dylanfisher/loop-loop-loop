@@ -4,6 +4,7 @@ import TransportBar from "./components/TransportBar";
 import useDecks from "./hooks/useDecks";
 
 const App = () => {
+  console.info("App: render");
   const {
     decks,
     addDeck,
@@ -22,6 +23,8 @@ const App = () => {
     setDeckBpmOverride,
     tapTempo,
     setDeckPreservePitch,
+    stretchEngineStatus,
+    deckStretchStatus,
     getDeckPosition,
   } = useDecks();
 
@@ -51,6 +54,8 @@ const App = () => {
           onBpmOverrideChange={setDeckBpmOverride}
           onTapTempo={tapTempo}
           onPreservePitchChange={setDeckPreservePitch}
+          stretchEngineStatus={stretchEngineStatus}
+          deckStretchStatus={deckStretchStatus}
           getDeckPosition={getDeckPosition}
           setFileInputRef={setFileInputRef}
         />

@@ -18,6 +18,8 @@ type DeckStackProps = {
   onBpmOverrideChange: (id: number, value: number | null) => void;
   onTapTempo: (id: number) => void;
   onPreservePitchChange: (id: number, value: boolean) => void;
+  stretchEngineStatus: "idle" | "loading" | "ready" | "error";
+  deckStretchStatus: Map<number, "idle" | "stretching" | "stretched">;
   getDeckPosition: (id: number) => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
@@ -39,6 +41,8 @@ const DeckStack = ({
   onBpmOverrideChange,
   onTapTempo,
   onPreservePitchChange,
+  stretchEngineStatus,
+  deckStretchStatus,
   getDeckPosition,
   setFileInputRef,
 }: DeckStackProps) => {
@@ -73,6 +77,8 @@ const DeckStack = ({
             onBpmOverrideChange={onBpmOverrideChange}
             onTapTempo={onTapTempo}
             onPreservePitchChange={onPreservePitchChange}
+            stretchEngineStatus={stretchEngineStatus}
+            stretchStatus={deckStretchStatus.get(deck.id) ?? "idle"}
             getDeckPosition={() => getDeckPosition(deck.id)}
             setFileInputRef={setFileInputRef}
           />

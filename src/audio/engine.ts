@@ -5,8 +5,11 @@ import {
   setDeckGainValue,
   setDeckLoopParams,
   setDeckPlaybackRate,
+  setDeckTempoRatio,
   stopDeckPlayback,
+  setTimeStretchWasmBytes,
 } from "./deck";
+import wasmUrl from "rubberband-wasm/dist/rubberband.wasm?url";
 
 type DeckEndedCallback = () => void;
 
@@ -22,7 +25,9 @@ type AudioEngine = {
     playbackRate?: number,
     loopEnabled?: boolean,
     loopStartSeconds?: number,
-    loopEndSeconds?: number
+    loopEndSeconds?: number,
+    preservePitch?: boolean,
+    tempoRatio?: number
   ) => Promise<void>;
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
@@ -30,10 +35,14 @@ type AudioEngine = {
   getDeckPosition: (deckId: number) => number | null;
   setDeckLoopParams: (deckId: number, loopEnabled: boolean, start: number, end: number) => void;
   setDeckPlaybackRate: (deckId: number, value: number) => void;
+  setDeckTempoRatio: (deckId: number, value: number) => void;
+  ensureTimeStretchWorklet: () => Promise<void>;
 };
 
 let audioContext: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let timeStretchWorkletPromise: Promise<void> | null = null;
+let timeStretchWasmPromise: Promise<ArrayBuffer> | null = null;
 
 const ensureContextSync = () => {
   if (!audioContext) {
@@ -66,6 +75,26 @@ const decodeFile = async (file: File) => {
   return context.decodeAudioData(arrayBuffer);
 };
 
+const ensureTimeStretchWorklet = async () => {
+  const context = await ensureContext();
+  if (!timeStretchWorkletPromise) {
+    timeStretchWorkletPromise = context.audioWorklet.addModule(
+      new URL("./worklets/timeStretchProcessor.ts", import.meta.url)
+    );
+  }
+  if (!timeStretchWasmPromise) {
+    timeStretchWasmPromise = fetch(wasmUrl).then((response) => {
+      if (!response.ok) {
+        throw new Error("Failed to load Rubber Band wasm");
+      }
+      return response.arrayBuffer();
+    });
+  }
+  const wasmBytes = await timeStretchWasmPromise;
+  setTimeStretchWasmBytes(wasmBytes);
+  await timeStretchWorkletPromise;
+};
+
 const createBuffer = (channels: number, length: number, sampleRate: number) => {
   const context = ensureContextSync();
   return context.createBuffer(channels, length, sampleRate);
@@ -80,9 +109,14 @@ const playBuffer = async (
   playbackRate = 1,
   loopEnabled = false,
   loopStartSeconds = 0,
-  loopEndSeconds = buffer.duration
+  loopEndSeconds = buffer.duration,
+  preservePitch = false,
+  tempoRatio = 1
 ) => {
   const context = await ensureContext();
+  if (preservePitch) {
+    await ensureTimeStretchWorklet();
+  }
   const output = masterGain ?? context.destination;
   playDeckBuffer(
     context,
@@ -95,6 +129,8 @@ const playBuffer = async (
     loopEnabled,
     loopStartSeconds,
     loopEndSeconds,
+    preservePitch,
+    tempoRatio,
     onEnded
   );
 };
@@ -132,6 +168,14 @@ const updateDeckPlaybackRate = (deckId: number, value: number) => {
   setDeckPlaybackRate(deckId, value, audioContext.currentTime);
 };
 
+const updateDeckTempoRatio = (deckId: number, value: number) => {
+  if (!audioContext) {
+    setDeckTempoRatio(deckId, value);
+    return;
+  }
+  setDeckTempoRatio(deckId, value, audioContext.currentTime);
+};
+
 export const getAudioEngine = (): AudioEngine => {
   return {
     decodeFile,
@@ -143,5 +187,7 @@ export const getAudioEngine = (): AudioEngine => {
     getDeckPosition,
     setDeckLoopParams: updateDeckLoopParams,
     setDeckPlaybackRate: updateDeckPlaybackRate,
+    setDeckTempoRatio: updateDeckTempoRatio,
+    ensureTimeStretchWorklet,
   };
 };

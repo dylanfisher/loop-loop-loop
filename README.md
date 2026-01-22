@@ -21,7 +21,7 @@ Experimental, browser-based DJ system focused on live manipulation rather than l
   - Add tap tempo to compute BPM from recent taps.
   - (Later) use BPM for beat-grid snapping in loop/seek.
 - BPM changes should change playback speed; add a pitch-lock toggle backed by time-stretch DSP.
-  - Pitch lock is expected to use Rubber Band WASM for high-quality time-stretch.
+  - Pitch lock uses Rubber Band WASM in an AudioWorklet for real-time time-stretch.
 
 ## Testing
 - Run tests after changes to hooks, audio engine, or core UI logic: `npm test`
