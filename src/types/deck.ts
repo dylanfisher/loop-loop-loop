@@ -17,6 +17,4 @@ export type DeckState = {
   bpm: number | null;
   bpmConfidence: number;
   bpmOverride: number | null;
-  preservePitch: boolean;
-  sourceBuffer?: AudioBuffer;
 };

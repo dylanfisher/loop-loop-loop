@@ -18,7 +18,6 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Routing matrix for decks, buses, and master chain.
 
 ### DSP Modules
-- Time-stretch/pitch (WASM-based; Rubber Band in an AudioWorklet for real-time pitch lock).
 - Beat/onset detection (WASM or lightweight JS analysis).
 - FX chain: filters, delay, reverb, granular, spectral freeze, bitcrush.
 - Modulation system: LFOs, envelopes, random/stochastic sources.
@@ -27,8 +26,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Per-deck BPM analysis pipeline (offline on load + optional real-time refine).
 - Store detected BPM with confidence + offset alignment for playhead/loop snapping.
 - UI control to override BPM (manual entry + tap tempo + nudge).
-- BPM changes should alter playback speed; pitch lock uses time-stretch DSP.
-- Pitch lock routes through a Rubber Band WASM AudioWorklet for streaming time-stretch.
+- BPM changes should alter playback speed.
 - Optional warp/tempo map for non-constant tempo tracks (post-MVP).
 - Implementation outline:
   - Decode buffer -> downmix to mono -> resample to analysis rate (e.g., 11-22k).
@@ -79,7 +77,6 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - `src/audio/analysis.ts`: Metering/FFT/onset analysis and UI data feeds.
 - `src/audio/bpm.ts`: Offline BPM estimation helper for deck metadata.
 - `src/workers/bpmWorker.ts`: Worker for BPM estimation off the main thread.
-- `src/audio/worklets/timeStretchProcessor.ts`: AudioWorklet processor for streaming pitch-locked tempo.
 
 ## Open Questions
 - UI visual direction and interaction style.
@@ -110,7 +107,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
   - Starts at 1 deck. Decks are modular.
   - Ability to add a new deck, with no limit on number of decks.
   - Each deck has it's own set of associated effects.
-- [ ] Choose DSP stack for MVP (e.g., stretch/pitch + basic FX) and confirm WASM toolchain.
+- [ ] Choose DSP stack for MVP (e.g., basic FX + analysis) and confirm any WASM toolchain needs.
 - [ ] Draft engine API surface (deck controls, transport, routing, automation) to drive UI wiring.
 - [ ] Sketch UI layout and interaction model aligned with the engine API and controller mappings.
 - [ ] Establish timing/scheduling strategy and write a minimal audio graph prototype.
@@ -125,7 +122,6 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ## Next Steps (Audio Engine and DSP)
 - [ ] Define core audio graph (deck source -> per-deck FX -> deck bus -> master FX -> output).
-- [ ] Specify time-stretch/pitch approach and decide on initial quality/perf tradeoffs.
 - [ ] Add analysis pipeline plan (meters, FFT, onset) and data flow to UI.
 - [ ] Establish automation/modulation model (LFOs, envelopes, random) and parameter routing.
 - [ ] Plan AudioWorklet structure (worklet modules, messaging, shared buffers).

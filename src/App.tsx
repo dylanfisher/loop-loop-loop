@@ -22,9 +22,6 @@ const App = () => {
     setDeckLoopBounds,
     setDeckBpmOverride,
     tapTempo,
-    setDeckPreservePitch,
-    stretchEngineStatus,
-    deckStretchStatus,
     getDeckPosition,
   } = useDecks();
 
@@ -53,9 +50,6 @@ const App = () => {
           onLoopBoundsChange={setDeckLoopBounds}
           onBpmOverrideChange={setDeckBpmOverride}
           onTapTempo={tapTempo}
-          onPreservePitchChange={setDeckPreservePitch}
-          stretchEngineStatus={stretchEngineStatus}
-          deckStretchStatus={deckStretchStatus}
           getDeckPosition={getDeckPosition}
           setFileInputRef={setFileInputRef}
         />

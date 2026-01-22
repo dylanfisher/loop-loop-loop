@@ -17,9 +17,6 @@ type DeckCardProps = {
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
   onTapTempo: (id: number) => void;
-  onPreservePitchChange: (id: number, value: boolean) => void;
-  stretchEngineStatus: "idle" | "loading" | "ready" | "error";
-  stretchStatus: "idle" | "stretching" | "stretched";
   getDeckPosition: () => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
@@ -40,9 +37,6 @@ const DeckCard = ({
   onLoopBoundsChange,
   onBpmOverrideChange,
   onTapTempo,
-  onPreservePitchChange,
-  stretchEngineStatus,
-  stretchStatus,
   getDeckPosition,
   setFileInputRef,
 }: DeckCardProps) => {
@@ -202,25 +196,6 @@ const DeckCard = ({
             onChange={(event) => onBpmOverrideChange(deck.id, Number(event.target.value))}
           />
         </div>
-        <label className="deck__bpm-toggle">
-          <span>Pitch lock</span>
-          <input
-            type="checkbox"
-            checked={deck.preservePitch}
-            onChange={(event) => {
-              console.info("Pitch lock toggle (UI)", {
-                deckId: deck.id,
-                checked: event.target.checked,
-              });
-              onPreservePitchChange(deck.id, event.target.checked);
-            }}
-          />
-        </label>
-        <div className="deck__bpm-status">
-          Pitch lock: {deck.preservePitch ? "on" : "off"}
-        </div>
-        <div className="deck__bpm-status">Pitch lock engine: {stretchEngineStatus}</div>
-        <div className="deck__bpm-status">Stretch status: {stretchStatus}</div>
       </div>
       <div className="deck__file-name">{deck.fileName ?? "No file loaded"}</div>
       <div className="deck__fx">

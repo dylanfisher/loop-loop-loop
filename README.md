@@ -20,8 +20,7 @@ Experimental, browser-based DJ system focused on live manipulation rather than l
   - Store detected BPM in deck state, allow override and reset.
   - Add tap tempo to compute BPM from recent taps.
   - (Later) use BPM for beat-grid snapping in loop/seek.
-- BPM changes should change playback speed; add a pitch-lock toggle backed by time-stretch DSP.
-  - Pitch lock uses Rubber Band WASM in an AudioWorklet for real-time time-stretch.
+- BPM changes should change playback speed.
 
 ## Testing
 - Run tests after changes to hooks, audio engine, or core UI logic: `npm test`
