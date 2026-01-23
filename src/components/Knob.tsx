@@ -7,6 +7,7 @@ type KnobProps = {
   max: number;
   step?: number;
   value: number;
+  defaultValue: number;
   onChange: (value: number) => void;
   formatValue?: (value: number) => string;
   centerSnap?: number;
@@ -21,13 +22,16 @@ const snap = (
   step: number,
   min: number,
   max: number,
+  defaultValue: number,
   centerSnap?: number
 ) => {
   if (!step || step <= 0) return clamp(value, min, max);
   const snapped = Math.round((value - min) / step) * step + min;
   const clamped = clamp(snapped, min, max);
-  if (centerSnap !== undefined && Math.abs(clamped) <= centerSnap) {
-    return 0;
+  const snapTarget = clamp(defaultValue, min, max);
+  const tolerance = centerSnap ?? step;
+  if (Math.abs(clamped - snapTarget) <= tolerance) {
+    return snapTarget;
   }
   return clamped;
 };
@@ -38,6 +42,7 @@ const Knob = ({
   max,
   step = 0.01,
   value,
+  defaultValue,
   onChange,
   formatValue,
   centerSnap,
@@ -63,7 +68,7 @@ const Knob = ({
       const sensitivity = isFine ? 0.002 : 0.006;
       const next = dragState.current.startValue + delta * sensitivity * range;
       setFineMode(isFine);
-      onChange(snap(next, step, min, max, centerSnap));
+      onChange(snap(next, step, min, max, defaultValue, centerSnap));
     };
 
     const handleUp = () => {
@@ -81,7 +86,7 @@ const Knob = ({
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
     };
-  }, [centerSnap, max, min, onChange, range, step]);
+  }, [centerSnap, defaultValue, max, min, onChange, range, step]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!knobRef.current) return;
@@ -96,12 +101,12 @@ const Knob = ({
     if (event.key === "ArrowRight" || event.key === "ArrowUp") {
       event.preventDefault();
       setFineMode(event.shiftKey);
-      onChange(snap(value + fine, step, min, max, centerSnap));
+      onChange(snap(value + fine, step, min, max, defaultValue, centerSnap));
     }
     if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
       event.preventDefault();
       setFineMode(event.shiftKey);
-      onChange(snap(value - fine, step, min, max, centerSnap));
+      onChange(snap(value - fine, step, min, max, defaultValue, centerSnap));
     }
   };
 
@@ -122,6 +127,12 @@ const Knob = ({
         aria-valuenow={value}
         tabIndex={0}
         onPointerDown={handlePointerDown}
+        onDoubleClick={() => {
+          dragState.current = null;
+          setDragging(false);
+          setFineMode(false);
+          onChange(clamp(defaultValue, min, max));
+        }}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
       >

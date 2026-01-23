@@ -331,6 +331,7 @@ const DeckCard = ({
               max={1}
               step={0.01}
               value={djFilterValue}
+              defaultValue={0}
               onChange={(next) => onFilterChange(deck.id, next)}
               formatValue={formatDjFilter}
               centerSnap={0.03}
@@ -362,6 +363,7 @@ const DeckCard = ({
               max={resonanceMax}
               step={0.05}
               value={resonanceDisplayValue}
+              defaultValue={0.7}
               onChange={(next) => onResonanceChange(deck.id, next)}
               formatValue={(value) => value.toFixed(2)}
             />
@@ -394,6 +396,7 @@ const DeckCard = ({
               max={36}
               step={0.5}
               value={eqLowValue}
+              defaultValue={0}
               onChange={(next) => onEqLowChange(deck.id, next)}
               formatValue={formatEq}
               centerSnap={0.25}
@@ -425,6 +428,7 @@ const DeckCard = ({
               max={36}
               step={0.5}
               value={eqMidValue}
+              defaultValue={0}
               onChange={(next) => onEqMidChange(deck.id, next)}
               formatValue={formatEq}
               centerSnap={0.25}
@@ -456,6 +460,7 @@ const DeckCard = ({
               max={36}
               step={0.5}
               value={eqHighValue}
+              defaultValue={0}
               onChange={(next) => onEqHighChange(deck.id, next)}
               formatValue={formatEq}
               centerSnap={0.25}
