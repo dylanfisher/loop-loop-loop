@@ -142,6 +142,20 @@ body {
   overflow: visible;
 }
 
+.deck__waveform-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.deck__waveform-side {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
 .deck__waveform canvas {
   width: 100%;
   height: 100%;
@@ -257,6 +271,19 @@ body {
   width: 100%;
 }
 
+.deck__gain--vertical {
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+}
+
+.deck__gain--vertical input {
+  writing-mode: bt-lr;
+  -webkit-appearance: slider-vertical;
+  width: 18px;
+  height: 120px;
+}
+
 .deck__zoom {
   display: grid;
   gap: 6px;
@@ -265,9 +292,23 @@ body {
   letter-spacing: 0.08em;
 }
 
-.deck__zoom input {
-  width: 100%;
+.deck__zoom-controls {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 6px;
+  align-items: center;
 }
+
+.deck__zoom-button,
+.deck__zoom-readout {
+  padding: 6px 8px;
+  font-size: 0.7rem;
+}
+
+.deck__zoom-readout {
+  min-width: 48px;
+}
+
 
 .deck__follow {
   display: flex;

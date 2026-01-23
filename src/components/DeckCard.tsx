@@ -103,6 +103,13 @@ const DeckCard = ({
   const sliderValue = effectiveBpm ?? 120;
   const confidenceLabel =
     deck.bpmConfidence > 0 ? `${Math.round(deck.bpmConfidence * 100)}%` : "--";
+  const zoomSteps = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+  const zoomIndex = zoomSteps.reduce((bestIndex, step, index) => {
+    const bestDiff = Math.abs(zoomSteps[bestIndex] - deck.zoom);
+    const nextDiff = Math.abs(step - deck.zoom);
+    return nextDiff < bestDiff ? index : bestIndex;
+  }, 0);
+  const zoomValue = zoomSteps[zoomIndex];
   const djFilter = Math.min(Math.max(deck.djFilter, -1), 1);
   const resonanceMin = 0.3;
   const resonanceMax = 24;
@@ -187,23 +194,69 @@ const DeckCard = ({
           </button>
         </div>
       </div>
-      <Waveform
-        buffer={deck.buffer}
-        isPlaying={deck.status === "playing"}
-        startedAtMs={deck.startedAtMs}
-        duration={deck.duration}
-        offsetSeconds={deck.offsetSeconds}
-        zoom={deck.zoom}
-        follow={deck.follow}
-        loopEnabled={deck.loopEnabled}
-        loopStartSeconds={deck.loopStartSeconds}
-        loopEndSeconds={deck.loopEndSeconds}
-        onSeek={(progress) => onSeek(deck.id, progress)}
-        onLoopBoundsChange={(startSeconds, endSeconds) =>
-          onLoopBoundsChange(deck.id, startSeconds, endSeconds)
-        }
-        getCurrentSeconds={getCurrentSeconds}
-      />
+      <div className="deck__waveform-row">
+        <Waveform
+          buffer={deck.buffer}
+          isPlaying={deck.status === "playing"}
+          startedAtMs={deck.startedAtMs}
+          duration={deck.duration}
+          offsetSeconds={deck.offsetSeconds}
+          zoom={deck.zoom}
+          follow={deck.follow}
+          loopEnabled={deck.loopEnabled}
+          loopStartSeconds={deck.loopStartSeconds}
+          loopEndSeconds={deck.loopEndSeconds}
+          onSeek={(progress) => onSeek(deck.id, progress)}
+          onLoopBoundsChange={(startSeconds, endSeconds) =>
+            onLoopBoundsChange(deck.id, startSeconds, endSeconds)
+          }
+          getCurrentSeconds={getCurrentSeconds}
+        />
+        <div className="deck__waveform-side">
+          <div className="deck__zoom">
+            <span>Zoom</span>
+            <div className="deck__zoom-controls">
+              <button
+                type="button"
+                className="deck__zoom-button"
+                disabled={zoomIndex <= 0}
+                onClick={() => onZoomChange(deck.id, zoomSteps[Math.max(0, zoomIndex - 1)])}
+              >
+                -
+              </button>
+              <button
+                type="button"
+                className="deck__zoom-readout"
+                onDoubleClick={() => onZoomChange(deck.id, 1)}
+              >
+                {zoomValue}x
+              </button>
+              <button
+                type="button"
+                className="deck__zoom-button"
+                disabled={zoomIndex >= zoomSteps.length - 1}
+                onClick={() =>
+                  onZoomChange(deck.id, zoomSteps[Math.min(zoomSteps.length - 1, zoomIndex + 1)])
+                }
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <label className="deck__gain deck__gain--vertical">
+            <span>Gain</span>
+            <input
+              type="range"
+              min="0"
+              max="1.5"
+              step="0.01"
+              value={deck.gain}
+              onChange={(event) => onGainChange(deck.id, Number(event.target.value))}
+              onDoubleClick={() => onGainChange(deck.id, 0.9)}
+            />
+          </label>
+        </div>
+      </div>
       <div className="deck__controls">
         <input
           ref={(node) => setFileInputRef(deck.id, node)}
@@ -237,28 +290,6 @@ const DeckCard = ({
         </button>
         <button type="button">Slice</button>
       </div>
-      <label className="deck__gain">
-        <span>Gain</span>
-        <input
-          type="range"
-          min="0"
-          max="1.5"
-          step="0.01"
-          value={deck.gain}
-          onChange={(event) => onGainChange(deck.id, Number(event.target.value))}
-        />
-      </label>
-      <label className="deck__zoom">
-        <span>Zoom</span>
-        <input
-          type="range"
-          min="1"
-          max="256"
-          step="1"
-          value={deck.zoom}
-          onChange={(event) => onZoomChange(deck.id, Number(event.target.value))}
-        />
-      </label>
       <label className="deck__follow">
         <span>Follow</span>
         <input
@@ -317,6 +348,7 @@ const DeckCard = ({
             step="0.1"
             value={sliderValue}
             onChange={(event) => onBpmOverrideChange(deck.id, Number(event.target.value))}
+            onDoubleClick={() => onBpmOverrideChange(deck.id, null)}
           />
         </div>
       </div>
