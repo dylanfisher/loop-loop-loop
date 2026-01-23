@@ -613,7 +613,7 @@ const Waveform = ({
               const clampedEnd = clampedStart + loopDuration;
               loopStartRef.current = clampedStart;
               loopEndRef.current = clampedEnd;
-              onLoopBoundsChange(clampedStart, clampedEnd);
+              onLoopBoundsChange?.(clampedStart, clampedEnd);
               renderOverlay();
             }}
             onPointerUp={(event) => {
@@ -669,7 +669,7 @@ const Waveform = ({
               const clampedEnd = clampedStart + loopDuration;
               loopStartRef.current = clampedStart;
               loopEndRef.current = clampedEnd;
-              onLoopBoundsChange(clampedStart, clampedEnd);
+              onLoopBoundsChange?.(clampedStart, clampedEnd);
               renderOverlay();
             }}
               onPointerUp={(event) => {

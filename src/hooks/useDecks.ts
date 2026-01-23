@@ -787,25 +787,22 @@ const useDecks = () => {
 
   const setDeckBpmOverride = (id: number, value: number | null) => {
     const nextValue = value === null ? null : clampBpm(value);
-    let nextDeck: DeckState | null = null;
+    const currentDeck = decks.find((deck) => deck.id === id);
+    if (!currentDeck) return;
     setDecks((prev) =>
-      prev.map((deck) => {
-        if (deck.id !== id) return deck;
-        nextDeck = { ...deck, bpmOverride: nextValue };
-        return nextDeck;
-      })
+      prev.map((deck) =>
+        deck.id === id ? { ...deck, bpmOverride: nextValue } : deck
+      )
     );
-
-    if (!nextDeck) return;
 
     if (nextValue === null) {
       setDeckPlaybackRate(id, 1);
       return;
     }
 
-    if (!nextDeck.bpm) return;
+    if (!currentDeck.bpm) return;
 
-    setDeckPlaybackRate(id, clampPlaybackRate(nextValue / nextDeck.bpm));
+    setDeckPlaybackRate(id, clampPlaybackRate(nextValue / currentDeck.bpm));
   };
 
   const tapTempo = (id: number) => {

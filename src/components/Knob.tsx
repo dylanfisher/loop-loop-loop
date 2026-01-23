@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
 type KnobProps = {
   label: string;
@@ -83,7 +83,7 @@ const Knob = ({
     };
   }, [centerSnap, max, min, onChange, range, step]);
 
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!knobRef.current) return;
     knobRef.current.setPointerCapture(event.pointerId);
     dragState.current = { startX: event.clientX, startY: event.clientY, startValue: value };
@@ -91,7 +91,7 @@ const Knob = ({
     setFineMode(event.shiftKey);
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const fine = event.shiftKey ? step : step * 5;
     if (event.key === "ArrowRight" || event.key === "ArrowUp") {
       event.preventDefault();
