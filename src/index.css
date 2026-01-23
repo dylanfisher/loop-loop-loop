@@ -82,6 +82,10 @@ body {
   grid-template-columns: 1fr;
 }
 
+.deck-stack__list > .deck:only-child {
+  grid-column: 1 / -1;
+}
+
 .deck {
   border: 2px solid #111;
   padding: 14px;
@@ -540,8 +544,22 @@ button.is-active {
   }
 }
 
-@media (min-width: 901px) {
+@media (min-width: 1500px) {
   .deck-stack__list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .deck__fx {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .deck__fx-title {
+    grid-column: 1 / -1;
+  }
+
+  .deck__fx-row {
+    display: contents;
   }
 }

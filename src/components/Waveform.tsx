@@ -305,10 +305,15 @@ const Waveform = ({
 
     const updateWindow = (startSeconds: number, width: number) => {
       let nextStart = startSeconds;
-      if (duration && !activeLoopDragRef.current) {
+      if (duration && follow && isPlaying && !activeLoopDragRef.current) {
         const visualDuration = duration / Math.max(1, zoom);
         const currentSeconds = getDisplaySeconds();
-        nextStart = clampWindowStart(currentSeconds - visualDuration / 2, duration, zoom);
+        const windowEnd = startSeconds + visualDuration;
+        if (currentSeconds >= windowEnd) {
+          nextStart = clampWindowStart(currentSeconds, duration, zoom);
+        } else if (currentSeconds < startSeconds) {
+          nextStart = clampWindowStart(currentSeconds, duration, zoom);
+        }
       }
       windowStartRef.current = nextStart;
       peaksRef.current = buildPeaks(buffer, width, zoom, nextStart);
@@ -346,7 +351,7 @@ const Waveform = ({
     resize();
 
     return () => observer.disconnect();
-  }, [buffer, duration, getDisplaySeconds, renderOverlay, zoom]);
+  }, [buffer, duration, follow, getDisplaySeconds, isPlaying, renderOverlay, zoom]);
 
   useEffect(() => {
     if (activeLoopDragRef.current === "region") return;
@@ -370,7 +375,7 @@ const Waveform = ({
         const currentSeconds = getDisplaySeconds();
         const maxWindowStart = Math.max(0, duration - visualDuration);
         let desiredWindowStart = windowStartRef.current;
-        if (follow && !isDraggingRef.current) {
+        if (follow && isPlaying && !isDraggingRef.current) {
           if (loopEnabled && loopEndSeconds > loopStartSeconds) {
             const loopDuration = loopEndSeconds - loopStartSeconds;
             if (loopDuration > visualDuration) {

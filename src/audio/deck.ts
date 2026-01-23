@@ -61,7 +61,6 @@ const ensureDeckNodes = (
     const eqMid = context.createBiquadFilter();
     eqMid.type = "peaking";
     eqMid.frequency.value = 1000;
-    eqMid.Q.value = 0.9;
     eqMid.gain.value = pendingEqMid.get(deckId) ?? eqMidGain;
     const eqHigh = context.createBiquadFilter();
     eqHigh.type = "highshelf";

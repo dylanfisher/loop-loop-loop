@@ -17,6 +17,8 @@ type AutomationTrack = {
   durationSec: number;
   recording: boolean;
   active: boolean;
+  paused: boolean;
+  pausedPositionSec: number;
   currentValue: number;
   lastIndex: number;
   lastPreviewLength: number;
@@ -49,6 +51,8 @@ const createTrack = (initialValue: number): AutomationTrack => ({
   durationSec: 0,
   recording: false,
   active: false,
+  paused: false,
+  pausedPositionSec: 0,
   currentValue: initialValue,
   lastIndex: -1,
   lastPreviewLength: 0,
@@ -312,6 +316,14 @@ const useDecks = () => {
       automation.forEach((tracks, deckId) => {
         (Object.keys(tracks) as AutomationParam[]).forEach((param) => {
           const track = tracks[param];
+          if (track.paused && track.active && !track.recording) {
+            const playheads = automationPlayheadRef.current.get(deckId);
+            if (playheads) {
+              playheads[param] =
+                track.durationSec > 0 ? track.pausedPositionSec / track.durationSec : 0;
+            }
+            return;
+          }
           if (track.recording) {
             const interval = 1000 / track.sampleRate;
             while (now - track.lastSampleMs >= interval) {
@@ -610,9 +622,11 @@ const useDecks = () => {
       const maxOffset = Math.max(deck.loopStartSeconds, deck.loopEndSeconds - 0.01);
       offsetSeconds = Math.min(Math.max(offsetSeconds, deck.loopStartSeconds), maxOffset);
     }
+    // eslint-disable-next-line react-hooks/purity -- timestamp is captured during user action
+    const startedAtMs = performance.now();
     updateDeck(deck.id, {
       status: "playing",
-      startedAtMs: performance.now(),
+      startedAtMs,
       duration: deck.buffer.duration,
       offsetSeconds,
     });
@@ -637,6 +651,49 @@ const useDecks = () => {
       deck.eqMidGain,
       deck.eqHighGain
     );
+    if (deck.status === "paused") {
+      resumeAutomationDeck(deck.id);
+    }
+  };
+
+  const pauseAutomationDeck = (deckId: number) => {
+    const automation = automationRef.current.get(deckId);
+    if (!automation) return;
+    const now = performance.now();
+    (Object.keys(automation) as AutomationParam[]).forEach((param) => {
+      const track = automation[param];
+      if (!track.active || track.recording || track.durationSec <= 0) {
+        return;
+      }
+      const elapsedSec = (now - track.playbackStartMs) / 1000;
+      const positionSec = elapsedSec % track.durationSec;
+      track.paused = true;
+      track.pausedPositionSec = positionSec;
+      track.playbackStartMs = 0;
+      const playheads = automationPlayheadRef.current.get(deckId);
+      if (playheads) {
+        playheads[param] = positionSec / track.durationSec;
+      }
+    });
+    updateAutomationView(deckId);
+  };
+
+  const resumeAutomationDeck = (deckId: number) => {
+    const automation = automationRef.current.get(deckId);
+    if (!automation) return;
+    const now = performance.now();
+    (Object.keys(automation) as AutomationParam[]).forEach((param) => {
+      const track = automation[param];
+      if (!track.paused || !track.active || track.durationSec <= 0) {
+        track.paused = false;
+        track.pausedPositionSec = 0;
+        return;
+      }
+      track.playbackStartMs = now - track.pausedPositionSec * 1000;
+      track.paused = false;
+      track.pausedPositionSec = 0;
+    });
+    updateAutomationView(deckId);
   };
 
   const pauseDeck = (deck: DeckState) => {
@@ -647,6 +704,7 @@ const useDecks = () => {
       position !== null ? Math.min(Math.max(0, position), duration) : deck.offsetSeconds ?? 0;
 
     stop(deck.id);
+    pauseAutomationDeck(deck.id);
     updateDeck(deck.id, {
       status: "paused",
       startedAtMs: undefined,
@@ -766,6 +824,8 @@ const useDecks = () => {
     const track = automation[param];
     track.recording = true;
     track.active = true;
+    track.paused = false;
+    track.pausedPositionSec = 0;
     track.recordBuffer = [];
     track.samples = new Float32Array(0);
     track.durationSec = 0;
@@ -856,6 +916,9 @@ const useDecks = () => {
     track.durationSec = 0;
     track.recording = false;
     track.active = false;
+    track.paused = false;
+    track.pausedPositionSec = 0;
+    track.playbackStartMs = 0;
     track.lastPreviewLength = 0;
     updateAutomationView(id);
   };
