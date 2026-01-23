@@ -19,6 +19,7 @@ type DeckCardProps = {
     "djFilter" | "resonance",
     {
       samples: Float32Array;
+      previewSamples: Float32Array;
       durationSec: number;
       recording: boolean;
       active: boolean;
@@ -94,6 +95,7 @@ const DeckCard = ({
   };
   const djAutomation = automation?.djFilter ?? {
     samples: new Float32Array(0),
+    previewSamples: new Float32Array(0),
     durationSec: 0,
     recording: false,
     active: false,
@@ -101,6 +103,7 @@ const DeckCard = ({
   };
   const resonanceAutomation = automation?.resonance ?? {
     samples: new Float32Array(0),
+    previewSamples: new Float32Array(0),
     durationSec: 0,
     recording: false,
     active: false,
@@ -284,6 +287,7 @@ const DeckCard = ({
               max={1}
               value={djFilterValue}
               samples={djAutomation.samples}
+              previewSamples={djAutomation.previewSamples}
               durationSec={djAutomation.durationSec}
               recording={djAutomation.recording}
               active={djAutomation.active}
@@ -313,6 +317,7 @@ const DeckCard = ({
               max={resonanceMax}
               value={resonanceDisplayValue}
               samples={resonanceAutomation.samples}
+              previewSamples={resonanceAutomation.previewSamples}
               durationSec={resonanceAutomation.durationSec}
               recording={resonanceAutomation.recording}
               active={resonanceAutomation.active}

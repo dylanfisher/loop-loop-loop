@@ -19,6 +19,7 @@ type AutomationTrack = {
   active: boolean;
   currentValue: number;
   lastIndex: number;
+  lastPreviewLength: number;
   recordBuffer: number[];
   recordStartMs: number;
   lastSampleMs: number;
@@ -32,6 +33,7 @@ type AutomationDeck = {
 
 type AutomationView = {
   samples: Float32Array;
+  previewSamples: Float32Array;
   durationSec: number;
   recording: boolean;
   active: boolean;
@@ -46,6 +48,7 @@ const createTrack = (initialValue: number): AutomationTrack => ({
   active: false,
   currentValue: initialValue,
   lastIndex: -1,
+  lastPreviewLength: 0,
   recordBuffer: [],
   recordStartMs: 0,
   lastSampleMs: 0,
@@ -148,6 +151,7 @@ const useDecks = () => {
         next.set(deckId, {
           djFilter: {
             samples: automation!.djFilter.samples,
+            previewSamples: new Float32Array(0),
             durationSec: 0,
             recording: false,
             active: false,
@@ -155,6 +159,7 @@ const useDecks = () => {
           },
           resonance: {
             samples: automation!.resonance.samples,
+            previewSamples: new Float32Array(0),
             durationSec: 0,
             recording: false,
             active: false,
@@ -175,6 +180,9 @@ const useDecks = () => {
       next.set(deckId, {
         djFilter: {
           samples: automation.djFilter.samples,
+          previewSamples: automation.djFilter.recording
+            ? new Float32Array(automation.djFilter.recordBuffer)
+            : new Float32Array(0),
           durationSec: automation.djFilter.durationSec,
           recording: automation.djFilter.recording,
           active: automation.djFilter.active,
@@ -182,6 +190,9 @@ const useDecks = () => {
         },
         resonance: {
           samples: automation.resonance.samples,
+          previewSamples: automation.resonance.recording
+            ? new Float32Array(automation.resonance.recordBuffer)
+            : new Float32Array(0),
           durationSec: automation.resonance.durationSec,
           recording: automation.resonance.recording,
           active: automation.resonance.active,
@@ -219,6 +230,10 @@ const useDecks = () => {
               track.recordBuffer.push(track.currentValue);
               track.lastSampleMs += interval;
               track.durationSec = track.recordBuffer.length / track.sampleRate;
+            }
+            if (track.recordBuffer.length !== track.lastPreviewLength) {
+              track.lastPreviewLength = track.recordBuffer.length;
+              updateAutomationView(deckId);
             }
           }
           if (!track.recording && track.active && track.durationSec > 0) {
@@ -601,6 +616,7 @@ const useDecks = () => {
     track.durationSec = 0;
     track.recordStartMs = performance.now();
     track.lastSampleMs = track.recordStartMs;
+    track.lastPreviewLength = 0;
     track.currentValue = param === "djFilter" ? deck.djFilter : deck.filterResonance;
     updateAutomationView(id);
   };
@@ -621,6 +637,7 @@ const useDecks = () => {
       track.durationSec = 0;
     }
     track.recordBuffer = [];
+    track.lastPreviewLength = 0;
     updateAutomationView(id);
   };
 
@@ -664,6 +681,7 @@ const useDecks = () => {
     track.durationSec = 0;
     track.recording = false;
     track.active = false;
+    track.lastPreviewLength = 0;
     updateAutomationView(id);
   };
 

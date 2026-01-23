@@ -7,6 +7,7 @@ type AutomationLaneProps = {
   max: number;
   value: number;
   samples: Float32Array;
+  previewSamples: Float32Array;
   durationSec: number;
   recording: boolean;
   active: boolean;
@@ -26,6 +27,7 @@ const AutomationLane = ({
   max,
   value,
   samples,
+  previewSamples,
   durationSec,
   recording,
   active,
@@ -65,13 +67,14 @@ const AutomationLane = ({
       ctx.lineWidth = 1;
       ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 
-      if (samples.length > 1) {
+      const activeSamples = recording && previewSamples.length > 1 ? previewSamples : samples;
+      if (activeSamples.length > 1) {
         ctx.strokeStyle = "#111";
         ctx.lineWidth = 2;
         ctx.beginPath();
-        for (let i = 0; i < samples.length; i += 1) {
-          const t = i / (samples.length - 1);
-          const sample = samples[i];
+        for (let i = 0; i < activeSamples.length; i += 1) {
+          const t = i / (activeSamples.length - 1);
+          const sample = activeSamples[i];
           const normalized = (sample - min) / (max - min);
           const x = t * width;
           const y = height - normalized * height;
@@ -107,7 +110,7 @@ const AutomationLane = ({
     return () => {
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [active, durationSec, getPlayhead, max, min, recording, samples]);
+  }, [active, durationSec, getPlayhead, max, min, previewSamples, recording, samples]);
 
   const setValueFromPointer = useCallback(
     (event: PointerEvent | ReactPointerEvent<HTMLDivElement>) => {

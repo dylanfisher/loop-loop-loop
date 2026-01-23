@@ -21,6 +21,7 @@ type DeckStackProps = {
   onTapTempo: (id: number) => void;
   automationState: Map<number, Record<"djFilter" | "resonance", {
     samples: Float32Array;
+    previewSamples: Float32Array;
     durationSec: number;
     recording: boolean;
     active: boolean;
