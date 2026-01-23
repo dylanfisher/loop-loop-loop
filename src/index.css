@@ -362,13 +362,62 @@ body {
   gap: 6px;
 }
 
-.deck__fx-label {
+.knob {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+
+.knob__label {
   font-size: 0.7rem;
   letter-spacing: 0.08em;
 }
 
-.deck__fx-value {
+.knob__control {
+  width: 70px;
+  height: 70px;
+  border-radius: 999px;
+  border: 2px solid #111;
+  background: #f7f7f7;
+  display: grid;
+  place-items: center;
+  cursor: ew-resize;
+  outline: none;
+}
+
+.knob__control.is-dragging {
+  background: #e6f0ff;
+}
+
+.knob__dial {
+  width: 60px;
+  height: 60px;
+}
+
+.knob__ring {
+  fill: none;
+  stroke: #111;
+  stroke-width: 2;
+}
+
+.knob__indicator {
+  stroke: #111;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.knob__value {
   font-size: 0.7rem;
+  opacity: 0.7;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.knob__fine {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   opacity: 0.7;
 }
 

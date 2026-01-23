@@ -1,4 +1,5 @@
 import type { DeckState } from "../types/deck";
+import Knob from "./Knob";
 import Waveform from "./Waveform";
 
 type DeckCardProps = {
@@ -51,18 +52,15 @@ const DeckCard = ({
   const confidenceLabel =
     deck.bpmConfidence > 0 ? `${Math.round(deck.bpmConfidence * 100)}%` : "--";
   const djFilter = Math.min(Math.max(deck.djFilter, -1), 1);
-  const djFilterSlider = (djFilter + 1) / 2;
   const resonanceMin = 0.3;
   const resonanceMax = 24;
   const resonanceValue = Math.min(
     Math.max(deck.filterResonance, resonanceMin),
     resonanceMax
   );
-  const resonanceSlider =
-    (resonanceValue - resonanceMin) / (resonanceMax - resonanceMin);
-  const formatDjFilter = () => {
-    if (djFilter > 0.05) return "HP";
-    if (djFilter < -0.05) return "LP";
+  const formatDjFilter = (value: number) => {
+    if (value > 0.05) return `HP ${value.toFixed(2)}`;
+    if (value < -0.05) return `LP ${Math.abs(value).toFixed(2)}`;
     return "Flat";
   };
 
@@ -221,38 +219,27 @@ const DeckCard = ({
         <div className="deck__fx-title">Deck FX</div>
         <div className="deck__fx-row">
           <div className="deck__fx-unit deck__fx-unit--filter">
-            <div className="deck__fx-label">DJ Filter</div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.001"
-              value={djFilterSlider}
-              onChange={(event) => {
-                const slider = Number(event.target.value);
-                const next = slider * 2 - 1;
-                onFilterChange(deck.id, next);
-              }}
+            <Knob
+              label="DJ Filter"
+              min={-1}
+              max={1}
+              step={0.01}
+              value={djFilter}
+              onChange={(next) => onFilterChange(deck.id, next)}
+              formatValue={formatDjFilter}
+              centerSnap={0.03}
             />
-            <div className="deck__fx-value">
-              {formatDjFilter()}
-            </div>
           </div>
           <div className="deck__fx-unit deck__fx-unit--filter">
-            <div className="deck__fx-label">Resonance</div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.001"
-              value={resonanceSlider}
-              onChange={(event) => {
-                const slider = Number(event.target.value);
-                const next = resonanceMin + slider * (resonanceMax - resonanceMin);
-                onResonanceChange(deck.id, next);
-              }}
+            <Knob
+              label="Resonance"
+              min={resonanceMin}
+              max={resonanceMax}
+              step={0.05}
+              value={resonanceValue}
+              onChange={(next) => onResonanceChange(deck.id, next)}
+              formatValue={(value) => value.toFixed(2)}
             />
-            <div className="deck__fx-value">{resonanceValue.toFixed(2)}</div>
           </div>
         </div>
       </div>
