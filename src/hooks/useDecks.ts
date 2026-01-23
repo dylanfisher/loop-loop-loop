@@ -568,11 +568,25 @@ const useDecks = () => {
     setDeckFilter(id, targets.lowpass);
     setDeckHighpass(id, targets.highpass);
     updateDeck(id, { djFilter: clamp(value, -1, 1) });
+    const automation = automationRef.current.get(id);
+    const track = automation?.djFilter;
+    if (track && track.active && !track.recording) {
+      track.active = false;
+      track.playbackStartMs = 0;
+      updateAutomationView(id);
+    }
   };
 
   const setDeckResonanceValue = (id: number, value: number) => {
     setDeckResonance(id, value);
     updateDeck(id, { filterResonance: value });
+    const automation = automationRef.current.get(id);
+    const track = automation?.resonance;
+    if (track && track.active && !track.recording) {
+      track.active = false;
+      track.playbackStartMs = 0;
+      updateAutomationView(id);
+    }
   };
 
   const startAutomationRecording = (id: number, param: AutomationParam) => {
