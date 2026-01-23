@@ -5,6 +5,7 @@ import { estimateBpmFromBuffer } from "../audio/bpm";
 
 const clampBpm = (value: number) => Math.min(Math.max(value, 1), 999);
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const isTestEnv = import.meta.env.MODE === "test";
 const debugInfo = (...args: unknown[]) => {
   if (!isTestEnv) {
@@ -24,6 +25,8 @@ const useDecks = () => {
       id: 1,
       status: "idle",
       gain: 0.9,
+      djFilter: 0,
+      filterResonance: 0.7,
       offsetSeconds: 0,
       zoom: 1,
       follow: true,
@@ -41,11 +44,35 @@ const useDecks = () => {
     playBuffer,
     stop,
     setDeckGain,
+    setDeckFilter,
+    setDeckHighpass,
+    setDeckResonance,
     removeDeck: removeDeckNodes,
     getDeckPosition,
     setDeckLoopParams,
     setDeckPlaybackRate,
   } = useAudioEngine();
+
+  const getFilterTargets = (djFilter: number) => {
+    const min = 60;
+    const max = 20000;
+    const highpassMax = 12000;
+    const normalized = clamp(djFilter, -1, 1);
+    const logMin = Math.log10(min);
+    const logMax = Math.log10(max);
+    const logHighMax = Math.log10(highpassMax);
+    if (normalized < 0) {
+      const t = 1 + normalized;
+      const lowpass = Math.pow(10, logMin + t * (logMax - logMin));
+      return { lowpass, highpass: min };
+    }
+    if (normalized > 0) {
+      const t = normalized;
+      const highpass = Math.pow(10, logMin + t * (logHighMax - logMin));
+      return { lowpass: max, highpass };
+    }
+    return { lowpass: max, highpass: min };
+  };
 
   const getDeckTempoRatio = (deck: DeckState) => {
     if (!deck.bpmOverride || !deck.bpm) return 1;
@@ -175,6 +202,8 @@ const useDecks = () => {
         id,
         status: "idle",
         gain: 0.9,
+        djFilter: 0,
+        filterResonance: 0.7,
         offsetSeconds: 0,
         zoom: 1,
         follow: true,
@@ -217,6 +246,8 @@ const useDecks = () => {
       fileName: file.name,
       startedAtMs: undefined,
       offsetSeconds: 0,
+      djFilter: 0,
+      filterResonance: 0.7,
       zoom: 1,
       follow: true,
       loopEnabled: false,
@@ -235,6 +266,8 @@ const useDecks = () => {
         buffer,
         duration: buffer.duration,
         offsetSeconds: 0,
+        djFilter: 0,
+        filterResonance: 0.7,
         zoom: 1,
         follow: true,
         loopEnabled: false,
@@ -266,6 +299,7 @@ const useDecks = () => {
       offsetSeconds,
     });
     const tempoRatio = getDeckTempoRatio(deck);
+    const filters = getFilterTargets(deck.djFilter);
     await playBuffer(
       deck.id,
       deck.buffer,
@@ -277,7 +311,10 @@ const useDecks = () => {
       tempoRatio,
       deck.loopEnabled,
       deck.loopStartSeconds,
-      deck.loopEndSeconds
+      deck.loopEndSeconds,
+      filters.lowpass,
+      filters.highpass,
+      deck.filterResonance
     );
   };
 
@@ -310,6 +347,7 @@ const useDecks = () => {
         status: "playing",
       });
       const tempoRatio = getDeckTempoRatio(deck);
+      const filters = getFilterTargets(deck.djFilter);
       void playBuffer(
         deck.id,
         deck.buffer,
@@ -319,7 +357,10 @@ const useDecks = () => {
         tempoRatio,
         deck.loopEnabled,
         deck.loopStartSeconds,
-        deck.loopEndSeconds
+        deck.loopEndSeconds,
+        filters.lowpass,
+        filters.highpass,
+        deck.filterResonance
       );
       return;
     }
@@ -330,6 +371,18 @@ const useDecks = () => {
   const setDeckGainValue = (id: number, value: number) => {
     setDeckGain(id, value);
     updateDeck(id, { gain: value });
+  };
+
+  const setDeckFilterValue = (id: number, value: number) => {
+    const targets = getFilterTargets(value);
+    setDeckFilter(id, targets.lowpass);
+    setDeckHighpass(id, targets.highpass);
+    updateDeck(id, { djFilter: clamp(value, -1, 1) });
+  };
+
+  const setDeckResonanceValue = (id: number, value: number) => {
+    setDeckResonance(id, value);
+    updateDeck(id, { filterResonance: value });
   };
 
   const setDeckZoomValue = (id: number, value: number) => {
@@ -366,6 +419,7 @@ const useDecks = () => {
           : offsetSeconds;
         const tempoRatio = getDeckTempoRatio(deck);
 
+        const filters = getFilterTargets(deck.djFilter);
         void playBuffer(
           deck.id,
           deck.buffer,
@@ -375,7 +429,10 @@ const useDecks = () => {
           tempoRatio,
           value,
           nextDeck.loopStartSeconds,
-          nextDeck.loopEndSeconds
+          nextDeck.loopEndSeconds,
+          filters.lowpass,
+          filters.highpass,
+          deck.filterResonance
         );
 
         return {
@@ -416,6 +473,7 @@ const useDecks = () => {
             Math.max(currentPosition ?? nextStart, nextStart),
             Math.max(nextStart, nextEnd - 0.01)
           );
+          const filters = getFilterTargets(deck.djFilter);
           void playBuffer(
             deck.id,
             deck.buffer,
@@ -426,7 +484,10 @@ const useDecks = () => {
             getDeckTempoRatio(deck),
             true,
             nextStart,
-            nextEnd
+            nextEnd,
+            filters.lowpass,
+            filters.highpass,
+            deck.filterResonance
           );
           return {
             ...deck,
@@ -502,6 +563,8 @@ const useDecks = () => {
     playDeck,
     pauseDeck,
     setDeckGain: setDeckGainValue,
+    setDeckFilter: setDeckFilterValue,
+    setDeckResonance: setDeckResonanceValue,
     seekDeck,
     setDeckZoom: setDeckZoomValue,
     setDeckFollow: setDeckFollowValue,

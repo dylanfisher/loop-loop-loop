@@ -15,6 +15,8 @@ const App = () => {
     pauseDeck,
     setFileInputRef,
     setDeckGain,
+    setDeckFilter,
+    setDeckResonance,
     seekDeck,
     setDeckZoom,
     setDeckFollow,
@@ -43,6 +45,8 @@ const App = () => {
           onPlay={playDeck}
           onPause={pauseDeck}
           onGainChange={setDeckGain}
+          onFilterChange={setDeckFilter}
+          onResonanceChange={setDeckResonance}
           onSeek={seekDeck}
           onZoomChange={setDeckZoom}
           onFollowChange={setDeckFollow}

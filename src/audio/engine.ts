@@ -3,6 +3,9 @@ import {
   playDeckBuffer,
   removeDeckNodes,
   setDeckGainValue,
+  setDeckFilterValue,
+  setDeckHighpassValue,
+  setDeckResonanceValue,
   setDeckLoopParams,
   setDeckPlaybackRate,
   stopDeckPlayback,
@@ -22,10 +25,16 @@ type AudioEngine = {
     playbackRate?: number,
     loopEnabled?: boolean,
     loopStartSeconds?: number,
-    loopEndSeconds?: number
+    loopEndSeconds?: number,
+    filterCutoff?: number,
+    highpassCutoff?: number,
+    resonance?: number
   ) => Promise<void>;
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
+  setDeckFilter: (deckId: number, value: number) => void;
+  setDeckHighpass: (deckId: number, value: number) => void;
+  setDeckResonance: (deckId: number, value: number) => void;
   removeDeck: (deckId: number) => void;
   getDeckPosition: (deckId: number) => number | null;
   setDeckLoopParams: (deckId: number, loopEnabled: boolean, start: number, end: number) => void;
@@ -80,7 +89,10 @@ const playBuffer = async (
   playbackRate = 1,
   loopEnabled = false,
   loopStartSeconds = 0,
-  loopEndSeconds = buffer.duration
+  loopEndSeconds = buffer.duration,
+  filterCutoff = 20000,
+  highpassCutoff = 60,
+  resonance = 0.7
 ) => {
   const context = await ensureContext();
   const output = masterGain ?? context.destination;
@@ -95,6 +107,9 @@ const playBuffer = async (
     loopEnabled,
     loopStartSeconds,
     loopEndSeconds,
+    filterCutoff,
+    highpassCutoff,
+    resonance,
     onEnded
   );
 };
@@ -109,6 +124,18 @@ const stop = (deckId: number) => {
 
 const setDeckGain = (deckId: number, value: number) => {
   setDeckGainValue(deckId, value);
+};
+
+const setDeckFilter = (deckId: number, value: number) => {
+  setDeckFilterValue(deckId, value);
+};
+
+const setDeckHighpass = (deckId: number, value: number) => {
+  setDeckHighpassValue(deckId, value);
+};
+
+const setDeckResonance = (deckId: number, value: number) => {
+  setDeckResonanceValue(deckId, value);
 };
 
 const removeDeck = (deckId: number) => {
@@ -139,6 +166,9 @@ export const getAudioEngine = (): AudioEngine => {
     playBuffer,
     stop,
     setDeckGain,
+    setDeckFilter,
+    setDeckHighpass,
+    setDeckResonance,
     removeDeck,
     getDeckPosition,
     setDeckLoopParams: updateDeckLoopParams,

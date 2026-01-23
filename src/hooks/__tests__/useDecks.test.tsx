@@ -20,6 +20,9 @@ const playBuffer = vi.fn(
 );
 const stop = vi.fn();
 const setDeckGain = vi.fn();
+const setDeckFilter = vi.fn();
+const setDeckHighpass = vi.fn();
+const setDeckResonance = vi.fn();
 const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
 const setDeckLoopParams = vi.fn();
@@ -35,6 +38,9 @@ vi.mock("../useAudioEngine", () => ({
     playBuffer,
     stop,
     setDeckGain,
+    setDeckFilter,
+    setDeckHighpass,
+    setDeckResonance,
     removeDeck,
     getDeckPosition,
     setDeckLoopParams,
@@ -48,6 +54,9 @@ describe("useDecks", () => {
     playBuffer.mockClear();
     stop.mockClear();
     setDeckGain.mockClear();
+    setDeckFilter.mockClear();
+    setDeckHighpass.mockClear();
+    setDeckResonance.mockClear();
     removeDeck.mockClear();
     getDeckPosition.mockClear();
     setDeckLoopParams.mockClear();

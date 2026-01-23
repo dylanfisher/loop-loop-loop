@@ -349,9 +349,27 @@ body {
 
 .deck__fx-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   text-align: center;
+}
+
+.deck__fx-unit {
+  border: 2px solid #111;
+  padding: 8px;
+  background: #fff;
+  display: grid;
+  gap: 6px;
+}
+
+.deck__fx-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+
+.deck__fx-value {
+  font-size: 0.7rem;
+  opacity: 0.7;
 }
 
 button {

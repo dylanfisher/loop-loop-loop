@@ -2,6 +2,8 @@ type DeckEndedCallback = () => void;
 
 type DeckNodes = {
   gain: GainNode;
+  lowpass: BiquadFilterNode;
+  highpass: BiquadFilterNode;
   source?: AudioBufferSourceNode;
 };
 
@@ -20,25 +22,48 @@ const deckNodes = new Map<number, DeckNodes>();
 const deckPlayback = new Map<number, DeckPlaybackState>();
 const pendingGains = new Map<number, number>();
 const pendingPlaybackRates = new Map<number, number>();
+const pendingFilters = new Map<number, number>();
+const pendingHighpass = new Map<number, number>();
+const pendingResonance = new Map<number, number>();
 
 const ensureDeckNodes = (
   context: AudioContext,
   output: AudioNode,
   deckId: number,
-  gain: number
+  gain: number,
+  filterCutoff: number,
+  highpassCutoff: number,
+  resonance: number
 ) => {
   let nodes = deckNodes.get(deckId);
   if (!nodes) {
+    const deckHighpass = context.createBiquadFilter();
+    deckHighpass.type = "highpass";
+    deckHighpass.frequency.value = pendingHighpass.get(deckId) ?? highpassCutoff;
+    deckHighpass.Q.value = pendingResonance.get(deckId) ?? resonance;
+    const deckLowpass = context.createBiquadFilter();
+    deckLowpass.type = "lowpass";
+    deckLowpass.frequency.value = pendingFilters.get(deckId) ?? filterCutoff;
+    deckLowpass.Q.value = pendingResonance.get(deckId) ?? resonance;
     const deckGain = context.createGain();
     deckGain.gain.value = pendingGains.get(deckId) ?? gain;
+    deckHighpass.connect(deckLowpass);
+    deckLowpass.connect(deckGain);
     deckGain.connect(output);
-    nodes = { gain: deckGain };
+    nodes = { gain: deckGain, lowpass: deckLowpass, highpass: deckHighpass };
     deckNodes.set(deckId, nodes);
   } else {
     nodes.gain.gain.value = gain;
+    nodes.lowpass.frequency.value = filterCutoff;
+    nodes.highpass.frequency.value = highpassCutoff;
+    nodes.lowpass.Q.value = resonance;
+    nodes.highpass.Q.value = resonance;
   }
 
   pendingGains.delete(deckId);
+  pendingFilters.delete(deckId);
+  pendingHighpass.delete(deckId);
+  pendingResonance.delete(deckId);
   return nodes;
 };
 
@@ -53,10 +78,21 @@ export const playDeckBuffer = (
   loopEnabled: boolean,
   loopStartSeconds: number,
   loopEndSeconds: number,
+  filterCutoff: number,
+  highpassCutoff: number,
+  resonance: number,
   onEnded?: DeckEndedCallback
 ) => {
   stopDeckPlayback(deckId, true);
-  const nodes = ensureDeckNodes(context, output, deckId, gain);
+  const nodes = ensureDeckNodes(
+    context,
+    output,
+    deckId,
+    gain,
+    filterCutoff,
+    highpassCutoff,
+    resonance
+  );
 
   const source = context.createBufferSource();
   source.buffer = buffer;
@@ -71,7 +107,7 @@ export const playDeckBuffer = (
     source.loopStart = safeStart;
     source.loopEnd = Math.min(safeEnd, buffer.duration);
   }
-  source.connect(nodes.gain);
+  source.connect(nodes.highpass);
   source.onended = () => {
     if (nodes.source === source) {
       nodes.source = undefined;
@@ -136,6 +172,37 @@ export const setDeckGainValue = (deckId: number, value: number) => {
   }
 };
 
+export const setDeckFilterValue = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.lowpass.frequency.value = value;
+    pendingFilters.delete(deckId);
+  } else {
+    pendingFilters.set(deckId, value);
+  }
+};
+
+export const setDeckHighpassValue = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.highpass.frequency.value = value;
+    pendingHighpass.delete(deckId);
+  } else {
+    pendingHighpass.set(deckId, value);
+  }
+};
+
+export const setDeckResonanceValue = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.lowpass.Q.value = value;
+    nodes.highpass.Q.value = value;
+    pendingResonance.delete(deckId);
+  } else {
+    pendingResonance.set(deckId, value);
+  }
+};
+
 export const removeDeckNodes = (deckId: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
@@ -144,12 +211,17 @@ export const removeDeckNodes = (deckId: number) => {
     }
     nodes.source?.stop();
     nodes.source?.disconnect();
+    nodes.highpass.disconnect();
+    nodes.lowpass.disconnect();
     nodes.gain.disconnect();
     deckNodes.delete(deckId);
   }
   deckPlayback.delete(deckId);
   pendingGains.delete(deckId);
   pendingPlaybackRates.delete(deckId);
+  pendingFilters.delete(deckId);
+  pendingHighpass.delete(deckId);
+  pendingResonance.delete(deckId);
 };
 
 export const setDeckLoopParams = (

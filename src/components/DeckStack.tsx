@@ -10,6 +10,8 @@ type DeckStackProps = {
   onPlay: (deck: DeckState) => void;
   onPause: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
+  onFilterChange: (id: number, value: number) => void;
+  onResonanceChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
   onFollowChange: (id: number, value: boolean) => void;
@@ -30,6 +32,8 @@ const DeckStack = ({
   onPlay,
   onPause,
   onGainChange,
+  onFilterChange,
+  onResonanceChange,
   onSeek,
   onZoomChange,
   onFollowChange,
@@ -63,6 +67,8 @@ const DeckStack = ({
             onPlay={onPlay}
             onPause={onPause}
             onGainChange={onGainChange}
+            onFilterChange={onFilterChange}
+            onResonanceChange={onResonanceChange}
             onSeek={onSeek}
             onZoomChange={onZoomChange}
             onFollowChange={onFollowChange}

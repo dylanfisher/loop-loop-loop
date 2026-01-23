@@ -10,6 +10,8 @@ type DeckCardProps = {
   onPlay: (deck: DeckState) => void;
   onPause: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
+  onFilterChange: (id: number, value: number) => void;
+  onResonanceChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
   onFollowChange: (id: number, value: boolean) => void;
@@ -30,6 +32,8 @@ const DeckCard = ({
   onPlay,
   onPause,
   onGainChange,
+  onFilterChange,
+  onResonanceChange,
   onSeek,
   onZoomChange,
   onFollowChange,
@@ -46,6 +50,21 @@ const DeckCard = ({
   const sliderValue = effectiveBpm ?? 120;
   const confidenceLabel =
     deck.bpmConfidence > 0 ? `${Math.round(deck.bpmConfidence * 100)}%` : "--";
+  const djFilter = Math.min(Math.max(deck.djFilter, -1), 1);
+  const djFilterSlider = (djFilter + 1) / 2;
+  const resonanceMin = 0.3;
+  const resonanceMax = 24;
+  const resonanceValue = Math.min(
+    Math.max(deck.filterResonance, resonanceMin),
+    resonanceMax
+  );
+  const resonanceSlider =
+    (resonanceValue - resonanceMin) / (resonanceMax - resonanceMin);
+  const formatDjFilter = () => {
+    if (djFilter > 0.05) return "HP";
+    if (djFilter < -0.05) return "LP";
+    return "Flat";
+  };
 
   return (
     <div className="deck">
@@ -201,10 +220,40 @@ const DeckCard = ({
       <div className="deck__fx">
         <div className="deck__fx-title">Deck FX</div>
         <div className="deck__fx-row">
-          <span>Filter</span>
-          <span>Delay</span>
-          <span>Granular</span>
-          <span>Freeze</span>
+          <div className="deck__fx-unit deck__fx-unit--filter">
+            <div className="deck__fx-label">DJ Filter</div>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.001"
+              value={djFilterSlider}
+              onChange={(event) => {
+                const slider = Number(event.target.value);
+                const next = slider * 2 - 1;
+                onFilterChange(deck.id, next);
+              }}
+            />
+            <div className="deck__fx-value">
+              {formatDjFilter()}
+            </div>
+          </div>
+          <div className="deck__fx-unit deck__fx-unit--filter">
+            <div className="deck__fx-label">Resonance</div>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.001"
+              value={resonanceSlider}
+              onChange={(event) => {
+                const slider = Number(event.target.value);
+                const next = resonanceMin + slider * (resonanceMax - resonanceMin);
+                onResonanceChange(deck.id, next);
+              }}
+            />
+            <div className="deck__fx-value">{resonanceValue.toFixed(2)}</div>
+          </div>
         </div>
       </div>
     </div>
