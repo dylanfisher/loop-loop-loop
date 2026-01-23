@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import type { DeckState } from "../types/deck";
 import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
@@ -21,6 +22,7 @@ type DeckCardProps = {
       durationSec: number;
       recording: boolean;
       active: boolean;
+      currentValue: number;
     }
   >;
   onAutomationStart: (id: number, param: "djFilter" | "resonance") => void;
@@ -40,7 +42,7 @@ type DeckCardProps = {
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
   onTapTempo: (id: number) => void;
-  getDeckPosition: () => number | null;
+  getDeckPosition: (id: number) => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
@@ -95,13 +97,21 @@ const DeckCard = ({
     durationSec: 0,
     recording: false,
     active: false,
+    currentValue: djFilter,
   };
   const resonanceAutomation = automation?.resonance ?? {
     samples: new Float32Array(0),
     durationSec: 0,
     recording: false,
     active: false,
+    currentValue: resonanceValue,
   };
+  const djFilterValue = djAutomation.active ? djAutomation.currentValue : djFilter;
+  const resonanceDisplayValue = resonanceAutomation.active
+    ? resonanceAutomation.currentValue
+    : resonanceValue;
+
+  const getCurrentSeconds = useCallback(() => getDeckPosition(deck.id), [deck.id, getDeckPosition]);
 
   return (
     <div className="deck">
@@ -135,7 +145,7 @@ const DeckCard = ({
         onLoopBoundsChange={(startSeconds, endSeconds) =>
           onLoopBoundsChange(deck.id, startSeconds, endSeconds)
         }
-        getCurrentSeconds={getDeckPosition}
+        getCurrentSeconds={getCurrentSeconds}
       />
       <div className="deck__controls">
         <input
@@ -263,7 +273,7 @@ const DeckCard = ({
               min={-1}
               max={1}
               step={0.01}
-              value={djFilter}
+              value={djFilterValue}
               onChange={(next) => onFilterChange(deck.id, next)}
               formatValue={formatDjFilter}
               centerSnap={0.03}
@@ -272,7 +282,7 @@ const DeckCard = ({
               label="Automation"
               min={-1}
               max={1}
-              value={djFilter}
+              value={djFilterValue}
               samples={djAutomation.samples}
               durationSec={djAutomation.durationSec}
               recording={djAutomation.recording}
@@ -293,7 +303,7 @@ const DeckCard = ({
               min={resonanceMin}
               max={resonanceMax}
               step={0.05}
-              value={resonanceValue}
+              value={resonanceDisplayValue}
               onChange={(next) => onResonanceChange(deck.id, next)}
               formatValue={(value) => value.toFixed(2)}
             />
@@ -301,7 +311,7 @@ const DeckCard = ({
               label="Automation"
               min={resonanceMin}
               max={resonanceMax}
-              value={resonanceValue}
+              value={resonanceDisplayValue}
               samples={resonanceAutomation.samples}
               durationSec={resonanceAutomation.durationSec}
               recording={resonanceAutomation.recording}

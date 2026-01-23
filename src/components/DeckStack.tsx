@@ -24,6 +24,7 @@ type DeckStackProps = {
     durationSec: number;
     recording: boolean;
     active: boolean;
+    currentValue: number;
   }>>;
   onAutomationStart: (id: number, param: "djFilter" | "resonance") => void;
   onAutomationStop: (id: number, param: "djFilter" | "resonance") => void;
@@ -102,7 +103,7 @@ const DeckStack = ({
             getAutomationPlayhead={getAutomationPlayhead}
             onAutomationToggle={onAutomationToggle}
             onAutomationReset={onAutomationReset}
-            getDeckPosition={() => getDeckPosition(deck.id)}
+            getDeckPosition={getDeckPosition}
             setFileInputRef={setFileInputRef}
           />
         ))}

@@ -18,6 +18,7 @@ type AutomationTrack = {
   recording: boolean;
   active: boolean;
   currentValue: number;
+  lastIndex: number;
   recordBuffer: number[];
   recordStartMs: number;
   lastSampleMs: number;
@@ -34,6 +35,7 @@ type AutomationView = {
   durationSec: number;
   recording: boolean;
   active: boolean;
+  currentValue: number;
 };
 
 const createTrack = (initialValue: number): AutomationTrack => ({
@@ -43,6 +45,7 @@ const createTrack = (initialValue: number): AutomationTrack => ({
   recording: false,
   active: false,
   currentValue: initialValue,
+  lastIndex: -1,
   recordBuffer: [],
   recordStartMs: 0,
   lastSampleMs: 0,
@@ -148,12 +151,14 @@ const useDecks = () => {
             durationSec: 0,
             recording: false,
             active: false,
+            currentValue: automation!.djFilter.currentValue,
           },
           resonance: {
             samples: automation!.resonance.samples,
             durationSec: 0,
             recording: false,
             active: false,
+            currentValue: automation!.resonance.currentValue,
           },
         });
         return next;
@@ -173,12 +178,14 @@ const useDecks = () => {
           durationSec: automation.djFilter.durationSec,
           recording: automation.djFilter.recording,
           active: automation.djFilter.active,
+          currentValue: automation.djFilter.currentValue,
         },
         resonance: {
           samples: automation.resonance.samples,
           durationSec: automation.resonance.durationSec,
           recording: automation.resonance.recording,
           active: automation.resonance.active,
+          currentValue: automation.resonance.currentValue,
         },
       });
       return next;
@@ -229,6 +236,10 @@ const useDecks = () => {
               setDeckHighpass(deckId, targets.highpass);
             } else {
               setDeckResonance(deckId, value);
+            }
+            if (index !== track.lastIndex) {
+              track.lastIndex = index;
+              updateAutomationView(deckId);
             }
             const playhead = positionSec / track.durationSec;
             const playheads = automationPlayheadRef.current.get(deckId);
@@ -608,6 +619,9 @@ const useDecks = () => {
       setDeckFilterValue(id, value);
     } else {
       setDeckResonanceValue(id, value);
+    }
+    if (track.recording || track.active) {
+      updateAutomationView(id);
     }
   };
 

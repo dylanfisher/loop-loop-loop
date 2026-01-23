@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 
 type WaveformProps = {
   buffer?: AudioBuffer;
@@ -752,4 +752,4 @@ const Waveform = ({
   );
 };
 
-export default Waveform;
+export default memo(Waveform);
