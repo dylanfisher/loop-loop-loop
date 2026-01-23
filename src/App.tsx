@@ -24,6 +24,13 @@ const App = () => {
     setDeckLoopBounds,
     setDeckBpmOverride,
     tapTempo,
+    automationState,
+    startAutomationRecording,
+    stopAutomationRecording,
+    updateAutomationValue,
+    getAutomationPlayhead,
+    toggleAutomationActive,
+    resetAutomationTrack,
     getDeckPosition,
   } = useDecks();
 
@@ -54,6 +61,13 @@ const App = () => {
           onLoopBoundsChange={setDeckLoopBounds}
           onBpmOverrideChange={setDeckBpmOverride}
           onTapTempo={tapTempo}
+          automationState={automationState}
+          onAutomationStart={startAutomationRecording}
+          onAutomationStop={stopAutomationRecording}
+          onAutomationValueChange={updateAutomationValue}
+          getAutomationPlayhead={getAutomationPlayhead}
+          onAutomationToggle={toggleAutomationActive}
+          onAutomationReset={resetAutomationTrack}
           getDeckPosition={getDeckPosition}
           setFileInputRef={setFileInputRef}
         />

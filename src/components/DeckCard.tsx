@@ -1,4 +1,5 @@
 import type { DeckState } from "../types/deck";
+import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
 import Waveform from "./Waveform";
 
@@ -13,6 +14,25 @@ type DeckCardProps = {
   onGainChange: (id: number, value: number) => void;
   onFilterChange: (id: number, value: number) => void;
   onResonanceChange: (id: number, value: number) => void;
+  automation?: Record<
+    "djFilter" | "resonance",
+    {
+      samples: Float32Array;
+      durationSec: number;
+      recording: boolean;
+      active: boolean;
+    }
+  >;
+  onAutomationStart: (id: number, param: "djFilter" | "resonance") => void;
+  onAutomationStop: (id: number, param: "djFilter" | "resonance") => void;
+  onAutomationValueChange: (
+    id: number,
+    param: "djFilter" | "resonance",
+    value: number
+  ) => void;
+  getAutomationPlayhead: (id: number, param: "djFilter" | "resonance") => number;
+  onAutomationToggle: (id: number, param: "djFilter" | "resonance", active: boolean) => void;
+  onAutomationReset: (id: number, param: "djFilter" | "resonance") => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
   onFollowChange: (id: number, value: boolean) => void;
@@ -35,6 +55,13 @@ const DeckCard = ({
   onGainChange,
   onFilterChange,
   onResonanceChange,
+  automation,
+  onAutomationStart,
+  onAutomationStop,
+  onAutomationValueChange,
+  getAutomationPlayhead,
+  onAutomationToggle,
+  onAutomationReset,
   onSeek,
   onZoomChange,
   onFollowChange,
@@ -62,6 +89,18 @@ const DeckCard = ({
     if (value > 0.05) return `HP ${value.toFixed(2)}`;
     if (value < -0.05) return `LP ${Math.abs(value).toFixed(2)}`;
     return "Flat";
+  };
+  const djAutomation = automation?.djFilter ?? {
+    samples: new Float32Array(0),
+    durationSec: 0,
+    recording: false,
+    active: false,
+  };
+  const resonanceAutomation = automation?.resonance ?? {
+    samples: new Float32Array(0),
+    durationSec: 0,
+    recording: false,
+    active: false,
   };
 
   return (
@@ -229,6 +268,24 @@ const DeckCard = ({
               formatValue={formatDjFilter}
               centerSnap={0.03}
             />
+            <AutomationLane
+              label="Automation"
+              min={-1}
+              max={1}
+              value={djFilter}
+              samples={djAutomation.samples}
+              durationSec={djAutomation.durationSec}
+              recording={djAutomation.recording}
+              active={djAutomation.active}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "djFilter")}
+              onDrawStart={() => onAutomationStart(deck.id, "djFilter")}
+              onDrawEnd={() => onAutomationStop(deck.id, "djFilter")}
+              onReset={() => onAutomationReset(deck.id, "djFilter")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "djFilter", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "djFilter", value)
+              }
+            />
           </div>
           <div className="deck__fx-unit deck__fx-unit--filter">
             <Knob
@@ -239,6 +296,24 @@ const DeckCard = ({
               value={resonanceValue}
               onChange={(next) => onResonanceChange(deck.id, next)}
               formatValue={(value) => value.toFixed(2)}
+            />
+            <AutomationLane
+              label="Automation"
+              min={resonanceMin}
+              max={resonanceMax}
+              value={resonanceValue}
+              samples={resonanceAutomation.samples}
+              durationSec={resonanceAutomation.durationSec}
+              recording={resonanceAutomation.recording}
+              active={resonanceAutomation.active}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "resonance")}
+              onDrawStart={() => onAutomationStart(deck.id, "resonance")}
+              onDrawEnd={() => onAutomationStop(deck.id, "resonance")}
+              onReset={() => onAutomationReset(deck.id, "resonance")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "resonance", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "resonance", value)
+              }
             />
           </div>
         </div>

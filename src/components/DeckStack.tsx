@@ -19,6 +19,18 @@ type DeckStackProps = {
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
   onTapTempo: (id: number) => void;
+  automationState: Map<number, Record<"djFilter" | "resonance", {
+    samples: Float32Array;
+    durationSec: number;
+    recording: boolean;
+    active: boolean;
+  }>>;
+  onAutomationStart: (id: number, param: "djFilter" | "resonance") => void;
+  onAutomationStop: (id: number, param: "djFilter" | "resonance") => void;
+  onAutomationValueChange: (id: number, param: "djFilter" | "resonance", value: number) => void;
+  getAutomationPlayhead: (id: number, param: "djFilter" | "resonance") => number;
+  onAutomationToggle: (id: number, param: "djFilter" | "resonance", active: boolean) => void;
+  onAutomationReset: (id: number, param: "djFilter" | "resonance") => void;
   getDeckPosition: (id: number) => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
@@ -41,6 +53,13 @@ const DeckStack = ({
   onLoopBoundsChange,
   onBpmOverrideChange,
   onTapTempo,
+  automationState,
+  onAutomationStart,
+  onAutomationStop,
+  onAutomationValueChange,
+  getAutomationPlayhead,
+  onAutomationToggle,
+  onAutomationReset,
   getDeckPosition,
   setFileInputRef,
 }: DeckStackProps) => {
@@ -76,6 +95,13 @@ const DeckStack = ({
             onLoopBoundsChange={onLoopBoundsChange}
             onBpmOverrideChange={onBpmOverrideChange}
             onTapTempo={onTapTempo}
+            automation={automationState.get(deck.id)}
+            onAutomationStart={onAutomationStart}
+            onAutomationStop={onAutomationStop}
+            onAutomationValueChange={onAutomationValueChange}
+            getAutomationPlayhead={getAutomationPlayhead}
+            onAutomationToggle={onAutomationToggle}
+            onAutomationReset={onAutomationReset}
             getDeckPosition={() => getDeckPosition(deck.id)}
             setFileInputRef={setFileInputRef}
           />

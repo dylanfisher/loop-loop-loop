@@ -6,6 +6,48 @@ import { estimateBpmFromBuffer } from "../audio/bpm";
 const clampBpm = (value: number) => Math.min(Math.max(value, 1), 999);
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const AUTOMATION_SAMPLE_RATE = 30;
+const MIN_AUTOMATION_DURATION = 0.25;
+
+type AutomationParam = "djFilter" | "resonance";
+
+type AutomationTrack = {
+  samples: Float32Array;
+  sampleRate: number;
+  durationSec: number;
+  recording: boolean;
+  active: boolean;
+  currentValue: number;
+  recordBuffer: number[];
+  recordStartMs: number;
+  lastSampleMs: number;
+  playbackStartMs: number;
+};
+
+type AutomationDeck = {
+  djFilter: AutomationTrack;
+  resonance: AutomationTrack;
+};
+
+type AutomationView = {
+  samples: Float32Array;
+  durationSec: number;
+  recording: boolean;
+  active: boolean;
+};
+
+const createTrack = (initialValue: number): AutomationTrack => ({
+  samples: new Float32Array(0),
+  sampleRate: AUTOMATION_SAMPLE_RATE,
+  durationSec: 0,
+  recording: false,
+  active: false,
+  currentValue: initialValue,
+  recordBuffer: [],
+  recordStartMs: 0,
+  lastSampleMs: 0,
+  playbackStartMs: 0,
+});
 const isTestEnv = import.meta.env.MODE === "test";
 const debugInfo = (...args: unknown[]) => {
   if (!isTestEnv) {
@@ -20,6 +62,11 @@ const useDecks = () => {
   const bpmRequestIdRef = useRef<Map<number, number>>(new Map());
   const bpmWorkerReadyRef = useRef(false);
   const playbackRateRef = useRef<Map<number, number>>(new Map());
+  const automationRef = useRef<Map<number, AutomationDeck>>(new Map());
+  const automationPlayheadRef = useRef<Map<number, Record<AutomationParam, number>>>(new Map());
+  const [automationState, setAutomationState] = useState<Map<number, Record<AutomationParam, AutomationView>>>(
+    new Map()
+  );
   const [decks, setDecks] = useState<DeckState[]>([
     {
       id: 1,
@@ -53,7 +100,7 @@ const useDecks = () => {
     setDeckPlaybackRate,
   } = useAudioEngine();
 
-  const getFilterTargets = (djFilter: number) => {
+  const getFilterTargets = useCallback((djFilter: number) => {
     const min = 60;
     const max = 20000;
     const highpassMax = 12000;
@@ -72,6 +119,70 @@ const useDecks = () => {
       return { lowpass: max, highpass };
     }
     return { lowpass: max, highpass: min };
+  }, []);
+
+  const resetAutomation = (deckId: number, djFilterValue: number, resonanceValue: number) => {
+    const automation: AutomationDeck = {
+      djFilter: createTrack(djFilterValue),
+      resonance: createTrack(resonanceValue),
+    };
+    automationRef.current.set(deckId, automation);
+    automationPlayheadRef.current.set(deckId, { djFilter: 0, resonance: 0 });
+    updateAutomationView(deckId);
+  };
+
+  const ensureAutomationDeck = (deckId: number, deck: DeckState) => {
+    let automation = automationRef.current.get(deckId);
+    if (!automation) {
+      automation = {
+        djFilter: createTrack(deck.djFilter),
+        resonance: createTrack(deck.filterResonance),
+      };
+      automationRef.current.set(deckId, automation);
+      automationPlayheadRef.current.set(deckId, { djFilter: 0, resonance: 0 });
+      setAutomationState((prev) => {
+        const next = new Map(prev);
+        next.set(deckId, {
+          djFilter: {
+            samples: automation!.djFilter.samples,
+            durationSec: 0,
+            recording: false,
+            active: false,
+          },
+          resonance: {
+            samples: automation!.resonance.samples,
+            durationSec: 0,
+            recording: false,
+            active: false,
+          },
+        });
+        return next;
+      });
+    }
+    return automation;
+  };
+
+  const updateAutomationView = (deckId: number) => {
+    const automation = automationRef.current.get(deckId);
+    if (!automation) return;
+    setAutomationState((prev) => {
+      const next = new Map(prev);
+      next.set(deckId, {
+        djFilter: {
+          samples: automation.djFilter.samples,
+          durationSec: automation.djFilter.durationSec,
+          recording: automation.djFilter.recording,
+          active: automation.djFilter.active,
+        },
+        resonance: {
+          samples: automation.resonance.samples,
+          durationSec: automation.resonance.durationSec,
+          recording: automation.resonance.recording,
+          active: automation.resonance.active,
+        },
+      });
+      return next;
+    });
   };
 
   const getDeckTempoRatio = (deck: DeckState) => {
@@ -86,6 +197,65 @@ const useDecks = () => {
       bpmWorkerReadyRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    let raf = 0;
+    let running = true;
+    const tick = (now: number) => {
+      const automation = automationRef.current;
+      automation.forEach((tracks, deckId) => {
+        (Object.keys(tracks) as AutomationParam[]).forEach((param) => {
+          const track = tracks[param];
+          if (track.recording) {
+            const interval = 1000 / track.sampleRate;
+            while (now - track.lastSampleMs >= interval) {
+              track.recordBuffer.push(track.currentValue);
+              track.lastSampleMs += interval;
+              track.durationSec = track.recordBuffer.length / track.sampleRate;
+            }
+          }
+          if (!track.recording && track.active && track.durationSec > 0) {
+            const elapsedSec = (now - track.playbackStartMs) / 1000;
+            const positionSec = elapsedSec % track.durationSec;
+            const index = Math.min(
+              track.samples.length - 1,
+              Math.floor(positionSec * track.sampleRate)
+            );
+            const value = track.samples[index] ?? track.currentValue;
+            track.currentValue = value;
+            if (param === "djFilter") {
+              const targets = getFilterTargets(value);
+              setDeckFilter(deckId, targets.lowpass);
+              setDeckHighpass(deckId, targets.highpass);
+            } else {
+              setDeckResonance(deckId, value);
+            }
+            const playhead = positionSec / track.durationSec;
+            const playheads = automationPlayheadRef.current.get(deckId);
+            if (playheads) {
+              playheads[param] = playhead;
+            }
+          }
+          if (!track.active || track.durationSec <= 0) {
+            const playheads = automationPlayheadRef.current.get(deckId);
+            if (playheads) {
+              playheads[param] = 0;
+            }
+          }
+        });
+      });
+
+      if (running) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => {
+      running = false;
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [getFilterTargets, setDeckFilter, setDeckHighpass, setDeckResonance]);
 
   const updateDeck = useCallback((id: number, updates: Partial<DeckState>) => {
     setDecks((prev) =>
@@ -196,6 +366,7 @@ const useDecks = () => {
   const addDeck = () => {
     const id = nextDeckId.current;
     nextDeckId.current += 1;
+    resetAutomation(id, 0, 0.7);
     setDecks((prev) => [
       ...prev,
       {
@@ -226,6 +397,13 @@ const useDecks = () => {
       removeDeckNodes(id);
       tapTempoRefs.current.delete(id);
       bpmRequestIdRef.current.delete(id);
+      automationRef.current.delete(id);
+      automationPlayheadRef.current.delete(id);
+      setAutomationState((state) => {
+        const next = new Map(state);
+        next.delete(id);
+        return next;
+      });
       return prev.filter((deck) => deck.id !== id);
     });
   };
@@ -241,6 +419,7 @@ const useDecks = () => {
   const handleFileSelected = async (id: number, file: File | null) => {
     if (!file) return;
 
+    resetAutomation(id, 0, 0.7);
     updateDeck(id, {
       status: "loading",
       fileName: file.name,
@@ -383,6 +562,81 @@ const useDecks = () => {
   const setDeckResonanceValue = (id: number, value: number) => {
     setDeckResonance(id, value);
     updateDeck(id, { filterResonance: value });
+  };
+
+  const startAutomationRecording = (id: number, param: AutomationParam) => {
+    const deck = decks.find((item) => item.id === id);
+    if (!deck) return;
+    const automation = ensureAutomationDeck(id, deck);
+    const track = automation[param];
+    track.recording = true;
+    track.active = true;
+    track.recordBuffer = [];
+    track.samples = new Float32Array(0);
+    track.durationSec = 0;
+    track.recordStartMs = performance.now();
+    track.lastSampleMs = track.recordStartMs;
+    track.currentValue = param === "djFilter" ? deck.djFilter : deck.filterResonance;
+    updateAutomationView(id);
+  };
+
+  const stopAutomationRecording = (id: number, param: AutomationParam) => {
+    const automation = automationRef.current.get(id);
+    if (!automation) return;
+    const track = automation[param];
+    if (!track.recording) return;
+    track.recording = false;
+    const duration = track.recordBuffer.length / track.sampleRate;
+    if (duration >= MIN_AUTOMATION_DURATION) {
+      track.samples = new Float32Array(track.recordBuffer);
+      track.durationSec = duration;
+      track.playbackStartMs = performance.now();
+    } else {
+      track.samples = new Float32Array(0);
+      track.durationSec = 0;
+    }
+    track.recordBuffer = [];
+    updateAutomationView(id);
+  };
+
+  const updateAutomationValue = (id: number, param: AutomationParam, value: number) => {
+    const automation = automationRef.current.get(id);
+    if (!automation) return;
+    const track = automation[param];
+    track.currentValue = value;
+    if (param === "djFilter") {
+      setDeckFilterValue(id, value);
+    } else {
+      setDeckResonanceValue(id, value);
+    }
+  };
+
+  const getAutomationPlayhead = (id: number, param: AutomationParam) => {
+    const playheads = automationPlayheadRef.current.get(id);
+    return playheads ? playheads[param] : 0;
+  };
+
+  const toggleAutomationActive = (id: number, param: AutomationParam, next: boolean) => {
+    const automation = automationRef.current.get(id);
+    if (!automation) return;
+    const track = automation[param];
+    track.active = next;
+    if (next) {
+      track.playbackStartMs = performance.now();
+    }
+    updateAutomationView(id);
+  };
+
+  const resetAutomationTrack = (id: number, param: AutomationParam) => {
+    const automation = automationRef.current.get(id);
+    if (!automation) return;
+    const track = automation[param];
+    track.samples = new Float32Array(0);
+    track.recordBuffer = [];
+    track.durationSec = 0;
+    track.recording = false;
+    track.active = false;
+    updateAutomationView(id);
   };
 
   const setDeckZoomValue = (id: number, value: number) => {
@@ -572,6 +826,13 @@ const useDecks = () => {
     setDeckLoopBounds,
     setDeckBpmOverride,
     tapTempo,
+    automationState,
+    startAutomationRecording,
+    stopAutomationRecording,
+    updateAutomationValue,
+    getAutomationPlayhead,
+    toggleAutomationActive,
+    resetAutomationTrack,
     getDeckPosition,
     setFileInputRef,
   };
