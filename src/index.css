@@ -354,6 +354,10 @@ body {
   text-align: center;
 }
 
+.deck__fx-row--eq {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .deck__fx-unit {
   border: 2px solid #111;
   padding: 8px;
@@ -430,6 +434,9 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  column-gap: 10px;
   font-size: 0.65rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -438,6 +445,7 @@ body {
 .automation-lane__actions {
   display: inline-flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .automation-lane__toggle,

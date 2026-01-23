@@ -12,6 +12,9 @@ type DeckStackProps = {
   onGainChange: (id: number, value: number) => void;
   onFilterChange: (id: number, value: number) => void;
   onResonanceChange: (id: number, value: number) => void;
+  onEqLowChange: (id: number, value: number) => void;
+  onEqMidChange: (id: number, value: number) => void;
+  onEqHighChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
   onFollowChange: (id: number, value: boolean) => void;
@@ -19,7 +22,7 @@ type DeckStackProps = {
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
   onTapTempo: (id: number) => void;
-  automationState: Map<number, Record<"djFilter" | "resonance", {
+  automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh", {
     samples: Float32Array;
     previewSamples: Float32Array;
     durationSec: number;
@@ -27,12 +30,20 @@ type DeckStackProps = {
     active: boolean;
     currentValue: number;
   }>>;
-  onAutomationStart: (id: number, param: "djFilter" | "resonance") => void;
-  onAutomationStop: (id: number, param: "djFilter" | "resonance") => void;
-  onAutomationValueChange: (id: number, param: "djFilter" | "resonance", value: number) => void;
-  getAutomationPlayhead: (id: number, param: "djFilter" | "resonance") => number;
-  onAutomationToggle: (id: number, param: "djFilter" | "resonance", active: boolean) => void;
-  onAutomationReset: (id: number, param: "djFilter" | "resonance") => void;
+  onAutomationStart: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh") => void;
+  onAutomationStop: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh") => void;
+  onAutomationValueChange: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh",
+    value: number
+  ) => void;
+  getAutomationPlayhead: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh") => number;
+  onAutomationToggle: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh",
+    active: boolean
+  ) => void;
+  onAutomationReset: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh") => void;
   getDeckPosition: (id: number) => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
@@ -48,6 +59,9 @@ const DeckStack = ({
   onGainChange,
   onFilterChange,
   onResonanceChange,
+  onEqLowChange,
+  onEqMidChange,
+  onEqHighChange,
   onSeek,
   onZoomChange,
   onFollowChange,
@@ -90,6 +104,9 @@ const DeckStack = ({
             onGainChange={onGainChange}
             onFilterChange={onFilterChange}
             onResonanceChange={onResonanceChange}
+            onEqLowChange={onEqLowChange}
+            onEqMidChange={onEqMidChange}
+            onEqHighChange={onEqHighChange}
             onSeek={onSeek}
             onZoomChange={onZoomChange}
             onFollowChange={onFollowChange}

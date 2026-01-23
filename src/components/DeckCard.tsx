@@ -15,8 +15,11 @@ type DeckCardProps = {
   onGainChange: (id: number, value: number) => void;
   onFilterChange: (id: number, value: number) => void;
   onResonanceChange: (id: number, value: number) => void;
+  onEqLowChange: (id: number, value: number) => void;
+  onEqMidChange: (id: number, value: number) => void;
+  onEqHighChange: (id: number, value: number) => void;
   automation?: Record<
-    "djFilter" | "resonance",
+    "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh",
     {
       samples: Float32Array;
       previewSamples: Float32Array;
@@ -26,16 +29,32 @@ type DeckCardProps = {
       currentValue: number;
     }
   >;
-  onAutomationStart: (id: number, param: "djFilter" | "resonance") => void;
-  onAutomationStop: (id: number, param: "djFilter" | "resonance") => void;
+  onAutomationStart: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh"
+  ) => void;
+  onAutomationStop: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh"
+  ) => void;
   onAutomationValueChange: (
     id: number,
-    param: "djFilter" | "resonance",
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh",
     value: number
   ) => void;
-  getAutomationPlayhead: (id: number, param: "djFilter" | "resonance") => number;
-  onAutomationToggle: (id: number, param: "djFilter" | "resonance", active: boolean) => void;
-  onAutomationReset: (id: number, param: "djFilter" | "resonance") => void;
+  getAutomationPlayhead: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh"
+  ) => number;
+  onAutomationToggle: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh",
+    active: boolean
+  ) => void;
+  onAutomationReset: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh"
+  ) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
   onFollowChange: (id: number, value: boolean) => void;
@@ -58,6 +77,9 @@ const DeckCard = ({
   onGainChange,
   onFilterChange,
   onResonanceChange,
+  onEqLowChange,
+  onEqMidChange,
+  onEqHighChange,
   automation,
   onAutomationStart,
   onAutomationStop,
@@ -93,6 +115,11 @@ const DeckCard = ({
     if (value < -0.05) return `LP ${Math.abs(value).toFixed(2)}`;
     return "Flat";
   };
+  const formatEq = (value: number) => {
+    if (value === 0) return "0.0 dB";
+    const sign = value > 0 ? "+" : "";
+    return `${sign}${value.toFixed(1)} dB`;
+  };
   const djAutomation = automation?.djFilter ?? {
     samples: new Float32Array(0),
     previewSamples: new Float32Array(0),
@@ -109,10 +136,37 @@ const DeckCard = ({
     active: false,
     currentValue: resonanceValue,
   };
+  const eqLowAutomation = automation?.eqLow ?? {
+    samples: new Float32Array(0),
+    previewSamples: new Float32Array(0),
+    durationSec: 0,
+    recording: false,
+    active: false,
+    currentValue: deck.eqLowGain,
+  };
+  const eqMidAutomation = automation?.eqMid ?? {
+    samples: new Float32Array(0),
+    previewSamples: new Float32Array(0),
+    durationSec: 0,
+    recording: false,
+    active: false,
+    currentValue: deck.eqMidGain,
+  };
+  const eqHighAutomation = automation?.eqHigh ?? {
+    samples: new Float32Array(0),
+    previewSamples: new Float32Array(0),
+    durationSec: 0,
+    recording: false,
+    active: false,
+    currentValue: deck.eqHighGain,
+  };
   const djFilterValue = djAutomation.active ? djAutomation.currentValue : djFilter;
   const resonanceDisplayValue = resonanceAutomation.active
     ? resonanceAutomation.currentValue
     : resonanceValue;
+  const eqLowValue = eqLowAutomation.active ? eqLowAutomation.currentValue : deck.eqLowGain;
+  const eqMidValue = eqMidAutomation.active ? eqMidAutomation.currentValue : deck.eqMidGain;
+  const eqHighValue = eqHighAutomation.active ? eqHighAutomation.currentValue : deck.eqHighGain;
 
   const getCurrentSeconds = useCallback(() => getDeckPosition(deck.id), [deck.id, getDeckPosition]);
 
@@ -328,6 +382,101 @@ const DeckCard = ({
               onToggleActive={(next) => onAutomationToggle(deck.id, "resonance", next)}
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "resonance", value)
+              }
+            />
+          </div>
+        </div>
+        <div className="deck__fx-row deck__fx-row--eq">
+          <div className="deck__fx-unit deck__fx-unit--eq">
+            <Knob
+              label="Low"
+              min={-36}
+              max={36}
+              step={0.5}
+              value={eqLowValue}
+              onChange={(next) => onEqLowChange(deck.id, next)}
+              formatValue={formatEq}
+              centerSnap={0.25}
+            />
+            <AutomationLane
+              label="Automation"
+              min={-36}
+              max={36}
+              value={eqLowValue}
+              samples={eqLowAutomation.samples}
+              previewSamples={eqLowAutomation.previewSamples}
+              durationSec={eqLowAutomation.durationSec}
+              recording={eqLowAutomation.recording}
+              active={eqLowAutomation.active}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "eqLow")}
+              onDrawStart={() => onAutomationStart(deck.id, "eqLow")}
+              onDrawEnd={() => onAutomationStop(deck.id, "eqLow")}
+              onReset={() => onAutomationReset(deck.id, "eqLow")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "eqLow", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "eqLow", value)
+              }
+            />
+          </div>
+          <div className="deck__fx-unit deck__fx-unit--eq">
+            <Knob
+              label="Mid"
+              min={-36}
+              max={36}
+              step={0.5}
+              value={eqMidValue}
+              onChange={(next) => onEqMidChange(deck.id, next)}
+              formatValue={formatEq}
+              centerSnap={0.25}
+            />
+            <AutomationLane
+              label="Automation"
+              min={-36}
+              max={36}
+              value={eqMidValue}
+              samples={eqMidAutomation.samples}
+              previewSamples={eqMidAutomation.previewSamples}
+              durationSec={eqMidAutomation.durationSec}
+              recording={eqMidAutomation.recording}
+              active={eqMidAutomation.active}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "eqMid")}
+              onDrawStart={() => onAutomationStart(deck.id, "eqMid")}
+              onDrawEnd={() => onAutomationStop(deck.id, "eqMid")}
+              onReset={() => onAutomationReset(deck.id, "eqMid")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "eqMid", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "eqMid", value)
+              }
+            />
+          </div>
+          <div className="deck__fx-unit deck__fx-unit--eq">
+            <Knob
+              label="High"
+              min={-36}
+              max={36}
+              step={0.5}
+              value={eqHighValue}
+              onChange={(next) => onEqHighChange(deck.id, next)}
+              formatValue={formatEq}
+              centerSnap={0.25}
+            />
+            <AutomationLane
+              label="Automation"
+              min={-36}
+              max={36}
+              value={eqHighValue}
+              samples={eqHighAutomation.samples}
+              previewSamples={eqHighAutomation.previewSamples}
+              durationSec={eqHighAutomation.durationSec}
+              recording={eqHighAutomation.recording}
+              active={eqHighAutomation.active}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "eqHigh")}
+              onDrawStart={() => onAutomationStart(deck.id, "eqHigh")}
+              onDrawEnd={() => onAutomationStop(deck.id, "eqHigh")}
+              onReset={() => onAutomationReset(deck.id, "eqHigh")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "eqHigh", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "eqHigh", value)
               }
             />
           </div>

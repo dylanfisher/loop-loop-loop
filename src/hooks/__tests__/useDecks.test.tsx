@@ -23,6 +23,9 @@ const setDeckGain = vi.fn();
 const setDeckFilter = vi.fn();
 const setDeckHighpass = vi.fn();
 const setDeckResonance = vi.fn();
+const setDeckEqLow = vi.fn();
+const setDeckEqMid = vi.fn();
+const setDeckEqHigh = vi.fn();
 const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
 const setDeckLoopParams = vi.fn();
@@ -41,6 +44,9 @@ vi.mock("../useAudioEngine", () => ({
     setDeckFilter,
     setDeckHighpass,
     setDeckResonance,
+    setDeckEqLow,
+    setDeckEqMid,
+    setDeckEqHigh,
     removeDeck,
     getDeckPosition,
     setDeckLoopParams,
@@ -57,6 +63,9 @@ describe("useDecks", () => {
     setDeckFilter.mockClear();
     setDeckHighpass.mockClear();
     setDeckResonance.mockClear();
+    setDeckEqLow.mockClear();
+    setDeckEqMid.mockClear();
+    setDeckEqHigh.mockClear();
     removeDeck.mockClear();
     getDeckPosition.mockClear();
     setDeckLoopParams.mockClear();

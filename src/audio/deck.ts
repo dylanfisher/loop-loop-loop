@@ -4,6 +4,9 @@ type DeckNodes = {
   gain: GainNode;
   lowpass: BiquadFilterNode;
   highpass: BiquadFilterNode;
+  eqLow: BiquadFilterNode;
+  eqMid: BiquadFilterNode;
+  eqHigh: BiquadFilterNode;
   source?: AudioBufferSourceNode;
 };
 
@@ -25,6 +28,9 @@ const pendingPlaybackRates = new Map<number, number>();
 const pendingFilters = new Map<number, number>();
 const pendingHighpass = new Map<number, number>();
 const pendingResonance = new Map<number, number>();
+const pendingEqLow = new Map<number, number>();
+const pendingEqMid = new Map<number, number>();
+const pendingEqHigh = new Map<number, number>();
 
 const ensureDeckNodes = (
   context: AudioContext,
@@ -33,7 +39,10 @@ const ensureDeckNodes = (
   gain: number,
   filterCutoff: number,
   highpassCutoff: number,
-  resonance: number
+  resonance: number,
+  eqLowGain: number,
+  eqMidGain: number,
+  eqHighGain: number
 ) => {
   let nodes = deckNodes.get(deckId);
   if (!nodes) {
@@ -45,12 +54,28 @@ const ensureDeckNodes = (
     deckLowpass.type = "lowpass";
     deckLowpass.frequency.value = pendingFilters.get(deckId) ?? filterCutoff;
     deckLowpass.Q.value = pendingResonance.get(deckId) ?? resonance;
+    const eqLow = context.createBiquadFilter();
+    eqLow.type = "lowshelf";
+    eqLow.frequency.value = 120;
+    eqLow.gain.value = pendingEqLow.get(deckId) ?? eqLowGain;
+    const eqMid = context.createBiquadFilter();
+    eqMid.type = "peaking";
+    eqMid.frequency.value = 1000;
+    eqMid.Q.value = 0.9;
+    eqMid.gain.value = pendingEqMid.get(deckId) ?? eqMidGain;
+    const eqHigh = context.createBiquadFilter();
+    eqHigh.type = "highshelf";
+    eqHigh.frequency.value = 8000;
+    eqHigh.gain.value = pendingEqHigh.get(deckId) ?? eqHighGain;
     const deckGain = context.createGain();
     deckGain.gain.value = pendingGains.get(deckId) ?? gain;
     deckHighpass.connect(deckLowpass);
-    deckLowpass.connect(deckGain);
+    deckLowpass.connect(eqLow);
+    eqLow.connect(eqMid);
+    eqMid.connect(eqHigh);
+    eqHigh.connect(deckGain);
     deckGain.connect(output);
-    nodes = { gain: deckGain, lowpass: deckLowpass, highpass: deckHighpass };
+    nodes = { gain: deckGain, lowpass: deckLowpass, highpass: deckHighpass, eqLow, eqMid, eqHigh };
     deckNodes.set(deckId, nodes);
   } else {
     nodes.gain.gain.value = gain;
@@ -58,12 +83,18 @@ const ensureDeckNodes = (
     nodes.highpass.frequency.value = highpassCutoff;
     nodes.lowpass.Q.value = resonance;
     nodes.highpass.Q.value = resonance;
+    nodes.eqLow.gain.value = eqLowGain;
+    nodes.eqMid.gain.value = eqMidGain;
+    nodes.eqHigh.gain.value = eqHighGain;
   }
 
   pendingGains.delete(deckId);
   pendingFilters.delete(deckId);
   pendingHighpass.delete(deckId);
   pendingResonance.delete(deckId);
+  pendingEqLow.delete(deckId);
+  pendingEqMid.delete(deckId);
+  pendingEqHigh.delete(deckId);
   return nodes;
 };
 
@@ -81,6 +112,9 @@ export const playDeckBuffer = (
   filterCutoff: number,
   highpassCutoff: number,
   resonance: number,
+  eqLowGain: number,
+  eqMidGain: number,
+  eqHighGain: number,
   onEnded?: DeckEndedCallback
 ) => {
   stopDeckPlayback(deckId, true);
@@ -91,7 +125,10 @@ export const playDeckBuffer = (
     gain,
     filterCutoff,
     highpassCutoff,
-    resonance
+    resonance,
+    eqLowGain,
+    eqMidGain,
+    eqHighGain
   );
 
   const source = context.createBufferSource();
@@ -203,6 +240,36 @@ export const setDeckResonanceValue = (deckId: number, value: number) => {
   }
 };
 
+export const setDeckEqLowGain = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.eqLow.gain.value = value;
+    pendingEqLow.delete(deckId);
+  } else {
+    pendingEqLow.set(deckId, value);
+  }
+};
+
+export const setDeckEqMidGain = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.eqMid.gain.value = value;
+    pendingEqMid.delete(deckId);
+  } else {
+    pendingEqMid.set(deckId, value);
+  }
+};
+
+export const setDeckEqHighGain = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.eqHigh.gain.value = value;
+    pendingEqHigh.delete(deckId);
+  } else {
+    pendingEqHigh.set(deckId, value);
+  }
+};
+
 export const removeDeckNodes = (deckId: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
@@ -213,6 +280,9 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.source?.disconnect();
     nodes.highpass.disconnect();
     nodes.lowpass.disconnect();
+    nodes.eqLow.disconnect();
+    nodes.eqMid.disconnect();
+    nodes.eqHigh.disconnect();
     nodes.gain.disconnect();
     deckNodes.delete(deckId);
   }
@@ -222,6 +292,9 @@ export const removeDeckNodes = (deckId: number) => {
   pendingFilters.delete(deckId);
   pendingHighpass.delete(deckId);
   pendingResonance.delete(deckId);
+  pendingEqLow.delete(deckId);
+  pendingEqMid.delete(deckId);
+  pendingEqHigh.delete(deckId);
 };
 
 export const setDeckLoopParams = (

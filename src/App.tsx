@@ -17,6 +17,9 @@ const App = () => {
     setDeckGain,
     setDeckFilter,
     setDeckResonance,
+    setDeckEqLow,
+    setDeckEqMid,
+    setDeckEqHigh,
     seekDeck,
     setDeckZoom,
     setDeckFollow,
@@ -54,6 +57,9 @@ const App = () => {
           onGainChange={setDeckGain}
           onFilterChange={setDeckFilter}
           onResonanceChange={setDeckResonance}
+          onEqLowChange={setDeckEqLow}
+          onEqMidChange={setDeckEqMid}
+          onEqHighChange={setDeckEqHigh}
           onSeek={seekDeck}
           onZoomChange={setDeckZoom}
           onFollowChange={setDeckFollow}

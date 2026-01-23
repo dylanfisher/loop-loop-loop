@@ -9,7 +9,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 const AUTOMATION_SAMPLE_RATE = 30;
 const MIN_AUTOMATION_DURATION = 0.25;
 
-type AutomationParam = "djFilter" | "resonance";
+type AutomationParam = "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh";
 
 type AutomationTrack = {
   samples: Float32Array;
@@ -29,6 +29,9 @@ type AutomationTrack = {
 type AutomationDeck = {
   djFilter: AutomationTrack;
   resonance: AutomationTrack;
+  eqLow: AutomationTrack;
+  eqMid: AutomationTrack;
+  eqHigh: AutomationTrack;
 };
 
 type AutomationView = {
@@ -80,6 +83,9 @@ const useDecks = () => {
       gain: 0.9,
       djFilter: 0,
       filterResonance: 0.7,
+      eqLowGain: 0,
+      eqMidGain: 0,
+      eqHighGain: 0,
       offsetSeconds: 0,
       zoom: 1,
       follow: true,
@@ -100,6 +106,9 @@ const useDecks = () => {
     setDeckFilter,
     setDeckHighpass,
     setDeckResonance,
+    setDeckEqLow,
+    setDeckEqMid,
+    setDeckEqHigh,
     removeDeck: removeDeckNodes,
     getDeckPosition,
     setDeckLoopParams,
@@ -127,13 +136,29 @@ const useDecks = () => {
     return { lowpass: max, highpass: min };
   }, []);
 
-  const resetAutomation = (deckId: number, djFilterValue: number, resonanceValue: number) => {
+  const resetAutomation = (
+    deckId: number,
+    djFilterValue: number,
+    resonanceValue: number,
+    eqLowGain: number,
+    eqMidGain: number,
+    eqHighGain: number
+  ) => {
     const automation: AutomationDeck = {
       djFilter: createTrack(djFilterValue),
       resonance: createTrack(resonanceValue),
+      eqLow: createTrack(eqLowGain),
+      eqMid: createTrack(eqMidGain),
+      eqHigh: createTrack(eqHighGain),
     };
     automationRef.current.set(deckId, automation);
-    automationPlayheadRef.current.set(deckId, { djFilter: 0, resonance: 0 });
+    automationPlayheadRef.current.set(deckId, {
+      djFilter: 0,
+      resonance: 0,
+      eqLow: 0,
+      eqMid: 0,
+      eqHigh: 0,
+    });
     updateAutomationView(deckId);
   };
 
@@ -143,9 +168,18 @@ const useDecks = () => {
       automation = {
         djFilter: createTrack(deck.djFilter),
         resonance: createTrack(deck.filterResonance),
+        eqLow: createTrack(deck.eqLowGain),
+        eqMid: createTrack(deck.eqMidGain),
+        eqHigh: createTrack(deck.eqHighGain),
       };
       automationRef.current.set(deckId, automation);
-      automationPlayheadRef.current.set(deckId, { djFilter: 0, resonance: 0 });
+      automationPlayheadRef.current.set(deckId, {
+        djFilter: 0,
+        resonance: 0,
+        eqLow: 0,
+        eqMid: 0,
+        eqHigh: 0,
+      });
       setAutomationState((prev) => {
         const next = new Map(prev);
         next.set(deckId, {
@@ -164,6 +198,30 @@ const useDecks = () => {
             recording: false,
             active: false,
             currentValue: automation!.resonance.currentValue,
+          },
+          eqLow: {
+            samples: automation!.eqLow.samples,
+            previewSamples: new Float32Array(0),
+            durationSec: 0,
+            recording: false,
+            active: false,
+            currentValue: automation!.eqLow.currentValue,
+          },
+          eqMid: {
+            samples: automation!.eqMid.samples,
+            previewSamples: new Float32Array(0),
+            durationSec: 0,
+            recording: false,
+            active: false,
+            currentValue: automation!.eqMid.currentValue,
+          },
+          eqHigh: {
+            samples: automation!.eqHigh.samples,
+            previewSamples: new Float32Array(0),
+            durationSec: 0,
+            recording: false,
+            active: false,
+            currentValue: automation!.eqHigh.currentValue,
           },
         });
         return next;
@@ -197,6 +255,36 @@ const useDecks = () => {
           recording: automation.resonance.recording,
           active: automation.resonance.active,
           currentValue: automation.resonance.currentValue,
+        },
+        eqLow: {
+          samples: automation.eqLow.samples,
+          previewSamples: automation.eqLow.recording
+            ? new Float32Array(automation.eqLow.recordBuffer)
+            : new Float32Array(0),
+          durationSec: automation.eqLow.durationSec,
+          recording: automation.eqLow.recording,
+          active: automation.eqLow.active,
+          currentValue: automation.eqLow.currentValue,
+        },
+        eqMid: {
+          samples: automation.eqMid.samples,
+          previewSamples: automation.eqMid.recording
+            ? new Float32Array(automation.eqMid.recordBuffer)
+            : new Float32Array(0),
+          durationSec: automation.eqMid.durationSec,
+          recording: automation.eqMid.recording,
+          active: automation.eqMid.active,
+          currentValue: automation.eqMid.currentValue,
+        },
+        eqHigh: {
+          samples: automation.eqHigh.samples,
+          previewSamples: automation.eqHigh.recording
+            ? new Float32Array(automation.eqHigh.recordBuffer)
+            : new Float32Array(0),
+          durationSec: automation.eqHigh.durationSec,
+          recording: automation.eqHigh.recording,
+          active: automation.eqHigh.active,
+          currentValue: automation.eqHigh.currentValue,
         },
       });
       return next;
@@ -249,6 +337,14 @@ const useDecks = () => {
               const targets = getFilterTargets(value);
               setDeckFilter(deckId, targets.lowpass);
               setDeckHighpass(deckId, targets.highpass);
+            } else if (param === "resonance") {
+              setDeckResonance(deckId, value);
+            } else if (param === "eqLow") {
+              setDeckEqLow(deckId, value);
+            } else if (param === "eqMid") {
+              setDeckEqMid(deckId, value);
+            } else if (param === "eqHigh") {
+              setDeckEqHigh(deckId, value);
             } else {
               setDeckResonance(deckId, value);
             }
@@ -281,7 +377,15 @@ const useDecks = () => {
       running = false;
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [getFilterTargets, setDeckFilter, setDeckHighpass, setDeckResonance]);
+  }, [
+    getFilterTargets,
+    setDeckFilter,
+    setDeckHighpass,
+    setDeckResonance,
+    setDeckEqLow,
+    setDeckEqMid,
+    setDeckEqHigh,
+  ]);
 
   const updateDeck = useCallback((id: number, updates: Partial<DeckState>) => {
     setDecks((prev) =>
@@ -392,7 +496,7 @@ const useDecks = () => {
   const addDeck = () => {
     const id = nextDeckId.current;
     nextDeckId.current += 1;
-    resetAutomation(id, 0, 0.7);
+    resetAutomation(id, 0, 0.7, 0, 0, 0);
     setDecks((prev) => [
       ...prev,
       {
@@ -401,6 +505,9 @@ const useDecks = () => {
         gain: 0.9,
         djFilter: 0,
         filterResonance: 0.7,
+        eqLowGain: 0,
+        eqMidGain: 0,
+        eqHighGain: 0,
         offsetSeconds: 0,
         zoom: 1,
         follow: true,
@@ -445,7 +552,7 @@ const useDecks = () => {
   const handleFileSelected = async (id: number, file: File | null) => {
     if (!file) return;
 
-    resetAutomation(id, 0, 0.7);
+    resetAutomation(id, 0, 0.7, 0, 0, 0);
     updateDeck(id, {
       status: "loading",
       fileName: file.name,
@@ -453,6 +560,9 @@ const useDecks = () => {
       offsetSeconds: 0,
       djFilter: 0,
       filterResonance: 0.7,
+      eqLowGain: 0,
+      eqMidGain: 0,
+      eqHighGain: 0,
       zoom: 1,
       follow: true,
       loopEnabled: false,
@@ -473,6 +583,9 @@ const useDecks = () => {
         offsetSeconds: 0,
         djFilter: 0,
         filterResonance: 0.7,
+        eqLowGain: 0,
+        eqMidGain: 0,
+        eqHighGain: 0,
         zoom: 1,
         follow: true,
         loopEnabled: false,
@@ -519,7 +632,10 @@ const useDecks = () => {
       deck.loopEndSeconds,
       filters.lowpass,
       filters.highpass,
-      deck.filterResonance
+      deck.filterResonance,
+      deck.eqLowGain,
+      deck.eqMidGain,
+      deck.eqHighGain
     );
   };
 
@@ -565,7 +681,10 @@ const useDecks = () => {
         deck.loopEndSeconds,
         filters.lowpass,
         filters.highpass,
-        deck.filterResonance
+        deck.filterResonance,
+        deck.eqLowGain,
+        deck.eqMidGain,
+        deck.eqHighGain
       );
       return;
     }
@@ -604,6 +723,42 @@ const useDecks = () => {
     }
   };
 
+  const setDeckEqLowValue = (id: number, value: number) => {
+    setDeckEqLow(id, value);
+    updateDeck(id, { eqLowGain: value });
+    const automation = automationRef.current.get(id);
+    const track = automation?.eqLow;
+    if (track && track.active && !track.recording) {
+      track.active = false;
+      track.playbackStartMs = 0;
+      updateAutomationView(id);
+    }
+  };
+
+  const setDeckEqMidValue = (id: number, value: number) => {
+    setDeckEqMid(id, value);
+    updateDeck(id, { eqMidGain: value });
+    const automation = automationRef.current.get(id);
+    const track = automation?.eqMid;
+    if (track && track.active && !track.recording) {
+      track.active = false;
+      track.playbackStartMs = 0;
+      updateAutomationView(id);
+    }
+  };
+
+  const setDeckEqHighValue = (id: number, value: number) => {
+    setDeckEqHigh(id, value);
+    updateDeck(id, { eqHighGain: value });
+    const automation = automationRef.current.get(id);
+    const track = automation?.eqHigh;
+    if (track && track.active && !track.recording) {
+      track.active = false;
+      track.playbackStartMs = 0;
+      updateAutomationView(id);
+    }
+  };
+
   const startAutomationRecording = (id: number, param: AutomationParam) => {
     const deck = decks.find((item) => item.id === id);
     if (!deck) return;
@@ -617,7 +772,19 @@ const useDecks = () => {
     track.recordStartMs = performance.now();
     track.lastSampleMs = track.recordStartMs;
     track.lastPreviewLength = 0;
-    track.currentValue = param === "djFilter" ? deck.djFilter : deck.filterResonance;
+    if (param === "djFilter") {
+      track.currentValue = deck.djFilter;
+    } else if (param === "resonance") {
+      track.currentValue = deck.filterResonance;
+    } else if (param === "eqLow") {
+      track.currentValue = deck.eqLowGain;
+    } else if (param === "eqMid") {
+      track.currentValue = deck.eqMidGain;
+    } else if (param === "eqHigh") {
+      track.currentValue = deck.eqHighGain;
+    } else {
+      track.currentValue = deck.filterResonance;
+    }
     updateAutomationView(id);
   };
 
@@ -648,6 +815,14 @@ const useDecks = () => {
     track.currentValue = value;
     if (param === "djFilter") {
       setDeckFilterValue(id, value);
+    } else if (param === "resonance") {
+      setDeckResonanceValue(id, value);
+    } else if (param === "eqLow") {
+      setDeckEqLowValue(id, value);
+    } else if (param === "eqMid") {
+      setDeckEqMidValue(id, value);
+    } else if (param === "eqHigh") {
+      setDeckEqHighValue(id, value);
     } else {
       setDeckResonanceValue(id, value);
     }
@@ -732,7 +907,10 @@ const useDecks = () => {
           nextDeck.loopEndSeconds,
           filters.lowpass,
           filters.highpass,
-          deck.filterResonance
+          deck.filterResonance,
+          deck.eqLowGain,
+          deck.eqMidGain,
+          deck.eqHighGain
         );
 
         return {
@@ -787,7 +965,10 @@ const useDecks = () => {
             nextEnd,
             filters.lowpass,
             filters.highpass,
-            deck.filterResonance
+            deck.filterResonance,
+            deck.eqLowGain,
+            deck.eqMidGain,
+            deck.eqHighGain
           );
           return {
             ...deck,
@@ -862,6 +1043,9 @@ const useDecks = () => {
     setDeckGain: setDeckGainValue,
     setDeckFilter: setDeckFilterValue,
     setDeckResonance: setDeckResonanceValue,
+    setDeckEqLow: setDeckEqLowValue,
+    setDeckEqMid: setDeckEqMidValue,
+    setDeckEqHigh: setDeckEqHighValue,
     seekDeck,
     setDeckZoom: setDeckZoomValue,
     setDeckFollow: setDeckFollowValue,

@@ -6,6 +6,9 @@ import {
   setDeckFilterValue,
   setDeckHighpassValue,
   setDeckResonanceValue,
+  setDeckEqLowGain,
+  setDeckEqMidGain,
+  setDeckEqHighGain,
   setDeckLoopParams,
   setDeckPlaybackRate,
   stopDeckPlayback,
@@ -28,13 +31,19 @@ type AudioEngine = {
     loopEndSeconds?: number,
     filterCutoff?: number,
     highpassCutoff?: number,
-    resonance?: number
+    resonance?: number,
+    eqLowGain?: number,
+    eqMidGain?: number,
+    eqHighGain?: number
   ) => Promise<void>;
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
   setDeckFilter: (deckId: number, value: number) => void;
   setDeckHighpass: (deckId: number, value: number) => void;
   setDeckResonance: (deckId: number, value: number) => void;
+  setDeckEqLow: (deckId: number, value: number) => void;
+  setDeckEqMid: (deckId: number, value: number) => void;
+  setDeckEqHigh: (deckId: number, value: number) => void;
   removeDeck: (deckId: number) => void;
   getDeckPosition: (deckId: number) => number | null;
   setDeckLoopParams: (deckId: number, loopEnabled: boolean, start: number, end: number) => void;
@@ -92,7 +101,10 @@ const playBuffer = async (
   loopEndSeconds = buffer.duration,
   filterCutoff = 20000,
   highpassCutoff = 60,
-  resonance = 0.7
+  resonance = 0.7,
+  eqLowGain = 0,
+  eqMidGain = 0,
+  eqHighGain = 0
 ) => {
   const context = await ensureContext();
   const output = masterGain ?? context.destination;
@@ -110,6 +122,9 @@ const playBuffer = async (
     filterCutoff,
     highpassCutoff,
     resonance,
+    eqLowGain,
+    eqMidGain,
+    eqHighGain,
     onEnded
   );
 };
@@ -136,6 +151,18 @@ const setDeckHighpass = (deckId: number, value: number) => {
 
 const setDeckResonance = (deckId: number, value: number) => {
   setDeckResonanceValue(deckId, value);
+};
+
+const setDeckEqLow = (deckId: number, value: number) => {
+  setDeckEqLowGain(deckId, value);
+};
+
+const setDeckEqMid = (deckId: number, value: number) => {
+  setDeckEqMidGain(deckId, value);
+};
+
+const setDeckEqHigh = (deckId: number, value: number) => {
+  setDeckEqHighGain(deckId, value);
 };
 
 const removeDeck = (deckId: number) => {
@@ -169,6 +196,9 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckFilter,
     setDeckHighpass,
     setDeckResonance,
+    setDeckEqLow,
+    setDeckEqMid,
+    setDeckEqHigh,
     removeDeck,
     getDeckPosition,
     setDeckLoopParams: updateDeckLoopParams,

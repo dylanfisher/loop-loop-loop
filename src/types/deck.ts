@@ -19,4 +19,7 @@ export type DeckState = {
   bpmOverride: number | null;
   djFilter: number;
   filterResonance: number;
+  eqLowGain: number;
+  eqMidGain: number;
+  eqHighGain: number;
 };
