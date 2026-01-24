@@ -57,11 +57,9 @@ type DeckCardProps = {
   ) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
-  onFollowChange: (id: number, value: boolean) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
-  onTapTempo: (id: number) => void;
   getDeckPosition: (id: number) => number | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
@@ -89,11 +87,9 @@ const DeckCard = ({
   onAutomationReset,
   onSeek,
   onZoomChange,
-  onFollowChange,
   onLoopChange,
   onLoopBoundsChange,
   onBpmOverrideChange,
-  onTapTempo,
   getDeckPosition,
   setFileInputRef,
 }: DeckCardProps) => {
@@ -101,8 +97,6 @@ const DeckCard = ({
     typeof value === "number" && Number.isFinite(value) ? value.toFixed(1) : "--";
   const effectiveBpm = deck.bpmOverride ?? deck.bpm;
   const sliderValue = effectiveBpm ?? 120;
-  const confidenceLabel =
-    deck.bpmConfidence > 0 ? `${Math.round(deck.bpmConfidence * 100)}%` : "--";
   const zoomSteps = [1, 2, 4, 8, 16, 32, 64, 128, 256];
   const zoomIndex = zoomSteps.reduce((bestIndex, step, index) => {
     const bestDiff = Math.abs(zoomSteps[bestIndex] - deck.zoom);
@@ -180,8 +174,52 @@ const DeckCard = ({
   return (
     <div className="deck">
       <div className="deck__header">
-        <span className="deck__label">{label}</span>
+        <div className="deck__label-row">
+          <span className="deck__label">
+            {label}
+            <span className="deck__title">{deck.fileName ?? "No file loaded"}</span>
+          </span>
+          <div className="deck__actions">
+            <input
+              ref={(node) => setFileInputRef(deck.id, node)}
+              className="deck__file-input"
+              type="file"
+              accept="audio/*"
+              onChange={(event) => onFileSelected(deck.id, event.target.files?.[0] ?? null)}
+            />
+            <button type="button" className="deck__action" onClick={() => onLoadClick(deck.id)}>
+              {deck.fileName ? "Replace" : "Load"}
+            </button>
+            {deck.status === "playing" ? (
+              <button type="button" className="deck__action" onClick={() => onPause(deck)}>
+                Pause
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="deck__action"
+                disabled={!deck.buffer || deck.status === "loading"}
+                onClick={() => onPlay(deck)}
+              >
+                {deck.status === "paused" ? "Resume" : "Play"}
+              </button>
+            )}
+            <button
+              type="button"
+              className={`deck__action ${deck.loopEnabled ? "is-active" : ""}`}
+              onClick={() => onLoopChange(deck.id, !deck.loopEnabled)}
+            >
+              {deck.loopEnabled ? "Looping" : "Loop"}
+            </button>
+            <button type="button" className="deck__action">
+              Slice
+            </button>
+          </div>
+        </div>
         <div className="deck__meta">
+          <div className="deck__bpm-summary">
+            <span>BPM {formatBpm(effectiveBpm)}</span>
+          </div>
           <span className={`deck__status deck__status--${deck.status}`}>
             {deck.status}
           </span>
@@ -202,7 +240,6 @@ const DeckCard = ({
           duration={deck.duration}
           offsetSeconds={deck.offsetSeconds}
           zoom={deck.zoom}
-          follow={deck.follow}
           loopEnabled={deck.loopEnabled}
           loopStartSeconds={deck.loopStartSeconds}
           loopEndSeconds={deck.loopEndSeconds}
@@ -212,6 +249,18 @@ const DeckCard = ({
           }
           getCurrentSeconds={getCurrentSeconds}
         />
+        <label className="deck__bpm-slider deck__bpm-slider--vertical">
+          <span>BPM</span>
+          <input
+            type="range"
+            min="1"
+            max="300"
+            step="0.1"
+            value={sliderValue}
+            onChange={(event) => onBpmOverrideChange(deck.id, Number(event.target.value))}
+            onDoubleClick={() => onBpmOverrideChange(deck.id, null)}
+          />
+        </label>
         <div className="deck__waveform-side">
           <div className="deck__zoom">
             <span>Zoom</span>
@@ -243,116 +292,19 @@ const DeckCard = ({
               </button>
             </div>
           </div>
-          <label className="deck__gain deck__gain--vertical">
-            <span>Gain</span>
-            <input
-              type="range"
-              min="0"
-              max="1.5"
-              step="0.01"
+          <div className="deck__gain-knob">
+            <Knob
+              label="Gain"
+              min={0}
+              max={1.5}
+              step={0.01}
               value={deck.gain}
-              onChange={(event) => onGainChange(deck.id, Number(event.target.value))}
-              onDoubleClick={() => onGainChange(deck.id, 0.9)}
+              defaultValue={0.9}
+              onChange={(next) => onGainChange(deck.id, next)}
             />
-          </label>
-        </div>
-      </div>
-      <div className="deck__controls">
-        <input
-          ref={(node) => setFileInputRef(deck.id, node)}
-          className="deck__file-input"
-          type="file"
-          accept="audio/*"
-          onChange={(event) => onFileSelected(deck.id, event.target.files?.[0] ?? null)}
-        />
-        <button type="button" onClick={() => onLoadClick(deck.id)}>
-          {deck.fileName ? "Replace" : "Load"}
-        </button>
-        {deck.status === "playing" ? (
-          <button type="button" onClick={() => onPause(deck)}>
-            Pause
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={!deck.buffer || deck.status === "loading"}
-            onClick={() => onPlay(deck)}
-          >
-            {deck.status === "paused" ? "Resume" : "Play"}
-          </button>
-        )}
-        <button
-          type="button"
-          className={deck.loopEnabled ? "is-active" : undefined}
-          onClick={() => onLoopChange(deck.id, !deck.loopEnabled)}
-        >
-          {deck.loopEnabled ? "Looping" : "Loop"}
-        </button>
-        <button type="button">Slice</button>
-      </div>
-      <label className="deck__follow">
-        <span>Follow</span>
-        <input
-          type="checkbox"
-          checked={deck.follow}
-          onChange={(event) => onFollowChange(deck.id, event.target.checked)}
-        />
-      </label>
-      <div className="deck__bpm">
-        <div className="deck__bpm-header">BPM</div>
-        <div className="deck__bpm-values">
-          <div>
-            Detected: <strong>{formatBpm(deck.bpm)}</strong>{" "}
-            <span className="deck__bpm-confidence">{confidenceLabel}</span>
-          </div>
-          <div>
-            Effective: <strong>{formatBpm(effectiveBpm)}</strong>
           </div>
         </div>
-        <div className="deck__bpm-controls">
-          <input
-            type="number"
-            min="1"
-            max="999"
-            step="0.1"
-            placeholder="Override"
-            value={deck.bpmOverride ?? ""}
-            onChange={(event) => {
-              const next = event.target.value;
-              if (next === "") {
-                onBpmOverrideChange(deck.id, null);
-                return;
-              }
-              const parsed = Number(next);
-              if (Number.isFinite(parsed)) {
-                onBpmOverrideChange(deck.id, parsed);
-              }
-            }}
-          />
-          <button type="button" onClick={() => onTapTempo(deck.id)}>
-            Tap
-          </button>
-          <button
-            type="button"
-            disabled={deck.bpmOverride === null}
-            onClick={() => onBpmOverrideChange(deck.id, null)}
-          >
-            Reset
-          </button>
-        </div>
-        <div className="deck__bpm-slider">
-          <input
-            type="range"
-            min="1"
-            max="999"
-            step="0.1"
-            value={sliderValue}
-            onChange={(event) => onBpmOverrideChange(deck.id, Number(event.target.value))}
-            onDoubleClick={() => onBpmOverrideChange(deck.id, null)}
-          />
-        </div>
       </div>
-      <div className="deck__file-name">{deck.fileName ?? "No file loaded"}</div>
       <div className="deck__fx">
         <div className="deck__fx-title">Deck FX</div>
         <div className="deck__fx-row">

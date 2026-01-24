@@ -3,7 +3,7 @@ import useAudioEngine from "./useAudioEngine";
 import type { DeckState } from "../types/deck";
 import { estimateBpmFromBuffer } from "../audio/bpm";
 
-const clampBpm = (value: number) => Math.min(Math.max(value, 1), 999);
+const clampBpm = (value: number) => Math.min(Math.max(value, 1), 300);
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const AUTOMATION_SAMPLE_RATE = 30;
@@ -92,7 +92,6 @@ const useDecks = () => {
       eqHighGain: 0,
       offsetSeconds: 0,
       zoom: 1,
-      follow: true,
       loopEnabled: false,
       loopStartSeconds: 0,
       loopEndSeconds: 0,
@@ -101,7 +100,6 @@ const useDecks = () => {
       bpmOverride: null,
     },
   ]);
-  const tapTempoRefs = useRef<Map<number, number[]>>(new Map());
   const {
     decodeFile,
     playBuffer,
@@ -522,7 +520,6 @@ const useDecks = () => {
         eqHighGain: 0,
         offsetSeconds: 0,
         zoom: 1,
-        follow: true,
         loopEnabled: false,
         loopStartSeconds: 0,
         loopEndSeconds: 0,
@@ -540,7 +537,6 @@ const useDecks = () => {
       }
       stop(id);
       removeDeckNodes(id);
-      tapTempoRefs.current.delete(id);
       bpmRequestIdRef.current.delete(id);
       automationRef.current.delete(id);
       automationPlayheadRef.current.delete(id);
@@ -576,7 +572,6 @@ const useDecks = () => {
       eqMidGain: 0,
       eqHighGain: 0,
       zoom: 1,
-      follow: true,
       loopEnabled: false,
       loopStartSeconds: 0,
       loopEndSeconds: 0,
@@ -584,7 +579,6 @@ const useDecks = () => {
       bpmConfidence: 0,
       bpmOverride: null,
     });
-    tapTempoRefs.current.delete(id);
     bpmRequestIdRef.current.delete(id);
     try {
       const buffer = await decodeFile(file);
@@ -599,7 +593,6 @@ const useDecks = () => {
         eqMidGain: 0,
         eqHighGain: 0,
         zoom: 1,
-        follow: true,
         loopEnabled: false,
         loopStartSeconds: 0,
         loopEndSeconds: buffer.duration,
@@ -927,10 +920,6 @@ const useDecks = () => {
     updateDeck(id, { zoom: value });
   };
 
-  const setDeckFollowValue = (id: number, value: boolean) => {
-    updateDeck(id, { follow: value });
-  };
-
   const setDeckLoopValue = (id: number, value: boolean) => {
     setDecks((prev) =>
       prev.map((deck) => {
@@ -1067,34 +1056,6 @@ const useDecks = () => {
     setDeckPlaybackRate(id, clampPlaybackRate(nextValue / currentDeck.bpm));
   };
 
-  const tapTempo = (id: number) => {
-    const now = performance.now();
-    const history = tapTempoRefs.current.get(id) ?? [];
-    const lastTap = history[history.length - 1];
-
-    if (lastTap !== undefined && now - lastTap > 2000) {
-      history.length = 0;
-    }
-
-    history.push(now);
-    if (history.length > 6) {
-      history.shift();
-    }
-    tapTempoRefs.current.set(id, history);
-
-    if (history.length < 2) return;
-
-    const intervals = history.slice(1).map((tap, index) => tap - history[index]);
-    const averageInterval =
-      intervals.reduce((sum, value) => sum + value, 0) / intervals.length;
-
-    if (!Number.isFinite(averageInterval) || averageInterval <= 0) {
-      return;
-    }
-
-    setDeckBpmOverride(id, clampBpm(60000 / averageInterval));
-  };
-
   return {
     decks,
     addDeck,
@@ -1111,11 +1072,9 @@ const useDecks = () => {
     setDeckEqHigh: setDeckEqHighValue,
     seekDeck,
     setDeckZoom: setDeckZoomValue,
-    setDeckFollow: setDeckFollowValue,
     setDeckLoop: setDeckLoopValue,
     setDeckLoopBounds,
     setDeckBpmOverride,
-    tapTempo,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,

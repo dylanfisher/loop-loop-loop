@@ -143,19 +143,11 @@ describe("useDecks", () => {
     expect(result.current.decks[0].gain).toBe(1.1);
   });
 
-  it("supports bpm override and tap tempo", () => {
+  it("supports bpm override", () => {
     const { result } = renderHook(() => useDecks());
     const deckId = result.current.decks[0].id;
 
     act(() => result.current.setDeckBpmOverride(deckId, 150));
     expect(result.current.decks[0].bpmOverride).toBe(150);
-
-    const nowSpy = vi.spyOn(performance, "now");
-    nowSpy.mockReturnValueOnce(0).mockReturnValueOnce(500);
-    act(() => result.current.tapTempo(deckId));
-    act(() => result.current.tapTempo(deckId));
-    nowSpy.mockRestore();
-
-    expect(result.current.decks[0].bpmOverride).toBeCloseTo(120, 1);
   });
 });

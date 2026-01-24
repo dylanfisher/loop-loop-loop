@@ -17,11 +17,9 @@ type DeckStackProps = {
   onEqHighChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
-  onFollowChange: (id: number, value: boolean) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
-  onTapTempo: (id: number) => void;
   automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh", {
     samples: Float32Array;
     previewSamples: Float32Array;
@@ -64,11 +62,9 @@ const DeckStack = ({
   onEqHighChange,
   onSeek,
   onZoomChange,
-  onFollowChange,
   onLoopChange,
   onLoopBoundsChange,
   onBpmOverrideChange,
-  onTapTempo,
   automationState,
   onAutomationStart,
   onAutomationStop,
@@ -109,11 +105,9 @@ const DeckStack = ({
             onEqHighChange={onEqHighChange}
             onSeek={onSeek}
             onZoomChange={onZoomChange}
-            onFollowChange={onFollowChange}
             onLoopChange={onLoopChange}
             onLoopBoundsChange={onLoopBoundsChange}
             onBpmOverrideChange={onBpmOverrideChange}
-            onTapTempo={onTapTempo}
             automation={automationState.get(deck.id)}
             onAutomationStart={onAutomationStart}
             onAutomationStop={onAutomationStop}

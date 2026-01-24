@@ -22,11 +22,9 @@ const App = () => {
     setDeckEqHigh,
     seekDeck,
     setDeckZoom,
-    setDeckFollow,
     setDeckLoop,
     setDeckLoopBounds,
     setDeckBpmOverride,
-    tapTempo,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,
@@ -62,11 +60,9 @@ const App = () => {
           onEqHighChange={setDeckEqHigh}
           onSeek={seekDeck}
           onZoomChange={setDeckZoom}
-          onFollowChange={setDeckFollow}
           onLoopChange={setDeckLoop}
           onLoopBoundsChange={setDeckLoopBounds}
           onBpmOverrideChange={setDeckBpmOverride}
-          onTapTempo={tapTempo}
           automationState={automationState}
           onAutomationStart={startAutomationRecording}
           onAutomationStop={stopAutomationRecording}
