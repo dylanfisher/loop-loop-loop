@@ -61,6 +61,15 @@ type DeckCardProps = {
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
   getDeckPosition: (id: number) => number | null;
+  getDeckPlaybackSnapshot: (id: number) => {
+    position: number;
+    duration: number;
+    loopEnabled: boolean;
+    loopStart: number;
+    loopEnd: number;
+    playing: boolean;
+    playbackRate: number;
+  } | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
@@ -91,6 +100,7 @@ const DeckCard = ({
   onLoopBoundsChange,
   onBpmOverrideChange,
   getDeckPosition,
+  getDeckPlaybackSnapshot,
   setFileInputRef,
 }: DeckCardProps) => {
   const formatBpm = (value: number | null) =>
@@ -169,7 +179,11 @@ const DeckCard = ({
   const eqMidValue = eqMidAutomation.active ? eqMidAutomation.currentValue : deck.eqMidGain;
   const eqHighValue = eqHighAutomation.active ? eqHighAutomation.currentValue : deck.eqHighGain;
 
-  const getCurrentSeconds = useCallback(() => getDeckPosition(deck.id), [deck.id, getDeckPosition]);
+  const getCurrentSeconds = useCallback(() => {
+    const snapshot = getDeckPlaybackSnapshot(deck.id);
+    if (snapshot) return snapshot.position;
+    return getDeckPosition(deck.id);
+  }, [deck.id, getDeckPlaybackSnapshot, getDeckPosition]);
 
   return (
     <div className="deck">
@@ -248,6 +262,8 @@ const DeckCard = ({
             onLoopBoundsChange(deck.id, startSeconds, endSeconds)
           }
           getCurrentSeconds={getCurrentSeconds}
+          getPlaybackSnapshot={() => getDeckPlaybackSnapshot(deck.id)}
+          onEmptyClick={() => onLoadClick(deck.id)}
         />
         <label className="deck__bpm-slider deck__bpm-slider--vertical">
           <span>BPM</span>

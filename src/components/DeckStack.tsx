@@ -43,6 +43,15 @@ type DeckStackProps = {
   ) => void;
   onAutomationReset: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh") => void;
   getDeckPosition: (id: number) => number | null;
+  getDeckPlaybackSnapshot: (id: number) => {
+    position: number;
+    duration: number;
+    loopEnabled: boolean;
+    loopStart: number;
+    loopEnd: number;
+    playing: boolean;
+    playbackRate: number;
+  } | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
@@ -73,19 +82,16 @@ const DeckStack = ({
   onAutomationToggle,
   onAutomationReset,
   getDeckPosition,
+  getDeckPlaybackSnapshot,
   setFileInputRef,
 }: DeckStackProps) => {
   return (
-    <section className="panel deck-stack">
-      <div className="panel__title">
-        <span>Decks</span>
-        <div className="panel__actions">
-          <button type="button" onClick={onAddDeck}>
-            Add Deck
-          </button>
-        </div>
+    <section className="deck-stack">
+      <div className="deck-stack__header">
+        <button type="button" onClick={onAddDeck}>
+          Add Deck
+        </button>
       </div>
-
       <div className="deck-stack__list">
         {decks.map((deck, index) => (
           <DeckCard
@@ -116,6 +122,7 @@ const DeckStack = ({
             onAutomationToggle={onAutomationToggle}
             onAutomationReset={onAutomationReset}
             getDeckPosition={getDeckPosition}
+            getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}
             setFileInputRef={setFileInputRef}
           />
         ))}

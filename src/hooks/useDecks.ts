@@ -75,6 +75,7 @@ const useDecks = () => {
   const bpmRequestIdRef = useRef<Map<number, number>>(new Map());
   const bpmWorkerReadyRef = useRef(false);
   const playbackRateRef = useRef<Map<number, number>>(new Map());
+  const playbackStartRef = useRef<Map<number, number>>(new Map());
   const automationRef = useRef<Map<number, AutomationDeck>>(new Map());
   const automationPlayheadRef = useRef<Map<number, Record<AutomationParam, number>>>(new Map());
   const [automationState, setAutomationState] = useState<Map<number, Record<AutomationParam, AutomationView>>>(
@@ -92,7 +93,7 @@ const useDecks = () => {
       eqHighGain: 0,
       offsetSeconds: 0,
       zoom: 1,
-      loopEnabled: false,
+      loopEnabled: true,
       loopStartSeconds: 0,
       loopEndSeconds: 0,
       bpm: null,
@@ -113,6 +114,7 @@ const useDecks = () => {
     setDeckEqHigh,
     removeDeck: removeDeckNodes,
     getDeckPosition,
+    getDeckPlaybackSnapshot: _getDeckPlaybackSnapshot,
     setDeckLoopParams,
     setDeckPlaybackRate,
   } = useAudioEngine();
@@ -293,10 +295,10 @@ const useDecks = () => {
     });
   };
 
-  const getDeckTempoRatio = (deck: DeckState) => {
+  const getDeckTempoRatio = useCallback((deck: DeckState) => {
     if (!deck.bpmOverride || !deck.bpm) return 1;
     return clampPlaybackRate(deck.bpmOverride / deck.bpm);
-  };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -453,7 +455,7 @@ const useDecks = () => {
         playbackRateRef.current.delete(deckId);
       }
     });
-  }, [decks, setDeckPlaybackRate]);
+  }, [decks, getDeckTempoRatio, setDeckPlaybackRate]);
 
   const startBpmAnalysis = (id: number, buffer: AudioBuffer) => {
     if (!buffer || typeof buffer.getChannelData !== "function") return;
@@ -520,7 +522,7 @@ const useDecks = () => {
         eqHighGain: 0,
         offsetSeconds: 0,
         zoom: 1,
-        loopEnabled: false,
+        loopEnabled: true,
         loopStartSeconds: 0,
         loopEndSeconds: 0,
         bpm: null,
@@ -538,6 +540,7 @@ const useDecks = () => {
       stop(id);
       removeDeckNodes(id);
       bpmRequestIdRef.current.delete(id);
+      playbackStartRef.current.delete(id);
       automationRef.current.delete(id);
       automationPlayheadRef.current.delete(id);
       setAutomationState((state) => {
@@ -560,6 +563,12 @@ const useDecks = () => {
   const handleFileSelected = async (id: number, file: File | null) => {
     if (!file) return;
 
+    const currentDeck = decks.find((deck) => deck.id === id);
+    const wasPlaying = currentDeck?.status === "playing";
+    if (wasPlaying) {
+      stop(id);
+      playbackStartRef.current.delete(id);
+    }
     resetAutomation(id, 0, 0.7, 0, 0, 0);
     updateDeck(id, {
       status: "loading",
@@ -572,7 +581,7 @@ const useDecks = () => {
       eqMidGain: 0,
       eqHighGain: 0,
       zoom: 1,
-      loopEnabled: false,
+      loopEnabled: true,
       loopStartSeconds: 0,
       loopEndSeconds: 0,
       bpm: null,
@@ -582,10 +591,12 @@ const useDecks = () => {
     bpmRequestIdRef.current.delete(id);
     try {
       const buffer = await decodeFile(file);
-      updateDeck(id, {
-        status: "ready",
+      const duration = Number.isFinite(buffer.duration)
+        ? buffer.duration
+        : buffer.length / buffer.sampleRate;
+      const baseDeck = {
         buffer,
-        duration: buffer.duration,
+        duration,
         offsetSeconds: 0,
         djFilter: 0,
         filterResonance: 0.7,
@@ -593,13 +604,50 @@ const useDecks = () => {
         eqMidGain: 0,
         eqHighGain: 0,
         zoom: 1,
-        loopEnabled: false,
+        loopEnabled: true,
         loopStartSeconds: 0,
-        loopEndSeconds: buffer.duration,
+        loopEndSeconds: duration,
         bpm: null,
         bpmConfidence: 0,
         bpmOverride: null,
-      });
+      };
+      if (wasPlaying) {
+        const startedAtMs = performance.now();
+        playbackStartRef.current.set(id, startedAtMs);
+        updateDeck(id, {
+          ...baseDeck,
+          status: "playing",
+          startedAtMs,
+        });
+        const filters = getFilterTargets(0);
+        const gain = currentDeck?.gain ?? 0.9;
+        void playBuffer(
+          id,
+          buffer,
+          () => {
+            console.info("Deck ended", { deckId: id, loopEnabled: true });
+            playbackStartRef.current.delete(id);
+            updateDeck(id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
+          },
+          gain,
+          0,
+          1,
+          true,
+          0,
+          duration,
+          filters.lowpass,
+          filters.highpass,
+          0.7,
+          0,
+          0,
+          0
+        );
+      } else {
+        updateDeck(id, {
+          ...baseDeck,
+          status: "ready",
+        });
+      }
       startBpmAnalysis(id, buffer);
     } catch (error) {
       updateDeck(id, { status: "error" });
@@ -617,6 +665,7 @@ const useDecks = () => {
     }
     // eslint-disable-next-line react-hooks/purity -- timestamp is captured during user action
     const startedAtMs = performance.now();
+    playbackStartRef.current.set(deck.id, startedAtMs);
     updateDeck(deck.id, {
       status: "playing",
       startedAtMs,
@@ -629,6 +678,8 @@ const useDecks = () => {
       deck.id,
       deck.buffer,
       () => {
+        console.info("Deck ended", { deckId: deck.id, loopEnabled: deck.loopEnabled });
+        playbackStartRef.current.delete(deck.id);
         updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
       },
       deck.gain,
@@ -697,6 +748,7 @@ const useDecks = () => {
       position !== null ? Math.min(Math.max(0, position), duration) : deck.offsetSeconds ?? 0;
 
     stop(deck.id);
+    playbackStartRef.current.delete(deck.id);
     pauseAutomationDeck(deck.id);
     updateDeck(deck.id, {
       status: "paused",
@@ -947,10 +999,14 @@ const useDecks = () => {
         const tempoRatio = getDeckTempoRatio(deck);
 
         const filters = getFilterTargets(deck.djFilter);
-        void playBuffer(
-          deck.id,
-          deck.buffer,
-          () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
+          void playBuffer(
+            deck.id,
+            deck.buffer,
+            () => {
+              console.info("Deck ended", { deckId: deck.id, loopEnabled: true });
+              playbackStartRef.current.delete(deck.id);
+              updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
+            },
           deck.gain,
           clampedOffset,
           tempoRatio,
@@ -965,10 +1021,12 @@ const useDecks = () => {
           deck.eqHighGain
         );
 
+        const startedAtMs = performance.now();
+        playbackStartRef.current.set(id, startedAtMs);
         return {
           ...nextDeck,
           status: "playing",
-          startedAtMs: performance.now(),
+          startedAtMs,
           offsetSeconds: clampedOffset,
           duration,
         };
@@ -1007,8 +1065,11 @@ const useDecks = () => {
           void playBuffer(
             deck.id,
             deck.buffer,
-            () =>
-              updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
+            () => {
+              console.info("Deck ended", { deckId: deck.id, loopEnabled: value });
+              playbackStartRef.current.delete(deck.id);
+              updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
+            },
             deck.gain,
             clampedOffset,
             getDeckTempoRatio(deck),
@@ -1022,11 +1083,13 @@ const useDecks = () => {
             deck.eqMidGain,
             deck.eqHighGain
           );
+          const startedAtMs = performance.now();
+          playbackStartRef.current.set(id, startedAtMs);
           return {
             ...deck,
             loopStartSeconds: nextStart,
             loopEndSeconds: nextEnd,
-            startedAtMs: performance.now(),
+            startedAtMs,
             offsetSeconds: clampedOffset,
           };
         }
@@ -1056,6 +1119,51 @@ const useDecks = () => {
     setDeckPlaybackRate(id, clampPlaybackRate(nextValue / currentDeck.bpm));
   };
 
+  const getDeckPlaybackSnapshotSafe = useCallback(
+    (id: number) => {
+      const deck = decks.find((item) => item.id === id);
+      if (!deck) return null;
+      const duration = deck.duration ?? deck.buffer?.duration ?? 0;
+      if (!duration) return null;
+      const loopStart = deck.loopStartSeconds ?? 0;
+      const loopEnd =
+        deck.loopEndSeconds > loopStart + 0.01 ? deck.loopEndSeconds : duration;
+      const tempoRatio = getDeckTempoRatio(deck);
+      const startedAtMs = deck.startedAtMs ?? playbackStartRef.current.get(id);
+      if (deck.status !== "playing" || startedAtMs === undefined) {
+        return {
+          position: Math.min(deck.offsetSeconds ?? 0, duration),
+          duration,
+          loopEnabled: deck.loopEnabled,
+          loopStart,
+          loopEnd,
+          playing: false,
+          playbackRate: tempoRatio,
+        };
+      }
+      const elapsed = (performance.now() - startedAtMs) / 1000;
+      let position = (deck.offsetSeconds ?? 0) + elapsed * tempoRatio;
+      if (deck.loopEnabled && loopEnd > loopStart + 0.01) {
+        const loopDuration = loopEnd - loopStart;
+        const loopOffset = position - loopStart;
+        const wrapped = ((loopOffset % loopDuration) + loopDuration) % loopDuration;
+        position = loopStart + wrapped;
+      } else {
+        position = Math.min(position, duration);
+      }
+      return {
+        position,
+        duration,
+        loopEnabled: deck.loopEnabled,
+        loopStart,
+        loopEnd,
+        playing: deck.status === "playing",
+        playbackRate: tempoRatio,
+      };
+    },
+    [decks, getDeckTempoRatio]
+  );
+
   return {
     decks,
     addDeck,
@@ -1083,6 +1191,7 @@ const useDecks = () => {
     toggleAutomationActive,
     resetAutomationTrack,
     getDeckPosition,
+    getDeckPlaybackSnapshot: getDeckPlaybackSnapshotSafe,
     setFileInputRef,
   };
 };

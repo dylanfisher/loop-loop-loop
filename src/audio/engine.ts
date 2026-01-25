@@ -1,5 +1,7 @@
 import {
   getDeckPlaybackPosition,
+  getDeckPlaybackSnapshot,
+  hasDeckPlayback,
   playDeckBuffer,
   removeDeckNodes,
   setDeckGainValue,
@@ -48,10 +50,13 @@ type AudioEngine = {
   getDeckPosition: (deckId: number) => number | null;
   setDeckLoopParams: (deckId: number, loopEnabled: boolean, start: number, end: number) => void;
   setDeckPlaybackRate: (deckId: number, value: number) => void;
+  getMasterStream: () => MediaStream | null;
+  getDeckPlaybackSnapshot: (deckId: number) => import("./deck").DeckPlaybackSnapshot | null;
 };
 
 let audioContext: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let masterStreamDest: MediaStreamAudioDestinationNode | null = null;
 
 const ensureContextSync = () => {
   if (!audioContext) {
@@ -59,6 +64,8 @@ const ensureContextSync = () => {
     masterGain = audioContext.createGain();
     masterGain.gain.value = 0.9;
     masterGain.connect(audioContext.destination);
+    masterStreamDest = audioContext.createMediaStreamDestination();
+    masterGain.connect(masterStreamDest);
   }
   return audioContext;
 };
@@ -69,6 +76,8 @@ const ensureContext = async () => {
     masterGain = audioContext.createGain();
     masterGain.gain.value = 0.9;
     masterGain.connect(audioContext.destination);
+    masterStreamDest = audioContext.createMediaStreamDestination();
+    masterGain.connect(masterStreamDest);
   }
 
   if (audioContext.state === "suspended") {
@@ -174,6 +183,19 @@ const getDeckPosition = (deckId: number) => {
   return getDeckPlaybackPosition(deckId, audioContext.currentTime);
 };
 
+const getDeckSnapshot = (deckId: number) => {
+  if (!audioContext) return null;
+  const snapshot = getDeckPlaybackSnapshot(deckId, audioContext.currentTime);
+  if (!snapshot && import.meta.env.DEV) {
+    console.info("Audio snapshot missing", {
+      deckId,
+      hasPlayback: hasDeckPlayback(deckId),
+      contextState: audioContext.state,
+    });
+  }
+  return snapshot;
+};
+
 const updateDeckLoopParams = (deckId: number, loopEnabled: boolean, start: number, end: number) => {
   setDeckLoopParams(deckId, loopEnabled, start, end);
 };
@@ -184,6 +206,15 @@ const updateDeckPlaybackRate = (deckId: number, value: number) => {
     return;
   }
   setDeckPlaybackRate(deckId, value, audioContext.currentTime);
+};
+
+const getMasterStream = () => {
+  const context = ensureContextSync();
+  if (!masterStreamDest) {
+    masterStreamDest = context.createMediaStreamDestination();
+    masterGain?.connect(masterStreamDest);
+  }
+  return masterStreamDest?.stream ?? null;
 };
 
 export const getAudioEngine = (): AudioEngine => {
@@ -203,5 +234,7 @@ export const getAudioEngine = (): AudioEngine => {
     getDeckPosition,
     setDeckLoopParams: updateDeckLoopParams,
     setDeckPlaybackRate: updateDeckPlaybackRate,
+    getMasterStream,
+    getDeckPlaybackSnapshot: getDeckSnapshot,
   };
 };

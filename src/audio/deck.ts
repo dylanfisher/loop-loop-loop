@@ -21,6 +21,16 @@ type DeckPlaybackState = {
   playing: boolean;
 };
 
+export type DeckPlaybackSnapshot = {
+  position: number;
+  duration: number;
+  loopEnabled: boolean;
+  loopStart: number;
+  loopEnd: number;
+  playing: boolean;
+  playbackRate: number;
+};
+
 const deckNodes = new Map<number, DeckNodes>();
 const deckPlayback = new Map<number, DeckPlaybackState>();
 const pendingGains = new Map<number, number>();
@@ -31,6 +41,7 @@ const pendingResonance = new Map<number, number>();
 const pendingEqLow = new Map<number, number>();
 const pendingEqMid = new Map<number, number>();
 const pendingEqHigh = new Map<number, number>();
+const isDev = import.meta.env.DEV;
 
 const ensureDeckNodes = (
   context: AudioContext,
@@ -136,15 +147,36 @@ export const playDeckBuffer = (
   source.playbackRate.value = nextRate;
   pendingPlaybackRates.delete(deckId);
   source.loop = loopEnabled;
+  let safeLoopStart = loopStartSeconds;
+  let safeLoopEnd = loopEndSeconds;
   if (loopEnabled) {
-    const safeStart = Math.max(0, loopStartSeconds);
-    const safeEnd =
-      loopEndSeconds > safeStart + 0.01 ? loopEndSeconds : buffer.duration;
-    source.loopStart = safeStart;
-    source.loopEnd = Math.min(safeEnd, buffer.duration);
+    safeLoopStart = Math.max(0, loopStartSeconds);
+    const minEnd = safeLoopStart + 0.01;
+    safeLoopEnd =
+      loopEndSeconds > minEnd ? loopEndSeconds : buffer.duration;
+    source.loopStart = safeLoopStart;
+    source.loopEnd = Math.min(safeLoopEnd, buffer.duration);
+  }
+  if (isDev) {
+    console.info("Deck loop params", {
+      deckId,
+      loopEnabled,
+      loopStart: source.loopStart,
+      loopEnd: source.loopEnd,
+      sourceLoop: source.loop,
+      duration: buffer.duration,
+    });
   }
   source.connect(nodes.highpass);
   source.onended = () => {
+    if (isDev && loopEnabled) {
+      console.info("Deck onended fired while looping", {
+        deckId,
+        loopStart: source.loopStart,
+        loopEnd: source.loopEnd,
+        duration: buffer.duration,
+      });
+    }
     if (nodes.source === source) {
       nodes.source = undefined;
     }
@@ -159,12 +191,21 @@ export const playDeckBuffer = (
     startTime: context.currentTime,
     offsetSeconds: clampedOffset,
     loopEnabled,
-    loopStart: loopStartSeconds,
-    loopEnd: loopEndSeconds,
+    loopStart: safeLoopStart,
+    loopEnd: safeLoopEnd,
     duration: buffer.duration,
     playbackRate: nextRate,
     playing: true,
   });
+  if (isDev) {
+    console.info("Deck playback set", {
+      deckId,
+      duration: buffer.duration,
+      loopEnabled,
+      loopStart: loopStartSeconds,
+      loopEnd: loopEndSeconds,
+    });
+  }
   source.start(0, clampedOffset);
 };
 
@@ -270,6 +311,13 @@ export const setDeckEqHighGain = (deckId: number, value: number) => {
 };
 
 export const removeDeckNodes = (deckId: number) => {
+  if (isDev) {
+    console.info("Deck playback removed", {
+      deckId,
+      hadPlayback: deckPlayback.has(deckId),
+      hadNodes: deckNodes.has(deckId),
+    });
+  }
   const nodes = deckNodes.get(deckId);
   if (nodes) {
     if (nodes.source) {
@@ -315,11 +363,14 @@ export const setDeckLoopParams = (
 
   const playback = deckPlayback.get(deckId);
   if (playback) {
+    const safeStart = loopEnabled ? Math.max(0, loopStart) : loopStart;
+    const safeEnd =
+      loopEnabled && loopEnd <= safeStart + 0.01 ? safeStart + 0.01 : loopEnd;
     deckPlayback.set(deckId, {
       ...playback,
       loopEnabled,
-      loopStart,
-      loopEnd,
+      loopStart: safeStart,
+      loopEnd: safeEnd,
     });
   }
 };
@@ -334,15 +385,43 @@ export const getDeckPlaybackPosition = (deckId: number, currentTime: number) => 
     playback.duration
   );
 
-  if (playback.loopEnabled && playback.loopEnd > playback.loopStart) {
-    const loopDuration = playback.loopEnd - playback.loopStart;
-    const loopOffset = position - playback.loopStart;
-    const wrapped = ((loopOffset % loopDuration) + loopDuration) % loopDuration;
-    position = playback.loopStart + wrapped;
+  if (playback.loopEnabled) {
+    const loopStart = playback.loopStart;
+    const loopEnd =
+      playback.loopEnd > loopStart + 0.01 ? playback.loopEnd : playback.duration;
+    const loopDuration = loopEnd - loopStart;
+    if (loopDuration > 0) {
+      const loopOffset = position - loopStart;
+      const wrapped = ((loopOffset % loopDuration) + loopDuration) % loopDuration;
+      position = loopStart + wrapped;
+    }
   }
 
   return position;
 };
+
+export const getDeckPlaybackSnapshot = (deckId: number, currentTime: number) => {
+  const playback = deckPlayback.get(deckId);
+  if (!playback) return null;
+  const position = getDeckPlaybackPosition(deckId, currentTime);
+  if (position === null) return null;
+  const loopStart = playback.loopStart;
+  const loopEnd =
+    playback.loopEnabled && playback.loopEnd > loopStart + 0.01
+      ? playback.loopEnd
+      : playback.duration;
+  return {
+    position,
+    duration: playback.duration,
+    loopEnabled: playback.loopEnabled,
+    loopStart,
+    loopEnd,
+    playing: playback.playing,
+    playbackRate: playback.playbackRate,
+  };
+};
+
+export const hasDeckPlayback = (deckId: number) => deckPlayback.has(deckId);
 
 export const setDeckPlaybackRate = (
   deckId: number,

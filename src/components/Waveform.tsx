@@ -16,6 +16,16 @@ type WaveformProps = {
     endSeconds: number,
   ) => void;
   getCurrentSeconds?: () => number | null;
+  onEmptyClick?: () => void;
+  getPlaybackSnapshot?: () => {
+    position: number;
+    duration: number;
+    loopEnabled: boolean;
+    loopStart: number;
+    loopEnd: number;
+    playing: boolean;
+    playbackRate: number;
+  } | null;
 };
 
 const buildPeaks = (
@@ -92,6 +102,8 @@ const Waveform = ({
   onSeek,
   onLoopBoundsChange,
   getCurrentSeconds,
+  onEmptyClick,
+  getPlaybackSnapshot,
 }: WaveformProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
@@ -116,35 +128,100 @@ const Waveform = ({
   const loopDragOffsetRef = useRef(0);
   const pointerDownRef = useRef(false);
   const lastDisplaySecondsRef = useRef(0);
+  const localStartMsRef = useRef<number | null>(null);
+
+  const getPlayback = useCallback(() => getPlaybackSnapshot?.() ?? null, [getPlaybackSnapshot]);
+  const getResolvedDuration = useCallback(() => {
+    const snapshot = getPlayback();
+    const fallbackDuration = duration ?? buffer?.duration ?? 0;
+    const nextDuration =
+      snapshot && Number.isFinite(snapshot.duration) && snapshot.duration > 0
+        ? snapshot.duration
+        : fallbackDuration;
+    return Number.isFinite(nextDuration) ? nextDuration : 0;
+  }, [buffer?.duration, duration, getPlayback]);
+
+  const getDisplaySeconds = useCallback(() => {
+    const snapshot = getPlayback();
+    const resolvedDuration = getResolvedDuration();
+    const resolvedLoopEnabled = snapshot?.loopEnabled ?? loopEnabled;
+    const resolvedLoopStart = snapshot?.loopStart ?? loopStartSeconds;
+    const resolvedLoopEnd =
+      snapshot?.loopEnd ?? (loopEndSeconds > resolvedLoopStart ? loopEndSeconds : resolvedDuration);
+    const playbackRate = snapshot?.playbackRate ?? 1;
+
+    if (isPlaying) {
+      const startMs = localStartMsRef.current ?? startedAtMs ?? null;
+      if (startMs !== null) {
+        const elapsedSec = (performance.now() - startMs) / 1000;
+        let position =
+          (offsetSeconds ?? 0) + elapsedSec * (Number.isFinite(playbackRate) ? playbackRate : 1);
+        if (resolvedLoopEnabled && resolvedDuration && resolvedLoopEnd > resolvedLoopStart + 0.01) {
+          const loopDuration = resolvedLoopEnd - resolvedLoopStart;
+          const loopOffset = position - resolvedLoopStart;
+          const wrapped = ((loopOffset % loopDuration) + loopDuration) % loopDuration;
+          position = resolvedLoopStart + wrapped;
+        } else if (resolvedDuration) {
+          position = Math.min(position, resolvedDuration);
+        }
+        return resolvedDuration ? Math.min(position, resolvedDuration) : position;
+      }
+    }
+
+    if (snapshot) {
+      return resolvedDuration ? Math.min(snapshot.position, resolvedDuration) : snapshot.position;
+    }
+    if (!resolvedDuration) return 0;
+    const engineSeconds = getCurrentSeconds?.();
+    if (engineSeconds !== null && engineSeconds !== undefined) {
+      return Math.min(engineSeconds, resolvedDuration);
+    }
+    return Math.min(offsetSeconds ?? 0, resolvedDuration);
+  }, [
+    getCurrentSeconds,
+    getPlayback,
+    getResolvedDuration,
+    isPlaying,
+    loopEnabled,
+    loopEndSeconds,
+    loopStartSeconds,
+    offsetSeconds,
+    startedAtMs,
+  ]);
 
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
-    if (!overlay || !buffer || !duration) return;
+    if (!overlay || !buffer) return;
+    const snapshot = getPlayback();
+    const resolvedDuration = getResolvedDuration();
+    if (!resolvedDuration) return;
 
     const overlayContext = overlay.getContext("2d");
     if (!overlayContext) return;
 
     overlayContext.clearRect(0, 0, overlay.width, overlay.height);
 
-    const baseOffset = offsetSeconds ?? 0;
-    const visualDuration = duration / Math.max(1, zoom);
-    const engineSeconds = getCurrentSeconds?.();
-    const nextSeconds =
-      engineSeconds !== null && engineSeconds !== undefined
-        ? Math.min(engineSeconds, duration)
-        : Math.min(baseOffset, duration);
-    let currentSeconds = nextSeconds;
-    if (activeLoopDragRef.current && loopEnabled && loopEndSeconds > loopStartSeconds) {
+    const visualDuration = resolvedDuration / Math.max(1, zoom);
+    let currentSeconds = getDisplaySeconds();
+    const resolvedLoopEnabled = snapshot?.loopEnabled ?? loopEnabled;
+    const resolvedLoopStart = snapshot?.loopStart ?? loopStartSeconds;
+    const resolvedLoopEnd =
+      snapshot?.loopEnd ?? (loopEndSeconds > resolvedLoopStart ? loopEndSeconds : resolvedDuration);
+    if (
+      activeLoopDragRef.current &&
+      resolvedLoopEnabled &&
+      resolvedLoopEnd > resolvedLoopStart
+    ) {
       currentSeconds = Math.min(
-        Math.max(currentSeconds, loopStartSeconds),
-        Math.max(loopStartSeconds, loopEndSeconds - 0.01)
+        Math.max(currentSeconds, resolvedLoopStart),
+        Math.max(resolvedLoopStart, resolvedLoopEnd - 0.01)
       );
     }
     lastDisplaySecondsRef.current = currentSeconds;
-    const progress = Math.min(
-      (currentSeconds - windowStartRef.current) / visualDuration,
-      1
-    );
+    const rawProgress = visualDuration
+      ? (currentSeconds - windowStartRef.current) / visualDuration
+      : 0;
+    const progress = Math.min(Math.max(rawProgress, 0), 1);
     const peaks = peaksRef.current;
 
     if (peaks.length) {
@@ -157,7 +234,8 @@ const Waveform = ({
       overlayContext.restore();
     }
 
-    const x = progress * overlay.clientWidth;
+    const maxX = Math.max(1, overlay.clientWidth - 1);
+    const x = Math.min(Math.max(progress * overlay.clientWidth, 1), maxX);
 
     overlayContext.strokeStyle = "#1a1a1a";
     overlayContext.lineWidth = 2;
@@ -166,11 +244,11 @@ const Waveform = ({
     overlayContext.lineTo(x, overlay.clientHeight);
     overlayContext.stroke();
 
-    if (duration) {
+    if (resolvedDuration) {
       const loopStartValue = activeLoopDragRef.current
         ? loopStartRef.current
-        : loopStartSeconds;
-      const loopEndValue = activeLoopDragRef.current ? loopEndRef.current : loopEndSeconds;
+        : resolvedLoopStart;
+      const loopEndValue = activeLoopDragRef.current ? loopEndRef.current : resolvedLoopEnd;
       const loopStartProgress = Math.min(
         Math.max((loopStartValue - windowStartRef.current) / visualDuration, 0),
         1
@@ -205,7 +283,7 @@ const Waveform = ({
         loopConnector.style.width = `${width * 100}%`;
       }
 
-      if (loopEnabled) {
+      if (resolvedLoopEnabled) {
         const startX = loopStartProgress * overlay.clientWidth;
         const endX = loopEndProgress * overlay.clientWidth;
 
@@ -224,23 +302,24 @@ const Waveform = ({
     }
   }, [
     buffer,
-    duration,
-    getCurrentSeconds,
+    getDisplaySeconds,
+    getPlayback,
+    getResolvedDuration,
     loopEnabled,
     loopEndSeconds,
     loopStartSeconds,
-    offsetSeconds,
     zoom,
   ]);
 
   const updateLoopFromPointer = (clientX: number) => {
-    if (!duration || !onLoopBoundsChange) return;
+    const resolvedDuration = getResolvedDuration();
+    if (!resolvedDuration || !onLoopBoundsChange) return;
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
     const rect = wrapper.getBoundingClientRect();
     if (!rect.width) return;
 
-    const visualDuration = duration / Math.max(1, zoom);
+    const visualDuration = resolvedDuration / Math.max(1, zoom);
     const progress = (clientX - rect.left) / rect.width;
     const seconds = windowStartRef.current + progress * visualDuration;
     const minGap = 0.05;
@@ -266,8 +345,9 @@ const Waveform = ({
     frameStart: number,
     frameDuration: number
   ) => {
-    if (!duration) return nextStart;
-    const maxStart = Math.max(0, duration - loopDuration);
+    const resolvedDuration = getResolvedDuration();
+    if (!resolvedDuration) return nextStart;
+    const maxStart = Math.max(0, resolvedDuration - loopDuration);
     let minStart = 0;
     let maxStartClamp = maxStart;
 
@@ -286,14 +366,15 @@ const Waveform = ({
     return Math.min(Math.max(0, nextStart), maxWindowStart);
   };
 
-  const getDisplaySeconds = useCallback(() => {
-    if (!duration) return 0;
-    const engineSeconds = getCurrentSeconds?.();
-    if (engineSeconds !== null && engineSeconds !== undefined) {
-      return Math.min(engineSeconds, duration);
+  useEffect(() => {
+    if (isPlaying && startedAtMs !== undefined) {
+      localStartMsRef.current = startedAtMs;
+      return;
     }
-    return Math.min(offsetSeconds ?? 0, duration);
-  }, [duration, getCurrentSeconds, offsetSeconds]);
+    if (!isPlaying) {
+      localStartMsRef.current = null;
+    }
+  }, [isPlaying, startedAtMs]);
 
   useEffect(() => {
     if (!buffer || !canvasRef.current) return;
@@ -301,16 +382,21 @@ const Waveform = ({
     const canvas = canvasRef.current;
     const overlay = overlayRef.current;
 
+    windowStartRef.current = 0;
+    lastDisplaySecondsRef.current = 0;
+    visualDurationRef.current = 0;
+
     const updateWindow = (startSeconds: number, width: number) => {
       let nextStart = startSeconds;
-      if (duration && isPlaying && !activeLoopDragRef.current) {
-        const visualDuration = duration / Math.max(1, zoom);
+      const resolvedDuration = getResolvedDuration();
+      if (resolvedDuration && isPlaying && !activeLoopDragRef.current) {
+        const visualDuration = resolvedDuration / Math.max(1, zoom);
         const currentSeconds = getDisplaySeconds();
         const windowEnd = startSeconds + visualDuration;
         if (currentSeconds >= windowEnd) {
-          nextStart = clampWindowStart(currentSeconds, duration, zoom);
+          nextStart = clampWindowStart(currentSeconds, resolvedDuration, zoom);
         } else if (currentSeconds < startSeconds) {
-          nextStart = clampWindowStart(currentSeconds, duration, zoom);
+          nextStart = clampWindowStart(currentSeconds, resolvedDuration, zoom);
         }
       }
       windowStartRef.current = nextStart;
@@ -349,7 +435,7 @@ const Waveform = ({
     resize();
 
     return () => observer.disconnect();
-  }, [buffer, duration, getDisplaySeconds, isPlaying, renderOverlay, zoom]);
+  }, [buffer, getDisplaySeconds, getResolvedDuration, isPlaying, renderOverlay, zoom]);
 
   useEffect(() => {
     if (activeLoopDragRef.current === "region") return;
@@ -368,16 +454,25 @@ const Waveform = ({
     const animate = () => {
       overlayContext.clearRect(0, 0, overlay.width, overlay.height);
 
-      if (buffer && duration) {
-        const visualDuration = duration / Math.max(1, zoom);
+      if (buffer) {
+        const resolvedDuration = getResolvedDuration();
+        if (!resolvedDuration) {
+          rafRef.current = null;
+          return;
+        }
+        const visualDuration = resolvedDuration / Math.max(1, zoom);
         const currentSeconds = getDisplaySeconds();
-        const maxWindowStart = Math.max(0, duration - visualDuration);
+        const maxWindowStart = Math.max(0, resolvedDuration - visualDuration);
         let desiredWindowStart = windowStartRef.current;
         if (isPlaying && !isDraggingRef.current) {
-          if (loopEnabled && loopEndSeconds > loopStartSeconds) {
-            const loopDuration = loopEndSeconds - loopStartSeconds;
+          const snapshot = getPlayback();
+          const resolvedLoopEnabled = snapshot?.loopEnabled ?? loopEnabled;
+          const resolvedLoopStart = snapshot?.loopStart ?? loopStartSeconds;
+          const resolvedLoopEnd = snapshot?.loopEnd ?? loopEndSeconds;
+          if (resolvedLoopEnabled && resolvedLoopEnd > resolvedLoopStart) {
+            const loopDuration = resolvedLoopEnd - resolvedLoopStart;
             if (loopDuration > visualDuration) {
-              desiredWindowStart = Math.min(loopStartSeconds, maxWindowStart);
+              desiredWindowStart = Math.min(resolvedLoopStart, maxWindowStart);
             }
           } else {
             const windowEnd = windowStartRef.current + visualDuration;
@@ -411,7 +506,7 @@ const Waveform = ({
       rafRef.current = null;
     };
 
-    if (isPlaying && buffer && startedAtMs !== undefined && duration) {
+    if (isPlaying && buffer && startedAtMs !== undefined) {
       rafRef.current = requestAnimationFrame(animate);
     } else {
       animate();
@@ -425,20 +520,36 @@ const Waveform = ({
     };
   }, [
     buffer,
-    duration,
     isPlaying,
     loopEnabled,
     loopEndSeconds,
     loopStartSeconds,
     offsetSeconds,
     getDisplaySeconds,
+    getPlayback,
+    getResolvedDuration,
     renderOverlay,
     startedAtMs,
     zoom,
   ]);
 
   if (!buffer) {
-    return <div className="deck__waveform deck__waveform--empty">Waveform / Spectrum</div>;
+    return (
+      <div
+        className="deck__waveform deck__waveform--empty"
+        role="button"
+        tabIndex={0}
+        onClick={() => onEmptyClick?.()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onEmptyClick?.();
+          }
+        }}
+      >
+        Waveform / Spectrum
+      </div>
+    );
   }
 
   return (
@@ -454,10 +565,11 @@ const Waveform = ({
         const rect = event.currentTarget.getBoundingClientRect();
         if (!rect.width) return;
         const progress = (event.clientX - rect.left) / rect.width;
-        const visualDuration = visualDurationRef.current || duration || 0;
+        const visualDuration = visualDurationRef.current || getResolvedDuration();
         const windowStart = windowStartRef.current;
         const absoluteSeconds = windowStart + progress * visualDuration;
-        const clampedProgress = duration ? absoluteSeconds / duration : progress;
+        const resolvedDuration = getResolvedDuration();
+        const clampedProgress = resolvedDuration ? absoluteSeconds / resolvedDuration : progress;
         onSeek(clampedProgress);
       }}
       onPointerDown={(event) => {

@@ -1,5 +1,5 @@
 import DeckStack from "./components/DeckStack";
-import GlobalFxRack from "./components/GlobalFxRack";
+import ClipRecorder from "./components/ClipRecorder";
 import TransportBar from "./components/TransportBar";
 import useDecks from "./hooks/useDecks";
 
@@ -33,6 +33,7 @@ const App = () => {
     toggleAutomationActive,
     resetAutomationTrack,
     getDeckPosition,
+    getDeckPlaybackSnapshot,
   } = useDecks();
 
   return (
@@ -43,7 +44,7 @@ const App = () => {
       </header>
 
       <main className="app__main">
-        <GlobalFxRack />
+        <ClipRecorder decks={decks} onLoadClip={handleFileSelected} />
         <DeckStack
           decks={decks}
           onAddDeck={addDeck}
@@ -71,6 +72,7 @@ const App = () => {
           onAutomationToggle={toggleAutomationActive}
           onAutomationReset={resetAutomationTrack}
           getDeckPosition={getDeckPosition}
+          getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}
           setFileInputRef={setFileInputRef}
         />
       </main>

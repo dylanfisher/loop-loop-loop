@@ -47,7 +47,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
 [Header]
-[Global FX]
+[Clip Recorder]
 [Deck 1] [Deck 2]
 [Deck 3] [Deck 4]
 [Transport]
@@ -67,7 +67,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Tests for DSP and scheduling behavior (Vitest for unit/integration).
 
 ## Code Structure (Current)
-- UI components in `src/components/` (DeckStack, DeckCard, GlobalFxRack, TransportBar).
+- UI components in `src/components/` (DeckStack, DeckCard, ClipRecorder, TransportBar).
 - Audio + deck state in hooks under `src/hooks/` (`useDecks`, `useAudioEngine`).
 - Shared types in `src/types/` (deck state/status).
 
