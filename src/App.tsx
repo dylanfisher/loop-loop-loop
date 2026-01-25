@@ -5,7 +5,22 @@ import TransportBar from "./components/TransportBar";
 import useDecks from "./hooks/useDecks";
 import useAudioEngine from "./hooks/useAudioEngine";
 import type { ClipItem } from "./types/clip";
+import type {
+  ClipSession,
+  DeckSession,
+  SessionFileState,
+  SessionMeta,
+  SessionState,
+} from "./types/session";
 import { encodeWav } from "./utils/audio";
+import {
+  createSessionBlobId,
+  createSessionId,
+  listSessionMetas,
+  loadSessionState,
+  saveSessionState,
+} from "./utils/sessionStore";
+import { createZip, readZip } from "./utils/zip";
 
 const App = () => {
   console.info("App: render");
@@ -13,6 +28,12 @@ const App = () => {
   const [exportMinutes, setExportMinutes] = useState(10);
   const [exporting, setExporting] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [sessionBusy, setSessionBusy] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<string | null>(null);
+  const [sessionName, setSessionName] = useState("");
+  const [sessions, setSessions] = useState<SessionMeta[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
   const { getMasterStream, decodeFile } = useAudioEngine();
@@ -48,6 +69,8 @@ const App = () => {
     resetAutomationTrack,
     getDeckPosition,
     getDeckPlaybackSnapshot,
+    getSessionDecks,
+    loadSessionDecks,
   } = useDecks();
 
   const getFilterTargets = useCallback((djFilter: number) => {
@@ -100,6 +123,18 @@ const App = () => {
       clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
     };
   }, []);
+
+  const refreshSessions = useCallback(async () => {
+    const list = await listSessionMetas();
+    setSessions(list);
+    if (!selectedSessionId && list.length > 0) {
+      setSelectedSessionId(list[0].id);
+    }
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    void refreshSessions();
+  }, [refreshSessions]);
 
   const addClip = useCallback(
     (clip: Omit<ClipItem, "id" | "url" | "name"> & { name?: string }) => {
@@ -487,11 +522,389 @@ const App = () => {
     setRecording(true);
   }, [decodeFile, getMasterStream, recording]);
 
+  const encodeDecksForSession = useCallback(async () => {
+    const sessionDecks = getSessionDecks();
+    const blobs = new Map<string, Blob>();
+    const decksWithBlobs = await Promise.all(
+      sessionDecks.map(async (deckSession) => {
+        const deck = decks.find((item) => item.id === deckSession.id);
+        if (!deck?.buffer) {
+          return deckSession;
+        }
+        const wav = encodeWav(deck.buffer);
+        const blobId = createSessionBlobId("deck");
+        blobs.set(blobId, wav);
+        return { ...deckSession, wavBlobId: blobId };
+      })
+    );
+
+    return { decks: decksWithBlobs, blobs };
+  }, [decks, getSessionDecks]);
+
+  const encodeClipsForSession = useCallback(
+    async (existingBlobs: Map<string, Blob>) => {
+      const nextBlobs = new Map(existingBlobs);
+      const clipSessions: ClipSession[] = [];
+
+      for (const clip of clips) {
+        let buffer = clip.buffer;
+        if (!buffer) {
+          const file = new File([clip.blob], `${clip.name}.webm`, {
+            type: clip.blob.type || "audio/webm",
+          });
+          buffer = await decodeFile(file);
+        }
+        const wav = encodeWav(buffer);
+        const blobId = createSessionBlobId("clip");
+        nextBlobs.set(blobId, wav);
+        clipSessions.push({
+          id: clip.id,
+          name: clip.name,
+          durationSec: clip.durationSec ?? buffer.duration,
+          gain: clip.gain,
+          wavBlobId: blobId,
+        });
+      }
+
+      return { clipSessions, blobs: nextBlobs };
+    },
+    [clips, decodeFile]
+  );
+
+  const encodeForExport = useCallback(async () => {
+    const { decks: sessionDecks, blobs: deckBlobs } = await encodeDecksForSession();
+    const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
+    const nextName = sessionName.trim() || `Session ${new Date().toLocaleString()}`;
+    const sessionFile: SessionFileState = {
+      version: 1,
+      name: nextName,
+      savedAt: Date.now(),
+      decks: sessionDecks.map((deck) => {
+        const { wavBlobId: _wavBlobId, ...rest } = deck;
+        return {
+          ...rest,
+          wavFile: _wavBlobId ? `audio/deck-${deck.id}.wav` : undefined,
+        };
+      }),
+      clips: clipSessions.map((clip) => {
+        const { wavBlobId: _wavBlobId, ...rest } = clip;
+        return {
+          ...rest,
+          wavFile: `audio/clip-${clip.id}.wav`,
+        };
+      }),
+    };
+
+    const fileEntries: Array<{ path: string; data: Uint8Array }> = [];
+    fileEntries.push({
+      path: "session.json",
+      data: new TextEncoder().encode(JSON.stringify(sessionFile)),
+    });
+
+    for (const deck of sessionDecks) {
+      if (!deck.wavBlobId) continue;
+      const wavFile = `audio/deck-${deck.id}.wav`;
+      const blob = blobs.get(deck.wavBlobId);
+      if (!blob) continue;
+      fileEntries.push({
+        path: wavFile,
+        data: new Uint8Array(await blob.arrayBuffer()),
+      });
+    }
+
+    for (const clip of clipSessions) {
+      const wavFile = `audio/clip-${clip.id}.wav`;
+      const blob = blobs.get(clip.wavBlobId);
+      if (!blob) continue;
+      fileEntries.push({
+        path: wavFile,
+        data: new Uint8Array(await blob.arrayBuffer()),
+      });
+    }
+
+    return { sessionFile, entries: fileEntries };
+  }, [encodeClipsForSession, encodeDecksForSession, sessionName]);
+
+  const handleExportSession = useCallback(async () => {
+    if (sessionBusy) return;
+    setSessionBusy(true);
+    setSessionStatus(null);
+    try {
+      const { sessionFile, entries } = await encodeForExport();
+      const zip = createZip(entries);
+      const url = URL.createObjectURL(zip);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${sessionFile.name.replace(/[^\w-]+/g, "-") || "session"}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setSessionStatus(`Exported "${sessionFile.name}".`);
+    } catch (error) {
+      console.error("Failed to export session", error);
+      setSessionStatus("Session export failed.");
+    } finally {
+      setSessionBusy(false);
+    }
+  }, [encodeForExport, sessionBusy]);
+
+  const importSessionFiles = useCallback(
+    async (file: File) => {
+      const buffer = await file.arrayBuffer();
+      const files = readZip(buffer);
+      const sessionEntry = files.get("session.json");
+      if (!sessionEntry) {
+        throw new Error("Missing session.json");
+      }
+      const sessionFile = JSON.parse(new TextDecoder().decode(sessionEntry)) as SessionFileState;
+      if (sessionFile.version !== 1) {
+        throw new Error("Unsupported session version");
+      }
+      const buffers = new Map<number, AudioBuffer | null>();
+      for (const deck of sessionFile.decks) {
+        if (!deck.wavFile) {
+          buffers.set(deck.id, null);
+          continue;
+        }
+        const data = files.get(deck.wavFile);
+        if (!data) {
+          buffers.set(deck.id, null);
+          continue;
+        }
+        const blob = new Blob([data], { type: "audio/wav" });
+        const wavFile = new File([blob], deck.fileName ?? `Deck ${deck.id}.wav`, {
+          type: "audio/wav",
+        });
+        const audioBuffer = await decodeFile(wavFile);
+        buffers.set(deck.id, audioBuffer);
+      }
+
+      const sessionDecks: DeckSession[] = sessionFile.decks.map((deck) => ({
+        ...deck,
+        wavBlobId: undefined,
+      }));
+
+      loadSessionDecks(sessionDecks, buffers);
+
+      clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
+      const nextClips: ClipItem[] = [];
+      let maxClipId = 0;
+      for (const clip of sessionFile.clips) {
+        const data = files.get(clip.wavFile);
+        if (!data) continue;
+        const blob = new Blob([data], { type: "audio/wav" });
+        const url = URL.createObjectURL(blob);
+        nextClips.push({
+          id: clip.id,
+          name: clip.name,
+          blob,
+          url,
+          durationSec: clip.durationSec,
+          gain: clip.gain,
+        });
+        maxClipId = Math.max(maxClipId, clip.id);
+      }
+      setClips(nextClips);
+      clipIdRef.current = Math.max(1, maxClipId + 1);
+      clipNameRef.current = Math.max(1, maxClipId + 1);
+      setSessionName(sessionFile.name);
+      setSessionStatus(`Imported "${sessionFile.name}".`);
+    },
+    [decodeFile, loadSessionDecks]
+  );
+
+  const handleSaveSession = useCallback(async () => {
+    if (sessionBusy) return;
+    setSessionBusy(true);
+    setSessionStatus(null);
+    try {
+      const { decks: sessionDecks, blobs: deckBlobs } = await encodeDecksForSession();
+      const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
+      const nextName = sessionName.trim() || `Session ${new Date().toLocaleString()}`;
+      const id = createSessionId();
+      const session: SessionState = {
+        version: 1,
+        id,
+        name: nextName,
+        savedAt: Date.now(),
+        decks: sessionDecks,
+        clips: clipSessions,
+      };
+      await saveSessionState(session, blobs);
+      await refreshSessions();
+      setSelectedSessionId(id);
+      setSessionName(nextName);
+      setSessionStatus(`Saved "${nextName}".`);
+    } catch (error) {
+      console.error("Failed to save session", error);
+      setSessionStatus("Session save failed.");
+    } finally {
+      setSessionBusy(false);
+    }
+  }, [encodeClipsForSession, encodeDecksForSession, refreshSessions, sessionBusy, sessionName]);
+
+  const decodeSessionDecks = useCallback(
+    async (sessionDecks: DeckSession[], blobs: Map<string, Blob>) => {
+      const buffers = new Map<number, AudioBuffer | null>();
+      for (const deck of sessionDecks) {
+        if (!deck.wavBlobId) {
+          buffers.set(deck.id, null);
+          continue;
+        }
+        const blob = blobs.get(deck.wavBlobId);
+        if (!blob) {
+          buffers.set(deck.id, null);
+          continue;
+        }
+        const file = new File([blob], deck.fileName ?? `Deck ${deck.id}.wav`, {
+          type: blob.type || "audio/wav",
+        });
+        const buffer = await decodeFile(file);
+        buffers.set(deck.id, buffer);
+      }
+      return buffers;
+    },
+    [decodeFile]
+  );
+
+  const handleLoadSession = useCallback(async () => {
+    if (sessionBusy) return;
+    if (!selectedSessionId) {
+      setSessionStatus("Select a session to load.");
+      return;
+    }
+    setSessionBusy(true);
+    setSessionStatus(null);
+    try {
+      const loaded = await loadSessionState(selectedSessionId);
+      if (!loaded) {
+        setSessionStatus("Session not found.");
+        return;
+      }
+
+      clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
+
+      const { session, blobs } = loaded;
+      const buffers = await decodeSessionDecks(session.decks, blobs);
+      loadSessionDecks(session.decks, buffers);
+
+      const nextClips: ClipItem[] = [];
+      let maxClipId = 0;
+      for (const clip of session.clips) {
+        const blob = blobs.get(clip.wavBlobId);
+        if (!blob) continue;
+        const url = URL.createObjectURL(blob);
+        nextClips.push({
+          id: clip.id,
+          name: clip.name,
+          blob,
+          url,
+          durationSec: clip.durationSec,
+          gain: clip.gain,
+        });
+        maxClipId = Math.max(maxClipId, clip.id);
+      }
+      setClips(nextClips);
+      clipIdRef.current = Math.max(1, maxClipId + 1);
+      clipNameRef.current = Math.max(1, maxClipId + 1);
+      setSessionName(session.name);
+      setSessionStatus(`Loaded "${session.name}".`);
+    } catch (error) {
+      console.error("Failed to load session", error);
+      setSessionStatus("Session load failed.");
+    } finally {
+      setSessionBusy(false);
+    }
+  }, [decodeSessionDecks, loadSessionDecks, selectedSessionId, sessionBusy]);
+
+  const handleImportClick = useCallback(() => {
+    importInputRef.current?.click();
+  }, []);
+
+  const handleImportChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      if (sessionBusy) return;
+      setSessionBusy(true);
+      setSessionStatus(null);
+      try {
+        await importSessionFiles(file);
+      } catch (error) {
+        console.error("Failed to import session", error);
+        setSessionStatus("Session import failed.");
+      } finally {
+        setSessionBusy(false);
+      }
+    },
+    [importSessionFiles, sessionBusy]
+  );
+
   return (
     <div className="app">
       <header className="app__header">
-        <div className="app__brand">Loop Loop Loop</div>
-        <div className="app__status">Audio engine: idle</div>
+        <div className="app__header-row app__header-row--primary">
+          <div className="app__brand">Loop Loop Loop</div>
+          <div className="session-bar__row session-bar__row--primary">
+            <label className="session-bar__field">
+              <span>Session Name</span>
+              <input
+                type="text"
+                value={sessionName}
+                onChange={(event) => setSessionName(event.target.value)}
+                placeholder="Name this session"
+              />
+            </label>
+            <button type="button" onClick={handleSaveSession} disabled={sessionBusy}>
+              Save Session
+            </button>
+            <label className="session-bar__field">
+              <span>Load Saved Session</span>
+              <select
+                value={selectedSessionId ?? ""}
+                onChange={(event) => setSelectedSessionId(event.target.value || null)}
+                disabled={sessions.length === 0}
+              >
+                <option value="">Select a session</option>
+                {sessions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {session.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={handleLoadSession}
+            disabled={sessionBusy || sessions.length === 0}
+          >
+            Load Session
+          </button>
+          </div>
+        </div>
+        <div className="app__header-row app__header-row--secondary">
+          <div className="app__status">{sessionStatus ?? "Audio engine: idle"}</div>
+          <div className="app__header-hint">
+            Sessions save inside this browser. Export creates a shareable zip.
+          </div>
+          <div className="session-bar__group session-bar__group--export">
+            <button type="button" onClick={handleExportSession} disabled={sessionBusy}>
+              Export Zip
+            </button>
+            <button type="button" onClick={handleImportClick} disabled={sessionBusy}>
+              Import Zip
+            </button>
+          </div>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".zip"
+            onChange={handleImportChange}
+            className="session-bar__input"
+          />
+        </div>
       </header>
 
       <TransportBar

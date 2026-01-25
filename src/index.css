@@ -28,9 +28,8 @@ body {
 }
 
 .app__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: grid;
+  gap: 12px;
   border: 2px solid #111;
   padding: 16px 20px;
   background: #fef8ef;
@@ -44,8 +43,26 @@ body {
 }
 
 .app__status {
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.app__header-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.app__header-row--primary {
+  align-items: flex-end;
+}
+
+.app__header-row--secondary {
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .app__main {
@@ -79,6 +96,64 @@ body {
 .panel__actions {
   display: flex;
   gap: 8px;
+}
+
+.session-bar__field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.session-bar__field input,
+.session-bar__field select {
+  border: 2px solid #111;
+  padding: 8px 10px;
+  font: inherit;
+  background: #ffffff;
+}
+
+.session-bar__field select:disabled {
+  opacity: 0.6;
+}
+
+.session-bar__input {
+  display: none;
+}
+
+.session-bar__row--primary {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto minmax(200px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  flex: 1;
+  min-width: 420px;
+}
+
+.session-bar__row--primary .session-bar__field {
+  font-size: 0.7rem;
+}
+
+.app__header-hint {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+  flex: 1;
+}
+
+.session-bar__row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto minmax(200px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.session-bar__group--export {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .deck-stack__list {
@@ -676,6 +751,31 @@ button.is-active {
 
   .deck__fx-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app__header {
+    grid-template-columns: 1fr;
+  }
+
+  .app__header-row {
+    align-items: stretch;
+  }
+
+  .app__header-row--secondary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .session-bar__row,
+  .session-bar__row--primary {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    min-width: 0;
+  }
+
+  .session-bar__group--export {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 

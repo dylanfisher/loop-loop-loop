@@ -1,6 +1,7 @@
 import { renderHook, act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import useDecks from "../useDecks";
+import type { DeckSession } from "../../types/session";
 
 const createBuffer = (duration = 10, sampleRate = 44100) => {
   const length = Math.max(1, Math.floor(duration * sampleRate));
@@ -272,5 +273,77 @@ describe("useDecks", () => {
 
     window.requestAnimationFrame = originalRaf;
     window.cancelAnimationFrame = originalCancel;
+  });
+
+  it("hydrates decks and automation from session data", () => {
+    const { result } = renderHook(() => useDecks());
+    const sessionDecks: DeckSession[] = [
+      {
+        id: 7,
+        fileName: "track.wav",
+        gain: 0.8,
+        djFilter: 0.2,
+        filterResonance: 0.7,
+        eqLowGain: -2,
+        eqMidGain: 1,
+        eqHighGain: 3,
+        offsetSeconds: 1,
+        zoom: 2,
+        loopEnabled: true,
+        loopStartSeconds: 0,
+        loopEndSeconds: 5,
+        tempoOffset: 5,
+        automation: {
+          djFilter: {
+            samples: [0, 0.5],
+            sampleRate: 30,
+            durationSec: 0.5,
+            active: true,
+            currentValue: 0.5,
+          },
+          resonance: {
+            samples: [],
+            sampleRate: 30,
+            durationSec: 0,
+            active: false,
+            currentValue: 0.7,
+          },
+          eqLow: {
+            samples: [],
+            sampleRate: 30,
+            durationSec: 0,
+            active: false,
+            currentValue: -2,
+          },
+          eqMid: {
+            samples: [],
+            sampleRate: 30,
+            durationSec: 0,
+            active: false,
+            currentValue: 1,
+          },
+          eqHigh: {
+            samples: [],
+            sampleRate: 30,
+            durationSec: 0,
+            active: false,
+            currentValue: 3,
+          },
+        },
+      },
+    ];
+    const buffer = createBuffer(8);
+
+    act(() => result.current.loadSessionDecks(sessionDecks, new Map([[7, buffer]])));
+
+    expect(result.current.decks).toHaveLength(1);
+    expect(result.current.decks[0].id).toBe(7);
+    expect(result.current.decks[0].status).toBe("paused");
+    expect(result.current.decks[0].buffer).toBe(buffer);
+
+    const automation = result.current.automationState.get(7);
+    expect(automation?.djFilter.active).toBe(true);
+    expect(automation?.djFilter.samples.length).toBe(2);
+    expect(automation?.djFilter.currentValue).toBe(0.5);
   });
 });

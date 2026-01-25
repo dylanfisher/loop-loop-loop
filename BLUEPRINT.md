@@ -46,7 +46,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
-[Header]
+[Header (brand + session controls)]
 [Clip Recorder]
 [Deck 1] [Deck 2]
 [Deck 3] [Deck 4]
@@ -56,6 +56,9 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 ### State & Presets
 - Session state stored in memory with optional persistence to IndexedDB.
 - Presets for FX chains, deck states, and mappings.
+- Session persistence: save/load session JSON to IndexedDB plus WAV blobs for deck/clip audio.
+- Sessions are named and stored as multiple entries in IndexedDB for later recall.
+- Session export/import: zip bundle with `session.json` manifest and WAV audio assets.
 
 ## Data Flow (High-Level)
 - User/controller events -> UI -> engine API -> AudioWorklet graph.
