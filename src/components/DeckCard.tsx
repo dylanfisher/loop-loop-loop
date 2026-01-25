@@ -9,7 +9,7 @@ type DeckCardProps = {
   label: string;
   onRemove: (id: number) => void;
   onLoadClick: (id: number) => void;
-  onFileSelected: (id: number, file: File | null, options?: { bpm?: number | null }) => void;
+  onFileSelected: (id: number, file: File | null, options?: { gain?: number }) => void;
   onPlay: (deck: DeckState) => void;
   onPause: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
@@ -59,7 +59,7 @@ type DeckCardProps = {
   onZoomChange: (id: number, value: number) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
-  onBpmOverrideChange: (id: number, value: number | null) => void;
+  onTempoOffsetChange: (id: number, value: number) => void;
   onSaveLoopClip: (id: number) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
@@ -99,16 +99,17 @@ const DeckCard = ({
   onZoomChange,
   onLoopChange,
   onLoopBoundsChange,
-  onBpmOverrideChange,
+  onTempoOffsetChange,
   onSaveLoopClip,
   getDeckPosition,
   getDeckPlaybackSnapshot,
   setFileInputRef,
 }: DeckCardProps) => {
-  const formatBpm = (value: number | null) =>
-    typeof value === "number" && Number.isFinite(value) ? value.toFixed(1) : "--";
-  const effectiveBpm = deck.bpmOverride ?? deck.bpm;
-  const sliderValue = effectiveBpm ?? 120;
+  const formatTempo = (value: number) => {
+    if (Math.abs(value) < 0.05) return "0.0%";
+    const sign = value > 0 ? "+" : "";
+    return `${sign}${value.toFixed(1)}%`;
+  };
   const zoomSteps = [1, 2, 4, 8, 16, 32, 64, 128, 256];
   const zoomIndex = zoomSteps.reduce((bestIndex, step, index) => {
     const bestDiff = Math.abs(zoomSteps[bestIndex] - deck.zoom);
@@ -242,7 +243,7 @@ const DeckCard = ({
         </div>
         <div className="deck__meta">
           <div className="deck__bpm-summary">
-            <span>BPM {formatBpm(effectiveBpm)}</span>
+            <span>Tempo {formatTempo(deck.tempoOffset)}</span>
           </div>
           <span className={`deck__status deck__status--${deck.status}`}>
             {deck.status}
@@ -276,15 +277,15 @@ const DeckCard = ({
           onEmptyClick={() => onLoadClick(deck.id)}
         />
         <label className="deck__bpm-slider deck__bpm-slider--vertical">
-          <span>BPM</span>
+          <span>Tempo</span>
           <input
             type="range"
-            min="1"
-            max="300"
+            min="-100"
+            max="100"
             step="0.1"
-            value={sliderValue}
-            onChange={(event) => onBpmOverrideChange(deck.id, Number(event.target.value))}
-            onDoubleClick={() => onBpmOverrideChange(deck.id, null)}
+            value={deck.tempoOffset}
+            onChange={(event) => onTempoOffsetChange(deck.id, Number(event.target.value))}
+            onDoubleClick={() => onTempoOffsetChange(deck.id, 0)}
           />
         </label>
         <div className="deck__waveform-side">
@@ -345,6 +346,7 @@ const DeckCard = ({
               onChange={(next) => onFilterChange(deck.id, next)}
               formatValue={formatDjFilter}
               centerSnap={0.03}
+              isAutomated={djAutomation.active}
             />
             <AutomationLane
               label="Automation"
@@ -376,6 +378,7 @@ const DeckCard = ({
               defaultValue={0.7}
               onChange={(next) => onResonanceChange(deck.id, next)}
               formatValue={(value) => value.toFixed(2)}
+              isAutomated={resonanceAutomation.active}
             />
             <AutomationLane
               label="Automation"
@@ -410,6 +413,7 @@ const DeckCard = ({
               onChange={(next) => onEqLowChange(deck.id, next)}
               formatValue={formatEq}
               centerSnap={0.25}
+              isAutomated={eqLowAutomation.active}
             />
             <AutomationLane
               label="Automation"
@@ -442,6 +446,7 @@ const DeckCard = ({
               onChange={(next) => onEqMidChange(deck.id, next)}
               formatValue={formatEq}
               centerSnap={0.25}
+              isAutomated={eqMidAutomation.active}
             />
             <AutomationLane
               label="Automation"
@@ -474,6 +479,7 @@ const DeckCard = ({
               onChange={(next) => onEqHighChange(deck.id, next)}
               formatValue={formatEq}
               centerSnap={0.25}
+              isAutomated={eqHighAutomation.active}
             />
             <AutomationLane
               label="Automation"

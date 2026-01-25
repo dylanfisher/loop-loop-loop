@@ -5,7 +5,7 @@ import useAudioEngine from "../hooks/useAudioEngine";
 
 type ClipRecorderProps = {
   decks: DeckState[];
-  onLoadClip: (deckId: number, file: File, options?: { bpm?: number | null }) => void;
+  onLoadClip: (deckId: number, file: File, options?: { gain?: number }) => void;
   clips: ClipItem[];
   onAddClip: (
     clip: Omit<ClipItem, "id" | "url" | "name"> & { name?: string }
@@ -146,7 +146,7 @@ const ClipRecorder = ({ decks, onLoadClip, clips, onAddClip, onUpdateClip }: Cli
           : elapsed;
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        onAddClip({ blob, durationSec });
+        onAddClip({ blob, durationSec, gain: 1 });
         chunksRef.current = [];
         recorderRef.current = null;
         setRecording(false);
@@ -212,7 +212,7 @@ const ClipRecorder = ({ decks, onLoadClip, clips, onAddClip, onUpdateClip }: Cli
                       const file = new File([clip.blob], `${clip.name}.webm`, {
                         type: clip.blob.type || "audio/webm",
                       });
-                      onLoadClip(deck.id, file, { bpm: clip.bpm ?? null });
+                      onLoadClip(deck.id, file, { gain: clip.gain });
                     }}
                   >
                     Load Deck {index + 1}

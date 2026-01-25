@@ -31,7 +31,7 @@ const App = () => {
     setDeckZoom,
     setDeckLoop,
     setDeckLoopBounds,
-    setDeckBpmOverride,
+    setDeckTempoOffset,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,
@@ -106,7 +106,7 @@ const App = () => {
           url,
           durationSec: clip.durationSec,
           buffer: clip.buffer,
-          bpm: clip.bpm,
+          gain: clip.gain,
         },
         ...prev,
       ]);
@@ -129,9 +129,7 @@ const App = () => {
           ? Math.min(deck.loopEndSeconds, duration)
           : duration;
       if (loopEnd <= loopStart + 0.01) return;
-      const baseBpm = deck.bpmOverride ?? deck.bpm ?? null;
-      const tempoRatio =
-        deck.bpm && deck.bpmOverride ? deck.bpmOverride / deck.bpm : 1;
+      const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
       const sliceDuration = Math.max(0.01, loopEnd - loopStart);
       const renderDuration = sliceDuration / Math.max(0.01, tempoRatio);
       const sampleRate = deck.buffer.sampleRate;
@@ -157,7 +155,6 @@ const App = () => {
       const eqHigh = offline.createBiquadFilter();
       eqHigh.type = "highshelf";
       eqHigh.frequency.value = 8000;
-      const gainNode = offline.createGain();
 
       const automation = automationState.get(deckId);
       const djFilterTrack = automation?.djFilter;
@@ -182,7 +179,7 @@ const App = () => {
       eqLow.gain.value = eqLowValue;
       eqMid.gain.value = eqMidValue;
       eqHigh.gain.value = eqHighValue;
-      gainNode.gain.value = deck.gain;
+      const clipGain = deck.gain;
 
       if (djFilterTrack?.active && djFilterTrack.durationSec > 0) {
         scheduleLoopedSamples(
@@ -243,8 +240,7 @@ const App = () => {
       lowpass.connect(eqLow);
       eqLow.connect(eqMid);
       eqMid.connect(eqHigh);
-      eqHigh.connect(gainNode);
-      gainNode.connect(offline.destination);
+      eqHigh.connect(offline.destination);
       source.start(0, loopStart, renderDuration);
       void offline.startRendering().then((rendered) => {
         const blob = encodeWav(rendered);
@@ -252,7 +248,7 @@ const App = () => {
           blob,
           durationSec: rendered.duration,
           buffer: rendered,
-          bpm: baseBpm,
+          gain: clipGain,
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
         });
       });
@@ -293,7 +289,7 @@ const App = () => {
           onZoomChange={setDeckZoom}
           onLoopChange={setDeckLoop}
           onLoopBoundsChange={setDeckLoopBounds}
-          onBpmOverrideChange={setDeckBpmOverride}
+          onTempoOffsetChange={setDeckTempoOffset}
           automationState={automationState}
           onAutomationStart={startAutomationRecording}
           onAutomationStop={stopAutomationRecording}

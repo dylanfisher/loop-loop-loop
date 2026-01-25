@@ -13,6 +13,7 @@ type KnobProps = {
   centerSnap?: number;
   className?: string;
   ariaLabel?: string;
+  isAutomated?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -48,6 +49,7 @@ const Knob = ({
   centerSnap,
   className,
   ariaLabel,
+  isAutomated = false,
 }: KnobProps) => {
   const knobRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<{ startX: number; startY: number; startValue: number } | null>(null);
@@ -115,7 +117,7 @@ const Knob = ({
   };
 
   return (
-    <div className={`knob ${className ?? ""}`.trim()}>
+    <div className={`knob ${isAutomated ? "is-automated" : ""} ${className ?? ""}`.trim()}>
       <div className="knob__label">{label}</div>
       <div
         ref={knobRef}

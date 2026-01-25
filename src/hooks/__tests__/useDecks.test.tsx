@@ -31,10 +31,6 @@ const getDeckPosition = vi.fn(() => null);
 const setDeckLoopParams = vi.fn();
 const setDeckPlaybackRate = vi.fn();
 
-vi.mock("../../audio/bpm", () => ({
-  estimateBpmFromBuffer: () => ({ bpm: null, confidence: 0 }),
-}));
-
 vi.mock("../useAudioEngine", () => ({
   default: () => ({
     decodeFile,
@@ -75,8 +71,7 @@ describe("useDecks", () => {
   it("starts with one deck and keeps at least one", () => {
     const { result } = renderHook(() => useDecks());
     expect(result.current.decks).toHaveLength(1);
-    expect(result.current.decks[0].bpm).toBeNull();
-    expect(result.current.decks[0].bpmOverride).toBeNull();
+    expect(result.current.decks[0].tempoOffset).toBe(0);
 
     act(() => result.current.removeDeck(result.current.decks[0].id));
     expect(result.current.decks).toHaveLength(1);
@@ -143,11 +138,11 @@ describe("useDecks", () => {
     expect(result.current.decks[0].gain).toBe(1.1);
   });
 
-  it("supports bpm override", () => {
+  it("supports tempo offsets", () => {
     const { result } = renderHook(() => useDecks());
     const deckId = result.current.decks[0].id;
 
-    act(() => result.current.setDeckBpmOverride(deckId, 150));
-    expect(result.current.decks[0].bpmOverride).toBe(150);
+    act(() => result.current.setDeckTempoOffset(deckId, 12.5));
+    expect(result.current.decks[0].tempoOffset).toBe(12.5);
   });
 });

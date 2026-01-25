@@ -5,5 +5,5 @@ export type ClipItem = {
   url: string;
   durationSec: number;
   buffer?: AudioBuffer;
-  bpm?: number | null;
+  gain: number;
 };
