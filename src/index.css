@@ -63,6 +63,10 @@ body {
   box-shadow: 6px 6px 0 #111;
 }
 
+.panel.transport {
+  background: #fef8ef;
+}
+
 .panel__title {
   display: flex;
   justify-content: space-between;
@@ -625,24 +629,40 @@ button.is-active {
   font-size: 0.7rem;
 }
 
-.app__transport {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  z-index: 20;
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  border: 2px solid #111;
-  padding: 16px;
-  background: #fef8ef;
-}
-
-.transport__block {
+.transport__record {
   border: 2px solid #111;
   padding: 8px 16px;
   background: #fff;
+}
+
+.transport__controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.transport__export {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.transport__export label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.transport__export input {
+  width: 70px;
+  padding: 4px 6px;
+  border: 2px solid #111;
+  font-size: 0.75rem;
 }
 
 @media (max-width: 900px) {

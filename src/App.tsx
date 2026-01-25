@@ -3,12 +3,19 @@ import DeckStack from "./components/DeckStack";
 import ClipRecorder from "./components/ClipRecorder";
 import TransportBar from "./components/TransportBar";
 import useDecks from "./hooks/useDecks";
+import useAudioEngine from "./hooks/useAudioEngine";
 import type { ClipItem } from "./types/clip";
 import { encodeWav } from "./utils/audio";
 
 const App = () => {
   console.info("App: render");
   const [clips, setClips] = useState<ClipItem[]>([]);
+  const [exportMinutes, setExportMinutes] = useState(10);
+  const [exporting, setExporting] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const { getMasterStream, decodeFile } = useAudioEngine();
   const clipIdRef = useRef(1);
   const clipNameRef = useRef(1);
   const clipsRef = useRef<ClipItem[]>([]);
@@ -64,7 +71,8 @@ const App = () => {
     return { lowpass: max, highpass: min };
   }, []);
 
-  const scheduleLoopedSamples = (
+  const scheduleLoopedSamples = useCallback(
+    (
     samples: Float32Array,
     durationSec: number,
     renderDuration: number,
@@ -79,7 +87,9 @@ const App = () => {
       const value = samples[i % samples.length] ?? 0;
       onValue(value, time);
     }
-  };
+  },
+    []
+  );
 
   useEffect(() => {
     clipsRef.current = clips;
@@ -253,8 +263,229 @@ const App = () => {
         });
       });
     },
-    [addClip, automationState, decks, getFilterTargets]
+    [addClip, automationState, decks, getFilterTargets, scheduleLoopedSamples]
   );
+
+  const exportMixdown = useCallback(async () => {
+    if (exporting) return;
+    const activeDecks = decks.filter(
+      (deck) => deck.status === "playing" && deck.buffer
+    );
+    if (activeDecks.length === 0) return;
+    setExporting(true);
+    const durationSec = Math.max(1, exportMinutes) * 60;
+    const sampleRate = activeDecks[0].buffer?.sampleRate ?? 44100;
+    const length = Math.max(1, Math.ceil(durationSec * sampleRate));
+    const offline = new OfflineAudioContext(2, length, sampleRate);
+
+    activeDecks.forEach((deck) => {
+      if (!deck.buffer) return;
+      const source = offline.createBufferSource();
+      source.buffer = deck.buffer;
+      const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
+      source.playbackRate.value = tempoRatio;
+
+      const highpass = offline.createBiquadFilter();
+      highpass.type = "highpass";
+      const lowpass = offline.createBiquadFilter();
+      lowpass.type = "lowpass";
+      const eqLow = offline.createBiquadFilter();
+      eqLow.type = "lowshelf";
+      eqLow.frequency.value = 120;
+      const eqMid = offline.createBiquadFilter();
+      eqMid.type = "peaking";
+      eqMid.frequency.value = 1000;
+      const eqHigh = offline.createBiquadFilter();
+      eqHigh.type = "highshelf";
+      eqHigh.frequency.value = 8000;
+      const gainNode = offline.createGain();
+
+      const automation = automationState.get(deck.id);
+      const djFilterTrack = automation?.djFilter;
+      const resonanceTrack = automation?.resonance;
+      const eqLowTrack = automation?.eqLow;
+      const eqMidTrack = automation?.eqMid;
+      const eqHighTrack = automation?.eqHigh;
+
+      const djFilterValue = djFilterTrack?.active ? djFilterTrack.currentValue : deck.djFilter;
+      const resonanceValue = resonanceTrack?.active
+        ? resonanceTrack.currentValue
+        : deck.filterResonance;
+      const eqLowValue = eqLowTrack?.active ? eqLowTrack.currentValue : deck.eqLowGain;
+      const eqMidValue = eqMidTrack?.active ? eqMidTrack.currentValue : deck.eqMidGain;
+      const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
+
+      const targets = getFilterTargets(djFilterValue);
+      highpass.frequency.value = targets.highpass;
+      lowpass.frequency.value = targets.lowpass;
+      highpass.Q.value = resonanceValue;
+      lowpass.Q.value = resonanceValue;
+      eqLow.gain.value = eqLowValue;
+      eqMid.gain.value = eqMidValue;
+      eqHigh.gain.value = eqHighValue;
+      gainNode.gain.value = deck.gain;
+
+      if (djFilterTrack?.active && djFilterTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          djFilterTrack.samples,
+          djFilterTrack.durationSec,
+          durationSec,
+          (value, time) => {
+            const nextTargets = getFilterTargets(value);
+            lowpass.frequency.setValueAtTime(nextTargets.lowpass, time);
+            highpass.frequency.setValueAtTime(nextTargets.highpass, time);
+          }
+        );
+      }
+      if (resonanceTrack?.active && resonanceTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          resonanceTrack.samples,
+          resonanceTrack.durationSec,
+          durationSec,
+          (value, time) => {
+            lowpass.Q.setValueAtTime(value, time);
+            highpass.Q.setValueAtTime(value, time);
+          }
+        );
+      }
+      if (eqLowTrack?.active && eqLowTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          eqLowTrack.samples,
+          eqLowTrack.durationSec,
+          durationSec,
+          (value, time) => {
+            eqLow.gain.setValueAtTime(value, time);
+          }
+        );
+      }
+      if (eqMidTrack?.active && eqMidTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          eqMidTrack.samples,
+          eqMidTrack.durationSec,
+          durationSec,
+          (value, time) => {
+            eqMid.gain.setValueAtTime(value, time);
+          }
+        );
+      }
+      if (eqHighTrack?.active && eqHighTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          eqHighTrack.samples,
+          eqHighTrack.durationSec,
+          durationSec,
+          (value, time) => {
+            eqHigh.gain.setValueAtTime(value, time);
+          }
+        );
+      }
+
+      source.connect(highpass);
+      highpass.connect(lowpass);
+      lowpass.connect(eqLow);
+      eqLow.connect(eqMid);
+      eqMid.connect(eqHigh);
+      eqHigh.connect(gainNode);
+      gainNode.connect(offline.destination);
+
+      const loopStart = deck.loopStartSeconds ?? 0;
+      const loopEnd =
+        deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+          ? deck.loopEndSeconds
+          : deck.buffer.duration;
+      if (deck.loopEnabled && loopEnd > loopStart + 0.01) {
+        source.loop = true;
+        source.loopStart = Math.max(0, loopStart);
+        source.loopEnd = Math.min(loopEnd, deck.buffer.duration);
+      }
+      source.start(0, Math.max(0, loopStart));
+    });
+
+    try {
+      const rendered = await offline.startRendering();
+      const blob = encodeWav(rendered);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `loop-loop-loop-export-${Date.now()}.wav`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }, [
+    automationState,
+    decks,
+    exportMinutes,
+    exporting,
+    getFilterTargets,
+    scheduleLoopedSamples,
+  ]);
+
+  const handleExportMinutesChange = useCallback((value: number) => {
+    if (!Number.isFinite(value)) return;
+    const clamped = Math.min(Math.max(Math.round(value), 1), 60);
+    setExportMinutes(clamped);
+  }, []);
+
+  const handleRecordToggle = useCallback(() => {
+    if (recording) {
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop();
+      }
+      return;
+    }
+    const stream = getMasterStream();
+    if (!stream) return;
+    const recorder = new MediaRecorder(stream);
+    recorderRef.current = recorder;
+    recordChunksRef.current = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        recordChunksRef.current.push(event.data);
+      }
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(recordChunksRef.current, {
+        type: recorder.mimeType || "audio/webm",
+      });
+      const file = new File([blob], "loop-loop-loop-recording.webm", {
+        type: blob.type || "audio/webm",
+      });
+      recordChunksRef.current = [];
+      recorderRef.current = null;
+      void decodeFile(file)
+        .then((buffer) => {
+          const wavBlob = encodeWav(buffer);
+          const url = URL.createObjectURL(wavBlob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `loop-loop-loop-recording-${Date.now()}.wav`;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          console.error("Failed to convert recording to wav", error);
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `loop-loop-loop-recording-${Date.now()}.webm`;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
+        })
+        .finally(() => {
+          setRecording(false);
+        });
+    };
+    recorder.start(250);
+    setRecording(true);
+  }, [decodeFile, getMasterStream, recording]);
 
   return (
     <div className="app">
@@ -262,6 +493,15 @@ const App = () => {
         <div className="app__brand">Loop Loop Loop</div>
         <div className="app__status">Audio engine: idle</div>
       </header>
+
+      <TransportBar
+        exportMinutes={exportMinutes}
+        onExportMinutesChange={handleExportMinutesChange}
+        onExport={exportMixdown}
+        exporting={exporting}
+        recording={recording}
+        onRecordToggle={handleRecordToggle}
+      />
 
       <main className="app__main">
         <ClipRecorder
@@ -303,8 +543,6 @@ const App = () => {
           onSaveLoopClip={handleSaveLoopClip}
         />
       </main>
-
-      <TransportBar />
     </div>
   );
 };
