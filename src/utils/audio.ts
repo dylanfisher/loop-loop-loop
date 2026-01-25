@@ -38,7 +38,7 @@ export const encodeWav = (buffer: AudioBuffer) => {
     }
   }
 
-  return new Blob([view], { type: "audio/wav" });
+  return new Blob([arrayBuffer], { type: "audio/wav" });
 };
 
 export const sliceBuffer = (

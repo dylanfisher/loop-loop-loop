@@ -1,8 +1,17 @@
 import { renderHook, act } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import useDecks from "../useDecks";
 
-const decodeFile = vi.fn(async () => ({} as AudioBuffer));
+const createBuffer = (duration = 10, sampleRate = 44100) => {
+  const length = Math.max(1, Math.floor(duration * sampleRate));
+  return {
+    duration,
+    length,
+    sampleRate,
+  } as AudioBuffer;
+};
+
+const decodeFile = vi.fn(async () => createBuffer());
 const playBuffer = vi.fn(
   async (
     _id: number,
@@ -68,6 +77,10 @@ describe("useDecks", () => {
     setDeckPlaybackRate.mockClear();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("starts with one deck and keeps at least one", () => {
     const { result } = renderHook(() => useDecks());
     expect(result.current.decks).toHaveLength(1);
@@ -111,7 +124,7 @@ describe("useDecks", () => {
     const deck = {
       ...result.current.decks[0],
       status: "ready" as const,
-      buffer: {} as AudioBuffer,
+      buffer: createBuffer(),
     };
 
     playBuffer.mockImplementationOnce(async () => {});
@@ -144,5 +157,120 @@ describe("useDecks", () => {
 
     act(() => result.current.setDeckTempoOffset(deckId, 12.5));
     expect(result.current.decks[0].tempoOffset).toBe(12.5);
+  });
+
+  it("seeks while playing by restarting playback at the new offset", async () => {
+    const { result } = renderHook(() => useDecks());
+    const deckId = result.current.decks[0].id;
+    const buffer = createBuffer(10);
+
+    await act(async () => {
+      await result.current.handleFileSelected(deckId, new File(["data"], "song.wav"));
+    });
+
+    playBuffer.mockImplementationOnce(async () => {});
+    await act(async () => {
+      await result.current.playDeck(result.current.decks[0]);
+    });
+
+    playBuffer.mockClear();
+    act(() => result.current.seekDeck(deckId, 0.5));
+
+    expect(playBuffer).toHaveBeenCalledTimes(1);
+    expect(playBuffer.mock.calls[0][4]).toBeCloseTo(buffer.duration * 0.5, 2);
+  });
+
+  it("updates loop bounds in-place when the playhead is inside the loop", async () => {
+    const { result } = renderHook(() => useDecks());
+    const deckId = result.current.decks[0].id;
+
+    await act(async () => {
+      await result.current.handleFileSelected(deckId, new File(["data"], "song.wav"));
+    });
+
+    playBuffer.mockImplementationOnce(async () => {});
+    await act(async () => {
+      await result.current.playDeck(result.current.decks[0]);
+    });
+
+    getDeckPosition.mockReturnValue(2);
+    playBuffer.mockClear();
+    setDeckLoopParams.mockClear();
+
+    act(() => result.current.setDeckLoopBounds(deckId, 1, 3));
+
+    expect(setDeckLoopParams).toHaveBeenCalledWith(deckId, true, 1, 3);
+    expect(playBuffer).not.toHaveBeenCalled();
+  });
+
+  it("wraps playback snapshots when looping", async () => {
+    const nowSpy = vi.spyOn(performance, "now").mockReturnValue(0);
+    const { result } = renderHook(() => useDecks());
+    const deckId = result.current.decks[0].id;
+
+    await act(async () => {
+      await result.current.handleFileSelected(deckId, new File(["data"], "song.wav"));
+    });
+
+    act(() => result.current.setDeckLoopBounds(deckId, 1, 3));
+    act(() => result.current.seekDeck(deckId, 0.1));
+
+    playBuffer.mockImplementationOnce(async () => {});
+    await act(async () => {
+      await result.current.playDeck(result.current.decks[0]);
+    });
+
+    nowSpy.mockReturnValue(3000);
+    const snapshot = result.current.getDeckPlaybackSnapshot(deckId);
+    expect(snapshot?.position).toBeCloseTo(2, 2);
+  });
+
+  it("records automation samples and enforces minimum duration", () => {
+    const originalRaf = window.requestAnimationFrame;
+    const originalCancel = window.cancelAnimationFrame;
+    const callbacks = new Map<number, FrameRequestCallback>();
+    let nextId = 1;
+    const runRaf = (time: number) => {
+      const pending = Array.from(callbacks.entries());
+      callbacks.clear();
+      pending.forEach(([, cb]) => cb(time));
+    };
+
+    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      const id = nextId;
+      nextId += 1;
+      callbacks.set(id, cb);
+      return id;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = ((id: number) => {
+      callbacks.delete(id);
+    }) as typeof window.cancelAnimationFrame;
+
+    const nowSpy = vi.spyOn(performance, "now").mockReturnValue(0);
+    const { result } = renderHook(() => useDecks());
+    const deckId = result.current.decks[0].id;
+
+    act(() => result.current.startAutomationRecording(deckId, "djFilter"));
+    act(() => runRaf(100));
+
+    const preview = result.current.automationState.get(deckId)?.djFilter.previewSamples;
+    expect(preview?.length).toBeGreaterThan(0);
+
+    act(() => result.current.stopAutomationRecording(deckId, "djFilter"));
+    const stopped = result.current.automationState.get(deckId)?.djFilter;
+    expect(stopped?.samples.length).toBe(0);
+    expect(stopped?.durationSec).toBe(0);
+
+    nowSpy.mockReturnValue(0);
+    act(() => result.current.startAutomationRecording(deckId, "djFilter"));
+    act(() => runRaf(1000));
+    act(() => result.current.stopAutomationRecording(deckId, "djFilter"));
+
+    const finished = result.current.automationState.get(deckId)?.djFilter;
+    expect(finished?.samples.length).toBeGreaterThan(0);
+    expect(finished?.durationSec).toBeGreaterThanOrEqual(0.9);
+
+    window.requestAnimationFrame = originalRaf;
+    window.cancelAnimationFrame = originalCancel;
   });
 });

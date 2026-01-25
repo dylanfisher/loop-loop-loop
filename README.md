@@ -24,6 +24,7 @@ Experimental, browser-based DJ system focused on live manipulation rather than l
 
 ## Testing
 - Run tests after changes to hooks, audio engine, or core UI logic: `npm test`
+- Add or update tests for new features when appropriate.
 - Unit/integration tests are planned with Vitest.
 
 ## Linting
