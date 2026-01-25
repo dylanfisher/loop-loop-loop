@@ -902,61 +902,89 @@ const App = () => {
     [importSessionFiles, sessionBusy]
   );
 
+  const hasActivePlayback = decks.some((deck) => deck.status === "playing");
+  const handleGlobalPlaybackToggle = useCallback(() => {
+    if (hasActivePlayback) {
+      decks.forEach((deck) => {
+        if (deck.status === "playing") {
+          pauseDeck(deck);
+        }
+      });
+      return;
+    }
+    decks.forEach((deck) => {
+      if (deck.status === "ready" || deck.status === "paused") {
+        void playDeck(deck);
+      }
+    });
+  }, [decks, hasActivePlayback, pauseDeck, playDeck]);
+
   return (
     <div className="app">
       <header className="app__header">
         <div className="app__header-row app__header-row--primary">
           <div className="app__brand">Loop Loop Loop</div>
-          <div className="session-bar__row session-bar__row--primary">
-            <label className="session-bar__field">
-              <span>Session Name</span>
-              <input
-                type="text"
-                value={sessionName}
-                onChange={(event) => setSessionName(event.target.value)}
-                placeholder="Name this session"
-              />
-            </label>
-            <button type="button" onClick={handleSaveSession} disabled={sessionBusy}>
-              Save Session
-            </button>
-            <label className="session-bar__field">
-              <span>Load Saved Session</span>
-              <select
-                value={selectedSessionId ?? ""}
-                onChange={(event) => setSelectedSessionId(event.target.value || null)}
-                disabled={sessions.length === 0}
-              >
-                <option value="">Select a session</option>
-                {sessions.map((session) => (
-                  <option key={session.id} value={session.id}>
-                    {session.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={handleLoadSession}
-            disabled={sessionBusy || sessions.length === 0}
-          >
-            Load Session
-          </button>
+          <div className="app__project">
+            {sessionName.trim() ? `Project: ${sessionName}` : "Project: Untitled"}
           </div>
-        </div>
-        <div className="app__header-row app__header-row--secondary">
           <div className="app__status">{sessionStatus ?? "Audio engine: idle"}</div>
-          <div className="app__header-hint">
-            Sessions save inside this browser. Export creates a shareable zip.
-          </div>
-          <div className="session-bar__group session-bar__group--export">
-            <button type="button" onClick={handleExportSession} disabled={sessionBusy}>
-              Export Zip
-            </button>
-            <button type="button" onClick={handleImportClick} disabled={sessionBusy}>
-              Import Zip
-            </button>
-          </div>
+          <button type="button" onClick={handleGlobalPlaybackToggle}>
+            {hasActivePlayback ? "Pause All" : "Play All"}
+          </button>
+          <details className="session-bar__details">
+            <summary>Restore + Zip</summary>
+            <div className="session-bar__details-body">
+              <div className="app__header-hint">
+                Sessions save inside this browser. Export creates a shareable zip.
+              </div>
+              <label className="session-bar__field">
+                <span>Session Name</span>
+                <input
+                  type="text"
+                  value={sessionName}
+                  onChange={(event) => setSessionName(event.target.value)}
+                  placeholder="Name this session"
+                />
+              </label>
+              <div className="session-bar__group session-bar__group--save">
+                <button type="button" onClick={handleSaveSession} disabled={sessionBusy}>
+                  Save Session
+                </button>
+              </div>
+              <label className="session-bar__field">
+                <span>Load Saved Session</span>
+                <select
+                  value={selectedSessionId ?? ""}
+                  onChange={(event) => setSelectedSessionId(event.target.value || null)}
+                  disabled={sessions.length === 0}
+                >
+                  <option value="">Select a session</option>
+                  {sessions.map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {session.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="session-bar__group session-bar__group--restore">
+                <button
+                  type="button"
+                  onClick={handleLoadSession}
+                  disabled={sessionBusy || sessions.length === 0}
+                >
+                  Load Session
+                </button>
+              </div>
+              <div className="session-bar__group session-bar__group--export">
+                <button type="button" onClick={handleExportSession} disabled={sessionBusy}>
+                  Export Zip
+                </button>
+                <button type="button" onClick={handleImportClick} disabled={sessionBusy}>
+                  Import Zip
+                </button>
+              </div>
+            </div>
+          </details>
           <input
             ref={importInputRef}
             type="file"
