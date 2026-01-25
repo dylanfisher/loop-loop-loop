@@ -9,6 +9,7 @@ type DeckEndedCallback = () => void;
 
 type DeckNodes = {
   gain: GainNode;
+  balance: StereoPannerNode;
   lowpass: BiquadFilterNode;
   highpass: BiquadFilterNode;
   eqLow: BiquadFilterNode;
@@ -49,9 +50,11 @@ const pendingResonance = new Map<number, number>();
 const pendingEqLow = new Map<number, number>();
 const pendingEqMid = new Map<number, number>();
 const pendingEqHigh = new Map<number, number>();
+const pendingBalance = new Map<number, number>();
 const pendingPitchShift = new Map<number, number>();
 const isDev = import.meta.env.DEV;
 const defaultPitchShift = 0;
+const defaultBalance = 0;
 
 const ensureDeckNodes = (
   context: AudioContext,
@@ -64,10 +67,13 @@ const ensureDeckNodes = (
   eqLowGain: number,
   eqMidGain: number,
   eqHighGain: number,
-  pitchShift: number
+  pitchShift: number,
+  balance: number
 ) => {
   let nodes = deckNodes.get(deckId);
   if (!nodes) {
+    const balanceNode = context.createStereoPanner();
+    balanceNode.pan.value = pendingBalance.get(deckId) ?? balance;
     const pitchShiftNodes = createPitchShiftNodes(context);
     const deckHighpass = context.createBiquadFilter();
     deckHighpass.type = "highpass";
@@ -101,6 +107,7 @@ const ensureDeckNodes = (
     setPitchShift(pitchShiftNodes, pendingPitchShift.get(deckId) ?? pitchShift);
     nodes = {
       gain: deckGain,
+      balance: balanceNode,
       lowpass: deckLowpass,
       highpass: deckHighpass,
       eqLow,
@@ -108,6 +115,7 @@ const ensureDeckNodes = (
       eqHigh,
       pitchShift: pitchShiftNodes,
     };
+    balanceNode.connect(pitchShiftNodes.input);
     deckNodes.set(deckId, nodes);
   } else {
     nodes.gain.gain.value = gain;
@@ -118,6 +126,7 @@ const ensureDeckNodes = (
     nodes.eqLow.gain.value = eqLowGain;
     nodes.eqMid.gain.value = eqMidGain;
     nodes.eqHigh.gain.value = eqHighGain;
+    nodes.balance.pan.value = balance;
     setPitchShift(nodes.pitchShift, pitchShift);
   }
 
@@ -128,6 +137,7 @@ const ensureDeckNodes = (
   pendingEqLow.delete(deckId);
   pendingEqMid.delete(deckId);
   pendingEqHigh.delete(deckId);
+  pendingBalance.delete(deckId);
   pendingPitchShift.delete(deckId);
   return nodes;
 };
@@ -149,6 +159,7 @@ export const playDeckBuffer = (
   eqLowGain: number,
   eqMidGain: number,
   eqHighGain: number,
+  balance = defaultBalance,
   pitchShift = defaultPitchShift,
   onEnded?: DeckEndedCallback
 ) => {
@@ -164,7 +175,8 @@ export const playDeckBuffer = (
     eqLowGain,
     eqMidGain,
     eqHighGain,
-    pitchShift
+    pitchShift,
+    balance
   );
 
   const source = context.createBufferSource();
@@ -193,7 +205,7 @@ export const playDeckBuffer = (
       duration: buffer.duration,
     });
   }
-  source.connect(nodes.pitchShift.input);
+  source.connect(nodes.balance);
   source.onended = () => {
     if (isDev && loopEnabled) {
       console.info("Deck onended fired while looping", {
@@ -336,6 +348,16 @@ export const setDeckEqHighGain = (deckId: number, value: number) => {
   }
 };
 
+export const setDeckBalanceValue = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.balance.pan.value = value;
+    pendingBalance.delete(deckId);
+  } else {
+    pendingBalance.set(deckId, value);
+  }
+};
+
 export const setDeckPitchShiftValue = (deckId: number, value: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
@@ -368,6 +390,7 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.eqMid.disconnect();
     nodes.eqHigh.disconnect();
     nodes.gain.disconnect();
+    nodes.balance.disconnect();
     deckNodes.delete(deckId);
   }
   deckPlayback.delete(deckId);
@@ -379,6 +402,7 @@ export const removeDeckNodes = (deckId: number) => {
   pendingEqLow.delete(deckId);
   pendingEqMid.delete(deckId);
   pendingEqHigh.delete(deckId);
+  pendingBalance.delete(deckId);
   pendingPitchShift.delete(deckId);
 };
 

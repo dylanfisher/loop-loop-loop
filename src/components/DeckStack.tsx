@@ -15,6 +15,7 @@ type DeckStackProps = {
   onEqLowChange: (id: number, value: number) => void;
   onEqMidChange: (id: number, value: number) => void;
   onEqHighChange: (id: number, value: number) => void;
+  onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
@@ -71,6 +72,7 @@ const DeckStack = ({
   onEqLowChange,
   onEqMidChange,
   onEqHighChange,
+  onBalanceChange,
   onPitchShiftChange,
   onSeek,
   onZoomChange,
@@ -113,6 +115,7 @@ const DeckStack = ({
             onEqLowChange={onEqLowChange}
             onEqMidChange={onEqMidChange}
             onEqHighChange={onEqHighChange}
+            onBalanceChange={onBalanceChange}
             onPitchShiftChange={onPitchShiftChange}
             onSeek={onSeek}
             onZoomChange={onZoomChange}

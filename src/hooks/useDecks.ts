@@ -30,6 +30,7 @@ type AutomationDeck = {
   eqLow: AutomationTrack;
   eqMid: AutomationTrack;
   eqHigh: AutomationTrack;
+  balance: AutomationTrack;
   pitch: AutomationTrack;
 };
 
@@ -87,6 +88,7 @@ const useDecks = () => {
       eqLowGain: 0,
       eqMidGain: 0,
       eqHighGain: 0,
+      balance: 0,
       pitchShift: 0,
       offsetSeconds: 0,
       zoom: 1,
@@ -107,6 +109,7 @@ const useDecks = () => {
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckBalance,
     setDeckPitchShift,
     removeDeck: removeDeckNodes,
     getDeckPosition,
@@ -143,6 +146,7 @@ const useDecks = () => {
     eqLowGain: number,
     eqMidGain: number,
     eqHighGain: number,
+    balance: number,
     pitchShift: number
   ) => {
     const automation: AutomationDeck = {
@@ -151,6 +155,7 @@ const useDecks = () => {
       eqLow: createTrack(eqLowGain),
       eqMid: createTrack(eqMidGain),
       eqHigh: createTrack(eqHighGain),
+      balance: createTrack(balance),
       pitch: createTrack(pitchShift),
     };
     automationRef.current.set(deckId, automation);
@@ -160,6 +165,7 @@ const useDecks = () => {
       eqLow: 0,
       eqMid: 0,
       eqHigh: 0,
+      balance: 0,
       pitch: 0,
     });
     updateAutomationView(deckId);
@@ -174,6 +180,7 @@ const useDecks = () => {
         eqLow: createTrack(deck.eqLowGain),
         eqMid: createTrack(deck.eqMidGain),
         eqHigh: createTrack(deck.eqHighGain),
+        balance: createTrack(deck.balance),
         pitch: createTrack(deck.pitchShift),
       };
       automationRef.current.set(deckId, automation);
@@ -183,6 +190,7 @@ const useDecks = () => {
         eqLow: 0,
         eqMid: 0,
         eqHigh: 0,
+        balance: 0,
         pitch: 0,
       });
       setAutomationState((prev) => {
@@ -193,6 +201,7 @@ const useDecks = () => {
           eqLow: toAutomationView(automation!.eqLow),
           eqMid: toAutomationView(automation!.eqMid),
           eqHigh: toAutomationView(automation!.eqHigh),
+          balance: toAutomationView(automation!.balance),
           pitch: toAutomationView(automation!.pitch),
         });
         return next;
@@ -212,6 +221,7 @@ const useDecks = () => {
         eqLow: toAutomationView(automation.eqLow),
         eqMid: toAutomationView(automation.eqMid),
         eqHigh: toAutomationView(automation.eqHigh),
+        balance: toAutomationView(automation.balance),
         pitch: toAutomationView(automation.pitch),
       });
       return next;
@@ -221,6 +231,28 @@ const useDecks = () => {
   const getDeckPlaybackRate = useCallback(
     (deck: DeckState) => clampPlaybackRate(1 + deck.tempoOffset / 100),
     []
+  );
+
+  const updateDeck = useCallback((id: number, updates: Partial<DeckState>) => {
+    setDecks((prev) =>
+      prev.map((deck) => (deck.id === id ? { ...deck, ...updates } : deck))
+    );
+  }, []);
+
+  const setDeckBalanceValue = useCallback(
+    (id: number, value: number) => {
+      const clamped = Math.min(Math.max(value, -1), 1);
+      setDeckBalance(id, clamped);
+      updateDeck(id, { balance: clamped });
+      const automation = automationRef.current.get(id);
+      const track = automation?.balance;
+      if (track && track.active && !track.recording) {
+        track.active = false;
+        track.playbackStartMs = 0;
+        updateAutomationView(id);
+      }
+    },
+    [setDeckBalance, updateDeck]
   );
 
   useEffect(() => {
@@ -272,6 +304,8 @@ const useDecks = () => {
               setDeckEqMid(deckId, value);
             } else if (param === "eqHigh") {
               setDeckEqHigh(deckId, value);
+            } else if (param === "balance") {
+              setDeckBalance(deckId, value);
             } else if (param === "pitch") {
               setDeckPitchShift(deckId, value);
             } else {
@@ -314,15 +348,9 @@ const useDecks = () => {
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckBalance,
     setDeckPitchShift,
   ]);
-
-  const updateDeck = useCallback((id: number, updates: Partial<DeckState>) => {
-    setDecks((prev) =>
-      prev.map((deck) => (deck.id === id ? { ...deck, ...updates } : deck))
-    );
-  }, []);
-
 
   useEffect(() => {
     const seen = new Set<number>();
@@ -350,7 +378,7 @@ const useDecks = () => {
   const addDeck = () => {
     const id = nextDeckId.current;
     nextDeckId.current += 1;
-    resetAutomation(id, 0, 0.7, 0, 0, 0, 0);
+    resetAutomation(id, 0, 0.7, 0, 0, 0, 0, 0);
     setDecks((prev) => [
       ...prev,
       {
@@ -362,6 +390,7 @@ const useDecks = () => {
         eqLowGain: 0,
         eqMidGain: 0,
         eqHighGain: 0,
+        balance: 0,
         pitchShift: 0,
         offsetSeconds: 0,
         zoom: 1,
@@ -403,7 +432,7 @@ const useDecks = () => {
   const handleFileSelected = async (
     id: number,
     file: File | null,
-    options?: { gain?: number; pitchShift?: number }
+    options?: { gain?: number; pitchShift?: number; balance?: number }
   ) => {
     if (!file) return;
 
@@ -411,11 +440,12 @@ const useDecks = () => {
     const wasPlaying = currentDeck?.status === "playing";
     const nextGain = options?.gain ?? 0.9;
     const nextPitchShift = options?.pitchShift ?? 0;
+    const nextBalance = options?.balance ?? 0;
     if (wasPlaying) {
       stop(id);
       playbackStartRef.current.delete(id);
     }
-    resetAutomation(id, 0, 0.7, 0, 0, 0, nextPitchShift);
+    resetAutomation(id, 0, 0.7, 0, 0, 0, nextBalance, nextPitchShift);
     updateDeck(id, {
       status: "loading",
       fileName: file.name,
@@ -427,6 +457,7 @@ const useDecks = () => {
       eqLowGain: 0,
       eqMidGain: 0,
       eqHighGain: 0,
+      balance: nextBalance,
       pitchShift: nextPitchShift,
       zoom: 1,
       loopEnabled: true,
@@ -435,6 +466,7 @@ const useDecks = () => {
       tempoOffset: 0,
     });
     setDeckPitchShift(id, nextPitchShift);
+    setDeckBalance(id, nextBalance);
     try {
       const buffer = await decodeFile(file);
       const duration = Number.isFinite(buffer.duration)
@@ -447,11 +479,12 @@ const useDecks = () => {
         offsetSeconds: 0,
         djFilter: 0,
         filterResonance: 0.7,
-        eqLowGain: 0,
-        eqMidGain: 0,
-        eqHighGain: 0,
-        pitchShift: 0,
-        zoom: 1,
+      eqLowGain: 0,
+      eqMidGain: 0,
+      eqHighGain: 0,
+      balance: nextBalance,
+      pitchShift: nextPitchShift,
+      zoom: 1,
         loopEnabled: true,
         loopStartSeconds: 0,
         loopEndSeconds: duration,
@@ -487,8 +520,8 @@ const useDecks = () => {
           0,
           0,
           0,
-          0,
-          "balanced"
+          nextBalance,
+          nextPitchShift
         );
       } else {
         updateDeck(id, {
@@ -541,6 +574,7 @@ const useDecks = () => {
       deck.eqLowGain,
       deck.eqMidGain,
       deck.eqHighGain,
+      deck.balance,
       deck.pitchShift
     );
     if (deck.status === "paused") {
@@ -636,6 +670,7 @@ const useDecks = () => {
         deck.eqLowGain,
         deck.eqMidGain,
         deck.eqHighGain,
+        deck.balance,
         deck.pitchShift
       );
       return;
@@ -750,6 +785,8 @@ const useDecks = () => {
       track.currentValue = deck.eqMidGain;
     } else if (param === "eqHigh") {
       track.currentValue = deck.eqHighGain;
+    } else if (param === "balance") {
+      track.currentValue = deck.balance;
     } else if (param === "pitch") {
       track.currentValue = deck.pitchShift;
     } else {
@@ -793,6 +830,8 @@ const useDecks = () => {
       setDeckEqMidValue(id, value);
     } else if (param === "eqHigh") {
       setDeckEqHighValue(id, value);
+    } else if (param === "balance") {
+      setDeckBalanceValue(id, value);
     } else if (param === "pitch") {
       setDeckPitchShiftValue(id, value);
     } else {
@@ -886,6 +925,7 @@ const useDecks = () => {
           deck.eqLowGain,
           deck.eqMidGain,
           deck.eqHighGain,
+          deck.balance,
           deck.pitchShift
         );
 
@@ -950,6 +990,7 @@ const useDecks = () => {
             deck.eqLowGain,
             deck.eqMidGain,
             deck.eqHighGain,
+            deck.balance,
             deck.pitchShift
           );
           const startedAtMs = performance.now();
@@ -1041,6 +1082,7 @@ const useDecks = () => {
         eqLowGain: deck.eqLowGain,
         eqMidGain: deck.eqMidGain,
         eqHighGain: deck.eqHighGain,
+        balance: deck.balance,
         pitchShift: deck.pitchShift,
         offsetSeconds: deck.offsetSeconds ?? 0,
         zoom: deck.zoom,
@@ -1054,6 +1096,7 @@ const useDecks = () => {
           eqLow: buildSnapshot(automation?.eqLow, deck.eqLowGain),
           eqMid: buildSnapshot(automation?.eqMid, deck.eqMidGain),
           eqHigh: buildSnapshot(automation?.eqHigh, deck.eqHighGain),
+          balance: buildSnapshot(automation?.balance, deck.balance),
           pitch: buildSnapshot(automation?.pitch, deck.pitchShift),
         },
       };
@@ -1124,6 +1167,10 @@ const useDecks = () => {
           eqLow: ensureTrack(sessionDeck.automation.eqLow, sessionDeck.eqLowGain),
           eqMid: ensureTrack(sessionDeck.automation.eqMid, sessionDeck.eqMidGain),
           eqHigh: ensureTrack(sessionDeck.automation.eqHigh, sessionDeck.eqHighGain),
+          balance: ensureTrack(
+            sessionDeck.automation.balance,
+            sessionDeck.balance ?? 0
+          ),
           pitch: ensureTrack(
             sessionDeck.automation.pitch,
             sessionDeck.pitchShift ?? 0
@@ -1137,6 +1184,7 @@ const useDecks = () => {
           eqLow: 0,
           eqMid: 0,
           eqHigh: 0,
+          balance: 0,
           pitch: 0,
         });
         nextAutomationState.set(sessionDeck.id, {
@@ -1145,6 +1193,7 @@ const useDecks = () => {
           eqLow: toAutomationView(automation.eqLow),
           eqMid: toAutomationView(automation.eqMid),
           eqHigh: toAutomationView(automation.eqHigh),
+          balance: toAutomationView(automation.balance),
           pitch: toAutomationView(automation.pitch),
         });
 
@@ -1162,6 +1211,7 @@ const useDecks = () => {
           eqLowGain: sessionDeck.eqLowGain,
           eqMidGain: sessionDeck.eqMidGain,
           eqHighGain: sessionDeck.eqHighGain,
+          balance: sessionDeck.balance ?? 0,
           pitchShift: sessionDeck.pitchShift ?? 0,
           offsetSeconds,
           zoom: sessionDeck.zoom,
@@ -1194,6 +1244,7 @@ const useDecks = () => {
     setDeckEqLow: setDeckEqLowValue,
     setDeckEqMid: setDeckEqMidValue,
     setDeckEqHigh: setDeckEqHighValue,
+    setDeckBalance: setDeckBalanceValue,
     setDeckPitchShift: setDeckPitchShiftValue,
     seekDeck,
     setDeckZoom: setDeckZoomValue,

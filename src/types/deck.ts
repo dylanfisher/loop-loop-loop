@@ -19,5 +19,6 @@ export type DeckState = {
   eqLowGain: number;
   eqMidGain: number;
   eqHighGain: number;
+  balance: number;
   pitchShift: number;
 };

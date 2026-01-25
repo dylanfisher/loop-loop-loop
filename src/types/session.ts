@@ -4,6 +4,7 @@ export type AutomationParam =
   | "eqLow"
   | "eqMid"
   | "eqHigh"
+  | "balance"
   | "pitch";
 
 export type AutomationSnapshot = {
@@ -24,6 +25,7 @@ export type DeckSession = {
   eqLowGain: number;
   eqMidGain: number;
   eqHighGain: number;
+  balance: number;
   pitchShift: number;
   offsetSeconds: number;
   zoom: number;
@@ -39,6 +41,7 @@ export type ClipSession = {
   name: string;
   durationSec: number;
   gain: number;
+  balance: number;
   pitchShift: number;
   wavBlobId: string;
 };

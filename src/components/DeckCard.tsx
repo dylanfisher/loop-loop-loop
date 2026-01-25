@@ -18,9 +18,10 @@ type DeckCardProps = {
   onEqLowChange: (id: number, value: number) => void;
   onEqMidChange: (id: number, value: number) => void;
   onEqHighChange: (id: number, value: number) => void;
+  onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   automation?: Record<
-    "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch",
+    "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
     {
       samples: Float32Array;
       previewSamples: Float32Array;
@@ -32,29 +33,29 @@ type DeckCardProps = {
   >;
   onAutomationStart: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch"
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch"
   ) => void;
   onAutomationStop: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch"
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch"
   ) => void;
   onAutomationValueChange: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch",
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
     value: number
   ) => void;
   getAutomationPlayhead: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch"
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch"
   ) => number;
   onAutomationToggle: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch",
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
     active: boolean
   ) => void;
   onAutomationReset: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch"
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch"
   ) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
@@ -89,6 +90,7 @@ const DeckCard = ({
   onEqLowChange,
   onEqMidChange,
   onEqHighChange,
+  onBalanceChange,
   onPitchShiftChange,
   automation,
   onAutomationStart,
@@ -176,6 +178,14 @@ const DeckCard = ({
     active: false,
     currentValue: deck.eqHighGain,
   };
+  const balanceAutomation = automation?.balance ?? {
+    samples: new Float32Array(0),
+    previewSamples: new Float32Array(0),
+    durationSec: 0,
+    recording: false,
+    active: false,
+    currentValue: deck.balance,
+  };
   const pitchAutomation = automation?.pitch ?? {
     samples: new Float32Array(0),
     previewSamples: new Float32Array(0),
@@ -191,6 +201,9 @@ const DeckCard = ({
   const eqLowValue = eqLowAutomation.active ? eqLowAutomation.currentValue : deck.eqLowGain;
   const eqMidValue = eqMidAutomation.active ? eqMidAutomation.currentValue : deck.eqMidGain;
   const eqHighValue = eqHighAutomation.active ? eqHighAutomation.currentValue : deck.eqHighGain;
+  const balanceValue = balanceAutomation.active
+    ? balanceAutomation.currentValue
+    : deck.balance;
   const pitchValue = pitchAutomation.active
     ? pitchAutomation.currentValue
     : deck.pitchShift;
@@ -516,6 +529,39 @@ const DeckCard = ({
           </div>
         </div>
         <div className="deck__fx-row deck__fx-row--single">
+          <div className="deck__fx-unit deck__fx-unit--balance">
+            <Knob
+              label="Balance"
+              min={-1}
+              max={1}
+              step={0.01}
+              value={balanceValue}
+              defaultValue={0}
+              onChange={(next) => onBalanceChange(deck.id, next)}
+              formatValue={(value) => value.toFixed(2)}
+              centerSnap={0.03}
+              isAutomated={balanceAutomation.active}
+            />
+            <AutomationLane
+              label="Automation"
+              min={-1}
+              max={1}
+              value={balanceValue}
+              samples={balanceAutomation.samples}
+              previewSamples={balanceAutomation.previewSamples}
+              durationSec={balanceAutomation.durationSec}
+              recording={balanceAutomation.recording}
+              active={balanceAutomation.active}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "balance")}
+              onDrawStart={() => onAutomationStart(deck.id, "balance")}
+              onDrawEnd={() => onAutomationStop(deck.id, "balance")}
+              onReset={() => onAutomationReset(deck.id, "balance")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "balance", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "balance", value)
+              }
+            />
+          </div>
           <div className="deck__fx-unit deck__fx-unit--pitch">
             <Knob
               label="Pitch"

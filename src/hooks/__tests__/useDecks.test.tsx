@@ -30,6 +30,7 @@ const playBuffer = vi.fn(
     _eqLowGain?: number,
     _eqMidGain?: number,
     _eqHighGain?: number,
+    _balance?: number,
     _pitchShift?: number
   ) => {
     onEnded?.();
@@ -43,6 +44,7 @@ const setDeckResonance = vi.fn();
 const setDeckEqLow = vi.fn();
 const setDeckEqMid = vi.fn();
 const setDeckEqHigh = vi.fn();
+const setDeckBalance = vi.fn();
 const setDeckPitchShift = vi.fn();
 const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
@@ -61,6 +63,7 @@ vi.mock("../useAudioEngine", () => ({
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckBalance,
     setDeckPitchShift,
     removeDeck,
     getDeckPosition,
@@ -81,6 +84,7 @@ describe("useDecks", () => {
     setDeckEqLow.mockClear();
     setDeckEqMid.mockClear();
     setDeckEqHigh.mockClear();
+    setDeckBalance.mockClear();
     setDeckPitchShift.mockClear();
     removeDeck.mockClear();
     getDeckPosition.mockClear();
@@ -297,6 +301,7 @@ describe("useDecks", () => {
         eqLowGain: -2,
         eqMidGain: 1,
         eqHighGain: 3,
+        balance: -0.25,
         pitchShift: -3,
         offsetSeconds: 1,
         zoom: 2,
@@ -339,6 +344,13 @@ describe("useDecks", () => {
             durationSec: 0,
             active: false,
             currentValue: 3,
+          },
+          balance: {
+            samples: [],
+            sampleRate: 30,
+            durationSec: 0,
+            active: false,
+            currentValue: -0.25,
           },
           pitch: {
             samples: [],

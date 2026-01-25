@@ -8,7 +8,7 @@ type ClipRecorderProps = {
   onLoadClip: (
     deckId: number,
     file: File,
-    options?: { gain?: number; pitchShift?: number }
+    options?: { gain?: number; pitchShift?: number; balance?: number }
   ) => void;
   clips: ClipItem[];
   onAddClip: (
@@ -150,7 +150,7 @@ const ClipRecorder = ({ decks, onLoadClip, clips, onAddClip, onUpdateClip }: Cli
           : elapsed;
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        onAddClip({ blob, durationSec, gain: 1, pitchShift: 0 });
+        onAddClip({ blob, durationSec, gain: 1, balance: 0, pitchShift: 0 });
         chunksRef.current = [];
         recorderRef.current = null;
         setRecording(false);
@@ -218,6 +218,7 @@ const ClipRecorder = ({ decks, onLoadClip, clips, onAddClip, onUpdateClip }: Cli
                       });
                       onLoadClip(deck.id, file, {
                         gain: clip.gain,
+                        balance: clip.balance,
                         pitchShift: clip.pitchShift,
                       });
                     }}

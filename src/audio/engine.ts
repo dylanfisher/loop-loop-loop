@@ -11,6 +11,7 @@ import {
   setDeckEqLowGain,
   setDeckEqMidGain,
   setDeckEqHighGain,
+  setDeckBalanceValue,
   setDeckLoopParams,
   setDeckPitchShiftValue,
   setDeckPlaybackRate,
@@ -39,6 +40,7 @@ type AudioEngine = {
     eqLowGain?: number,
     eqMidGain?: number,
     eqHighGain?: number,
+    balance?: number,
     pitchShift?: number
   ) => Promise<void>;
   stop: (deckId: number) => void;
@@ -49,6 +51,7 @@ type AudioEngine = {
   setDeckEqLow: (deckId: number, value: number) => void;
   setDeckEqMid: (deckId: number, value: number) => void;
   setDeckEqHigh: (deckId: number, value: number) => void;
+  setDeckBalance: (deckId: number, value: number) => void;
   setDeckPitchShift: (deckId: number, value: number) => void;
   removeDeck: (deckId: number) => void;
   getDeckPosition: (deckId: number) => number | null;
@@ -118,6 +121,7 @@ const playBuffer = async (
   eqLowGain = 0,
   eqMidGain = 0,
   eqHighGain = 0,
+  balance = 0,
   pitchShift = 0
 ) => {
   const context = await ensureContext();
@@ -146,6 +150,7 @@ const playBuffer = async (
     eqLowGain,
     eqMidGain,
     eqHighGain,
+    balance,
     pitchShift,
     onEnded
   );
@@ -185,6 +190,10 @@ const setDeckEqMid = (deckId: number, value: number) => {
 
 const setDeckEqHigh = (deckId: number, value: number) => {
   setDeckEqHighGain(deckId, value);
+};
+
+const setDeckBalance = (deckId: number, value: number) => {
+  setDeckBalanceValue(deckId, value);
 };
 
 const setDeckPitchShift = (deckId: number, value: number) => {
@@ -247,6 +256,7 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckBalance,
     setDeckPitchShift,
     removeDeck,
     getDeckPosition,

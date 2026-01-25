@@ -60,6 +60,7 @@ const App = () => {
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckBalance,
     setDeckPitchShift,
     seekDeck,
     setDeckZoom,
@@ -158,6 +159,8 @@ const App = () => {
           durationSec: clip.durationSec,
           buffer: clip.buffer,
           gain: clip.gain,
+          balance: clip.balance,
+          pitchShift: clip.pitchShift,
         },
         ...prev,
       ]);
@@ -199,6 +202,7 @@ const App = () => {
       source.buffer = deck.buffer;
       source.playbackRate.value = tempoRatio;
       const pitchShiftNodes = createPitchShiftNodes(offline);
+      const balanceNode = offline.createStereoPanner();
       const highpass = offline.createBiquadFilter();
       highpass.type = "highpass";
       const lowpass = offline.createBiquadFilter();
@@ -219,6 +223,7 @@ const App = () => {
       const eqLowTrack = automation?.eqLow;
       const eqMidTrack = automation?.eqMid;
       const eqHighTrack = automation?.eqHigh;
+      const balanceTrack = automation?.balance;
       const pitchTrack = automation?.pitch;
 
       const djFilterValue = djFilterTrack?.active ? djFilterTrack.currentValue : deck.djFilter;
@@ -228,6 +233,7 @@ const App = () => {
       const eqLowValue = eqLowTrack?.active ? eqLowTrack.currentValue : deck.eqLowGain;
       const eqMidValue = eqMidTrack?.active ? eqMidTrack.currentValue : deck.eqMidGain;
       const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
+      const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
       const pitchValue = pitchTrack?.active ? pitchTrack.currentValue : deck.pitchShift;
 
       const targets = getFilterTargets(djFilterValue);
@@ -238,6 +244,7 @@ const App = () => {
       eqLow.gain.value = eqLowValue;
       eqMid.gain.value = eqMidValue;
       eqHigh.gain.value = eqHighValue;
+      balanceNode.pan.value = balanceValue;
       setPitchShift(pitchShiftNodes, pitchValue);
       const clipGain = deck.gain;
 
@@ -294,6 +301,16 @@ const App = () => {
           }
         );
       }
+      if (balanceTrack?.active && balanceTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          balanceTrack.samples,
+          balanceTrack.durationSec,
+          renderDuration,
+          (value, time) => {
+            balanceNode.pan.setValueAtTime(value, time);
+          }
+        );
+      }
       if (pitchTrack?.active && pitchTrack.durationSec > 0 && pitchShiftNodes.worklet) {
         const pitchParam = pitchShiftNodes.worklet.parameters.get("pitch");
         if (pitchParam) {
@@ -310,7 +327,8 @@ const App = () => {
         }
       }
 
-      source.connect(pitchShiftNodes.input);
+      source.connect(balanceNode);
+      balanceNode.connect(pitchShiftNodes.input);
       pitchShiftNodes.output.connect(highpass);
       highpass.connect(lowpass);
       lowpass.connect(eqLow);
@@ -325,6 +343,7 @@ const App = () => {
           durationSec: rendered.duration,
           buffer: rendered,
           gain: clipGain,
+          balance: balanceValue,
           pitchShift: pitchValue,
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
         });
@@ -357,6 +376,7 @@ const App = () => {
       const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
       source.playbackRate.value = tempoRatio;
 
+      const balanceNode = offline.createStereoPanner();
       const pitchShiftNodes = createPitchShiftNodes(offline);
       const highpass = offline.createBiquadFilter();
       highpass.type = "highpass";
@@ -379,6 +399,7 @@ const App = () => {
       const eqLowTrack = automation?.eqLow;
       const eqMidTrack = automation?.eqMid;
       const eqHighTrack = automation?.eqHigh;
+      const balanceTrack = automation?.balance;
       const pitchTrack = automation?.pitch;
 
       const djFilterValue = djFilterTrack?.active ? djFilterTrack.currentValue : deck.djFilter;
@@ -388,6 +409,7 @@ const App = () => {
       const eqLowValue = eqLowTrack?.active ? eqLowTrack.currentValue : deck.eqLowGain;
       const eqMidValue = eqMidTrack?.active ? eqMidTrack.currentValue : deck.eqMidGain;
       const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
+      const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
       const pitchValue = pitchTrack?.active ? pitchTrack.currentValue : deck.pitchShift;
 
       const targets = getFilterTargets(djFilterValue);
@@ -398,6 +420,7 @@ const App = () => {
       eqLow.gain.value = eqLowValue;
       eqMid.gain.value = eqMidValue;
       eqHigh.gain.value = eqHighValue;
+      balanceNode.pan.value = balanceValue;
       setPitchShift(pitchShiftNodes, pitchValue);
       gainNode.gain.value = deck.gain;
 
@@ -454,6 +477,16 @@ const App = () => {
           }
         );
       }
+      if (balanceTrack?.active && balanceTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          balanceTrack.samples,
+          balanceTrack.durationSec,
+          durationSec,
+          (value, time) => {
+            balanceNode.pan.setValueAtTime(value, time);
+          }
+        );
+      }
       if (pitchTrack?.active && pitchTrack.durationSec > 0 && pitchShiftNodes.worklet) {
         const pitchParam = pitchShiftNodes.worklet.parameters.get("pitch");
         if (pitchParam) {
@@ -470,7 +503,8 @@ const App = () => {
         }
       }
 
-      source.connect(pitchShiftNodes.input);
+      source.connect(balanceNode);
+      balanceNode.connect(pitchShiftNodes.input);
       pitchShiftNodes.output.connect(highpass);
       highpass.connect(lowpass);
       lowpass.connect(eqLow);
@@ -619,6 +653,7 @@ const App = () => {
           name: clip.name,
           durationSec: clip.durationSec ?? buffer.duration,
           gain: clip.gain,
+          balance: clip.balance,
           pitchShift: clip.pitchShift,
           wavBlobId: blobId,
         });
@@ -760,6 +795,7 @@ const App = () => {
           url,
           durationSec: clip.durationSec,
           gain: clip.gain,
+          balance: clip.balance ?? 0,
           pitchShift: clip.pitchShift ?? 0,
         });
         maxClipId = Math.max(maxClipId, clip.id);
@@ -861,6 +897,7 @@ const App = () => {
           url,
           durationSec: clip.durationSec,
           gain: clip.gain,
+          balance: clip.balance ?? 0,
           pitchShift: clip.pitchShift ?? 0,
         });
         maxClipId = Math.max(maxClipId, clip.id);
@@ -1026,6 +1063,7 @@ const App = () => {
           onEqLowChange={setDeckEqLow}
           onEqMidChange={setDeckEqMid}
           onEqHighChange={setDeckEqHigh}
+          onBalanceChange={setDeckBalance}
           onPitchShiftChange={setDeckPitchShift}
           onSeek={seekDeck}
           onZoomChange={setDeckZoom}
