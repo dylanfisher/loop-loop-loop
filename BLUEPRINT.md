@@ -13,13 +13,13 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ## Core Architecture
 ### Audio Engine (Browser)
-- Web Audio API graph with an AudioWorklet-based DSP core.
+- Web Audio API graph with an AudioWorklet-based DSP core (phase vocoder pitch shift).
 - Dedicated clock/scheduler for tight timing using AudioContext.currentTime.
 - Routing matrix for decks, buses, and master chain.
 
 ### DSP Modules
 - Beat/onset detection (WASM or lightweight JS analysis).
-- FX chain: filters, delay, reverb, granular, spectral freeze, bitcrush.
+- FX chain: filters, delay, reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder).
 - Modulation system: LFOs, envelopes, random/stochastic sources.
 
 ## BPM Detection & Control (Planned)

@@ -6,4 +6,5 @@ export type ClipItem = {
   durationSec: number;
   buffer?: AudioBuffer;
   gain: number;
+  pitchShift: number;
 };

@@ -466,6 +466,10 @@ body {
   text-align: center;
 }
 
+.deck__fx-row--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .deck__fx-row--eq {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

@@ -1,4 +1,10 @@
-export type AutomationParam = "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh";
+export type AutomationParam =
+  | "djFilter"
+  | "resonance"
+  | "eqLow"
+  | "eqMid"
+  | "eqHigh"
+  | "pitch";
 
 export type AutomationSnapshot = {
   samples: number[];
@@ -18,6 +24,7 @@ export type DeckSession = {
   eqLowGain: number;
   eqMidGain: number;
   eqHighGain: number;
+  pitchShift: number;
   offsetSeconds: number;
   zoom: number;
   loopEnabled: boolean;
@@ -32,6 +39,7 @@ export type ClipSession = {
   name: string;
   durationSec: number;
   gain: number;
+  pitchShift: number;
   wavBlobId: string;
 };
 

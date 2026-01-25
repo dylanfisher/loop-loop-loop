@@ -12,9 +12,11 @@ import {
   setDeckEqMidGain,
   setDeckEqHighGain,
   setDeckLoopParams,
+  setDeckPitchShiftValue,
   setDeckPlaybackRate,
   stopDeckPlayback,
 } from "./deck";
+import { ensurePitchShiftWorklet } from "./pitchShift";
 
 type DeckEndedCallback = () => void;
 
@@ -36,7 +38,8 @@ type AudioEngine = {
     resonance?: number,
     eqLowGain?: number,
     eqMidGain?: number,
-    eqHighGain?: number
+    eqHighGain?: number,
+    pitchShift?: number
   ) => Promise<void>;
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
@@ -46,6 +49,7 @@ type AudioEngine = {
   setDeckEqLow: (deckId: number, value: number) => void;
   setDeckEqMid: (deckId: number, value: number) => void;
   setDeckEqHigh: (deckId: number, value: number) => void;
+  setDeckPitchShift: (deckId: number, value: number) => void;
   removeDeck: (deckId: number) => void;
   getDeckPosition: (deckId: number) => number | null;
   setDeckLoopParams: (deckId: number, loopEnabled: boolean, start: number, end: number) => void;
@@ -113,9 +117,17 @@ const playBuffer = async (
   resonance = 0.7,
   eqLowGain = 0,
   eqMidGain = 0,
-  eqHighGain = 0
+  eqHighGain = 0,
+  pitchShift = 0
 ) => {
   const context = await ensureContext();
+  try {
+    await ensurePitchShiftWorklet(context);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("Pitch shift worklet failed to load", error);
+    }
+  }
   const output = masterGain ?? context.destination;
   playDeckBuffer(
     context,
@@ -134,6 +146,7 @@ const playBuffer = async (
     eqLowGain,
     eqMidGain,
     eqHighGain,
+    pitchShift,
     onEnded
   );
 };
@@ -172,6 +185,10 @@ const setDeckEqMid = (deckId: number, value: number) => {
 
 const setDeckEqHigh = (deckId: number, value: number) => {
   setDeckEqHighGain(deckId, value);
+};
+
+const setDeckPitchShift = (deckId: number, value: number) => {
+  setDeckPitchShiftValue(deckId, value);
 };
 
 const removeDeck = (deckId: number) => {
@@ -230,6 +247,7 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckPitchShift,
     removeDeck,
     getDeckPosition,
     setDeckLoopParams: updateDeckLoopParams,

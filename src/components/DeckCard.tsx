@@ -18,8 +18,9 @@ type DeckCardProps = {
   onEqLowChange: (id: number, value: number) => void;
   onEqMidChange: (id: number, value: number) => void;
   onEqHighChange: (id: number, value: number) => void;
+  onPitchShiftChange: (id: number, value: number) => void;
   automation?: Record<
-    "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh",
+    "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch",
     {
       samples: Float32Array;
       previewSamples: Float32Array;
@@ -31,29 +32,29 @@ type DeckCardProps = {
   >;
   onAutomationStart: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh"
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch"
   ) => void;
   onAutomationStop: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh"
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch"
   ) => void;
   onAutomationValueChange: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh",
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch",
     value: number
   ) => void;
   getAutomationPlayhead: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh"
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch"
   ) => number;
   onAutomationToggle: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh",
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch",
     active: boolean
   ) => void;
   onAutomationReset: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh"
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch"
   ) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
@@ -88,6 +89,7 @@ const DeckCard = ({
   onEqLowChange,
   onEqMidChange,
   onEqHighChange,
+  onPitchShiftChange,
   automation,
   onAutomationStart,
   onAutomationStop,
@@ -174,6 +176,14 @@ const DeckCard = ({
     active: false,
     currentValue: deck.eqHighGain,
   };
+  const pitchAutomation = automation?.pitch ?? {
+    samples: new Float32Array(0),
+    previewSamples: new Float32Array(0),
+    durationSec: 0,
+    recording: false,
+    active: false,
+    currentValue: deck.pitchShift,
+  };
   const djFilterValue = djAutomation.active ? djAutomation.currentValue : djFilter;
   const resonanceDisplayValue = resonanceAutomation.active
     ? resonanceAutomation.currentValue
@@ -181,6 +191,9 @@ const DeckCard = ({
   const eqLowValue = eqLowAutomation.active ? eqLowAutomation.currentValue : deck.eqLowGain;
   const eqMidValue = eqMidAutomation.active ? eqMidAutomation.currentValue : deck.eqMidGain;
   const eqHighValue = eqHighAutomation.active ? eqHighAutomation.currentValue : deck.eqHighGain;
+  const pitchValue = pitchAutomation.active
+    ? pitchAutomation.currentValue
+    : deck.pitchShift;
 
   const getCurrentSeconds = useCallback(() => {
     const snapshot = getDeckPlaybackSnapshot(deck.id);
@@ -498,6 +511,41 @@ const DeckCard = ({
               onToggleActive={(next) => onAutomationToggle(deck.id, "eqHigh", next)}
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "eqHigh", value)
+              }
+            />
+          </div>
+        </div>
+        <div className="deck__fx-row deck__fx-row--single">
+          <div className="deck__fx-unit deck__fx-unit--pitch">
+            <Knob
+              label="Pitch"
+              min={-12}
+              max={12}
+              step={0.1}
+              value={pitchValue}
+              defaultValue={0}
+              onChange={(next) => onPitchShiftChange(deck.id, next)}
+              formatValue={(value) => `${value.toFixed(1)} st`}
+              centerSnap={0.25}
+              isAutomated={pitchAutomation.active}
+            />
+            <AutomationLane
+              label="Automation"
+              min={-12}
+              max={12}
+              value={pitchValue}
+              samples={pitchAutomation.samples}
+              previewSamples={pitchAutomation.previewSamples}
+              durationSec={pitchAutomation.durationSec}
+              recording={pitchAutomation.recording}
+              active={pitchAutomation.active}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "pitch")}
+              onDrawStart={() => onAutomationStart(deck.id, "pitch")}
+              onDrawEnd={() => onAutomationStop(deck.id, "pitch")}
+              onReset={() => onAutomationReset(deck.id, "pitch")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "pitch", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "pitch", value)
               }
             />
           </div>
