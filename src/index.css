@@ -601,6 +601,16 @@ button.is-active {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  gap: 8px;
+  min-width: 0;
+}
+
+.clip-rack__clip-info span:first-child {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .clip-rack__clip-actions {

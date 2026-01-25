@@ -560,7 +560,11 @@ const useDecks = () => {
     fileInputRefs.current.get(id)?.click();
   };
 
-  const handleFileSelected = async (id: number, file: File | null) => {
+  const handleFileSelected = async (
+    id: number,
+    file: File | null,
+    options?: { bpm?: number | null }
+  ) => {
     if (!file) return;
 
     const currentDeck = decks.find((deck) => deck.id === id);
@@ -584,9 +588,9 @@ const useDecks = () => {
       loopEnabled: true,
       loopStartSeconds: 0,
       loopEndSeconds: 0,
-      bpm: null,
+      bpm: options?.bpm ?? null,
       bpmConfidence: 0,
-      bpmOverride: null,
+      bpmOverride: options?.bpm ?? null,
     });
     bpmRequestIdRef.current.delete(id);
     try {
@@ -594,6 +598,7 @@ const useDecks = () => {
       const duration = Number.isFinite(buffer.duration)
         ? buffer.duration
         : buffer.length / buffer.sampleRate;
+      const providedBpm = options?.bpm ?? null;
       const baseDeck = {
         buffer,
         duration,
@@ -607,9 +612,9 @@ const useDecks = () => {
         loopEnabled: true,
         loopStartSeconds: 0,
         loopEndSeconds: duration,
-        bpm: null,
+        bpm: providedBpm,
         bpmConfidence: 0,
-        bpmOverride: null,
+        bpmOverride: providedBpm,
       };
       if (wasPlaying) {
         const startedAtMs = performance.now();
@@ -648,7 +653,9 @@ const useDecks = () => {
           status: "ready",
         });
       }
-      startBpmAnalysis(id, buffer);
+      if (providedBpm === null) {
+        startBpmAnalysis(id, buffer);
+      }
     } catch (error) {
       updateDeck(id, { status: "error" });
       console.error("Failed to decode audio", error);

@@ -9,7 +9,7 @@ type DeckCardProps = {
   label: string;
   onRemove: (id: number) => void;
   onLoadClick: (id: number) => void;
-  onFileSelected: (id: number, file: File | null) => void;
+  onFileSelected: (id: number, file: File | null, options?: { bpm?: number | null }) => void;
   onPlay: (deck: DeckState) => void;
   onPause: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
@@ -60,6 +60,7 @@ type DeckCardProps = {
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onBpmOverrideChange: (id: number, value: number | null) => void;
+  onSaveLoopClip: (id: number) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
     position: number;
@@ -99,6 +100,7 @@ const DeckCard = ({
   onLoopChange,
   onLoopBoundsChange,
   onBpmOverrideChange,
+  onSaveLoopClip,
   getDeckPosition,
   getDeckPlaybackSnapshot,
   setFileInputRef,
@@ -224,6 +226,14 @@ const DeckCard = ({
               onClick={() => onLoopChange(deck.id, !deck.loopEnabled)}
             >
               {deck.loopEnabled ? "Looping" : "Loop"}
+            </button>
+            <button
+              type="button"
+              className="deck__action"
+              disabled={!deck.buffer}
+              onClick={() => onSaveLoopClip(deck.id)}
+            >
+              Save Loop
             </button>
             <button type="button" className="deck__action">
               Slice

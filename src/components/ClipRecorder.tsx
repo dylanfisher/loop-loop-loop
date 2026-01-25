@@ -1,23 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import type { DeckState } from "../types/deck";
+import type { ClipItem } from "../types/clip";
 import useAudioEngine from "../hooks/useAudioEngine";
 
 type ClipRecorderProps = {
   decks: DeckState[];
-  onLoadClip: (deckId: number, file: File) => void;
+  onLoadClip: (deckId: number, file: File, options?: { bpm?: number | null }) => void;
+  clips: ClipItem[];
+  onAddClip: (
+    clip: Omit<ClipItem, "id" | "url" | "name"> & { name?: string }
+  ) => void;
+  onUpdateClip: (id: number, updates: Partial<ClipItem>) => void;
 };
 
-type ClipItem = {
-  id: number;
-  name: string;
-  blob: Blob;
-  url: string;
-  durationSec: number;
-  buffer?: AudioBuffer;
-};
-
-const ClipRecorder = ({ decks, onLoadClip }: ClipRecorderProps) => {
-  const [clips, setClips] = useState<ClipItem[]>([]);
+const ClipRecorder = ({ decks, onLoadClip, clips, onAddClip, onUpdateClip }: ClipRecorderProps) => {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -32,12 +28,11 @@ const ClipRecorder = ({ decks, onLoadClip }: ClipRecorderProps) => {
 
   useEffect(() => {
     return () => {
-      clips.forEach((clip) => URL.revokeObjectURL(clip.url));
       if (timerRef.current) {
         window.clearInterval(timerRef.current);
       }
     };
-  }, [clips]);
+  }, []);
 
   useEffect(() => {
     clips.forEach((clip) => {
@@ -48,9 +43,7 @@ const ClipRecorder = ({ decks, onLoadClip }: ClipRecorderProps) => {
       });
       decodeFile(file)
         .then((buffer) => {
-          setClips((prev) =>
-            prev.map((item) => (item.id === clip.id ? { ...item, buffer } : item))
-          );
+          onUpdateClip(clip.id, { buffer });
         })
         .catch((err) => {
           console.error("Failed to decode clip preview", err);
@@ -59,7 +52,7 @@ const ClipRecorder = ({ decks, onLoadClip }: ClipRecorderProps) => {
           decodePendingRef.current.delete(clip.id);
         });
     });
-  }, [clips, decodeFile]);
+  }, [clips, decodeFile, onUpdateClip]);
 
   const drawPreview = (canvas: HTMLCanvasElement, buffer: AudioBuffer) => {
     const context = canvas.getContext("2d");
@@ -153,18 +146,7 @@ const ClipRecorder = ({ decks, onLoadClip }: ClipRecorderProps) => {
           : elapsed;
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        const id = Date.now();
-        const url = URL.createObjectURL(blob);
-        setClips((prev) => [
-          {
-            id,
-            name: `Clip ${prev.length + 1}`,
-            blob,
-            url,
-            durationSec,
-          },
-          ...prev,
-        ]);
+        onAddClip({ blob, durationSec });
         chunksRef.current = [];
         recorderRef.current = null;
         setRecording(false);
@@ -230,7 +212,7 @@ const ClipRecorder = ({ decks, onLoadClip }: ClipRecorderProps) => {
                       const file = new File([clip.blob], `${clip.name}.webm`, {
                         type: clip.blob.type || "audio/webm",
                       });
-                      onLoadClip(deck.id, file);
+                      onLoadClip(deck.id, file, { bpm: clip.bpm ?? null });
                     }}
                   >
                     Load Deck {index + 1}
