@@ -241,32 +241,18 @@ describe("useDecks", () => {
   });
 
   it("records automation samples and enforces minimum duration", () => {
-    const originalRaf = window.requestAnimationFrame;
-    const originalCancel = window.cancelAnimationFrame;
-    const callbacks = new Map<number, FrameRequestCallback>();
-    let nextId = 1;
-    const runRaf = (time: number) => {
-      const pending = Array.from(callbacks.entries());
-      callbacks.clear();
-      pending.forEach(([, cb]) => cb(time));
+    vi.useFakeTimers();
+    let now = 0;
+    const nowSpy = vi.spyOn(performance, "now").mockImplementation(() => now);
+    const advanceTime = (ms: number) => {
+      now += ms;
+      vi.advanceTimersByTime(ms);
     };
-
-    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
-      const id = nextId;
-      nextId += 1;
-      callbacks.set(id, cb);
-      return id;
-    }) as typeof window.requestAnimationFrame;
-    window.cancelAnimationFrame = ((id: number) => {
-      callbacks.delete(id);
-    }) as typeof window.cancelAnimationFrame;
-
-    const nowSpy = vi.spyOn(performance, "now").mockReturnValue(0);
     const { result } = renderHook(() => useDecks());
     const deckId = result.current.decks[0].id;
 
     act(() => result.current.startAutomationRecording(deckId, "djFilter"));
-    act(() => runRaf(100));
+    act(() => advanceTime(100));
 
     const preview = result.current.automationState.get(deckId)?.djFilter.previewSamples;
     expect(preview?.length).toBeGreaterThan(0);
@@ -276,17 +262,16 @@ describe("useDecks", () => {
     expect(stopped?.samples.length).toBe(0);
     expect(stopped?.durationSec).toBe(0);
 
-    nowSpy.mockReturnValue(0);
+    now = 0;
     act(() => result.current.startAutomationRecording(deckId, "djFilter"));
-    act(() => runRaf(1000));
+    act(() => advanceTime(1000));
     act(() => result.current.stopAutomationRecording(deckId, "djFilter"));
 
     const finished = result.current.automationState.get(deckId)?.djFilter;
     expect(finished?.samples.length).toBeGreaterThan(0);
     expect(finished?.durationSec).toBeGreaterThanOrEqual(0.9);
-
-    window.requestAnimationFrame = originalRaf;
-    window.cancelAnimationFrame = originalCancel;
+    vi.useRealTimers();
+    nowSpy.mockRestore();
   });
 
   it("hydrates decks and automation from session data", () => {

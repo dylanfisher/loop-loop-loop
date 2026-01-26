@@ -6,6 +6,7 @@ const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16)
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const AUTOMATION_SAMPLE_RATE = 30;
 const MIN_AUTOMATION_DURATION = 0.25;
+const AUTOMATION_UI_INTERVAL_MS = 100;
 
 type AutomationTrack = {
   samples: Float32Array;
@@ -75,9 +76,12 @@ const useDecks = () => {
   const playbackStartRef = useRef<Map<number, number>>(new Map());
   const automationRef = useRef<Map<number, AutomationDeck>>(new Map());
   const automationPlayheadRef = useRef<Map<number, Record<AutomationParam, number>>>(new Map());
+  const automationUiUpdateRef = useRef<Map<number, number>>(new Map());
+  const automationTickEnabledRef = useRef(false);
   const [automationState, setAutomationState] = useState<Map<number, Record<AutomationParam, AutomationView>>>(
     new Map()
   );
+  const [automationTickEnabled, setAutomationTickEnabled] = useState(false);
   const [decks, setDecks] = useState<DeckState[]>([
     {
       id: 1,
@@ -169,6 +173,7 @@ const useDecks = () => {
       pitch: 0,
     });
     updateAutomationView(deckId);
+    updateAutomationTickEnabled();
   };
 
   const ensureAutomationDeck = (deckId: number, deck: DeckState) => {
@@ -233,6 +238,22 @@ const useDecks = () => {
     []
   );
 
+  const updateAutomationTickEnabled = useCallback(() => {
+    let enabled = false;
+    automationRef.current.forEach((tracks) => {
+      if (enabled) return;
+      (Object.values(tracks) as AutomationTrack[]).forEach((track) => {
+        if (track.recording || track.active) {
+          enabled = true;
+        }
+      });
+    });
+    if (automationTickEnabledRef.current !== enabled) {
+      automationTickEnabledRef.current = enabled;
+      setAutomationTickEnabled(enabled);
+    }
+  }, []);
+
   const updateDeck = useCallback((id: number, updates: Partial<DeckState>) => {
     setDecks((prev) =>
       prev.map((deck) => (deck.id === id ? { ...deck, ...updates } : deck))
@@ -251,18 +272,26 @@ const useDecks = () => {
         track.playbackStartMs = 0;
         updateAutomationView(id);
       }
+      updateAutomationTickEnabled();
     },
-    [setDeckBalance, updateDeck]
+    [setDeckBalance, updateDeck, updateAutomationTickEnabled]
   );
 
   useEffect(() => {
-    let raf = 0;
-    let running = true;
-    const tick = (now: number) => {
+    if (!automationTickEnabled) return;
+    const intervalMs = 1000 / AUTOMATION_SAMPLE_RATE;
+    const intervalId = window.setInterval(() => {
+      const now = performance.now();
       const automation = automationRef.current;
+      if (automation.size === 0) return;
       automation.forEach((tracks, deckId) => {
+        let hasActive = false;
+        let shouldUpdateView = false;
         (Object.keys(tracks) as AutomationParam[]).forEach((param) => {
           const track = tracks[param];
+          if (track.recording || (track.active && track.durationSec > 0)) {
+            hasActive = true;
+          }
           if (track.paused && track.active && !track.recording) {
             const playheads = automationPlayheadRef.current.get(deckId);
             if (playheads) {
@@ -279,8 +308,7 @@ const useDecks = () => {
               track.durationSec = track.recordBuffer.length / track.sampleRate;
             }
             if (track.recordBuffer.length !== track.lastPreviewLength) {
-              track.lastPreviewLength = track.recordBuffer.length;
-              updateAutomationView(deckId);
+              shouldUpdateView = true;
             }
           }
           if (!track.recording && track.active && track.durationSec > 0) {
@@ -313,7 +341,7 @@ const useDecks = () => {
             }
             if (index !== track.lastIndex) {
               track.lastIndex = index;
-              updateAutomationView(deckId);
+              shouldUpdateView = true;
             }
             const playhead = positionSec / track.durationSec;
             const playheads = automationPlayheadRef.current.get(deckId);
@@ -328,19 +356,33 @@ const useDecks = () => {
             }
           }
         });
+        if (shouldUpdateView) {
+          const lastUpdate = automationUiUpdateRef.current.get(deckId) ?? 0;
+          if (now - lastUpdate >= AUTOMATION_UI_INTERVAL_MS) {
+            automationUiUpdateRef.current.set(deckId, now);
+            (Object.values(tracks) as AutomationTrack[]).forEach((track) => {
+              if (track.recording) {
+                track.lastPreviewLength = track.recordBuffer.length;
+              }
+            });
+            updateAutomationView(deckId);
+          }
+        }
+        if (!hasActive) {
+          const playheads = automationPlayheadRef.current.get(deckId);
+          if (playheads) {
+            (Object.keys(playheads) as AutomationParam[]).forEach((param) => {
+              playheads[param] = 0;
+            });
+          }
+        }
       });
-
-      if (running) {
-        raf = requestAnimationFrame(tick);
-      }
-    };
-
-    raf = requestAnimationFrame(tick);
+    }, intervalMs);
     return () => {
-      running = false;
-      if (raf) cancelAnimationFrame(raf);
+      window.clearInterval(intervalId);
     };
   }, [
+    automationTickEnabled,
     getFilterTargets,
     setDeckFilter,
     setDeckHighpass,
@@ -696,6 +738,7 @@ const useDecks = () => {
       track.playbackStartMs = 0;
       updateAutomationView(id);
     }
+    updateAutomationTickEnabled();
   };
 
   const setDeckResonanceValue = (id: number, value: number) => {
@@ -708,6 +751,7 @@ const useDecks = () => {
       track.playbackStartMs = 0;
       updateAutomationView(id);
     }
+    updateAutomationTickEnabled();
   };
 
   const setDeckEqLowValue = (id: number, value: number) => {
@@ -720,6 +764,7 @@ const useDecks = () => {
       track.playbackStartMs = 0;
       updateAutomationView(id);
     }
+    updateAutomationTickEnabled();
   };
 
   const setDeckEqMidValue = (id: number, value: number) => {
@@ -732,6 +777,7 @@ const useDecks = () => {
       track.playbackStartMs = 0;
       updateAutomationView(id);
     }
+    updateAutomationTickEnabled();
   };
 
   const setDeckEqHighValue = (id: number, value: number) => {
@@ -744,6 +790,7 @@ const useDecks = () => {
       track.playbackStartMs = 0;
       updateAutomationView(id);
     }
+    updateAutomationTickEnabled();
   };
 
   const setDeckPitchShiftValue = (id: number, value: number) => {
@@ -757,6 +804,7 @@ const useDecks = () => {
       track.playbackStartMs = 0;
       updateAutomationView(id);
     }
+    updateAutomationTickEnabled();
   };
 
 
@@ -793,6 +841,7 @@ const useDecks = () => {
       track.currentValue = deck.pitchShift;
     }
     updateAutomationView(id);
+    updateAutomationTickEnabled();
   };
 
   const stopAutomationRecording = (id: number, param: AutomationParam) => {
@@ -813,6 +862,7 @@ const useDecks = () => {
     track.recordBuffer = [];
     track.lastPreviewLength = 0;
     updateAutomationView(id);
+    updateAutomationTickEnabled();
   };
 
   const updateAutomationValue = (id: number, param: AutomationParam, value: number) => {
@@ -837,7 +887,7 @@ const useDecks = () => {
     } else {
       setDeckPitchShiftValue(id, value);
     }
-    if (track.recording || track.active) {
+    if (track.active) {
       updateAutomationView(id);
     }
   };
@@ -856,6 +906,7 @@ const useDecks = () => {
       track.playbackStartMs = performance.now();
     }
     updateAutomationView(id);
+    updateAutomationTickEnabled();
   };
 
   const resetAutomationTrack = (id: number, param: AutomationParam) => {
@@ -872,6 +923,7 @@ const useDecks = () => {
     track.playbackStartMs = 0;
     track.lastPreviewLength = 0;
     updateAutomationView(id);
+    updateAutomationTickEnabled();
   };
 
   const setDeckZoomValue = (id: number, value: number) => {
@@ -1115,6 +1167,7 @@ const useDecks = () => {
       fileInputRefs.current = new Map();
       automationRef.current = new Map();
       automationPlayheadRef.current = new Map();
+      automationUiUpdateRef.current = new Map();
 
       const nextAutomationState = new Map<number, Record<AutomationParam, AutomationView>>();
       let maxDeckId = 1;
@@ -1226,8 +1279,9 @@ const useDecks = () => {
       nextDeckId.current = Math.max(2, maxDeckId + 1);
       setDecks(nextDecks);
       setAutomationState(nextAutomationState);
+      updateAutomationTickEnabled();
     },
-    [decks, removeDeckNodes, stop]
+    [decks, removeDeckNodes, stop, updateAutomationTickEnabled]
   );
 
   return {

@@ -27,6 +27,12 @@ import {
 } from "./utils/sessionStore";
 import { createZip, readZip } from "./utils/zip";
 
+type PerformanceMemory = {
+  usedJSHeapSize: number;
+  jsHeapSizeLimit: number;
+  totalJSHeapSize: number;
+};
+
 const App = () => {
   console.info("App: render");
   const [clips, setClips] = useState<ClipItem[]>([]);
@@ -38,6 +44,17 @@ const App = () => {
   const [sessionName, setSessionName] = useState("");
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [perfStats, setPerfStats] = useState<{
+    fps: number;
+    frameMs: number;
+    heapUsedMB: number | null;
+    heapLimitMB: number | null;
+  }>({
+    fps: 0,
+    frameMs: 0,
+    heapUsedMB: null,
+    heapLimitMB: null,
+  });
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
@@ -99,6 +116,42 @@ const App = () => {
       return { lowpass: max, highpass };
     }
     return { lowpass: max, highpass: min };
+  }, []);
+
+  useEffect(() => {
+    let raf = 0;
+    let intervalId = 0;
+    let frames = 0;
+    let lastReport = performance.now();
+    const onFrame = () => {
+      frames += 1;
+      raf = requestAnimationFrame(onFrame);
+    };
+    raf = requestAnimationFrame(onFrame);
+    intervalId = window.setInterval(() => {
+      const now = performance.now();
+      const elapsed = now - lastReport;
+      if (elapsed <= 0) return;
+      const fps = Math.round((frames * 1000) / elapsed);
+      const frameMs = frames > 0 ? Math.round(elapsed / frames) : 0;
+      frames = 0;
+      lastReport = now;
+      const memory = (performance as Performance & { memory?: PerformanceMemory }).memory;
+      if (memory) {
+        setPerfStats({
+          fps,
+          frameMs,
+          heapUsedMB: Math.round(memory.usedJSHeapSize / 1048576),
+          heapLimitMB: Math.round(memory.jsHeapSizeLimit / 1048576),
+        });
+      } else {
+        setPerfStats({ fps, frameMs, heapUsedMB: null, heapLimitMB: null });
+      }
+    }, 1000);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   const scheduleLoopedSamples = useCallback(
@@ -965,6 +1018,16 @@ const App = () => {
             {sessionName.trim() ? `Project: ${sessionName}` : "Project: Untitled"}
           </div>
           <div className="app__status">{sessionStatus ?? "Audio engine: idle"}</div>
+          <div className="perf-panel" aria-live="polite">
+            <span className="perf-panel__label">Perf</span>
+            <span className="perf-panel__metric">{perfStats.fps} fps</span>
+            <span className="perf-panel__metric">{perfStats.frameMs} ms</span>
+            {perfStats.heapUsedMB !== null && perfStats.heapLimitMB !== null && (
+              <span className="perf-panel__metric">
+                heap {perfStats.heapUsedMB}/{perfStats.heapLimitMB} MB
+              </span>
+            )}
+          </div>
           <button type="button" onClick={handleGlobalPlaybackToggle}>
             {hasActivePlayback ? "Pause All" : "Play All"}
           </button>

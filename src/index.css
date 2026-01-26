@@ -59,6 +59,27 @@ body {
   letter-spacing: 0.08em;
 }
 
+.perf-panel {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid #111;
+  background: #fff3e2;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  min-width: 220px;
+}
+
+.perf-panel__label {
+  font-weight: 600;
+}
+
+.perf-panel__metric {
+  font-variant-numeric: tabular-nums;
+}
+
 .app__header-row {
   display: flex;
   gap: 12px;
@@ -598,12 +619,26 @@ body {
   border: 2px solid #111;
   background: #f8fafc;
   cursor: crosshair;
+  position: relative;
+  overflow: hidden;
 }
 
 .automation-lane__canvas canvas {
   display: block;
   width: 100%;
   height: 70px;
+}
+
+.automation-lane__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #0074ff;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(0);
+  will-change: transform;
 }
 
 .automation-lane__value {

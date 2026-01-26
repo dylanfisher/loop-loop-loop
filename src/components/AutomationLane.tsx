@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 type AutomationLaneProps = {
@@ -40,15 +40,21 @@ const AutomationLane = ({
 }: AutomationLaneProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const laneRef = useRef<HTMLDivElement | null>(null);
+  const playheadRef = useRef<HTMLDivElement | null>(null);
+  const getPlayheadRef = useRef(getPlayhead);
+  const [liveValue, setLiveValue] = useState<number | null>(null);
 
   useEffect(() => {
-    let raf = 0;
+    getPlayheadRef.current = getPlayhead;
+  }, [getPlayhead]);
+
+  useEffect(() => {
     const draw = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      const parent = canvas.parentElement;
+      const parent = laneRef.current ?? canvas.parentElement;
       const nextWidth = parent ? parent.clientWidth : canvas.width;
       const nextHeight = parent ? parent.clientHeight : canvas.height;
       if (canvas.width !== nextWidth) {
@@ -87,30 +93,41 @@ const AutomationLane = ({
         ctx.stroke();
       }
 
-      if (active && durationSec > 0) {
-        const playhead = clamp(getPlayhead(), 0, 1);
-        const x = playhead * width;
-        ctx.strokeStyle = "#0074FF";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-
       if (recording) {
         ctx.fillStyle = "rgba(0, 116, 255, 0.15)";
         ctx.fillRect(0, 0, width, height);
       }
-
-      raf = requestAnimationFrame(draw);
     };
 
-    raf = requestAnimationFrame(draw);
+    draw();
+    if (!laneRef.current || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => draw());
+    observer.observe(laneRef.current);
     return () => {
-      if (raf) cancelAnimationFrame(raf);
+      observer.disconnect();
     };
-  }, [active, durationSec, getPlayhead, max, min, previewSamples, recording, samples]);
+  }, [max, min, previewSamples, recording, samples]);
+
+  useEffect(() => {
+    const playheadEl = playheadRef.current;
+    if (!playheadEl) return;
+    if (!active || durationSec <= 0) {
+      playheadEl.style.opacity = "0";
+      playheadEl.style.transform = "translateX(0)";
+      return;
+    }
+    playheadEl.style.opacity = "1";
+    const intervalId = window.setInterval(() => {
+      const lane = laneRef.current;
+      if (!lane) return;
+      const width = lane.clientWidth;
+      const playhead = clamp(getPlayheadRef.current(), 0, 1);
+      playheadEl.style.transform = `translateX(${playhead * width}px)`;
+    }, 1000 / 30);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [active, durationSec]);
 
   const setValueFromPointer = useCallback(
     (event: PointerEvent | ReactPointerEvent<HTMLDivElement>) => {
@@ -119,10 +136,16 @@ const AutomationLane = ({
       const clampedY = clamp(event.clientY - rect.top, 0, rect.height);
       const normalized = 1 - clampedY / rect.height;
       const next = min + normalized * (max - min);
+      setLiveValue(next);
       onDrawValueChange(next);
     },
     [max, min, onDrawValueChange]
   );
+
+  const handleDrawEnd = useCallback(() => {
+    setLiveValue(null);
+    onDrawEnd();
+  }, [onDrawEnd]);
 
   useEffect(() => {
     if (!recording) return;
@@ -130,7 +153,7 @@ const AutomationLane = ({
       setValueFromPointer(event);
     };
     const handleUp = () => {
-      onDrawEnd();
+      handleDrawEnd();
     };
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
@@ -140,7 +163,7 @@ const AutomationLane = ({
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
     };
-  }, [onDrawEnd, recording, setValueFromPointer]);
+  }, [handleDrawEnd, recording, setValueFromPointer]);
 
   return (
     <div className="automation-lane">
@@ -168,9 +191,14 @@ const AutomationLane = ({
         }}
       >
         <canvas ref={canvasRef} width={220} height={70} />
+        <div ref={playheadRef} className="automation-lane__playhead" />
       </div>
       <div className="automation-lane__value">
-        {recording ? value.toFixed(2) : active ? `${durationSec.toFixed(2)}s` : "—"}
+        {recording
+          ? (liveValue ?? value).toFixed(2)
+          : active
+            ? `${durationSec.toFixed(2)}s`
+            : "—"}
       </div>
     </div>
   );

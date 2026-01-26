@@ -46,7 +46,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
-[Header (brand + session controls)]
+[Header (brand + session controls + performance panel)]
 [Clip Recorder]
 [Deck 1] [Deck 2]
 [Deck 3] [Deck 4]
