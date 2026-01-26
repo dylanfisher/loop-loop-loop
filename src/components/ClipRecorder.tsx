@@ -218,8 +218,8 @@ const ClipRecorder = ({ decks, onLoadClip, clips, onAddClip, onUpdateClip }: Cli
                       });
                       onLoadClip(deck.id, file, {
                         gain: clip.gain,
-                        balance: clip.balance,
-                        pitchShift: clip.pitchShift,
+                        balance: 0,
+                        pitchShift: 0,
                       });
                     }}
                   >

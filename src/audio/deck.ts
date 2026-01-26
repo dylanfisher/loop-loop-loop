@@ -4,6 +4,7 @@ import {
   setPitchShift,
   type PitchShiftNodes,
 } from "./pitchShift";
+import { createLimiter, createSoftClipper } from "./clipper";
 
 type DeckEndedCallback = () => void;
 
@@ -12,9 +13,11 @@ type DeckNodes = {
   balance: StereoPannerNode;
   lowpass: BiquadFilterNode;
   highpass: BiquadFilterNode;
-  eqLow: BiquadFilterNode;
-  eqMid: BiquadFilterNode;
-  eqHigh: BiquadFilterNode;
+  eqLow: BiquadFilterNode[];
+  eqMid: BiquadFilterNode[];
+  eqHigh: BiquadFilterNode[];
+  clipper: WaveShaperNode;
+  limiter: DynamicsCompressorNode;
   pitchShift: PitchShiftNodes;
   source?: AudioBufferSourceNode;
 };
@@ -55,6 +58,15 @@ const pendingPitchShift = new Map<number, number>();
 const isDev = import.meta.env.DEV;
 const defaultPitchShift = 0;
 const defaultBalance = 0;
+const eqStageCount = 2;
+
+const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
+  const perStageGain = value / eqStageCount;
+  filters.forEach((filter) => {
+    filter.gain.value = perStageGain;
+  });
+};
+
 
 const ensureDeckNodes = (
   context: AudioContext,
@@ -83,27 +95,49 @@ const ensureDeckNodes = (
     deckLowpass.type = "lowpass";
     deckLowpass.frequency.value = pendingFilters.get(deckId) ?? filterCutoff;
     deckLowpass.Q.value = pendingResonance.get(deckId) ?? resonance;
-    const eqLow = context.createBiquadFilter();
-    eqLow.type = "lowshelf";
-    eqLow.frequency.value = 120;
-    eqLow.gain.value = pendingEqLow.get(deckId) ?? eqLowGain;
-    const eqMid = context.createBiquadFilter();
-    eqMid.type = "peaking";
-    eqMid.frequency.value = 1000;
-    eqMid.gain.value = pendingEqMid.get(deckId) ?? eqMidGain;
-    const eqHigh = context.createBiquadFilter();
-    eqHigh.type = "highshelf";
-    eqHigh.frequency.value = 8000;
-    eqHigh.gain.value = pendingEqHigh.get(deckId) ?? eqHighGain;
+    const eqLow = Array.from({ length: eqStageCount }, () => {
+      const filter = context.createBiquadFilter();
+      filter.type = "lowshelf";
+      filter.frequency.value = 120;
+      return filter;
+    });
+    const eqMid = Array.from({ length: eqStageCount }, () => {
+      const filter = context.createBiquadFilter();
+      filter.type = "peaking";
+      filter.frequency.value = 1000;
+      return filter;
+    });
+    const eqHigh = Array.from({ length: eqStageCount }, () => {
+      const filter = context.createBiquadFilter();
+      filter.type = "highshelf";
+      filter.frequency.value = 8000;
+      return filter;
+    });
+    applyEqGain(eqLow, pendingEqLow.get(deckId) ?? eqLowGain);
+    applyEqGain(eqMid, pendingEqMid.get(deckId) ?? eqMidGain);
+    applyEqGain(eqHigh, pendingEqHigh.get(deckId) ?? eqHighGain);
     const deckGain = context.createGain();
     deckGain.gain.value = pendingGains.get(deckId) ?? gain;
+    const clipper = createSoftClipper(context);
+    const limiter = createLimiter(context);
     pitchShiftNodes.output.connect(deckHighpass);
     deckHighpass.connect(deckLowpass);
-    deckLowpass.connect(eqLow);
-    eqLow.connect(eqMid);
-    eqMid.connect(eqHigh);
-    eqHigh.connect(deckGain);
-    deckGain.connect(output);
+    deckLowpass.connect(eqLow[0]);
+    for (let i = 0; i < eqLow.length - 1; i++) {
+      eqLow[i].connect(eqLow[i + 1]);
+    }
+    eqLow[eqLow.length - 1].connect(eqMid[0]);
+    for (let i = 0; i < eqMid.length - 1; i++) {
+      eqMid[i].connect(eqMid[i + 1]);
+    }
+    eqMid[eqMid.length - 1].connect(eqHigh[0]);
+    for (let i = 0; i < eqHigh.length - 1; i++) {
+      eqHigh[i].connect(eqHigh[i + 1]);
+    }
+    eqHigh[eqHigh.length - 1].connect(deckGain);
+    deckGain.connect(limiter);
+    limiter.connect(clipper);
+    clipper.connect(output);
     setPitchShift(pitchShiftNodes, pendingPitchShift.get(deckId) ?? pitchShift);
     nodes = {
       gain: deckGain,
@@ -113,6 +147,8 @@ const ensureDeckNodes = (
       eqLow,
       eqMid,
       eqHigh,
+      clipper,
+      limiter,
       pitchShift: pitchShiftNodes,
     };
     balanceNode.connect(pitchShiftNodes.input);
@@ -123,9 +159,9 @@ const ensureDeckNodes = (
     nodes.highpass.frequency.value = highpassCutoff;
     nodes.lowpass.Q.value = resonance;
     nodes.highpass.Q.value = resonance;
-    nodes.eqLow.gain.value = eqLowGain;
-    nodes.eqMid.gain.value = eqMidGain;
-    nodes.eqHigh.gain.value = eqHighGain;
+    applyEqGain(nodes.eqLow, eqLowGain);
+    applyEqGain(nodes.eqMid, eqMidGain);
+    applyEqGain(nodes.eqHigh, eqHighGain);
     nodes.balance.pan.value = balance;
     setPitchShift(nodes.pitchShift, pitchShift);
   }
@@ -321,7 +357,7 @@ export const setDeckResonanceValue = (deckId: number, value: number) => {
 export const setDeckEqLowGain = (deckId: number, value: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.eqLow.gain.value = value;
+    applyEqGain(nodes.eqLow, value);
     pendingEqLow.delete(deckId);
   } else {
     pendingEqLow.set(deckId, value);
@@ -331,7 +367,7 @@ export const setDeckEqLowGain = (deckId: number, value: number) => {
 export const setDeckEqMidGain = (deckId: number, value: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.eqMid.gain.value = value;
+    applyEqGain(nodes.eqMid, value);
     pendingEqMid.delete(deckId);
   } else {
     pendingEqMid.set(deckId, value);
@@ -341,7 +377,7 @@ export const setDeckEqMidGain = (deckId: number, value: number) => {
 export const setDeckEqHighGain = (deckId: number, value: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.eqHigh.gain.value = value;
+    applyEqGain(nodes.eqHigh, value);
     pendingEqHigh.delete(deckId);
   } else {
     pendingEqHigh.set(deckId, value);
@@ -386,10 +422,12 @@ export const removeDeckNodes = (deckId: number) => {
     disposePitchShift(nodes.pitchShift);
     nodes.highpass.disconnect();
     nodes.lowpass.disconnect();
-    nodes.eqLow.disconnect();
-    nodes.eqMid.disconnect();
-    nodes.eqHigh.disconnect();
+    nodes.eqLow.forEach((node) => node.disconnect());
+    nodes.eqMid.forEach((node) => node.disconnect());
+    nodes.eqHigh.forEach((node) => node.disconnect());
     nodes.gain.disconnect();
+    nodes.limiter.disconnect();
+    nodes.clipper.disconnect();
     nodes.balance.disconnect();
     deckNodes.delete(deckId);
   }

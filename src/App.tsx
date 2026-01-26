@@ -18,6 +18,7 @@ import {
   ensurePitchShiftWorklet,
   setPitchShift,
 } from "./audio/pitchShift";
+import { createLimiter, createSoftClipper } from "./audio/clipper";
 import {
   createSessionBlobId,
   createSessionId,
@@ -31,6 +32,15 @@ type PerformanceMemory = {
   usedJSHeapSize: number;
   jsHeapSizeLimit: number;
   totalJSHeapSize: number;
+};
+
+const eqStageCount = 2;
+
+const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
+  const perStageGain = value / eqStageCount;
+  filters.forEach((filter) => {
+    filter.gain.value = perStageGain;
+  });
 };
 
 const App = () => {
@@ -260,15 +270,26 @@ const App = () => {
       highpass.type = "highpass";
       const lowpass = offline.createBiquadFilter();
       lowpass.type = "lowpass";
-      const eqLow = offline.createBiquadFilter();
-      eqLow.type = "lowshelf";
-      eqLow.frequency.value = 120;
-      const eqMid = offline.createBiquadFilter();
-      eqMid.type = "peaking";
-      eqMid.frequency.value = 1000;
-      const eqHigh = offline.createBiquadFilter();
-      eqHigh.type = "highshelf";
-      eqHigh.frequency.value = 8000;
+      const eqLow = Array.from({ length: eqStageCount }, () => {
+        const filter = offline.createBiquadFilter();
+        filter.type = "lowshelf";
+        filter.frequency.value = 120;
+        return filter;
+      });
+      const eqMid = Array.from({ length: eqStageCount }, () => {
+        const filter = offline.createBiquadFilter();
+        filter.type = "peaking";
+        filter.frequency.value = 1000;
+        return filter;
+      });
+      const eqHigh = Array.from({ length: eqStageCount }, () => {
+        const filter = offline.createBiquadFilter();
+        filter.type = "highshelf";
+        filter.frequency.value = 8000;
+        return filter;
+      });
+      const clipper = createSoftClipper(offline);
+      const limiter = createLimiter(offline);
 
       const automation = automationState.get(deckId);
       const djFilterTrack = automation?.djFilter;
@@ -294,9 +315,9 @@ const App = () => {
       lowpass.frequency.value = targets.lowpass;
       highpass.Q.value = resonanceValue;
       lowpass.Q.value = resonanceValue;
-      eqLow.gain.value = eqLowValue;
-      eqMid.gain.value = eqMidValue;
-      eqHigh.gain.value = eqHighValue;
+      applyEqGain(eqLow, eqLowValue);
+      applyEqGain(eqMid, eqMidValue);
+      applyEqGain(eqHigh, eqHighValue);
       balanceNode.pan.value = balanceValue;
       setPitchShift(pitchShiftNodes, pitchValue);
       const clipGain = deck.gain;
@@ -330,7 +351,10 @@ const App = () => {
           eqLowTrack.durationSec,
           renderDuration,
           (value, time) => {
-            eqLow.gain.setValueAtTime(value, time);
+            const perStageGain = value / eqStageCount;
+            eqLow.forEach((filter) => {
+              filter.gain.setValueAtTime(perStageGain, time);
+            });
           }
         );
       }
@@ -340,7 +364,10 @@ const App = () => {
           eqMidTrack.durationSec,
           renderDuration,
           (value, time) => {
-            eqMid.gain.setValueAtTime(value, time);
+            const perStageGain = value / eqStageCount;
+            eqMid.forEach((filter) => {
+              filter.gain.setValueAtTime(perStageGain, time);
+            });
           }
         );
       }
@@ -350,7 +377,10 @@ const App = () => {
           eqHighTrack.durationSec,
           renderDuration,
           (value, time) => {
-            eqHigh.gain.setValueAtTime(value, time);
+            const perStageGain = value / eqStageCount;
+            eqHigh.forEach((filter) => {
+              filter.gain.setValueAtTime(perStageGain, time);
+            });
           }
         );
       }
@@ -384,10 +414,21 @@ const App = () => {
       balanceNode.connect(pitchShiftNodes.input);
       pitchShiftNodes.output.connect(highpass);
       highpass.connect(lowpass);
-      lowpass.connect(eqLow);
-      eqLow.connect(eqMid);
-      eqMid.connect(eqHigh);
-      eqHigh.connect(offline.destination);
+      lowpass.connect(eqLow[0]);
+      for (let i = 0; i < eqLow.length - 1; i++) {
+        eqLow[i].connect(eqLow[i + 1]);
+      }
+      eqLow[eqLow.length - 1].connect(eqMid[0]);
+      for (let i = 0; i < eqMid.length - 1; i++) {
+        eqMid[i].connect(eqMid[i + 1]);
+      }
+      eqMid[eqMid.length - 1].connect(eqHigh[0]);
+      for (let i = 0; i < eqHigh.length - 1; i++) {
+        eqHigh[i].connect(eqHigh[i + 1]);
+      }
+      eqHigh[eqHigh.length - 1].connect(limiter);
+      limiter.connect(clipper);
+      clipper.connect(offline.destination);
       source.start(0, loopStart, renderDuration);
       void offline.startRendering().then((rendered) => {
         const blob = encodeWav(rendered);
@@ -396,8 +437,8 @@ const App = () => {
           durationSec: rendered.duration,
           buffer: rendered,
           gain: clipGain,
-          balance: balanceValue,
-          pitchShift: pitchValue,
+          balance: 0,
+          pitchShift: 0,
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
         });
       });
@@ -435,16 +476,27 @@ const App = () => {
       highpass.type = "highpass";
       const lowpass = offline.createBiquadFilter();
       lowpass.type = "lowpass";
-      const eqLow = offline.createBiquadFilter();
-      eqLow.type = "lowshelf";
-      eqLow.frequency.value = 120;
-      const eqMid = offline.createBiquadFilter();
-      eqMid.type = "peaking";
-      eqMid.frequency.value = 1000;
-      const eqHigh = offline.createBiquadFilter();
-      eqHigh.type = "highshelf";
-      eqHigh.frequency.value = 8000;
+      const eqLow = Array.from({ length: eqStageCount }, () => {
+        const filter = offline.createBiquadFilter();
+        filter.type = "lowshelf";
+        filter.frequency.value = 120;
+        return filter;
+      });
+      const eqMid = Array.from({ length: eqStageCount }, () => {
+        const filter = offline.createBiquadFilter();
+        filter.type = "peaking";
+        filter.frequency.value = 1000;
+        return filter;
+      });
+      const eqHigh = Array.from({ length: eqStageCount }, () => {
+        const filter = offline.createBiquadFilter();
+        filter.type = "highshelf";
+        filter.frequency.value = 8000;
+        return filter;
+      });
       const gainNode = offline.createGain();
+      const clipper = createSoftClipper(offline);
+      const limiter = createLimiter(offline);
 
       const automation = automationState.get(deck.id);
       const djFilterTrack = automation?.djFilter;
@@ -470,12 +522,12 @@ const App = () => {
       lowpass.frequency.value = targets.lowpass;
       highpass.Q.value = resonanceValue;
       lowpass.Q.value = resonanceValue;
-      eqLow.gain.value = eqLowValue;
-      eqMid.gain.value = eqMidValue;
-      eqHigh.gain.value = eqHighValue;
+      applyEqGain(eqLow, eqLowValue);
+      applyEqGain(eqMid, eqMidValue);
+      applyEqGain(eqHigh, eqHighValue);
+      gainNode.gain.value = deck.gain;
       balanceNode.pan.value = balanceValue;
       setPitchShift(pitchShiftNodes, pitchValue);
-      gainNode.gain.value = deck.gain;
 
       if (djFilterTrack?.active && djFilterTrack.durationSec > 0) {
         scheduleLoopedSamples(
@@ -506,7 +558,10 @@ const App = () => {
           eqLowTrack.durationSec,
           durationSec,
           (value, time) => {
-            eqLow.gain.setValueAtTime(value, time);
+            const perStageGain = value / eqStageCount;
+            eqLow.forEach((filter) => {
+              filter.gain.setValueAtTime(perStageGain, time);
+            });
           }
         );
       }
@@ -516,7 +571,10 @@ const App = () => {
           eqMidTrack.durationSec,
           durationSec,
           (value, time) => {
-            eqMid.gain.setValueAtTime(value, time);
+            const perStageGain = value / eqStageCount;
+            eqMid.forEach((filter) => {
+              filter.gain.setValueAtTime(perStageGain, time);
+            });
           }
         );
       }
@@ -526,7 +584,10 @@ const App = () => {
           eqHighTrack.durationSec,
           durationSec,
           (value, time) => {
-            eqHigh.gain.setValueAtTime(value, time);
+            const perStageGain = value / eqStageCount;
+            eqHigh.forEach((filter) => {
+              filter.gain.setValueAtTime(perStageGain, time);
+            });
           }
         );
       }
@@ -560,11 +621,22 @@ const App = () => {
       balanceNode.connect(pitchShiftNodes.input);
       pitchShiftNodes.output.connect(highpass);
       highpass.connect(lowpass);
-      lowpass.connect(eqLow);
-      eqLow.connect(eqMid);
-      eqMid.connect(eqHigh);
-      eqHigh.connect(gainNode);
-      gainNode.connect(offline.destination);
+      lowpass.connect(eqLow[0]);
+      for (let i = 0; i < eqLow.length - 1; i++) {
+        eqLow[i].connect(eqLow[i + 1]);
+      }
+      eqLow[eqLow.length - 1].connect(eqMid[0]);
+      for (let i = 0; i < eqMid.length - 1; i++) {
+        eqMid[i].connect(eqMid[i + 1]);
+      }
+      eqMid[eqMid.length - 1].connect(eqHigh[0]);
+      for (let i = 0; i < eqHigh.length - 1; i++) {
+        eqHigh[i].connect(eqHigh[i + 1]);
+      }
+      eqHigh[eqHigh.length - 1].connect(gainNode);
+      gainNode.connect(limiter);
+      limiter.connect(clipper);
+      clipper.connect(offline.destination);
 
       const loopStart = deck.loopStartSeconds ?? 0;
       const loopEnd =

@@ -247,6 +247,7 @@ body {
   letter-spacing: 0.02em;
   text-transform: none;
   opacity: 0.6;
+  white-space: nowrap;
 }
 
 .deck__actions {

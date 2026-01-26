@@ -7,6 +7,8 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 const AUTOMATION_SAMPLE_RATE = 30;
 const MIN_AUTOMATION_DURATION = 0.25;
 const AUTOMATION_UI_INTERVAL_MS = 100;
+const TEMPO_SNAP_STEP = 25;
+const TEMPO_SNAP_THRESHOLD = 1;
 
 type AutomationTrack = {
   samples: Float32Array;
@@ -1062,7 +1064,13 @@ const useDecks = () => {
   };
 
   const setDeckTempoOffset = (id: number, value: number) => {
-    const nextValue = Number.isFinite(value) ? value : 0;
+    const safeValue = Number.isFinite(value) ? value : 0;
+    const snapped =
+      Math.abs(safeValue) > 100
+        ? safeValue
+        : Math.round(safeValue / TEMPO_SNAP_STEP) * TEMPO_SNAP_STEP;
+    const nextValue =
+      Math.abs(safeValue - snapped) <= TEMPO_SNAP_THRESHOLD ? snapped : safeValue;
     setDecks((prev) =>
       prev.map((deck) => (deck.id === id ? { ...deck, tempoOffset: nextValue } : deck))
     );

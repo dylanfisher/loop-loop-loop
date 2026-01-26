@@ -36,7 +36,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
   - If BPM is known, enable beat-grid snapping for loop/seek (post-MVP).
 
 ### Deck Model
-- Deck as a graph: source -> per-deck FX -> deck bus.
+- Deck as a graph: source -> per-deck FX -> deck bus (includes a per-deck limiter and soft clipper after EQ).
 - Sources: file drop, mic input, oscillator/sampler, granular buffer.
 - Looping, slicing, cueing, and morphing controls.
 
