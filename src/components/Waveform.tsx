@@ -264,11 +264,26 @@ const Waveform = ({
       const loopRegion = loopRegionRef.current;
       const loopConnector = loopConnectorRef.current;
 
-      if (loopStartHandle) {
-        loopStartHandle.style.left = `${clampedStart * 100}%`;
-      }
-      if (loopEndHandle) {
-        loopEndHandle.style.left = `${clampedEnd * 100}%`;
+      const overlayWidth = overlay.clientWidth;
+      if (overlayWidth > 0) {
+        const startHandleWidth = loopStartHandle?.offsetWidth ?? 0;
+        const endHandleWidth = loopEndHandle?.offsetWidth ?? 0;
+        const startHalf = startHandleWidth / 2;
+        const endHalf = endHandleWidth / 2;
+        const startLeftPx = Math.min(
+          Math.max(clampedStart * overlayWidth, startHalf),
+          overlayWidth - startHalf
+        );
+        const endLeftPx = Math.min(
+          Math.max(clampedEnd * overlayWidth, endHalf),
+          overlayWidth - endHalf
+        );
+        if (loopStartHandle) {
+          loopStartHandle.style.left = `${(startLeftPx / overlayWidth) * 100}%`;
+        }
+        if (loopEndHandle) {
+          loopEndHandle.style.left = `${(endLeftPx / overlayWidth) * 100}%`;
+        }
       }
       if (loopRegion) {
         const left = Math.min(clampedStart, clampedEnd);

@@ -43,6 +43,47 @@ const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
   });
 };
 
+const trimBufferLeadingSamples = (
+  context: BaseAudioContext,
+  buffer: AudioBuffer,
+  startSamples: number,
+  targetLength: number
+) => {
+  const safeStart = Math.max(0, Math.min(startSamples, buffer.length - 1));
+  const safeLength = Math.max(
+    1,
+    Math.min(targetLength, buffer.length - safeStart)
+  );
+  const trimmed = context.createBuffer(
+    buffer.numberOfChannels,
+    safeLength,
+    buffer.sampleRate
+  );
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const source = buffer.getChannelData(channel);
+    trimmed
+      .getChannelData(channel)
+      .set(source.subarray(safeStart, safeStart + safeLength));
+  }
+  return trimmed;
+};
+
+const findLeadingSilenceSamples = (
+  buffer: AudioBuffer,
+  maxSamples: number,
+  threshold: number
+) => {
+  const limit = Math.min(buffer.length, Math.max(0, maxSamples));
+  for (let i = 0; i < limit; i += 1) {
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      if (Math.abs(buffer.getChannelData(channel)[i]) >= threshold) {
+        return i;
+      }
+    }
+  }
+  return limit;
+};
+
 const App = () => {
   console.info("App: render");
   const [clips, setClips] = useState<ClipItem[]>([]);
@@ -224,6 +265,7 @@ const App = () => {
           gain: clip.gain,
           balance: clip.balance,
           pitchShift: clip.pitchShift,
+          tempoOffset: clip.tempoOffset ?? 0,
         },
         ...prev,
       ]);
@@ -250,7 +292,18 @@ const App = () => {
       const sliceDuration = Math.max(0.01, loopEnd - loopStart);
       const renderDuration = sliceDuration / Math.max(0.01, tempoRatio);
       const sampleRate = deck.buffer.sampleRate;
-      const length = Math.max(1, Math.ceil(renderDuration * sampleRate));
+      const targetSamples = Math.max(1, Math.ceil(renderDuration * sampleRate));
+      const fftFrameSize = 1024;
+      const osamp = 8;
+      const pitchTrack = automationState.get(deckId)?.pitch;
+      const pitchActive =
+        Math.abs(deck.pitchShift) >= 0.001 || pitchTrack?.active === true;
+      const latencySamples = pitchActive
+        ? Math.round(fftFrameSize - fftFrameSize / osamp)
+        : 0;
+      const maxSilenceTrimSamples = Math.ceil(0.03 * sampleRate);
+      const extraSamples = latencySamples + maxSilenceTrimSamples;
+      const length = Math.max(1, targetSamples + extraSamples);
       const offline = new OfflineAudioContext(
         deck.buffer.numberOfChannels,
         length,
@@ -290,6 +343,8 @@ const App = () => {
       });
       const clipper = createSoftClipper(offline);
       const limiter = createLimiter(offline);
+      const masterGain = offline.createGain();
+      masterGain.gain.value = 0.9;
 
       const automation = automationState.get(deckId);
       const djFilterTrack = automation?.djFilter;
@@ -298,7 +353,6 @@ const App = () => {
       const eqMidTrack = automation?.eqMid;
       const eqHighTrack = automation?.eqHigh;
       const balanceTrack = automation?.balance;
-      const pitchTrack = automation?.pitch;
 
       const djFilterValue = djFilterTrack?.active ? djFilterTrack.currentValue : deck.djFilter;
       const resonanceValue = resonanceTrack?.active
@@ -428,17 +482,31 @@ const App = () => {
       }
       eqHigh[eqHigh.length - 1].connect(limiter);
       limiter.connect(clipper);
-      clipper.connect(offline.destination);
+      clipper.connect(masterGain);
+      masterGain.connect(offline.destination);
       source.start(0, loopStart, renderDuration);
       void offline.startRendering().then((rendered) => {
-        const blob = encodeWav(rendered);
+        const silenceTrimSamples = findLeadingSilenceSamples(
+          rendered,
+          maxSilenceTrimSamples,
+          1e-4
+        );
+        const totalTrim = Math.min(latencySamples + silenceTrimSamples, extraSamples);
+        const trimmed = trimBufferLeadingSamples(
+          offline,
+          rendered,
+          totalTrim,
+          targetSamples
+        );
+        const blob = encodeWav(trimmed);
         addClip({
           blob,
-          durationSec: rendered.duration,
-          buffer: rendered,
+          durationSec: trimmed.duration,
+          buffer: trimmed,
           gain: clipGain,
           balance: 0,
           pitchShift: 0,
+          tempoOffset: 0,
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
         });
       });
@@ -780,6 +848,7 @@ const App = () => {
           gain: clip.gain,
           balance: clip.balance,
           pitchShift: clip.pitchShift,
+          tempoOffset: clip.tempoOffset ?? 0,
           wavBlobId: blobId,
         });
       }
@@ -922,6 +991,7 @@ const App = () => {
           gain: clip.gain,
           balance: clip.balance ?? 0,
           pitchShift: clip.pitchShift ?? 0,
+          tempoOffset: clip.tempoOffset ?? 0,
         });
         maxClipId = Math.max(maxClipId, clip.id);
       }
@@ -1024,6 +1094,7 @@ const App = () => {
           gain: clip.gain,
           balance: clip.balance ?? 0,
           pitchShift: clip.pitchShift ?? 0,
+          tempoOffset: clip.tempoOffset ?? 0,
         });
         maxClipId = Math.max(maxClipId, clip.id);
       }

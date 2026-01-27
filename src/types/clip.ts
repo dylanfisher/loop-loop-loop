@@ -8,4 +8,5 @@ export type ClipItem = {
   gain: number;
   balance: number;
   pitchShift: number;
+  tempoOffset: number;
 };

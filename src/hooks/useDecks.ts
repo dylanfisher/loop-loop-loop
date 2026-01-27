@@ -476,7 +476,7 @@ const useDecks = () => {
   const handleFileSelected = async (
     id: number,
     file: File | null,
-    options?: { gain?: number; pitchShift?: number; balance?: number }
+    options?: { gain?: number; pitchShift?: number; balance?: number; tempoOffset?: number }
   ) => {
     if (!file) return;
 
@@ -485,6 +485,7 @@ const useDecks = () => {
     const nextGain = options?.gain ?? 0.9;
     const nextPitchShift = options?.pitchShift ?? 0;
     const nextBalance = options?.balance ?? 0;
+    const nextTempoOffset = options?.tempoOffset ?? 0;
     if (wasPlaying) {
       stop(id);
       playbackStartRef.current.delete(id);
@@ -507,7 +508,7 @@ const useDecks = () => {
       loopEnabled: true,
       loopStartSeconds: 0,
       loopEndSeconds: 0,
-      tempoOffset: 0,
+      tempoOffset: nextTempoOffset,
     });
     setDeckPitchShift(id, nextPitchShift);
     setDeckBalance(id, nextBalance);
@@ -523,16 +524,16 @@ const useDecks = () => {
         offsetSeconds: 0,
         djFilter: 0,
         filterResonance: 0.7,
-      eqLowGain: 0,
-      eqMidGain: 0,
-      eqHighGain: 0,
-      balance: nextBalance,
-      pitchShift: nextPitchShift,
-      zoom: 1,
+        eqLowGain: 0,
+        eqMidGain: 0,
+        eqHighGain: 0,
+        balance: nextBalance,
+        pitchShift: nextPitchShift,
+        zoom: 1,
         loopEnabled: true,
         loopStartSeconds: 0,
         loopEndSeconds: duration,
-        tempoOffset: 0,
+        tempoOffset: nextTempoOffset,
       };
       if (wasPlaying) {
         const startedAtMs = performance.now();
@@ -544,6 +545,7 @@ const useDecks = () => {
         });
         const filters = getFilterTargets(0);
         const gain = nextGain;
+        const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
         void playBuffer(
           id,
           buffer,
@@ -554,7 +556,7 @@ const useDecks = () => {
           },
           gain,
           0,
-          1,
+          tempoRatio,
           true,
           0,
           duration,

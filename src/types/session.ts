@@ -43,6 +43,7 @@ export type ClipSession = {
   gain: number;
   balance: number;
   pitchShift: number;
+  tempoOffset: number;
   wavBlobId: string;
 };
 
