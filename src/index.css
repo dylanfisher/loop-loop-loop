@@ -275,6 +275,7 @@ body {
 
 .deck__bpm-summary {
   display: inline-flex;
+  align-items: center;
   gap: 8px;
   font-size: 0.7rem;
   letter-spacing: 0.06em;
@@ -472,6 +473,26 @@ body {
   -webkit-appearance: slider-vertical;
   width: 18px;
   height: 120px;
+}
+
+.deck__pitch-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.65rem;
+  text-transform: none;
+}
+
+.knob.is-disabled {
+  opacity: 0.5;
+}
+
+.knob.is-disabled .knob__control {
+  cursor: not-allowed;
+}
+
+.automation-lane.is-disabled {
+  opacity: 0.6;
 }
 
 .deck__bpm-toggle {

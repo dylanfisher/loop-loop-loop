@@ -135,6 +135,7 @@ const App = () => {
     setDeckLoop,
     setDeckLoopBounds,
     setDeckTempoOffset,
+    setDeckTempoPitchSync,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,
@@ -1286,6 +1287,7 @@ const App = () => {
           onLoopChange={setDeckLoop}
           onLoopBoundsChange={setDeckLoopBounds}
           onTempoOffsetChange={setDeckTempoOffset}
+          onTempoPitchSyncChange={setDeckTempoPitchSync}
           automationState={automationState}
           onAutomationStart={startAutomationRecording}
           onAutomationStop={stopAutomationRecording}

@@ -6,7 +6,12 @@ type DeckStackProps = {
   onAddDeck: () => void;
   onRemoveDeck: (id: number) => void;
   onLoadClick: (id: number) => void;
-  onFileSelected: (id: number, file: File | null, options?: { gain?: number }) => void;
+  onFileSelected: (id: number, file: File | null, options?: {
+    gain?: number;
+    pitchShift?: number;
+    balance?: number;
+    tempoOffset?: number;
+  }) => void;
   onPlay: (deck: DeckState) => void;
   onPause: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
@@ -22,6 +27,7 @@ type DeckStackProps = {
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onTempoOffsetChange: (id: number, value: number) => void;
+  onTempoPitchSyncChange: (id: number, value: boolean) => void;
   onSaveLoopClip: (id: number) => void;
   automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch", {
     samples: Float32Array;
@@ -79,6 +85,7 @@ const DeckStack = ({
   onLoopChange,
   onLoopBoundsChange,
   onTempoOffsetChange,
+  onTempoPitchSyncChange,
   onSaveLoopClip,
   automationState,
   onAutomationStart,
@@ -122,6 +129,7 @@ const DeckStack = ({
             onLoopChange={onLoopChange}
             onLoopBoundsChange={onLoopBoundsChange}
             onTempoOffsetChange={onTempoOffsetChange}
+            onTempoPitchSyncChange={onTempoPitchSyncChange}
             onSaveLoopClip={onSaveLoopClip}
             automation={automationState.get(deck.id)}
             onAutomationStart={onAutomationStart}

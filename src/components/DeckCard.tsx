@@ -62,6 +62,7 @@ type DeckCardProps = {
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onTempoOffsetChange: (id: number, value: number) => void;
+  onTempoPitchSyncChange: (id: number, value: boolean) => void;
   onSaveLoopClip: (id: number) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
@@ -104,6 +105,7 @@ const DeckCard = ({
   onLoopChange,
   onLoopBoundsChange,
   onTempoOffsetChange,
+  onTempoPitchSyncChange,
   onSaveLoopClip,
   getDeckPosition,
   getDeckPlaybackSnapshot,
@@ -269,6 +271,14 @@ const DeckCard = ({
         </div>
         <div className="deck__meta">
           <div className="deck__bpm-summary">
+            <label className="deck__pitch-sync">
+              <input
+                type="checkbox"
+                checked={deck.tempoPitchSync}
+                onChange={(event) => onTempoPitchSyncChange(deck.id, event.target.checked)}
+              />
+              Sync Pitch
+            </label>
             <span>Tempo {formatTempo(deck.tempoOffset)}</span>
           </div>
           <span className={`deck__status deck__status--${deck.status}`}>
@@ -574,6 +584,7 @@ const DeckCard = ({
               formatValue={(value) => `${value.toFixed(1)} st`}
               centerSnap={0.25}
               isAutomated={pitchAutomation.active}
+              disabled={deck.tempoPitchSync}
             />
             <AutomationLane
               label="Automation"
@@ -593,6 +604,7 @@ const DeckCard = ({
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "pitch", value)
               }
+              disabled={deck.tempoPitchSync}
             />
           </div>
         </div>

@@ -14,6 +14,7 @@ export type DeckState = {
   loopStartSeconds: number;
   loopEndSeconds: number;
   tempoOffset: number;
+  tempoPitchSync: boolean;
   djFilter: number;
   filterResonance: number;
   eqLowGain: number;

@@ -17,6 +17,7 @@ type AutomationLaneProps = {
   onReset: () => void;
   onToggleActive: (active: boolean) => void;
   onDrawValueChange: (value: number) => void;
+  disabled?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -37,6 +38,7 @@ const AutomationLane = ({
   onReset,
   onToggleActive,
   onDrawValueChange,
+  disabled = false,
 }: AutomationLaneProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const laneRef = useRef<HTMLDivElement | null>(null);
@@ -131,6 +133,7 @@ const AutomationLane = ({
 
   const setValueFromPointer = useCallback(
     (event: PointerEvent | ReactPointerEvent<HTMLDivElement>) => {
+      if (disabled) return;
       const rect = laneRef.current?.getBoundingClientRect();
       if (!rect) return;
       const clampedY = clamp(event.clientY - rect.top, 0, rect.height);
@@ -139,16 +142,17 @@ const AutomationLane = ({
       setLiveValue(next);
       onDrawValueChange(next);
     },
-    [max, min, onDrawValueChange]
+    [disabled, max, min, onDrawValueChange]
   );
 
   const handleDrawEnd = useCallback(() => {
+    if (disabled) return;
     setLiveValue(null);
     onDrawEnd();
-  }, [onDrawEnd]);
+  }, [disabled, onDrawEnd]);
 
   useEffect(() => {
-    if (!recording) return;
+    if (!recording || disabled) return;
     const handleMove = (event: PointerEvent) => {
       setValueFromPointer(event);
     };
@@ -163,10 +167,10 @@ const AutomationLane = ({
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
     };
-  }, [handleDrawEnd, recording, setValueFromPointer]);
+  }, [disabled, handleDrawEnd, recording, setValueFromPointer]);
 
   return (
-    <div className="automation-lane">
+    <div className={`automation-lane ${disabled ? "is-disabled" : ""}`}>
       <div className="automation-lane__header">
         <span>{label}</span>
         <div className="automation-lane__actions">
@@ -174,10 +178,16 @@ const AutomationLane = ({
             type="button"
             className={`automation-lane__toggle ${active ? "is-active" : ""}`}
             onClick={() => onToggleActive(!active)}
+            disabled={disabled}
           >
             {active ? "Active" : "Bypass"}
           </button>
-          <button type="button" className="automation-lane__reset" onClick={onReset}>
+          <button
+            type="button"
+            className="automation-lane__reset"
+            onClick={onReset}
+            disabled={disabled}
+          >
             Reset
           </button>
         </div>
@@ -186,6 +196,7 @@ const AutomationLane = ({
         ref={laneRef}
         className="automation-lane__canvas"
         onPointerDown={(event) => {
+          if (disabled) return;
           onDrawStart();
           setValueFromPointer(event);
         }}

@@ -102,6 +102,7 @@ const useDecks = () => {
       loopStartSeconds: 0,
       loopEndSeconds: 0,
       tempoOffset: 0,
+      tempoPitchSync: false,
     },
   ]);
   const {
@@ -239,6 +240,12 @@ const useDecks = () => {
     (deck: DeckState) => clampPlaybackRate(1 + deck.tempoOffset / 100),
     []
   );
+
+  const getTempoSyncedPitch = (tempoOffset: number) => {
+    const rate = clampPlaybackRate(1 + tempoOffset / 100);
+    const semitones = -12 * Math.log2(rate);
+    return Math.min(24, Math.max(-24, semitones));
+  };
 
   const updateAutomationTickEnabled = useCallback(() => {
     let enabled = false;
@@ -567,6 +574,7 @@ const useDecks = () => {
         loopStartSeconds: 0,
         loopEndSeconds: 0,
         tempoOffset: 0,
+        tempoPitchSync: false,
       },
     ]);
   };
@@ -634,6 +642,7 @@ const useDecks = () => {
       loopStartSeconds: 0,
       loopEndSeconds: 0,
       tempoOffset: nextTempoOffset,
+      tempoPitchSync: false,
     }, false);
     setDeckPitchShift(id, nextPitchShift);
     setDeckBalance(id, nextBalance);
@@ -659,6 +668,7 @@ const useDecks = () => {
         loopStartSeconds: 0,
         loopEndSeconds: duration,
         tempoOffset: nextTempoOffset,
+        tempoPitchSync: false,
       };
       if (wasPlaying) {
         const startedAtMs = performance.now();
@@ -923,6 +933,8 @@ const useDecks = () => {
   };
 
   const setDeckPitchShiftValue = (id: number, value: number) => {
+    const deck = decks.find((item) => item.id === id);
+    if (deck?.tempoPitchSync) return;
     const clamped = Math.min(Math.max(value, -12), 12);
     setDeckPitchShift(id, clamped);
     updateDeck(id, { pitchShift: clamped });
@@ -940,6 +952,7 @@ const useDecks = () => {
   const startAutomationRecording = (id: number, param: AutomationParam) => {
     const deck = decks.find((item) => item.id === id);
     if (!deck) return;
+    if (param === "pitch" && deck.tempoPitchSync) return;
     const automation = ensureAutomationDeck(id, deck);
     const track = automation[param];
     track.recording = true;
@@ -997,6 +1010,8 @@ const useDecks = () => {
   const updateAutomationValue = (id: number, param: AutomationParam, value: number) => {
     const automation = automationRef.current.get(id);
     if (!automation) return;
+    const deck = decks.find((item) => item.id === id);
+    if (param === "pitch" && deck?.tempoPitchSync) return;
     const track = automation[param];
     track.currentValue = value;
     if (param === "djFilter") {
@@ -1029,6 +1044,8 @@ const useDecks = () => {
   const toggleAutomationActive = (id: number, param: AutomationParam, next: boolean) => {
     const automation = automationRef.current.get(id);
     if (!automation) return;
+    const deck = decks.find((item) => item.id === id);
+    if (param === "pitch" && deck?.tempoPitchSync) return;
     const track = automation[param];
     track.active = next;
     if (next) {
@@ -1199,10 +1216,52 @@ const useDecks = () => {
         : Math.round(safeValue / TEMPO_SNAP_STEP) * TEMPO_SNAP_STEP;
     const nextValue =
       Math.abs(safeValue - snapped) <= TEMPO_SNAP_THRESHOLD ? snapped : safeValue;
+    let nextPitch = 0;
+    let shouldSyncPitch = false;
     setDecksWithHistory((prev) =>
-      prev.map((deck) => (deck.id === id ? { ...deck, tempoOffset: nextValue } : deck))
+      prev.map((deck) => {
+        if (deck.id !== id) return deck;
+        shouldSyncPitch = deck.tempoPitchSync;
+        if (shouldSyncPitch) {
+          nextPitch = getTempoSyncedPitch(nextValue);
+          return { ...deck, tempoOffset: nextValue, pitchShift: nextPitch };
+        }
+        return { ...deck, tempoOffset: nextValue };
+      })
     );
     setDeckPlaybackRate(id, clampPlaybackRate(1 + nextValue / 100));
+    if (shouldSyncPitch) {
+      setDeckPitchShift(id, nextPitch);
+    }
+  };
+
+  const setDeckTempoPitchSync = (id: number, enabled: boolean) => {
+    let nextPitch = 0;
+    setDecksWithHistory((prev) =>
+      prev.map((deck) => {
+        if (deck.id !== id) return deck;
+        if (enabled) {
+          nextPitch = getTempoSyncedPitch(deck.tempoOffset);
+          return { ...deck, tempoPitchSync: true, pitchShift: nextPitch };
+        }
+        return { ...deck, tempoPitchSync: false };
+      })
+    );
+    if (enabled) {
+      const automation = automationRef.current.get(id);
+      if (automation) {
+        const track = automation.pitch;
+        track.recording = false;
+        track.active = false;
+        track.paused = false;
+        track.pausedPositionSec = 0;
+        track.playbackStartMs = 0;
+        track.lastPreviewLength = 0;
+        updateAutomationView(id);
+        updateAutomationTickEnabled();
+      }
+      setDeckPitchShift(id, nextPitch);
+    }
   };
 
   const getDeckPlaybackSnapshotSafe = useCallback(
@@ -1278,6 +1337,7 @@ const useDecks = () => {
         loopStartSeconds: deck.loopStartSeconds,
         loopEndSeconds: deck.loopEndSeconds,
         tempoOffset: deck.tempoOffset,
+        tempoPitchSync: deck.tempoPitchSync,
         automation: {
           djFilter: buildSnapshot(automation?.djFilter, deck.djFilter),
           resonance: buildSnapshot(automation?.resonance, deck.filterResonance),
@@ -1404,12 +1464,13 @@ const useDecks = () => {
           pitchShift: sessionDeck.pitchShift ?? 0,
           offsetSeconds,
           zoom: sessionDeck.zoom,
-          loopEnabled: sessionDeck.loopEnabled,
-          loopStartSeconds: loopStart,
-          loopEndSeconds: loopEnd,
-          tempoOffset: sessionDeck.tempoOffset,
-          startedAtMs: undefined,
-        };
+        loopEnabled: sessionDeck.loopEnabled,
+        loopStartSeconds: loopStart,
+        loopEndSeconds: loopEnd,
+        tempoOffset: sessionDeck.tempoOffset,
+        tempoPitchSync: sessionDeck.tempoPitchSync ?? false,
+        startedAtMs: undefined,
+      };
       });
 
       nextDeckId.current = Math.max(2, maxDeckId + 1);
@@ -1443,6 +1504,7 @@ const useDecks = () => {
     setDeckLoop: setDeckLoopValue,
     setDeckLoopBounds,
     setDeckTempoOffset,
+    setDeckTempoPitchSync,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,

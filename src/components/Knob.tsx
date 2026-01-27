@@ -14,6 +14,7 @@ type KnobProps = {
   className?: string;
   ariaLabel?: string;
   isAutomated?: boolean;
+  disabled?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -50,6 +51,7 @@ const Knob = ({
   className,
   ariaLabel,
   isAutomated = false,
+  disabled = false,
 }: KnobProps) => {
   const knobRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<{ startX: number; startY: number; startValue: number } | null>(null);
@@ -91,6 +93,7 @@ const Knob = ({
   }, [centerSnap, defaultValue, max, min, onChange, range, step]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
     if (!knobRef.current) return;
     knobRef.current.setPointerCapture(event.pointerId);
     dragState.current = { startX: event.clientX, startY: event.clientY, startValue: value };
@@ -99,6 +102,7 @@ const Knob = ({
   };
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
     const fine = event.shiftKey ? step : step * 5;
     if (event.key === "ArrowRight" || event.key === "ArrowUp") {
       event.preventDefault();
@@ -113,11 +117,14 @@ const Knob = ({
   };
 
   const handleKeyUp = () => {
+    if (disabled) return;
     setFineMode(false);
   };
 
   return (
-    <div className={`knob ${isAutomated ? "is-automated" : ""} ${className ?? ""}`.trim()}>
+    <div
+      className={`knob ${isAutomated ? "is-automated" : ""} ${disabled ? "is-disabled" : ""} ${className ?? ""}`.trim()}
+    >
       <div className="knob__label">{label}</div>
       <div
         ref={knobRef}
@@ -127,9 +134,10 @@ const Knob = ({
         aria-valuemin={min}
         aria-valuemax={max}
         aria-valuenow={value}
-        tabIndex={0}
+        tabIndex={disabled ? -1 : 0}
         onPointerDown={handlePointerDown}
         onDoubleClick={() => {
+          if (disabled) return;
           dragState.current = null;
           setDragging(false);
           setFineMode(false);
