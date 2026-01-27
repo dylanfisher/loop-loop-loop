@@ -1003,8 +1003,9 @@ const useDecks = () => {
       prev.map((deck) => {
         if (deck.id !== id || !deck.buffer) return deck;
         const duration = deck.duration ?? deck.buffer.duration;
+        const minGap = Math.min(0.05, Math.max(0.005, duration * 0.25));
         const nextStart = Math.min(Math.max(0, startSeconds), duration);
-        const nextEnd = Math.min(Math.max(nextStart + 0.05, endSeconds), duration);
+        const nextEnd = Math.min(Math.max(nextStart + minGap, endSeconds), duration);
 
         if (deck.status === "playing" && deck.loopEnabled) {
           const currentPosition = getDeckPosition(deck.id);

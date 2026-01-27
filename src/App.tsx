@@ -341,6 +341,8 @@ const App = () => {
         filter.frequency.value = 8000;
         return filter;
       });
+      const gainNode = offline.createGain();
+      gainNode.gain.value = deck.gain;
       const clipper = createSoftClipper(offline);
       const limiter = createLimiter(offline);
       const masterGain = offline.createGain();
@@ -374,7 +376,6 @@ const App = () => {
       applyEqGain(eqHigh, eqHighValue);
       balanceNode.pan.value = balanceValue;
       setPitchShift(pitchShiftNodes, pitchValue);
-      const clipGain = deck.gain;
 
       if (djFilterTrack?.active && djFilterTrack.durationSec > 0) {
         scheduleLoopedSamples(
@@ -480,7 +481,8 @@ const App = () => {
       for (let i = 0; i < eqHigh.length - 1; i++) {
         eqHigh[i].connect(eqHigh[i + 1]);
       }
-      eqHigh[eqHigh.length - 1].connect(limiter);
+      eqHigh[eqHigh.length - 1].connect(gainNode);
+      gainNode.connect(limiter);
       limiter.connect(clipper);
       clipper.connect(masterGain);
       masterGain.connect(offline.destination);
@@ -503,7 +505,7 @@ const App = () => {
           blob,
           durationSec: trimmed.duration,
           buffer: trimmed,
-          gain: clipGain,
+          gain: 0.9,
           balance: 0,
           pitchShift: 0,
           tempoOffset: 0,
