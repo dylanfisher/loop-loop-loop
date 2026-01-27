@@ -34,6 +34,7 @@ export type DeckSession = {
   loopEndSeconds: number;
   tempoOffset: number;
   tempoPitchSync: boolean;
+  stretchRatio: number;
   automation: Record<AutomationParam, AutomationSnapshot>;
 };
 

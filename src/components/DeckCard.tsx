@@ -63,6 +63,8 @@ type DeckCardProps = {
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onTempoOffsetChange: (id: number, value: number) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
+  onStretchRatioChange: (id: number, value: number) => void;
+  onStretchLoop: (id: number) => void;
   onSaveLoopClip: (id: number) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
@@ -106,6 +108,8 @@ const DeckCard = ({
   onLoopBoundsChange,
   onTempoOffsetChange,
   onTempoPitchSyncChange,
+  onStretchRatioChange,
+  onStretchLoop,
   onSaveLoopClip,
   getDeckPosition,
   getDeckPlaybackSnapshot,
@@ -324,6 +328,29 @@ const DeckCard = ({
             onDoubleClick={() => onTempoOffsetChange(deck.id, 0)}
           />
         </label>
+        <div className="deck__stretch">
+          <label>
+            Stretch
+            <input
+              type="range"
+              min="1"
+              max="16"
+              step="0.1"
+              value={deck.stretchRatio}
+              onChange={(event) =>
+                onStretchRatioChange(deck.id, Number(event.target.value))
+              }
+            />
+            <span>{deck.stretchRatio.toFixed(1)}x</span>
+          </label>
+          <button
+            type="button"
+            onClick={() => onStretchLoop(deck.id)}
+            disabled={!deck.buffer}
+          >
+            Stretch Loop
+          </button>
+        </div>
         <div className="deck__waveform-side">
           <div className="deck__zoom">
             <span>Zoom</span>

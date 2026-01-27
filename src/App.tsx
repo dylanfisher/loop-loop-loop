@@ -18,6 +18,7 @@ import {
   ensurePitchShiftWorklet,
   setPitchShift,
 } from "./audio/pitchShift";
+import { createPaulStretchNode, ensurePaulStretchWorklet } from "./audio/paulStretch";
 import { createLimiter, createSoftClipper } from "./audio/clipper";
 import {
   createSessionBlobId,
@@ -84,8 +85,50 @@ const findLeadingSilenceSamples = (
   return limit;
 };
 
+const findTrailingNonSilenceSample = (buffer: AudioBuffer, threshold: number) => {
+  for (let i = buffer.length - 1; i >= 0; i -= 1) {
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      if (Math.abs(buffer.getChannelData(channel)[i]) >= threshold) {
+        return i;
+      }
+    }
+  }
+  return -1;
+};
+
+const computeRms = (
+  buffer: AudioBuffer,
+  startSample: number,
+  length: number
+) => {
+  const safeStart = Math.max(0, Math.min(startSample, buffer.length - 1));
+  const safeLength = Math.max(
+    1,
+    Math.min(length, buffer.length - safeStart)
+  );
+  let sum = 0;
+  let count = 0;
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let i = 0; i < safeLength; i += 1) {
+      const sample = data[safeStart + i] ?? 0;
+      sum += sample * sample;
+    }
+    count += safeLength;
+  }
+  return count > 0 ? Math.sqrt(sum / count) : 0;
+};
+
+const applyBufferGain = (buffer: AudioBuffer, gain: number) => {
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i += 1) {
+      data[i] *= gain;
+    }
+  }
+};
+
 const App = () => {
-  console.info("App: render");
   const [clips, setClips] = useState<ClipItem[]>([]);
   const [exportMinutes, setExportMinutes] = useState(10);
   const [exporting, setExporting] = useState(false);
@@ -136,6 +179,7 @@ const App = () => {
     setDeckLoopBounds,
     setDeckTempoOffset,
     setDeckTempoPitchSync,
+    setDeckStretchRatio,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,
@@ -151,6 +195,7 @@ const App = () => {
     redo,
     canUndo,
     canRedo,
+    loadDeckBuffer,
   } = useDecks();
 
   const getFilterTargets = useCallback((djFilter: number) => {
@@ -537,6 +582,11 @@ const App = () => {
     } catch (error) {
       console.warn("Pitch shift worklet unavailable for export", error);
     }
+    const masterMix = offline.createGain();
+    const masterGain = offline.createGain();
+    masterGain.gain.value = 0.9;
+    masterMix.connect(masterGain);
+    masterGain.connect(offline.destination);
 
     activeDecks.forEach((deck) => {
       if (!deck.buffer) return;
@@ -711,7 +761,7 @@ const App = () => {
       eqHigh[eqHigh.length - 1].connect(gainNode);
       gainNode.connect(limiter);
       limiter.connect(clipper);
-      clipper.connect(offline.destination);
+      clipper.connect(masterMix);
 
       const loopStart = deck.loopStartSeconds ?? 0;
       const loopEnd =
@@ -812,6 +862,108 @@ const App = () => {
     recorder.start(250);
     setRecording(true);
   }, [decodeFile, getMasterStream, recording]);
+
+  const handleStretchLoop = useCallback(
+    async (deckId: number) => {
+      const deck = decks.find((item) => item.id === deckId);
+      if (!deck?.buffer) return;
+      const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+      const loopEnd =
+        deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+          ? Math.min(deck.loopEndSeconds, deck.buffer.duration)
+          : deck.buffer.duration;
+      if (loopEnd <= loopStart + 0.01) return;
+      const ratio = Math.min(Math.max(deck.stretchRatio ?? 2, 1), 16);
+      const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
+      const sliceDuration = Math.max(0.01, loopEnd - loopStart);
+      // Duration to pull from the buffer in source-time so the rendered input is sliceDuration.
+      const inputDurationSource = sliceDuration * tempoRatio;
+      const sampleRate = deck.buffer.sampleRate;
+      const winSize = 16384;
+      const hopOut = winSize / 2;
+      const inputSamples = Math.max(1, Math.ceil(sliceDuration * sampleRate));
+      const outputSamples = Math.max(1, Math.ceil(sliceDuration * ratio * sampleRate));
+      const maxSilenceTrimSamples = Math.ceil(0.05 * sampleRate);
+      const length = Math.max(1, outputSamples + maxSilenceTrimSamples + hopOut);
+      const offline = new OfflineAudioContext(
+        deck.buffer.numberOfChannels,
+        length,
+        sampleRate
+      );
+      try {
+        await ensurePaulStretchWorklet(offline);
+      } catch (error) {
+        console.warn("Paulstretch worklet unavailable", error);
+        return;
+      }
+      const stretchNode = createPaulStretchNode(
+        offline,
+        ratio,
+        winSize,
+        inputSamples,
+        outputSamples
+      );
+      stretchNode.port.onmessage = (event) => {
+        const message = event.data;
+        if (message?.type === "paulstretch-debug") {
+          console.info(
+            `Paulstretch debug: base=${message.baseRatio} param=${message.ratioParam} resolved=${message.resolvedRatio} hopIn=${message.hopIn} hopOut=${message.hopOut} in=${message.inputSamples} out=${message.outputSamples} len=${message.paramLength}`
+          );
+        } else if (message?.type === "paulstretch-input-done") {
+          console.info(
+            `Paulstretch input done: in=${message.inputSamples} out=${message.outputSamples} emitted=${message.outputSamplesEmitted} total=${message.outputSamplesTotal} inputFrames=${message.inputFrames} tailFrames=${message.tailFrames} zeroFrames=${message.zeroFrames} read=${message.readPos} write=${message.writePos}`
+          );
+        } else if (message?.type === "paulstretch-output-done") {
+          console.info(
+            `Paulstretch output done: in=${message.inputSamples} out=${message.outputSamples} emitted=${message.outputSamplesEmitted} total=${message.outputSamplesTotal} inputFrames=${message.inputFrames} tailFrames=${message.tailFrames} zeroFrames=${message.zeroFrames} read=${message.readPos} write=${message.writePos}`
+          );
+        }
+      };
+      const source = offline.createBufferSource();
+      const keepAlive = offline.createConstantSource();
+      keepAlive.offset.value = 1e-6;
+      source.buffer = deck.buffer;
+      source.playbackRate.value = tempoRatio;
+      source.connect(stretchNode, 0, 0);
+      keepAlive.connect(stretchNode, 0, 1);
+      stretchNode.connect(offline.destination);
+      source.start(0, loopStart, inputDurationSource);
+      keepAlive.start(0);
+      keepAlive.stop(length / sampleRate);
+
+      const rendered = await offline.startRendering();
+      const lastNonSilent = findTrailingNonSilenceSample(rendered, 1e-4);
+      setSessionStatus(
+        `Stretch debug: out=${rendered.length} target=${outputSamples} lastNonSilent=${lastNonSilent}`
+      );
+      const silenceTrimSamples = findLeadingSilenceSamples(
+        rendered,
+        maxSilenceTrimSamples,
+        1e-4
+      );
+      const totalTrim = Math.min(silenceTrimSamples, maxSilenceTrimSamples + hopOut);
+      const trimmed = trimBufferLeadingSamples(
+        offline,
+        rendered,
+        totalTrim,
+        outputSamples
+      );
+      const sourceStartSample = Math.floor(loopStart * sampleRate);
+      const sourceLengthSamples = Math.max(
+        1,
+        Math.floor(sliceDuration * sampleRate)
+      );
+      const sourceRms = computeRms(deck.buffer, sourceStartSample, sourceLengthSamples);
+      const stretchedRms = computeRms(trimmed, 0, trimmed.length);
+      if (sourceRms > 0 && stretchedRms > 0) {
+        const gain = Math.min(4, Math.max(0.25, sourceRms / stretchedRms));
+        applyBufferGain(trimmed, gain);
+      }
+      const name = `${deck.fileName ?? "Loop"} Stretch ${ratio.toFixed(1)}x`;
+      loadDeckBuffer(deckId, trimmed, { name, autoplay: true });
+    },
+    [decks, loadDeckBuffer]
+  );
 
   const encodeDecksForSession = useCallback(async () => {
     const sessionDecks = getSessionDecks();
@@ -1288,6 +1440,8 @@ const App = () => {
           onLoopBoundsChange={setDeckLoopBounds}
           onTempoOffsetChange={setDeckTempoOffset}
           onTempoPitchSyncChange={setDeckTempoPitchSync}
+          onStretchRatioChange={setDeckStretchRatio}
+          onStretchLoop={handleStretchLoop}
           automationState={automationState}
           onAutomationStart={startAutomationRecording}
           onAutomationStop={stopAutomationRecording}

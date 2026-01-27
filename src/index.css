@@ -36,6 +36,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
+  user-select: text;
 }
 
 .app__brand {
@@ -791,6 +792,7 @@ button.is-active {
   align-items: center;
   flex-wrap: wrap;
 }
+
 
 .transport__export {
   display: flex;

@@ -28,6 +28,8 @@ type DeckStackProps = {
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onTempoOffsetChange: (id: number, value: number) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
+  onStretchRatioChange: (id: number, value: number) => void;
+  onStretchLoop: (id: number) => void;
   onSaveLoopClip: (id: number) => void;
   automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch", {
     samples: Float32Array;
@@ -86,6 +88,8 @@ const DeckStack = ({
   onLoopBoundsChange,
   onTempoOffsetChange,
   onTempoPitchSyncChange,
+  onStretchRatioChange,
+  onStretchLoop,
   onSaveLoopClip,
   automationState,
   onAutomationStart,
@@ -130,6 +134,8 @@ const DeckStack = ({
             onLoopBoundsChange={onLoopBoundsChange}
             onTempoOffsetChange={onTempoOffsetChange}
             onTempoPitchSyncChange={onTempoPitchSyncChange}
+            onStretchRatioChange={onStretchRatioChange}
+            onStretchLoop={onStretchLoop}
             onSaveLoopClip={onSaveLoopClip}
             automation={automationState.get(deck.id)}
             onAutomationStart={onAutomationStart}

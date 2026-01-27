@@ -94,6 +94,7 @@ const ensureContext = async () => {
   return audioContext;
 };
 
+
 const decodeFile = async (file: File) => {
   const context = await ensureContext();
   const arrayBuffer = await file.arrayBuffer();
@@ -221,6 +222,7 @@ const getDeckSnapshot = (deckId: number) => {
   }
   return snapshot;
 };
+
 
 const updateDeckLoopParams = (deckId: number, loopEnabled: boolean, start: number, end: number) => {
   setDeckLoopParams(deckId, loopEnabled, start, end);
