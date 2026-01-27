@@ -1,3 +1,5 @@
+import AsyncActionButton from "./AsyncActionButton";
+
 type TransportBarProps = {
   exportMinutes: number;
   onExportMinutesChange: (value: number) => void;
@@ -47,9 +49,13 @@ const TransportBar = ({
               onChange={(event) => onExportMinutesChange(Number(event.target.value))}
             />
           </label>
-          <button type="button" onClick={onExport} disabled={exporting}>
-            {exporting ? "Exporting..." : "Export Mix"}
-          </button>
+          <AsyncActionButton
+            onAction={onExport}
+            disabled={exporting}
+            busy={exporting}
+            idleLabel="Export Mix"
+            busyLabel="Exporting..."
+          />
         </div>
         <button type="button" className="transport__record" onClick={onRecordToggle}>
           {recording ? "Stop Recording" : "Record"}

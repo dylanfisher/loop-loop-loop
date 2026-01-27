@@ -473,7 +473,7 @@ body {
   writing-mode: bt-lr;
   -webkit-appearance: slider-vertical;
   width: 18px;
-  height: 120px;
+  height: 90px;
 }
 
 .deck__pitch-sync {
@@ -548,6 +548,7 @@ body {
   display: grid;
   gap: 6px;
 }
+
 
 .knob {
   display: grid;

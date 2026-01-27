@@ -3,6 +3,7 @@ import type { DeckState } from "../types/deck";
 import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
 import Waveform from "./Waveform";
+import AsyncActionButton from "./AsyncActionButton";
 
 type DeckCardProps = {
   deck: DeckState;
@@ -260,14 +261,13 @@ const DeckCard = ({
             >
               {deck.loopEnabled ? "Looping" : "Loop"}
             </button>
-            <button
-              type="button"
+            <AsyncActionButton
               className="deck__action"
               disabled={!deck.buffer}
-              onClick={() => onSaveLoopClip(deck.id)}
-            >
-              Save Loop
-            </button>
+              idleLabel="Save Loop"
+              busyLabel="Saving..."
+              onAction={() => onSaveLoopClip(deck.id)}
+            />
             <button type="button" className="deck__action">
               Slice
             </button>
@@ -328,29 +328,6 @@ const DeckCard = ({
             onDoubleClick={() => onTempoOffsetChange(deck.id, 0)}
           />
         </label>
-        <div className="deck__stretch">
-          <label>
-            Stretch
-            <input
-              type="range"
-              min="1"
-              max="16"
-              step="0.1"
-              value={deck.stretchRatio}
-              onChange={(event) =>
-                onStretchRatioChange(deck.id, Number(event.target.value))
-              }
-            />
-            <span>{deck.stretchRatio.toFixed(1)}x</span>
-          </label>
-          <button
-            type="button"
-            onClick={() => onStretchLoop(deck.id)}
-            disabled={!deck.buffer}
-          >
-            Stretch Loop
-          </button>
-        </div>
         <div className="deck__waveform-side">
           <div className="deck__zoom">
             <span>Zoom</span>
@@ -632,6 +609,28 @@ const DeckCard = ({
                 onAutomationValueChange(deck.id, "pitch", value)
               }
               disabled={deck.tempoPitchSync}
+            />
+          </div>
+          <div className="deck__fx-unit deck__fx-unit--stretch">
+            <label className="deck__bpm-slider--vertical">
+              <span>Stretch</span>
+              <input
+                type="range"
+                min="1"
+                max="16"
+                step="0.1"
+                value={deck.stretchRatio}
+                onChange={(event) =>
+                  onStretchRatioChange(deck.id, Number(event.target.value))
+                }
+              />
+              <span>{deck.stretchRatio.toFixed(1)}x</span>
+            </label>
+            <AsyncActionButton
+              disabled={!deck.buffer}
+              idleLabel="Stretch Loop"
+              busyLabel="Stretching..."
+              onAction={() => onStretchLoop(deck.id)}
             />
           </div>
         </div>

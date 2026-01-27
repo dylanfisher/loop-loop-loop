@@ -149,6 +149,24 @@ const App = () => {
     heapUsedMB: null,
     heapLimitMB: null,
   });
+  const statusTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!sessionStatus) return undefined;
+    if (statusTimeoutRef.current !== null) {
+      window.clearTimeout(statusTimeoutRef.current);
+    }
+    statusTimeoutRef.current = window.setTimeout(() => {
+      setSessionStatus(null);
+      statusTimeoutRef.current = null;
+    }, 3000);
+    return () => {
+      if (statusTimeoutRef.current !== null) {
+        window.clearTimeout(statusTimeoutRef.current);
+        statusTimeoutRef.current = null;
+      }
+    };
+  }, [sessionStatus]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
@@ -537,7 +555,7 @@ const App = () => {
       clipper.connect(masterGain);
       masterGain.connect(offline.destination);
       source.start(0, loopStart, renderDuration);
-      void offline.startRendering().then((rendered) => {
+      const rendered = await offline.startRendering();
         const silenceTrimSamples = findLeadingSilenceSamples(
           rendered,
           maxSilenceTrimSamples,
@@ -561,7 +579,6 @@ const App = () => {
           tempoOffset: 0,
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
         });
-      });
     },
     [addClip, automationState, decks, getFilterTargets, scheduleLoopedSamples]
   );
@@ -904,22 +921,7 @@ const App = () => {
         inputSamples,
         outputSamples
       );
-      stretchNode.port.onmessage = (event) => {
-        const message = event.data;
-        if (message?.type === "paulstretch-debug") {
-          console.info(
-            `Paulstretch debug: base=${message.baseRatio} param=${message.ratioParam} resolved=${message.resolvedRatio} hopIn=${message.hopIn} hopOut=${message.hopOut} in=${message.inputSamples} out=${message.outputSamples} len=${message.paramLength}`
-          );
-        } else if (message?.type === "paulstretch-input-done") {
-          console.info(
-            `Paulstretch input done: in=${message.inputSamples} out=${message.outputSamples} emitted=${message.outputSamplesEmitted} total=${message.outputSamplesTotal} inputFrames=${message.inputFrames} tailFrames=${message.tailFrames} zeroFrames=${message.zeroFrames} read=${message.readPos} write=${message.writePos}`
-          );
-        } else if (message?.type === "paulstretch-output-done") {
-          console.info(
-            `Paulstretch output done: in=${message.inputSamples} out=${message.outputSamples} emitted=${message.outputSamplesEmitted} total=${message.outputSamplesTotal} inputFrames=${message.inputFrames} tailFrames=${message.tailFrames} zeroFrames=${message.zeroFrames} read=${message.readPos} write=${message.writePos}`
-          );
-        }
-      };
+      stretchNode.port.onmessage = null;
       const source = offline.createBufferSource();
       const keepAlive = offline.createConstantSource();
       keepAlive.offset.value = 1e-6;
@@ -1102,10 +1104,7 @@ const App = () => {
       keepAlive.stop(length / sampleRate);
 
       const rendered = await offline.startRendering();
-      const lastNonSilent = findTrailingNonSilenceSample(rendered, 1e-4);
-      setSessionStatus(
-        `Stretch debug: out=${rendered.length} target=${outputSamples} lastNonSilent=${lastNonSilent}`
-      );
+      findTrailingNonSilenceSample(rendered, 1e-4);
       const silenceTrimSamples = findLeadingSilenceSamples(
         rendered,
         maxSilenceTrimSamples,
@@ -1130,7 +1129,8 @@ const App = () => {
         applyBufferGain(trimmed, gain);
       }
       const name = `${deck.fileName ?? "Loop"} Stretch ${ratio.toFixed(1)}x`;
-      loadDeckBuffer(deckId, trimmed, { name, autoplay: true });
+      const wasPlaying = deck.status === "playing";
+      loadDeckBuffer(deckId, trimmed, { name, autoplay: wasPlaying });
     },
     [automationState, decks, getFilterTargets, loadDeckBuffer, scheduleLoopedSamples]
   );
