@@ -226,7 +226,7 @@ const DeckCard = ({
       <div className="deck__header">
         <div className="deck__label-row">
           <span className="deck__label">
-            {label}
+            <span className="deck__label-text">{label}</span>
             <span className="deck__title">{deck.fileName ?? "No file loaded"}</span>
           </span>
           <div className="deck__actions">
