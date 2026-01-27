@@ -5,6 +5,10 @@ type TransportBarProps = {
   exporting: boolean;
   recording: boolean;
   onRecordToggle: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 };
 
 const TransportBar = ({
@@ -14,11 +18,23 @@ const TransportBar = ({
   exporting,
   recording,
   onRecordToggle,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: TransportBarProps) => {
   return (
     <section className="panel transport">
       <div className="panel__title">Global Recorder</div>
       <div className="transport__controls">
+        <div className="transport__history">
+          <button type="button" onClick={onUndo} disabled={!canUndo}>
+            Undo
+          </button>
+          <button type="button" onClick={onRedo} disabled={!canRedo}>
+            Redo
+          </button>
+        </div>
         <div className="transport__export">
           <label>
             Minutes

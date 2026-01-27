@@ -146,6 +146,10 @@ const App = () => {
     getDeckPlaybackSnapshot,
     getSessionDecks,
     loadSessionDecks,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useDecks();
 
   const getFilterTargets = useCallback((djFilter: number) => {
@@ -1247,6 +1251,10 @@ const App = () => {
         exporting={exporting}
         recording={recording}
         onRecordToggle={handleRecordToggle}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
       <main className="app__main">

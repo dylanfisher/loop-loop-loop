@@ -256,11 +256,136 @@ const useDecks = () => {
     }
   }, []);
 
-  const updateDeck = useCallback((id: number, updates: Partial<DeckState>) => {
-    setDecks((prev) =>
-      prev.map((deck) => (deck.id === id ? { ...deck, ...updates } : deck))
-    );
+  const historyRef = useRef<{ past: DeckState[][]; future: DeckState[][] }>({
+    past: [],
+    future: [],
+  });
+  const historyDisabledRef = useRef(false);
+  const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
+  const historyLimit = 100;
+
+  const snapshotDecks = useCallback(
+    (source: DeckState[]) =>
+      source.map((deck) => ({
+        ...deck,
+        status: deck.status === "playing" ? "paused" : deck.status,
+        startedAtMs: deck.status === "playing" ? undefined : deck.startedAtMs,
+      })),
+    []
+  );
+
+  const syncHistoryState = useCallback(() => {
+    setHistoryState({
+      canUndo: historyRef.current.past.length > 0,
+      canRedo: historyRef.current.future.length > 0,
+    });
   }, []);
+
+  const recordHistory = useCallback(
+    (prev: DeckState[]) => {
+      const snapshot = snapshotDecks(prev);
+      historyRef.current.past.push(snapshot);
+      if (historyRef.current.past.length > historyLimit) {
+        historyRef.current.past.shift();
+      }
+      historyRef.current.future = [];
+      syncHistoryState();
+    },
+    [snapshotDecks, syncHistoryState]
+  );
+
+  const setDecksWithHistory = useCallback(
+    (updater: (prev: DeckState[]) => DeckState[]) => {
+      setDecks((prev) => {
+        if (!historyDisabledRef.current) {
+          recordHistory(prev);
+        }
+        return updater(prev);
+      });
+    },
+    [recordHistory]
+  );
+
+  const setDecksNoHistory = useCallback((updater: (prev: DeckState[]) => DeckState[]) => {
+    setDecks((prev) => updater(prev));
+  }, []);
+
+  const updateDeck = useCallback(
+    (id: number, updates: Partial<DeckState>, record = true) => {
+      const setter = record ? setDecksWithHistory : setDecksNoHistory;
+      setter((prev) =>
+        prev.map((deck) => (deck.id === id ? { ...deck, ...updates } : deck))
+      );
+    },
+    [setDecksNoHistory, setDecksWithHistory]
+  );
+
+  const applyDeckSnapshot = useCallback(
+    (snapshot: DeckState[]) => {
+      historyDisabledRef.current = true;
+      decks.forEach((deck) => {
+        stop(deck.id);
+      });
+      playbackStartRef.current.clear();
+      setDecksNoHistory(() => snapshotDecks(snapshot));
+      snapshot.forEach((deck) => {
+        setDeckGain(deck.id, deck.gain);
+        setDeckFilter(deck.id, deck.djFilter);
+        setDeckResonance(deck.id, deck.filterResonance);
+        setDeckEqLow(deck.id, deck.eqLowGain);
+        setDeckEqMid(deck.id, deck.eqMidGain);
+        setDeckEqHigh(deck.id, deck.eqHighGain);
+        setDeckBalance(deck.id, deck.balance);
+        setDeckPitchShift(deck.id, deck.pitchShift);
+        setDeckPlaybackRate(deck.id, clampPlaybackRate(1 + deck.tempoOffset / 100));
+        setDeckLoopParams(
+          deck.id,
+          deck.loopEnabled,
+          deck.loopStartSeconds,
+          deck.loopEndSeconds
+        );
+      });
+      historyDisabledRef.current = false;
+    },
+    [
+      decks,
+      setDeckBalance,
+      setDeckEqHigh,
+      setDeckEqLow,
+      setDeckEqMid,
+      setDeckFilter,
+      setDeckGain,
+      setDeckPitchShift,
+      setDeckPlaybackRate,
+      setDeckResonance,
+      setDeckLoopParams,
+      setDecksNoHistory,
+      snapshotDecks,
+      stop,
+    ]
+  );
+
+  const undo = useCallback(() => {
+    const past = historyRef.current.past;
+    if (past.length === 0) return;
+    const current = snapshotDecks(decks);
+    const previous = past.pop();
+    if (!previous) return;
+    historyRef.current.future.push(current);
+    applyDeckSnapshot(previous);
+    syncHistoryState();
+  }, [applyDeckSnapshot, decks, snapshotDecks, syncHistoryState]);
+
+  const redo = useCallback(() => {
+    const future = historyRef.current.future;
+    if (future.length === 0) return;
+    const current = snapshotDecks(decks);
+    const next = future.pop();
+    if (!next) return;
+    historyRef.current.past.push(current);
+    applyDeckSnapshot(next);
+    syncHistoryState();
+  }, [applyDeckSnapshot, decks, snapshotDecks, syncHistoryState]);
 
   const setDeckBalanceValue = useCallback(
     (id: number, value: number) => {
@@ -423,7 +548,7 @@ const useDecks = () => {
     const id = nextDeckId.current;
     nextDeckId.current += 1;
     resetAutomation(id, 0, 0.7, 0, 0, 0, 0, 0);
-    setDecks((prev) => [
+    setDecksWithHistory((prev) => [
       ...prev,
       {
         id,
@@ -447,7 +572,7 @@ const useDecks = () => {
   };
 
   const removeDeck = (id: number) => {
-    setDecks((prev) => {
+    setDecksWithHistory((prev) => {
       if (prev.length <= 1) {
         return prev;
       }
@@ -509,7 +634,7 @@ const useDecks = () => {
       loopStartSeconds: 0,
       loopEndSeconds: 0,
       tempoOffset: nextTempoOffset,
-    });
+    }, false);
     setDeckPitchShift(id, nextPitchShift);
     setDeckBalance(id, nextBalance);
     try {
@@ -542,7 +667,7 @@ const useDecks = () => {
           ...baseDeck,
           status: "playing",
           startedAtMs,
-        });
+        }, false);
         const filters = getFilterTargets(0);
         const gain = nextGain;
         const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
@@ -552,7 +677,7 @@ const useDecks = () => {
           () => {
             console.info("Deck ended", { deckId: id, loopEnabled: true });
             playbackStartRef.current.delete(id);
-            updateDeck(id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
+            updateDeck(id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
           },
           gain,
           0,
@@ -573,10 +698,10 @@ const useDecks = () => {
         updateDeck(id, {
           ...baseDeck,
           status: "ready",
-        });
+        }, false);
       }
     } catch (error) {
-      updateDeck(id, { status: "error" });
+      updateDeck(id, { status: "error" }, false);
       console.error("Failed to decode audio", error);
     }
   };
@@ -597,7 +722,7 @@ const useDecks = () => {
       startedAtMs,
       duration: deck.buffer.duration,
       offsetSeconds,
-    });
+    }, false);
     const tempoRatio = getDeckPlaybackRate(deck);
     const filters = getFilterTargets(deck.djFilter);
     await playBuffer(
@@ -606,7 +731,7 @@ const useDecks = () => {
       () => {
         console.info("Deck ended", { deckId: deck.id, loopEnabled: deck.loopEnabled });
         playbackStartRef.current.delete(deck.id);
-        updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
+        updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
       },
       deck.gain,
       offsetSeconds,
@@ -682,7 +807,7 @@ const useDecks = () => {
       status: "paused",
       startedAtMs: undefined,
       offsetSeconds,
-    });
+    }, false);
   };
 
   const seekDeck = (id: number, progress: number) => {
@@ -697,13 +822,13 @@ const useDecks = () => {
         startedAtMs: performance.now(),
         offsetSeconds,
         status: "playing",
-      });
+      }, false);
       const tempoRatio = getDeckPlaybackRate(deck);
       const filters = getFilterTargets(deck.djFilter);
       void playBuffer(
         deck.id,
         deck.buffer,
-        () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }),
+        () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false),
         deck.gain,
         offsetSeconds,
         tempoRatio,
@@ -722,7 +847,7 @@ const useDecks = () => {
       return;
     }
 
-    updateDeck(id, { offsetSeconds });
+    updateDeck(id, { offsetSeconds }, false);
   };
 
   const setDeckGainValue = (id: number, value: number) => {
@@ -935,7 +1060,7 @@ const useDecks = () => {
   };
 
   const setDeckLoopValue = (id: number, value: boolean) => {
-    setDecks((prev) =>
+    setDecksWithHistory((prev) =>
       prev.map((deck) => {
         if (deck.id !== id) return deck;
         const duration = deck.duration ?? deck.buffer?.duration ?? 0;
@@ -967,7 +1092,7 @@ const useDecks = () => {
           () => {
             console.info("Deck ended", { deckId: deck.id, loopEnabled: true });
             playbackStartRef.current.delete(deck.id);
-            updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
+            updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
           },
           deck.gain,
           clampedOffset,
@@ -999,7 +1124,7 @@ const useDecks = () => {
   };
 
   const setDeckLoopBounds = (id: number, startSeconds: number, endSeconds: number) => {
-    setDecks((prev) =>
+    setDecksWithHistory((prev) =>
       prev.map((deck) => {
         if (deck.id !== id || !deck.buffer) return deck;
         const duration = deck.duration ?? deck.buffer.duration;
@@ -1033,8 +1158,8 @@ const useDecks = () => {
             () => {
               console.info("Deck ended", { deckId: deck.id, loopEnabled: value });
               playbackStartRef.current.delete(deck.id);
-              updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 });
-            },
+            updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
+          },
             deck.gain,
             clampedOffset,
             getDeckPlaybackRate(deck),
@@ -1074,7 +1199,7 @@ const useDecks = () => {
         : Math.round(safeValue / TEMPO_SNAP_STEP) * TEMPO_SNAP_STEP;
     const nextValue =
       Math.abs(safeValue - snapped) <= TEMPO_SNAP_THRESHOLD ? snapped : safeValue;
-    setDecks((prev) =>
+    setDecksWithHistory((prev) =>
       prev.map((deck) => (deck.id === id ? { ...deck, tempoOffset: nextValue } : deck))
     );
     setDeckPlaybackRate(id, clampPlaybackRate(1 + nextValue / 100));
@@ -1288,11 +1413,13 @@ const useDecks = () => {
       });
 
       nextDeckId.current = Math.max(2, maxDeckId + 1);
-      setDecks(nextDecks);
+      historyRef.current = { past: [], future: [] };
+      syncHistoryState();
+      setDecksNoHistory(() => nextDecks);
       setAutomationState(nextAutomationState);
       updateAutomationTickEnabled();
     },
-    [decks, removeDeckNodes, stop, updateAutomationTickEnabled]
+    [decks, removeDeckNodes, setDecksNoHistory, stop, syncHistoryState, updateAutomationTickEnabled]
   );
 
   return {
@@ -1328,6 +1455,10 @@ const useDecks = () => {
     setFileInputRef,
     getSessionDecks,
     loadSessionDecks,
+    undo,
+    redo,
+    canUndo: historyState.canUndo,
+    canRedo: historyState.canRedo,
   };
 };
 
