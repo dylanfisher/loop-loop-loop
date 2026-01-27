@@ -892,6 +892,7 @@ const App = () => {
       );
       try {
         await ensurePaulStretchWorklet(offline);
+        await ensurePitchShiftWorklet(offline);
       } catch (error) {
         console.warn("Paulstretch worklet unavailable", error);
         return;
@@ -924,9 +925,178 @@ const App = () => {
       keepAlive.offset.value = 1e-6;
       source.buffer = deck.buffer;
       source.playbackRate.value = tempoRatio;
-      source.connect(stretchNode, 0, 0);
+
+      const pitchShiftNodes = createPitchShiftNodes(offline);
+      const balanceNode = offline.createStereoPanner();
+      const highpass = offline.createBiquadFilter();
+      highpass.type = "highpass";
+      const lowpass = offline.createBiquadFilter();
+      lowpass.type = "lowpass";
+      const eqLow = Array.from({ length: eqStageCount }, () => {
+        const filter = offline.createBiquadFilter();
+        filter.type = "lowshelf";
+        filter.frequency.value = 120;
+        return filter;
+      });
+      const eqMid = Array.from({ length: eqStageCount }, () => {
+        const filter = offline.createBiquadFilter();
+        filter.type = "peaking";
+        filter.frequency.value = 1000;
+        return filter;
+      });
+      const eqHigh = Array.from({ length: eqStageCount }, () => {
+        const filter = offline.createBiquadFilter();
+        filter.type = "highshelf";
+        filter.frequency.value = 8000;
+        return filter;
+      });
+      const gainNode = offline.createGain();
+      gainNode.gain.value = deck.gain;
+      const clipper = createSoftClipper(offline);
+      const limiter = createLimiter(offline);
+
+      const automation = automationState.get(deckId);
+      const djFilterTrack = automation?.djFilter;
+      const resonanceTrack = automation?.resonance;
+      const eqLowTrack = automation?.eqLow;
+      const eqMidTrack = automation?.eqMid;
+      const eqHighTrack = automation?.eqHigh;
+      const balanceTrack = automation?.balance;
+      const pitchTrack = automation?.pitch;
+
+      const djFilterValue = djFilterTrack?.active ? djFilterTrack.currentValue : deck.djFilter;
+      const resonanceValue = resonanceTrack?.active
+        ? resonanceTrack.currentValue
+        : deck.filterResonance;
+      const eqLowValue = eqLowTrack?.active ? eqLowTrack.currentValue : deck.eqLowGain;
+      const eqMidValue = eqMidTrack?.active ? eqMidTrack.currentValue : deck.eqMidGain;
+      const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
+      const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
+      const pitchValue = pitchTrack?.active ? pitchTrack.currentValue : deck.pitchShift;
+
+      const targets = getFilterTargets(djFilterValue);
+      highpass.frequency.value = targets.highpass;
+      lowpass.frequency.value = targets.lowpass;
+      highpass.Q.value = resonanceValue;
+      lowpass.Q.value = resonanceValue;
+      applyEqGain(eqLow, eqLowValue);
+      applyEqGain(eqMid, eqMidValue);
+      applyEqGain(eqHigh, eqHighValue);
+      balanceNode.pan.value = balanceValue;
+      setPitchShift(pitchShiftNodes, pitchValue);
+
+      const renderDuration = sliceDuration;
+      if (djFilterTrack?.active && djFilterTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          djFilterTrack.samples,
+          djFilterTrack.durationSec,
+          renderDuration,
+          (value, time) => {
+            const nextTargets = getFilterTargets(value);
+            lowpass.frequency.setValueAtTime(nextTargets.lowpass, time);
+            highpass.frequency.setValueAtTime(nextTargets.highpass, time);
+          }
+        );
+      }
+      if (resonanceTrack?.active && resonanceTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          resonanceTrack.samples,
+          resonanceTrack.durationSec,
+          renderDuration,
+          (value, time) => {
+            lowpass.Q.setValueAtTime(value, time);
+            highpass.Q.setValueAtTime(value, time);
+          }
+        );
+      }
+      if (eqLowTrack?.active && eqLowTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          eqLowTrack.samples,
+          eqLowTrack.durationSec,
+          renderDuration,
+          (value, time) => {
+            const perStageGain = value / eqStageCount;
+            eqLow.forEach((filter) => {
+              filter.gain.setValueAtTime(perStageGain, time);
+            });
+          }
+        );
+      }
+      if (eqMidTrack?.active && eqMidTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          eqMidTrack.samples,
+          eqMidTrack.durationSec,
+          renderDuration,
+          (value, time) => {
+            const perStageGain = value / eqStageCount;
+            eqMid.forEach((filter) => {
+              filter.gain.setValueAtTime(perStageGain, time);
+            });
+          }
+        );
+      }
+      if (eqHighTrack?.active && eqHighTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          eqHighTrack.samples,
+          eqHighTrack.durationSec,
+          renderDuration,
+          (value, time) => {
+            const perStageGain = value / eqStageCount;
+            eqHigh.forEach((filter) => {
+              filter.gain.setValueAtTime(perStageGain, time);
+            });
+          }
+        );
+      }
+      if (balanceTrack?.active && balanceTrack.durationSec > 0) {
+        scheduleLoopedSamples(
+          balanceTrack.samples,
+          balanceTrack.durationSec,
+          renderDuration,
+          (value, time) => {
+            balanceNode.pan.setValueAtTime(value, time);
+          }
+        );
+      }
+      if (pitchTrack?.active && pitchTrack.durationSec > 0 && pitchShiftNodes.worklet) {
+        const pitchParam = pitchShiftNodes.worklet.parameters.get("pitch");
+        if (pitchParam) {
+          pitchShiftNodes.dryGain.gain.value = 0;
+          pitchShiftNodes.wetGain.gain.value = 1;
+          scheduleLoopedSamples(
+            pitchTrack.samples,
+            pitchTrack.durationSec,
+            renderDuration,
+            (value, time) => {
+              pitchParam.setValueAtTime(value, time);
+            }
+          );
+        }
+      }
+
+      source.connect(balanceNode);
+      balanceNode.connect(pitchShiftNodes.input);
+      pitchShiftNodes.output.connect(highpass);
+      highpass.connect(lowpass);
+      lowpass.connect(eqLow[0]);
+      for (let i = 0; i < eqLow.length - 1; i += 1) {
+        eqLow[i].connect(eqLow[i + 1]);
+      }
+      eqLow[eqLow.length - 1].connect(eqMid[0]);
+      for (let i = 0; i < eqMid.length - 1; i += 1) {
+        eqMid[i].connect(eqMid[i + 1]);
+      }
+      eqMid[eqMid.length - 1].connect(eqHigh[0]);
+      for (let i = 0; i < eqHigh.length - 1; i += 1) {
+        eqHigh[i].connect(eqHigh[i + 1]);
+      }
+      eqHigh[eqHigh.length - 1].connect(gainNode);
+      gainNode.connect(limiter);
+      limiter.connect(clipper);
+      clipper.connect(stretchNode, 0, 0);
       keepAlive.connect(stretchNode, 0, 1);
       stretchNode.connect(offline.destination);
+
       source.start(0, loopStart, inputDurationSource);
       keepAlive.start(0);
       keepAlive.stop(length / sampleRate);
@@ -962,7 +1132,7 @@ const App = () => {
       const name = `${deck.fileName ?? "Loop"} Stretch ${ratio.toFixed(1)}x`;
       loadDeckBuffer(deckId, trimmed, { name, autoplay: true });
     },
-    [decks, loadDeckBuffer]
+    [automationState, decks, getFilterTargets, loadDeckBuffer, scheduleLoopedSamples]
   );
 
   const encodeDecksForSession = useCallback(async () => {
