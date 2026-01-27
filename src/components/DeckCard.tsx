@@ -129,7 +129,7 @@ const DeckCard = ({
   }, 0);
   const zoomValue = zoomSteps[zoomIndex];
   const djFilter = Math.min(Math.max(deck.djFilter, -1), 1);
-  const resonanceMin = 0.3;
+  const resonanceMin = 0;
   const resonanceMax = 24;
   const resonanceValue = Math.min(
     Math.max(deck.filterResonance, resonanceMin),
@@ -415,7 +415,7 @@ const DeckCard = ({
               max={resonanceMax}
               step={0.05}
               value={resonanceDisplayValue}
-              defaultValue={0.7}
+              defaultValue={0}
               onChange={(next) => onResonanceChange(deck.id, next)}
               formatValue={(value) => value.toFixed(2)}
               isAutomated={resonanceAutomation.active}

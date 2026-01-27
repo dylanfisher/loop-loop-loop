@@ -412,7 +412,7 @@ const App = () => {
       const needsPitch = pitchActive || pitchTrack?.active === true;
       const needsFilter =
         !approxEqual(djFilterValue, 0) ||
-        !approxEqual(resonanceValue, 0.7) ||
+        !approxEqual(resonanceValue, 0) ||
         djFilterTrack?.active === true ||
         resonanceTrack?.active === true;
       const needsEq =
@@ -1043,7 +1043,7 @@ const App = () => {
       const needsPitch = Math.abs(pitchValue) >= 0.001 || pitchTrack?.active === true;
       const needsFilter =
         Math.abs(djFilterValue) >= 0.001 ||
-        !approxEqual(resonanceValue, 0.7) ||
+        !approxEqual(resonanceValue, 0) ||
         djFilterTrack?.active === true ||
         resonanceTrack?.active === true;
       const needsEq =

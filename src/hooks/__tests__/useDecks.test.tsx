@@ -282,7 +282,7 @@ describe("useDecks", () => {
         fileName: "track.wav",
         gain: 0.8,
         djFilter: 0.2,
-        filterResonance: 0.7,
+        filterResonance: 0,
         eqLowGain: -2,
         eqMidGain: 1,
         eqHighGain: 3,

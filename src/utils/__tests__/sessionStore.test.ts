@@ -189,7 +189,7 @@ describe("sessionStore", () => {
           id: 1,
           gain: 1,
           djFilter: 0,
-          filterResonance: 0.7,
+          filterResonance: 0,
           eqLowGain: 0,
           eqMidGain: 0,
           eqHighGain: 0,
@@ -204,7 +204,7 @@ describe("sessionStore", () => {
           wavBlobId: "deck-blob",
           automation: {
             djFilter: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
-            resonance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0.7 },
+            resonance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
             eqLow: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
             eqMid: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
             eqHigh: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },

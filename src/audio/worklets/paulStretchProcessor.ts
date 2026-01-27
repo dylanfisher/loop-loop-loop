@@ -99,6 +99,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
   private readonly hopOut: number;
   private readonly window: Float32Array;
   private readonly hopScale: number;
+  private readonly smoothFactor = 0.6;
   private baseRatio = 1;
   private debugSent = false;
   private inputDoneSent = false;
@@ -130,14 +131,14 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     const inputSamples = Number(config.inputSamples);
     const outputSamples = Number(config.outputSamples);
     this.winSize = winSize;
-    this.hopOut = winSize >> 2;
+    this.hopOut = winSize >> 3;
     this.window = createWindow(winSize);
     // Normalize overlap-add so perceived loudness stays closer to the input.
     let windowEnergy = 0;
     for (let i = 0; i < winSize; i += 1) {
       windowEnergy += this.window[i] * this.window[i];
     }
-    this.hopScale = windowEnergy > 0 ? this.hopOut / windowEnergy : 1;
+    this.hopScale = windowEnergy > 0 ? (this.hopOut / windowEnergy) * 0.9 : 0.9;
     if (Number.isFinite(initialRatio) && initialRatio > 0) {
       this.baseRatio = clamp(initialRatio, 1, 16);
     }
@@ -236,10 +237,12 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         const re = fft[2 * i];
         const im = fft[2 * i + 1];
         const magn = Math.sqrt(re * re + im * im);
-        magnitudes[i] = magn;
+        const prev = magnitudes[i];
+        const smoothed = prev ? this.smoothFactor * prev + (1 - this.smoothFactor) * magn : magn;
+        magnitudes[i] = smoothed;
         const phase = Math.random() * 2 * Math.PI;
-        fft[2 * i] = magn * Math.cos(phase);
-        fft[2 * i + 1] = magn * Math.sin(phase);
+        fft[2 * i] = smoothed * Math.cos(phase);
+        fft[2 * i + 1] = smoothed * Math.sin(phase);
       }
       if (frameEnergy >= minFrameEnergy) {
         channel.lastNonSilentMagnitudes = new Float32Array(magnitudes);
