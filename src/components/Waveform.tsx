@@ -712,9 +712,10 @@ const Waveform = ({
               isDraggingRef.current = true;
               dragMovedRef.current = true;
               lastDisplaySecondsRef.current = getDisplaySeconds();
-              if (duration && wrapperRef.current) {
+              const resolvedDuration = getResolvedDuration();
+              if (resolvedDuration && wrapperRef.current) {
                 const rect = wrapperRef.current.getBoundingClientRect();
-                const visualDuration = duration / Math.max(1, zoom);
+                const visualDuration = resolvedDuration / Math.max(1, zoom);
                 const progress = (event.clientX - rect.left) / rect.width;
                 const pointerSeconds = windowStartRef.current + progress * visualDuration;
                 loopDragOffsetRef.current = pointerSeconds - loopStartRef.current;
@@ -723,9 +724,10 @@ const Waveform = ({
             }}
             onPointerMove={(event) => {
               if (!isDraggingRef.current || activeLoopDragRef.current !== "region") return;
-              if (!duration || !wrapperRef.current) return;
+              const resolvedDuration = getResolvedDuration();
+              if (!resolvedDuration || !wrapperRef.current) return;
               const rect = wrapperRef.current.getBoundingClientRect();
-              const visualDuration = duration / Math.max(1, zoom);
+              const visualDuration = resolvedDuration / Math.max(1, zoom);
               const progress = (event.clientX - rect.left) / rect.width;
               const pointerSeconds = windowStartRef.current + progress * visualDuration;
               const minGap = Math.min(
@@ -772,9 +774,10 @@ const Waveform = ({
               activeLoopDragRef.current = "region";
               isDraggingRef.current = true;
               dragMovedRef.current = true;
-              if (duration && wrapperRef.current) {
+              const resolvedDuration = getResolvedDuration();
+              if (resolvedDuration && wrapperRef.current) {
                 const rect = wrapperRef.current.getBoundingClientRect();
-                const visualDuration = duration / Math.max(1, zoom);
+                const visualDuration = resolvedDuration / Math.max(1, zoom);
                 const progress = (event.clientX - rect.left) / rect.width;
                 const pointerSeconds = windowStartRef.current + progress * visualDuration;
                 loopDragOffsetRef.current = pointerSeconds - loopStartRef.current;
@@ -783,19 +786,20 @@ const Waveform = ({
             }}
             onPointerMove={(event) => {
               if (!isDraggingRef.current || activeLoopDragRef.current !== "region") return;
-              if (!duration || !wrapperRef.current) return;
+              const resolvedDuration = getResolvedDuration();
+              if (!resolvedDuration || !wrapperRef.current) return;
               const rect = wrapperRef.current.getBoundingClientRect();
-              const visualDuration = duration / Math.max(1, zoom);
+              const visualDuration = resolvedDuration / Math.max(1, zoom);
               const progress = (event.clientX - rect.left) / rect.width;
               const pointerSeconds = windowStartRef.current + progress * visualDuration;
-                const minGap = Math.min(
-                  0.05,
-                  Math.max(0.005, resolvedDuration * 0.25)
-                );
-                const loopDuration = Math.max(
-                  minGap,
-                  loopEndRef.current - loopStartRef.current
-                );
+              const minGap = Math.min(
+                0.05,
+                Math.max(0.005, resolvedDuration * 0.25)
+              );
+              const loopDuration = Math.max(
+                minGap,
+                loopEndRef.current - loopStartRef.current
+              );
               const targetStart = pointerSeconds - loopDragOffsetRef.current;
               const clampedStart = clampLoopStart(
                 targetStart,

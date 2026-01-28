@@ -13,6 +13,7 @@ type KnobProps = {
   centerSnap?: number;
   className?: string;
   ariaLabel?: string;
+  labelTitle?: string;
   isAutomated?: boolean;
   disabled?: boolean;
 };
@@ -50,6 +51,7 @@ const Knob = ({
   centerSnap,
   className,
   ariaLabel,
+  labelTitle,
   isAutomated = false,
   disabled = false,
 }: KnobProps) => {
@@ -125,7 +127,7 @@ const Knob = ({
     <div
       className={`knob ${isAutomated ? "is-automated" : ""} ${disabled ? "is-disabled" : ""} ${className ?? ""}`.trim()}
     >
-      <div className="knob__label">{label}</div>
+      <div className="knob__label" title={labelTitle}>{label}</div>
       <div
         ref={knobRef}
         className={`knob__control ${dragging ? "is-dragging" : ""}`}

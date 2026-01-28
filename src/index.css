@@ -470,6 +470,7 @@ body::before {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+  row-gap: 10px;
 }
 
 .deck__file-input {
@@ -601,6 +602,61 @@ body::before {
   display: grid;
   gap: 6px;
   border-radius: 10px;
+  position: relative;
+}
+
+.deck__fx-hint {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-top: 18px solid #e7e9ef;
+  border-left: 18px solid transparent;
+  border-top-right-radius: 8px;
+  box-shadow: inset -1px -1px 0 rgba(0, 0, 0, 0.12);
+  cursor: help;
+  user-select: none;
+}
+
+.deck__fx-unit--span-2 {
+  grid-column: span 2;
+}
+
+.deck__stretch-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.deck__stretch-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  row-gap: 10px;
+  justify-items: center;
+}
+
+.deck-stack__list--single .deck__stretch-controls {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+
+.deck__fx-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  column-gap: 10px;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.deck__fx-actions .deck__action {
+  font-size: 0.6rem;
 }
 
 
@@ -608,6 +664,35 @@ body::before {
   display: grid;
   gap: 6px;
   justify-items: center;
+}
+
+.knob--compact {
+  gap: 10px;
+}
+
+.knob--compact .knob__label {
+  font-size: 0.54rem;
+  letter-spacing: 0.12em;
+}
+
+.knob--compact .knob__control {
+  width: 48px;
+  height: 48px;
+}
+
+.knob--compact .knob__dial {
+  width: 40px;
+  height: 40px;
+}
+
+.knob--compact .knob__value {
+  font-size: 0.54rem;
+  gap: 4px;
+}
+
+.knob--compact .knob__fine {
+  font-size: 0.48rem;
+  letter-spacing: 0.12em;
 }
 
 .knob__label {
@@ -753,6 +838,7 @@ button.is-active {
 
 button:hover {
   background: #f5f5f5;
+  color: var(--ink);
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
 }
 
@@ -921,6 +1007,10 @@ button:active {
 
   .deck__fx-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .deck__stretch-grid {
+    grid-template-columns: 1fr;
   }
 
   .app__header {

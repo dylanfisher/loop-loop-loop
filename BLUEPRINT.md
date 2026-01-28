@@ -19,7 +19,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ### DSP Modules
 - Beat/onset detection (WASM or lightweight JS analysis).
-- FX chain: filters, delay, reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip).
+- FX chain: filters, delay, reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/freeze controls).
 - Modulation system: LFOs, envelopes, random/stochastic sources.
 
 ## BPM Detection & Control (Planned)
@@ -44,6 +44,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Primary UI in React (Vite-based SPA) to maximize ecosystem and AI-assisted development.
 - Canvas/WebGL for waveform, spectrum, and experimental visual feedback.
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
+- Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
 [Header (brand + session controls + performance panel)]

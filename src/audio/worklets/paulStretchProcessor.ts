@@ -2,12 +2,25 @@ type ChannelState = {
   buffer: Float32Array;
   lastMagnitudes: Float32Array | null;
   lastNonSilentMagnitudes: Float32Array | null;
+  lastPhases: Float32Array | null;
 };
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
 const isPowerOfTwo = (value: number) => (value & (value - 1)) === 0;
+
+const blendPhase = (base: number, random: number, amount: number) => {
+  if (amount <= 0) return base;
+  if (amount >= 1) return random;
+  const baseRe = Math.cos(base);
+  const baseIm = Math.sin(base);
+  const randRe = Math.cos(random);
+  const randIm = Math.sin(random);
+  const mixRe = baseRe * (1 - amount) + randRe * amount;
+  const mixIm = baseIm * (1 - amount) + randIm * amount;
+  return Math.atan2(mixIm, mixRe);
+};
 
 const stft = (fftBuffer: Float32Array, fftFrameSize: number, sign: number) => {
   let i = 0;
@@ -92,6 +105,27 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         maxValue: 16,
         automationRate: "k-rate",
       },
+      {
+        name: "phaseRandomness",
+        defaultValue: 1,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: "k-rate",
+      },
+      {
+        name: "stereoWidth",
+        defaultValue: 1,
+        minValue: 0,
+        maxValue: 2,
+        automationRate: "k-rate",
+      },
+      {
+        name: "tilt",
+        defaultValue: 0,
+        minValue: -18,
+        maxValue: 18,
+        automationRate: "k-rate",
+      },
     ];
   }
 
@@ -99,8 +133,13 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
   private readonly hopOut: number;
   private readonly window: Float32Array;
   private readonly hopScale: number;
-  private readonly smoothFactor = 0.6;
+  private smoothFactor = 0.6;
   private baseRatio = 1;
+  private phaseRandomness = 1;
+  private stereoWidth = 1;
+  private tiltDb = 0;
+  private tiltCurve: Float32Array = new Float32Array(0);
+  private baseHopIn = 0;
   private debugSent = false;
   private inputDoneSent = false;
   private outputDoneSent = false;
@@ -159,11 +198,33 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       }
     }
     this.setRatio(this.baseRatio);
+    this.setTilt(this.tiltDb);
   }
 
   private setRatio(ratio: number) {
     const safeRatio = clamp(Number.isFinite(ratio) ? ratio : 1, 1, 16);
-    this.hopIn = Math.max(1, Math.floor(this.hopOut / safeRatio));
+    this.baseHopIn = Math.max(1, Math.floor(this.hopOut / safeRatio));
+    this.hopIn = this.baseHopIn;
+  }
+
+  private advanceReadPos() {
+    this.readPos += this.hopIn;
+  }
+
+  private setTilt(tiltDb: number) {
+    const safeTilt = clamp(Number.isFinite(tiltDb) ? tiltDb : 0, -18, 18);
+    if (Math.abs(safeTilt - this.tiltDb) < 0.001 && this.tiltCurve.length) {
+      return;
+    }
+    this.tiltDb = safeTilt;
+    const half = this.winSize >> 1;
+    const curve = new Float32Array(half + 1);
+    for (let i = 0; i <= half; i += 1) {
+      const t = half > 0 ? i / half : 0;
+      const gainDb = safeTilt * (t - 0.5);
+      curve[i] = Math.pow(10, gainDb / 20);
+    }
+    this.tiltCurve = curve;
   }
 
   private ensureChannels(count: number) {
@@ -178,6 +239,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         buffer: new Float32Array(bufferSize),
         lastMagnitudes: null,
         lastNonSilentMagnitudes: null,
+        lastPhases: null,
       });
       this.outBlock.push(new Float32Array(this.hopOut));
       this.fftWork.push(new Float32Array(2 * this.winSize));
@@ -209,9 +271,14 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       const fft = this.fftWork[ch];
       const outputAccum = this.outputAccum[ch];
       let magnitudes = channel.lastMagnitudes;
+      let phases = channel.lastPhases;
       if (!magnitudes || magnitudes.length !== half + 1) {
         magnitudes = new Float32Array(half + 1);
         channel.lastMagnitudes = magnitudes;
+      }
+      if (!phases || phases.length !== half + 1) {
+        phases = new Float32Array(half + 1);
+        channel.lastPhases = phases;
       }
 
       for (let i = 0; i < this.winSize; i += 1) {
@@ -237,12 +304,19 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         const re = fft[2 * i];
         const im = fft[2 * i + 1];
         const magn = Math.sqrt(re * re + im * im);
+        const phase = Math.atan2(im, re);
+        phases[i] = phase;
         const prev = magnitudes[i];
-        const smoothed = prev ? this.smoothFactor * prev + (1 - this.smoothFactor) * magn : magn;
+        const smoothed = prev
+          ? this.smoothFactor * prev + (1 - this.smoothFactor) * magn
+          : magn;
         magnitudes[i] = smoothed;
-        const phase = Math.random() * 2 * Math.PI;
-        fft[2 * i] = smoothed * Math.cos(phase);
-        fft[2 * i + 1] = smoothed * Math.sin(phase);
+        const tiltGain = this.tiltCurve[i] ?? 1;
+        const magnTilted = smoothed * tiltGain;
+        const randomPhase = Math.random() * 2 * Math.PI;
+        const phaseRand = blendPhase(phase, randomPhase, this.phaseRandomness);
+        fft[2 * i] = magnTilted * Math.cos(phaseRand);
+        fft[2 * i + 1] = magnTilted * Math.sin(phaseRand);
       }
       if (frameEnergy >= minFrameEnergy) {
         channel.lastNonSilentMagnitudes = new Float32Array(magnitudes);
@@ -269,7 +343,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       outputAccum.fill(0, this.winSize - this.hopOut);
     }
 
-    this.readPos += this.hopIn;
+    this.advanceReadPos();
   }
 
   private processFrameFromMagnitudes() {
@@ -280,15 +354,24 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       const outputAccum = this.outputAccum[ch];
       const magnitudes =
         channel.lastNonSilentMagnitudes ?? channel.lastMagnitudes;
+      let phases = channel.lastPhases;
+      if (!phases || phases.length !== half + 1) {
+        phases = new Float32Array(half + 1);
+        channel.lastPhases = phases;
+      }
 
       if (!magnitudes) {
         fft.fill(0);
       } else {
         for (let i = 0; i <= half; i += 1) {
           const magn = magnitudes[i];
-          const phase = Math.random() * 2 * Math.PI;
-          fft[2 * i] = magn * Math.cos(phase);
-          fft[2 * i + 1] = magn * Math.sin(phase);
+          const tiltGain = this.tiltCurve[i] ?? 1;
+          const magnTilted = magn * tiltGain;
+          const phase = phases[i] ?? 0;
+          const randomPhase = Math.random() * 2 * Math.PI;
+          const phaseRand = blendPhase(phase, randomPhase, this.phaseRandomness);
+          fft[2 * i] = magnTilted * Math.cos(phaseRand);
+          fft[2 * i + 1] = magnTilted * Math.sin(phaseRand);
         }
         for (let i = 1; i < half; i += 1) {
           const mirror = this.winSize - i;
@@ -324,6 +407,24 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     const resolvedRatio =
       this.baseRatio !== 1 && ratioValue === 1 ? this.baseRatio : ratioValue;
     this.setRatio(resolvedRatio);
+    const phaseParam = parameters.phaseRandomness.length
+      ? parameters.phaseRandomness[0]
+      : this.phaseRandomness;
+    this.phaseRandomness = clamp(
+      Number.isFinite(phaseParam) ? phaseParam : this.phaseRandomness,
+      0,
+      1
+    );
+    const widthParam = parameters.stereoWidth.length
+      ? parameters.stereoWidth[0]
+      : this.stereoWidth;
+    this.stereoWidth = clamp(
+      Number.isFinite(widthParam) ? widthParam : this.stereoWidth,
+      0,
+      2
+    );
+    const tiltParam = parameters.tilt.length ? parameters.tilt[0] : this.tiltDb;
+    this.setTilt(tiltParam);
     if (!this.debugSent) {
       this.debugSent = true;
       this.port.postMessage({
@@ -336,6 +437,9 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         inputSamples: this.maxInputSamples,
         outputSamples: this.maxOutputSamples,
         paramLength: parameters.ratio.length,
+        phaseRandomness: this.phaseRandomness,
+        stereoWidth: this.stereoWidth,
+        tiltDb: this.tiltDb,
       });
     }
 

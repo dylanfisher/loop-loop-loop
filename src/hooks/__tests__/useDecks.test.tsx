@@ -294,6 +294,12 @@ describe("useDecks", () => {
         loopStartSeconds: 0,
         loopEndSeconds: 5,
         tempoOffset: 5,
+        tempoPitchSync: false,
+        stretchRatio: 2,
+        stretchWindowSize: 16384,
+        stretchStereoWidth: 1,
+        stretchPhaseRandomness: 1,
+        stretchTiltDb: 0,
         automation: {
           djFilter: {
             samples: [0, 0.5],

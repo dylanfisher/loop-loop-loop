@@ -29,6 +29,10 @@ type DeckStackProps = {
   onTempoOffsetChange: (id: number, value: number) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
   onStretchRatioChange: (id: number, value: number) => void;
+  onStretchWindowSizeChange: (id: number, value: number) => void;
+  onStretchStereoWidthChange: (id: number, value: number) => void;
+  onStretchPhaseRandomnessChange: (id: number, value: number) => void;
+  onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchLoop: (id: number) => void;
   onSaveLoopClip: (id: number) => void;
   automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch", {
@@ -89,6 +93,10 @@ const DeckStack = ({
   onTempoOffsetChange,
   onTempoPitchSyncChange,
   onStretchRatioChange,
+  onStretchWindowSizeChange,
+  onStretchStereoWidthChange,
+  onStretchPhaseRandomnessChange,
+  onStretchTiltDbChange,
   onStretchLoop,
   onSaveLoopClip,
   automationState,
@@ -109,7 +117,7 @@ const DeckStack = ({
           Add Deck
         </button>
       </div>
-      <div className="deck-stack__list">
+      <div className={`deck-stack__list ${decks.length === 1 ? "deck-stack__list--single" : ""}`.trim()}>
         {decks.map((deck, index) => (
           <DeckCard
             key={deck.id}
@@ -135,6 +143,10 @@ const DeckStack = ({
             onTempoOffsetChange={onTempoOffsetChange}
             onTempoPitchSyncChange={onTempoPitchSyncChange}
             onStretchRatioChange={onStretchRatioChange}
+            onStretchWindowSizeChange={onStretchWindowSizeChange}
+            onStretchStereoWidthChange={onStretchStereoWidthChange}
+            onStretchPhaseRandomnessChange={onStretchPhaseRandomnessChange}
+            onStretchTiltDbChange={onStretchTiltDbChange}
             onStretchLoop={onStretchLoop}
             onSaveLoopClip={onSaveLoopClip}
             automation={automationState.get(deck.id)}

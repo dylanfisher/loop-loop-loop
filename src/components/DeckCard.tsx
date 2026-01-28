@@ -65,6 +65,10 @@ type DeckCardProps = {
   onTempoOffsetChange: (id: number, value: number) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
   onStretchRatioChange: (id: number, value: number) => void;
+  onStretchWindowSizeChange: (id: number, value: number) => void;
+  onStretchStereoWidthChange: (id: number, value: number) => void;
+  onStretchPhaseRandomnessChange: (id: number, value: number) => void;
+  onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchLoop: (id: number) => void;
   onSaveLoopClip: (id: number) => void;
   getDeckPosition: (id: number) => number | null;
@@ -110,6 +114,10 @@ const DeckCard = ({
   onTempoOffsetChange,
   onTempoPitchSyncChange,
   onStretchRatioChange,
+  onStretchWindowSizeChange,
+  onStretchStereoWidthChange,
+  onStretchPhaseRandomnessChange,
+  onStretchTiltDbChange,
   onStretchLoop,
   onSaveLoopClip,
   getDeckPosition,
@@ -121,6 +129,11 @@ const DeckCard = ({
     const sign = value > 0 ? "+" : "";
     return `${sign}${value.toFixed(1)}%`;
   };
+  const stretchWindowSizes = [2048, 4096, 8192, 16384];
+  const stretchWindowIndex = Math.max(
+    0,
+    stretchWindowSizes.indexOf(deck.stretchWindowSize ?? 16384)
+  );
   const zoomSteps = [1, 2, 4, 8, 16, 32, 64, 128, 256];
   const zoomIndex = zoomSteps.reduce((bestIndex, step, index) => {
     const bestDiff = Math.abs(zoomSteps[bestIndex] - deck.zoom);
@@ -237,9 +250,6 @@ const DeckCard = ({
               accept="audio/*"
               onChange={(event) => onFileSelected(deck.id, event.target.files?.[0] ?? null)}
             />
-            <button type="button" className="deck__action" onClick={() => onLoadClick(deck.id)}>
-              {deck.fileName ? "Replace" : "Load"}
-            </button>
             {deck.status === "playing" ? (
               <button type="button" className="deck__action" onClick={() => onPause(deck)}>
                 Pause
@@ -270,6 +280,9 @@ const DeckCard = ({
             />
             <button type="button" className="deck__action">
               Slice
+            </button>
+            <button type="button" className="deck__action" onClick={() => onLoadClick(deck.id)}>
+              {deck.fileName ? "Replace" : "Load"}
             </button>
           </div>
         </div>
@@ -367,6 +380,7 @@ const DeckCard = ({
               step={0.01}
               value={deck.gain}
               defaultValue={0.9}
+              labelTitle="Controls deck output level before the FX chain."
               onChange={(next) => onGainChange(deck.id, next)}
             />
           </div>
@@ -376,6 +390,10 @@ const DeckCard = ({
         <div className="deck__fx-title">Deck FX</div>
         <div className="deck__fx-row">
           <div className="deck__fx-unit deck__fx-unit--filter">
+            <span
+              className="deck__fx-hint"
+              title="DJ Filter: sweeps between low‑pass and high‑pass to carve the sound. Use it to fade lows/highs during transitions. It runs in real time and affects both playback and rendered stretch output."
+            />
             <Knob
               label="DJ Filter"
               min={-1}
@@ -383,6 +401,7 @@ const DeckCard = ({
               step={0.01}
               value={djFilterValue}
               defaultValue={0}
+              labelTitle="Sweeps between low‑pass and high‑pass. Center is full range."
               onChange={(next) => onFilterChange(deck.id, next)}
               formatValue={formatDjFilter}
               centerSnap={0.03}
@@ -409,6 +428,10 @@ const DeckCard = ({
             />
           </div>
           <div className="deck__fx-unit deck__fx-unit--filter">
+            <span
+              className="deck__fx-hint"
+              title="Resonance: boosts the cutoff edge for sharper, more pronounced filter sweeps. Higher values add bite and intensity; it pairs with DJ Filter and is rendered into stretch output."
+            />
             <Knob
               label="Resonance"
               min={resonanceMin}
@@ -416,6 +439,7 @@ const DeckCard = ({
               step={0.05}
               value={resonanceDisplayValue}
               defaultValue={0}
+              labelTitle="Boosts the filter edge. Higher values add more bite and focus."
               onChange={(next) => onResonanceChange(deck.id, next)}
               formatValue={(value) => value.toFixed(2)}
               isAutomated={resonanceAutomation.active}
@@ -443,6 +467,10 @@ const DeckCard = ({
         </div>
         <div className="deck__fx-row deck__fx-row--eq">
           <div className="deck__fx-unit deck__fx-unit--eq">
+            <span
+              className="deck__fx-hint"
+              title="Low EQ: shapes bass energy. Boost to add weight, cut to clean up muddiness. Affects live playback and stretch renders."
+            />
             <Knob
               label="Low"
               min={-36}
@@ -450,6 +478,7 @@ const DeckCard = ({
               step={0.5}
               value={eqLowValue}
               defaultValue={0}
+              labelTitle="Low‑shelf EQ. Positive adds bass, negative removes weight."
               onChange={(next) => onEqLowChange(deck.id, next)}
               formatValue={formatEq}
               centerSnap={0.25}
@@ -476,6 +505,10 @@ const DeckCard = ({
             />
           </div>
           <div className="deck__fx-unit deck__fx-unit--eq">
+            <span
+              className="deck__fx-hint"
+              title="Mid EQ: controls presence and body. Boost for clarity, cut to reduce boxiness. Impacts live playback and stretch renders."
+            />
             <Knob
               label="Mid"
               min={-36}
@@ -483,6 +516,7 @@ const DeckCard = ({
               step={0.5}
               value={eqMidValue}
               defaultValue={0}
+              labelTitle="Mid‑band EQ. Boost presence or cut boxiness."
               onChange={(next) => onEqMidChange(deck.id, next)}
               formatValue={formatEq}
               centerSnap={0.25}
@@ -509,6 +543,10 @@ const DeckCard = ({
             />
           </div>
           <div className="deck__fx-unit deck__fx-unit--eq">
+            <span
+              className="deck__fx-hint"
+              title="High EQ: adjusts brightness and air. Boost for sparkle, cut for smoothness. Applied during playback and in stretch renders."
+            />
             <Knob
               label="High"
               min={-36}
@@ -516,6 +554,7 @@ const DeckCard = ({
               step={0.5}
               value={eqHighValue}
               defaultValue={0}
+              labelTitle="High‑shelf EQ. Positive adds air, negative tames brightness."
               onChange={(next) => onEqHighChange(deck.id, next)}
               formatValue={formatEq}
               centerSnap={0.25}
@@ -544,6 +583,10 @@ const DeckCard = ({
         </div>
         <div className="deck__fx-row deck__fx-row--single">
           <div className="deck__fx-unit deck__fx-unit--balance">
+            <span
+              className="deck__fx-hint"
+              title="Balance: pans the deck left/right in the stereo field. Use it to place layers in the mix; it affects playback and rendered output."
+            />
             <Knob
               label="Balance"
               min={-1}
@@ -551,6 +594,7 @@ const DeckCard = ({
               step={0.01}
               value={balanceValue}
               defaultValue={0}
+              labelTitle="Stereo pan. Left is negative, right is positive."
               onChange={(next) => onBalanceChange(deck.id, next)}
               formatValue={(value) => value.toFixed(2)}
               centerSnap={0.03}
@@ -577,6 +621,10 @@ const DeckCard = ({
             />
           </div>
           <div className="deck__fx-unit deck__fx-unit--pitch">
+            <span
+              className="deck__fx-hint"
+              title="Pitch: shifts the deck in semitones. Use for key matching or creative detune. When tempo‑pitch sync is off, it changes pitch independently; included in stretch renders."
+            />
             <Knob
               label="Pitch"
               min={-12}
@@ -584,6 +632,7 @@ const DeckCard = ({
               step={0.1}
               value={pitchValue}
               defaultValue={0}
+              labelTitle="Pitch shift in semitones. Positive raises, negative lowers."
               onChange={(next) => onPitchShiftChange(deck.id, next)}
               formatValue={(value) => `${value.toFixed(1)} st`}
               centerSnap={0.25}
@@ -611,27 +660,89 @@ const DeckCard = ({
               disabled={deck.tempoPitchSync}
             />
           </div>
-          <div className="deck__fx-unit deck__fx-unit--stretch">
-            <label className="deck__bpm-slider--vertical">
-              <span>Stretch</span>
-              <input
-                type="range"
-                min="1"
-                max="16"
-                step="0.1"
-                value={deck.stretchRatio}
-                onChange={(event) =>
-                  onStretchRatioChange(deck.id, Number(event.target.value))
-                }
-              />
-              <span>{deck.stretchRatio.toFixed(1)}x</span>
-            </label>
-            <AsyncActionButton
-              disabled={!deck.buffer}
-              idleLabel="Stretch Loop"
-              busyLabel="Stretching..."
-              onAction={() => onStretchLoop(deck.id)}
+          <div className="deck__fx-unit deck__fx-unit--stretch deck__fx-unit--span-2">
+            <span
+              className="deck__fx-hint"
+              title="Stretch: offline Paulstretch render of the current loop. Use it to create long ambient textures; settings control spacing, phase randomness, width, and tone. The render replaces the deck buffer."
             />
+            <div className="deck__stretch-grid">
+              <Knob
+                label="Stretch"
+                min={1}
+                max={16}
+                step={0.1}
+                value={deck.stretchRatio}
+                defaultValue={2}
+                labelTitle="Lengthens or shortens the loop. Higher values create longer, slower textures."
+                onChange={(next) => onStretchRatioChange(deck.id, next)}
+                formatValue={(value) => `${value.toFixed(1)}x`}
+              />
+              <div className="deck__stretch-controls">
+                <Knob
+                  className="knob--compact"
+                  label="Phase"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={deck.stretchPhaseRandomness}
+                  defaultValue={1}
+                  labelTitle="Controls how random the phase is. Higher values sound more diffuse and airy."
+                  onChange={(next) => onStretchPhaseRandomnessChange(deck.id, next)}
+                  formatValue={(value) => `${Math.round(value * 100)}%`}
+                />
+                <Knob
+                  className="knob--compact"
+                  label="Width"
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  value={deck.stretchStereoWidth}
+                  defaultValue={1}
+                  labelTitle="Stereo width after stretch. 0 = mono, 1 = original width, 2 = wide."
+                  onChange={(next) => onStretchStereoWidthChange(deck.id, next)}
+                  formatValue={(value) => `${value.toFixed(2)}x`}
+                />
+                <Knob
+                  className="knob--compact"
+                  label="Tilt"
+                  min={-18}
+                  max={18}
+                  step={0.5}
+                  value={deck.stretchTiltDb}
+                  defaultValue={0}
+                  labelTitle="Spectral tilt across frequencies. Positive = brighter, negative = darker."
+                  onChange={(next) => onStretchTiltDbChange(deck.id, next)}
+                  formatValue={(value) => `${value.toFixed(1)} dB`}
+                />
+                <Knob
+                  className="knob--compact"
+                  label="Window"
+                  min={1}
+                  max={stretchWindowSizes.length}
+                  step={1}
+                  value={stretchWindowIndex + 1}
+                  defaultValue={stretchWindowSizes.indexOf(16384) + 1}
+                  labelTitle="FFT window size. Larger = smoother, smaller = grainier/clearer transients."
+                  onChange={(next) => {
+                    const index = Math.min(
+                      stretchWindowSizes.length - 1,
+                      Math.max(0, Math.round(next) - 1)
+                    );
+                    onStretchWindowSizeChange(deck.id, stretchWindowSizes[index]);
+                  }}
+                  formatValue={() => `${stretchWindowSizes[stretchWindowIndex] / 1024}k`}
+                />
+              </div>
+            </div>
+            <div className="deck__fx-actions">
+              <AsyncActionButton
+                className="deck__action"
+                disabled={!deck.buffer}
+                idleLabel="Stretch Loop"
+                busyLabel="Stretching..."
+                onAction={() => onStretchLoop(deck.id)}
+              />
+            </div>
           </div>
         </div>
       </div>

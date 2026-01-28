@@ -35,6 +35,10 @@ export type DeckSession = {
   tempoOffset: number;
   tempoPitchSync: boolean;
   stretchRatio: number;
+  stretchWindowSize: number;
+  stretchStereoWidth: number;
+  stretchPhaseRandomness: number;
+  stretchTiltDb: number;
   automation: Record<AutomationParam, AutomationSnapshot>;
 };
 

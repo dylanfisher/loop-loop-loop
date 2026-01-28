@@ -26,11 +26,25 @@ export const ensurePaulStretchWorklet = async (context: BaseAudioContext) => {
 
 export const createPaulStretchNode = (
   context: BaseAudioContext,
-  ratio = 1,
-  winSize = 4096,
-  inputSamples?: number,
-  outputSamples?: number
+  options?: {
+    ratio?: number;
+    winSize?: number;
+    inputSamples?: number;
+    outputSamples?: number;
+    stereoWidth?: number;
+    phaseRandomness?: number;
+    tilt?: number;
+  }
 ) => {
+  const {
+    ratio = 1,
+    winSize = 4096,
+    inputSamples,
+    outputSamples,
+    stereoWidth = 1,
+    phaseRandomness = 1,
+    tilt = 0,
+  } = options ?? {};
   const node = new AudioWorkletNode(context, "paul-stretch-processor", {
     numberOfInputs: 2,
     numberOfOutputs: 1,
@@ -42,6 +56,9 @@ export const createPaulStretchNode = (
     },
     parameterData: {
       ratio,
+      stereoWidth,
+      phaseRandomness,
+      tilt,
     },
   });
   const param = node.parameters.get("ratio");

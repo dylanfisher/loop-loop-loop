@@ -201,6 +201,12 @@ describe("sessionStore", () => {
           loopStartSeconds: 0,
           loopEndSeconds: 0,
           tempoOffset: 0,
+          tempoPitchSync: false,
+          stretchRatio: 2,
+          stretchWindowSize: 16384,
+          stretchStereoWidth: 1,
+          stretchPhaseRandomness: 1,
+          stretchTiltDb: 0,
           wavBlobId: "deck-blob",
           automation: {
             djFilter: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },

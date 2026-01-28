@@ -225,6 +225,10 @@ const App = () => {
     setDeckTempoOffset,
     setDeckTempoPitchSync,
     setDeckStretchRatio,
+    setDeckStretchWindowSize,
+    setDeckStretchStereoWidth,
+    setDeckStretchPhaseRandomness,
+    setDeckStretchTiltDb,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,
@@ -985,13 +989,22 @@ const App = () => {
           : deck.buffer.duration;
       if (loopEnd <= loopStart + 0.01) return;
       const ratio = Math.min(Math.max(deck.stretchRatio ?? 2, 1), 16);
+      const windowSize = Math.min(
+        Math.max(deck.stretchWindowSize ?? 16384, 2048),
+        16384
+      );
+      const stereoWidth = Math.min(Math.max(deck.stretchStereoWidth ?? 1, 0), 2);
+      const phaseRandomness = Math.min(
+        Math.max(deck.stretchPhaseRandomness ?? 1, 0),
+        1
+      );
+      const tiltDb = Math.min(Math.max(deck.stretchTiltDb ?? 0, -18), 18);
       const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
       const sliceDuration = Math.max(0.01, loopEnd - loopStart);
       // Duration to pull from the buffer in source-time so the rendered input is sliceDuration.
       const inputDurationSource = sliceDuration * tempoRatio;
       const sampleRate = deck.buffer.sampleRate;
-      const winSize = 16384;
-      const hopOut = winSize / 2;
+      const hopOut = windowSize / 2;
       const inputSamples = Math.max(1, Math.ceil(sliceDuration * sampleRate));
       const outputSamples = Math.max(1, Math.ceil(sliceDuration * ratio * sampleRate));
       const maxSilenceTrimSamples = Math.ceil(0.05 * sampleRate);
@@ -1007,13 +1020,15 @@ const App = () => {
         console.warn("Paulstretch worklet unavailable", error);
         return;
       }
-      const stretchNode = createPaulStretchNode(
-        offline,
+      const stretchNode = createPaulStretchNode(offline, {
         ratio,
-        winSize,
+        winSize: windowSize,
         inputSamples,
-        outputSamples
-      );
+        outputSamples,
+        stereoWidth,
+        phaseRandomness,
+        tilt: tiltDb,
+      });
       stretchNode.port.onmessage = null;
       const source = offline.createBufferSource();
       const keepAlive = offline.createConstantSource();
@@ -1249,7 +1264,49 @@ const App = () => {
       }
       chain.connect(stretchNode, 0, 0);
       keepAlive.connect(stretchNode, 0, 1);
-      stretchNode.connect(offline.destination);
+      let stretchChain: AudioNode = stretchNode;
+      if (stereoWidth !== 1 && deck.buffer.numberOfChannels > 1) {
+        const splitter = offline.createChannelSplitter(2);
+        const merger = offline.createChannelMerger(2);
+        const midL = offline.createGain();
+        const midR = offline.createGain();
+        const sideL = offline.createGain();
+        const sideR = offline.createGain();
+        const midSum = offline.createGain();
+        const sideSum = offline.createGain();
+        const left = offline.createGain();
+        const right = offline.createGain();
+        const sideToRight = offline.createGain();
+
+        midL.gain.value = 0.5;
+        midR.gain.value = 0.5;
+        sideL.gain.value = 0.5;
+        sideR.gain.value = -0.5;
+        sideSum.gain.value = stereoWidth;
+        sideToRight.gain.value = -1;
+
+        stretchChain.connect(splitter);
+        splitter.connect(midL, 0);
+        splitter.connect(midR, 1);
+        midL.connect(midSum);
+        midR.connect(midSum);
+
+        splitter.connect(sideL, 0);
+        splitter.connect(sideR, 1);
+        sideL.connect(sideSum);
+        sideR.connect(sideSum);
+
+        midSum.connect(left);
+        sideSum.connect(left);
+        midSum.connect(right);
+        sideSum.connect(sideToRight);
+        sideToRight.connect(right);
+
+        left.connect(merger, 0, 0);
+        right.connect(merger, 0, 1);
+        stretchChain = merger;
+      }
+      stretchChain.connect(offline.destination);
 
       source.start(0, loopStart, inputDurationSource);
       keepAlive.start(0);
@@ -1763,6 +1820,10 @@ const App = () => {
           onTempoOffsetChange={setDeckTempoOffset}
           onTempoPitchSyncChange={setDeckTempoPitchSync}
           onStretchRatioChange={setDeckStretchRatio}
+          onStretchWindowSizeChange={setDeckStretchWindowSize}
+          onStretchStereoWidthChange={setDeckStretchStereoWidth}
+          onStretchPhaseRandomnessChange={setDeckStretchPhaseRandomness}
+          onStretchTiltDbChange={setDeckStretchTiltDb}
           onStretchLoop={handleStretchLoop}
           automationState={automationState}
           onAutomationStart={startAutomationRecording}
