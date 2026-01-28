@@ -318,6 +318,10 @@ const DeckCard = ({
           duration={deck.duration}
           offsetSeconds={deck.offsetSeconds}
           zoom={deck.zoom}
+          gain={deck.gain}
+          eqLowGain={eqLowValue}
+          eqMidGain={eqMidValue}
+          eqHighGain={eqHighValue}
           loopEnabled={deck.loopEnabled}
           loopStartSeconds={deck.loopStartSeconds}
           loopEndSeconds={deck.loopEndSeconds}
@@ -473,8 +477,8 @@ const DeckCard = ({
             />
             <Knob
               label="Low"
-              min={-36}
-              max={36}
+              min={-18}
+              max={18}
               step={0.5}
               value={eqLowValue}
               defaultValue={0}
@@ -486,8 +490,8 @@ const DeckCard = ({
             />
             <AutomationLane
               label="Automation"
-              min={-36}
-              max={36}
+              min={-18}
+              max={18}
               value={eqLowValue}
               samples={eqLowAutomation.samples}
               previewSamples={eqLowAutomation.previewSamples}
@@ -511,8 +515,8 @@ const DeckCard = ({
             />
             <Knob
               label="Mid"
-              min={-36}
-              max={36}
+              min={-18}
+              max={18}
               step={0.5}
               value={eqMidValue}
               defaultValue={0}
@@ -524,8 +528,8 @@ const DeckCard = ({
             />
             <AutomationLane
               label="Automation"
-              min={-36}
-              max={36}
+              min={-18}
+              max={18}
               value={eqMidValue}
               samples={eqMidAutomation.samples}
               previewSamples={eqMidAutomation.previewSamples}
@@ -549,8 +553,8 @@ const DeckCard = ({
             />
             <Knob
               label="High"
-              min={-36}
-              max={36}
+              min={-18}
+              max={18}
               step={0.5}
               value={eqHighValue}
               defaultValue={0}
@@ -562,8 +566,8 @@ const DeckCard = ({
             />
             <AutomationLane
               label="Automation"
-              min={-36}
-              max={36}
+              min={-18}
+              max={18}
               value={eqHighValue}
               samples={eqHighAutomation.samples}
               previewSamples={eqHighAutomation.previewSamples}

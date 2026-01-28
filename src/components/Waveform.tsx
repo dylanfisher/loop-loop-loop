@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 type WaveformProps = {
   buffer?: AudioBuffer;
@@ -7,6 +7,10 @@ type WaveformProps = {
   duration?: number;
   offsetSeconds?: number;
   zoom?: number;
+  gain?: number;
+  eqLowGain?: number;
+  eqMidGain?: number;
+  eqHighGain?: number;
   loopEnabled?: boolean;
   loopStartSeconds?: number;
   loopEndSeconds?: number;
@@ -32,7 +36,10 @@ const buildPeaks = (
   buffer: AudioBuffer,
   width: number,
   zoom: number,
-  startSeconds: number
+  startSeconds: number,
+  eqLowGain: number,
+  eqMidGain: number,
+  eqHighGain: number
 ) => {
   const data = buffer.getChannelData(0);
   const effectiveZoom = Math.max(1, zoom);
@@ -43,6 +50,17 @@ const buildPeaks = (
   );
   const step = Math.max(1, Math.floor(visibleSamples / width));
   const peaks: Array<{ min: number; max: number }> = [];
+  const sampleRate = buffer.sampleRate;
+  const lowCut = 120;
+  const highCut = 8000;
+  const lowAlpha = Math.exp((-2 * Math.PI * lowCut) / sampleRate);
+  const highAlpha = Math.exp((-2 * Math.PI * highCut) / sampleRate);
+  const dbToLinear = (db: number) => Math.pow(10, db / 20);
+  const lowGain = dbToLinear(eqLowGain);
+  const midGain = dbToLinear(eqMidGain);
+  const highGain = dbToLinear(eqHighGain);
+  let lowState = 0;
+  let highLowState = 0;
 
   for (let i = 0; i < width; i += 1) {
     let min = 1;
@@ -51,8 +69,14 @@ const buildPeaks = (
     const end = Math.min(start + step, startSample + visibleSamples);
     for (let j = start; j < end; j += 1) {
       const sample = data[j];
-      if (sample < min) min = sample;
-      if (sample > max) max = sample;
+      lowState = (1 - lowAlpha) * sample + lowAlpha * lowState;
+      highLowState = (1 - highAlpha) * sample + highAlpha * highLowState;
+      const low = lowState;
+      const high = sample - highLowState;
+      const mid = highLowState - low;
+      const shaped = low * lowGain + mid * midGain + high * highGain;
+      if (shaped < min) min = shaped;
+      if (shaped > max) max = shaped;
     }
     peaks.push({ min, max });
   }
@@ -63,7 +87,8 @@ const buildPeaks = (
 const drawWaveform = (
   canvas: HTMLCanvasElement,
   peaks: Array<{ min: number; max: number }>,
-  color: string
+  color: string,
+  scale: number
 ) => {
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -82,8 +107,10 @@ const drawWaveform = (
 
   for (let i = 0; i < peaks.length; i += 1) {
     const peak = peaks[i];
-    context.moveTo(i, amp + peak.min * amp);
-    context.lineTo(i, amp + peak.max * amp);
+    const scaledMin = Math.max(-1, Math.min(1, peak.min * scale));
+    const scaledMax = Math.max(-1, Math.min(1, peak.max * scale));
+    context.moveTo(i, amp + scaledMin * amp);
+    context.lineTo(i, amp + scaledMax * amp);
   }
 
   context.stroke();
@@ -96,6 +123,10 @@ const Waveform = ({
   duration,
   offsetSeconds,
   zoom = 1,
+  gain = 1,
+  eqLowGain = 0,
+  eqMidGain = 0,
+  eqHighGain = 0,
   loopEnabled = false,
   loopStartSeconds = 0,
   loopEndSeconds = 0,
@@ -129,6 +160,11 @@ const Waveform = ({
   const pointerDownRef = useRef(false);
   const lastDisplaySecondsRef = useRef(0);
   const localStartMsRef = useRef<number | null>(null);
+
+  const waveformGainScale = useMemo(() => {
+    const safeGain = Number.isFinite(gain) ? gain : 1;
+    return Math.min(Math.max(safeGain, 0), 3);
+  }, [gain]);
 
   const getPlayback = useCallback(() => getPlaybackSnapshot?.() ?? null, [getPlaybackSnapshot]);
   const getResolvedDuration = useCallback(() => {
@@ -230,7 +266,7 @@ const Waveform = ({
       overlayContext.beginPath();
       overlayContext.rect(0, 0, clipWidth, overlay.clientHeight);
       overlayContext.clip();
-      drawWaveform(overlay, peaks, "#0074FF");
+      drawWaveform(overlay, peaks, "#0074FF", waveformGainScale);
       overlayContext.restore();
     }
 
@@ -323,6 +359,7 @@ const Waveform = ({
     loopEnabled,
     loopEndSeconds,
     loopStartSeconds,
+    waveformGainScale,
     zoom,
   ]);
 
@@ -415,8 +452,16 @@ const Waveform = ({
         }
       }
       windowStartRef.current = nextStart;
-      peaksRef.current = buildPeaks(buffer, width, zoom, nextStart);
-      drawWaveform(canvas, peaksRef.current, "#111111");
+      peaksRef.current = buildPeaks(
+        buffer,
+        width,
+        zoom,
+        nextStart,
+        eqLowGain,
+        eqMidGain,
+        eqHighGain
+      );
+      drawWaveform(canvas, peaksRef.current, "#111111", waveformGainScale);
       renderOverlay();
     };
 
@@ -450,13 +495,48 @@ const Waveform = ({
     resize();
 
     return () => observer.disconnect();
-  }, [buffer, getDisplaySeconds, getResolvedDuration, isPlaying, renderOverlay, zoom]);
+  }, [
+    buffer,
+    eqHighGain,
+    eqLowGain,
+    eqMidGain,
+    getDisplaySeconds,
+    getResolvedDuration,
+    isPlaying,
+    renderOverlay,
+    waveformGainScale,
+    zoom,
+  ]);
 
   useEffect(() => {
     if (activeLoopDragRef.current === "region") return;
     loopStartRef.current = loopStartSeconds;
     loopEndRef.current = loopEndSeconds;
   }, [loopEndSeconds, loopStartSeconds]);
+
+  useEffect(() => {
+    if (!canvasRef.current || !buffer) return;
+    const width = Math.max(1, Math.floor(canvasRef.current.clientWidth));
+    peaksRef.current = buildPeaks(
+      buffer,
+      width,
+      zoom,
+      windowStartRef.current,
+      eqLowGain,
+      eqMidGain,
+      eqHighGain
+    );
+    drawWaveform(canvasRef.current, peaksRef.current, "#111111", waveformGainScale);
+    renderOverlay();
+  }, [
+    buffer,
+    eqHighGain,
+    eqLowGain,
+    eqMidGain,
+    renderOverlay,
+    waveformGainScale,
+    zoom,
+  ]);
 
 
   useEffect(() => {
@@ -504,8 +584,16 @@ const Waveform = ({
           canvasRef.current
         ) {
           const width = Math.max(1, Math.floor(canvasRef.current.clientWidth));
-          peaksRef.current = buildPeaks(buffer, width, zoom, desiredWindowStart);
-          drawWaveform(canvasRef.current, peaksRef.current, "#111111");
+          peaksRef.current = buildPeaks(
+            buffer,
+            width,
+            zoom,
+            desiredWindowStart,
+            eqLowGain,
+            eqMidGain,
+            eqHighGain
+          );
+          drawWaveform(canvasRef.current, peaksRef.current, "#111111", waveformGainScale);
           windowStartRef.current = desiredWindowStart;
         }
 
@@ -535,6 +623,9 @@ const Waveform = ({
     };
   }, [
     buffer,
+    eqHighGain,
+    eqLowGain,
+    eqMidGain,
     isPlaying,
     loopEnabled,
     loopEndSeconds,
@@ -545,6 +636,7 @@ const Waveform = ({
     getResolvedDuration,
     renderOverlay,
     startedAtMs,
+    waveformGainScale,
     zoom,
   ]);
 
@@ -632,9 +724,12 @@ const Waveform = ({
             buffer,
             Math.max(1, Math.floor(canvasRef.current.clientWidth)),
             zoom,
-            nextStart
+            nextStart,
+            eqLowGain,
+            eqMidGain,
+            eqHighGain
           );
-          drawWaveform(canvasRef.current, peaksRef.current, "#111111");
+          drawWaveform(canvasRef.current, peaksRef.current, "#111111", waveformGainScale);
           visualDurationRef.current = visualDuration;
           renderOverlay();
         }
@@ -675,9 +770,12 @@ const Waveform = ({
               buffer,
               Math.max(1, Math.floor(canvasRef.current.clientWidth)),
               zoom,
-              nextStart
+              nextStart,
+              eqLowGain,
+              eqMidGain,
+              eqHighGain
             );
-            drawWaveform(canvasRef.current, peaksRef.current, "#111111");
+            drawWaveform(canvasRef.current, peaksRef.current, "#111111", waveformGainScale);
             visualDurationRef.current = duration / Math.max(1, zoom);
             renderOverlay();
           }

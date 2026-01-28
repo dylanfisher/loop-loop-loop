@@ -15,6 +15,7 @@ const DEFAULT_STRETCH_WINDOW_SIZE = 16384;
 const DEFAULT_STRETCH_STEREO_WIDTH = 1;
 const DEFAULT_STRETCH_PHASE_RANDOMNESS = 1;
 const DEFAULT_STRETCH_TILT_DB = 0;
+const EQ_MAX_DB = 18;
 
 type AutomationTrack = {
   samples: Float32Array;
@@ -924,8 +925,9 @@ const useDecks = () => {
   };
 
   const setDeckEqLowValue = (id: number, value: number) => {
-    setDeckEqLow(id, value);
-    updateDeck(id, { eqLowGain: value }, false);
+    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
+    setDeckEqLow(id, clamped);
+    updateDeck(id, { eqLowGain: clamped }, false);
     const automation = automationRef.current.get(id);
     const track = automation?.eqLow;
     if (track && track.active && !track.recording) {
@@ -937,8 +939,9 @@ const useDecks = () => {
   };
 
   const setDeckEqMidValue = (id: number, value: number) => {
-    setDeckEqMid(id, value);
-    updateDeck(id, { eqMidGain: value }, false);
+    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
+    setDeckEqMid(id, clamped);
+    updateDeck(id, { eqMidGain: clamped }, false);
     const automation = automationRef.current.get(id);
     const track = automation?.eqMid;
     if (track && track.active && !track.recording) {
@@ -950,8 +953,9 @@ const useDecks = () => {
   };
 
   const setDeckEqHighValue = (id: number, value: number) => {
-    setDeckEqHigh(id, value);
-    updateDeck(id, { eqHighGain: value }, false);
+    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
+    setDeckEqHigh(id, clamped);
+    updateDeck(id, { eqHighGain: clamped }, false);
     const automation = automationRef.current.get(id);
     const track = automation?.eqHigh;
     if (track && track.active && !track.recording) {
