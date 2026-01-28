@@ -19,6 +19,7 @@ type WaveformProps = {
     startSeconds: number,
     endSeconds: number,
   ) => void;
+  onLoopEnabledChange?: (enabled: boolean) => void;
   getCurrentSeconds?: () => number | null;
   onEmptyClick?: () => void;
   getPlaybackSnapshot?: () => {
@@ -132,6 +133,7 @@ const Waveform = ({
   loopEndSeconds = 0,
   onSeek,
   onLoopBoundsChange,
+  onLoopEnabledChange,
   getCurrentSeconds,
   onEmptyClick,
   getPlaybackSnapshot,
@@ -160,6 +162,8 @@ const Waveform = ({
   const pointerDownRef = useRef(false);
   const lastDisplaySecondsRef = useRef(0);
   const localStartMsRef = useRef<number | null>(null);
+  const shiftDragRef = useRef(false);
+  const shiftStartRef = useRef(0);
 
   const waveformGainScale = useMemo(() => {
     const safeGain = Number.isFinite(gain) ? gain : 1;
@@ -410,6 +414,31 @@ const Waveform = ({
     }
 
     return Math.min(Math.max(nextStart, minStart), maxStartClamp);
+  };
+
+  const updateShiftLoopFromPointer = (clientX: number) => {
+    const resolvedDuration = getResolvedDuration();
+    if (!resolvedDuration || !onLoopBoundsChange) return;
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    if (!rect.width) return;
+
+    const visualDuration = resolvedDuration / Math.max(1, zoom);
+    const progress = (clientX - rect.left) / rect.width;
+    const seconds = windowStartRef.current + progress * visualDuration;
+    const startSeconds = shiftStartRef.current;
+    const clampedStart = Math.min(Math.max(Math.min(startSeconds, seconds), 0), resolvedDuration);
+    const clampedEnd = Math.min(Math.max(Math.max(startSeconds, seconds), 0), resolvedDuration);
+    const minGap = Math.min(0.05, Math.max(0.005, resolvedDuration * 0.25));
+    const adjustedEnd =
+      clampedEnd - clampedStart < minGap ? clampedStart + minGap : clampedEnd;
+    const finalEnd = Math.min(adjustedEnd, resolvedDuration);
+
+    loopStartRef.current = clampedStart;
+    loopEndRef.current = finalEnd;
+    onLoopBoundsChange(clampedStart, finalEnd);
+    renderOverlay();
   };
 
   const clampWindowStart = (nextStart: number, durationSeconds: number, zoomValue: number) => {
@@ -687,6 +716,27 @@ const Waveform = ({
           cancelAnimationFrame(inertiaRef.current);
           inertiaRef.current = null;
         }
+        if (event.shiftKey && onLoopBoundsChange) {
+          shiftDragRef.current = true;
+          isDraggingRef.current = true;
+          dragMovedRef.current = true;
+          const resolvedDuration = getResolvedDuration();
+          if (resolvedDuration) {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const visualDuration = resolvedDuration / Math.max(1, zoom);
+            const progress = (event.clientX - rect.left) / rect.width;
+            shiftStartRef.current =
+              windowStartRef.current + progress * visualDuration;
+            loopStartRef.current = shiftStartRef.current;
+            loopEndRef.current = shiftStartRef.current;
+            onLoopBoundsChange(shiftStartRef.current, shiftStartRef.current);
+            onLoopEnabledChange?.(true);
+            renderOverlay();
+          }
+          event.currentTarget.setPointerCapture(event.pointerId);
+          return;
+        }
+
         isDraggingRef.current = true;
         dragMovedRef.current = false;
         lastXRef.current = event.clientX;
@@ -696,6 +746,10 @@ const Waveform = ({
       }}
       onPointerMove={(event) => {
         if (!isDraggingRef.current || !buffer || !duration) return;
+        if (shiftDragRef.current) {
+          updateShiftLoopFromPointer(event.clientX);
+          return;
+        }
         if (activeLoopDragRef.current && onLoopBoundsChange) {
           updateLoopFromPointer(event.clientX);
           dragMovedRef.current = true;
@@ -739,6 +793,11 @@ const Waveform = ({
         isDraggingRef.current = false;
         event.currentTarget.releasePointerCapture(event.pointerId);
         activeLoopDragRef.current = null;
+        if (shiftDragRef.current) {
+          shiftDragRef.current = false;
+          pointerDownRef.current = false;
+          return;
+        }
         pointerDownRef.current = false;
         if (!buffer || !duration) return;
 
@@ -791,6 +850,7 @@ const Waveform = ({
       onPointerLeave={() => {
         isDraggingRef.current = false;
         activeLoopDragRef.current = null;
+        shiftDragRef.current = false;
         pointerDownRef.current = false;
       }}
     >

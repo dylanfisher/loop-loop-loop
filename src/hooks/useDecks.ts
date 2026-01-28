@@ -86,6 +86,7 @@ const useDecks = () => {
   const automationRef = useRef<Map<number, AutomationDeck>>(new Map());
   const automationPlayheadRef = useRef<Map<number, Record<AutomationParam, number>>>(new Map());
   const automationUiUpdateRef = useRef<Map<number, number>>(new Map());
+  const loadRequestRef = useRef<Map<number, number>>(new Map());
   const automationTickEnabledRef = useRef(false);
   const [automationState, setAutomationState] = useState<Map<number, Record<AutomationParam, AutomationView>>>(
     new Map()
@@ -290,7 +291,6 @@ const useDecks = () => {
     (source: DeckState[]) =>
       source.map((deck) => ({
         ...deck,
-        status: deck.status === "playing" ? "paused" : deck.status,
         startedAtMs: deck.status === "playing" ? undefined : deck.startedAtMs,
       })),
     []
@@ -345,11 +345,87 @@ const useDecks = () => {
   const applyDeckSnapshot = useCallback(
     (snapshot: DeckState[]) => {
       historyDisabledRef.current = true;
-      decks.forEach((deck) => {
-        stop(deck.id);
+      snapshot.forEach((deck) => {
+        const nextRequest = (loadRequestRef.current.get(deck.id) ?? 0) + 1;
+        loadRequestRef.current.set(deck.id, nextRequest);
       });
-      playbackStartRef.current.clear();
-      setDecksNoHistory(() => snapshotDecks(snapshot));
+      const snapshotById = new Map(snapshot.map((deck) => [deck.id, deck]));
+      const currentById = new Map(decks.map((deck) => [deck.id, deck]));
+      const keepPlayingIds = new Set<number>();
+      const restartIds = new Set<number>();
+      const restartStartMs = new Map<number, number>();
+      decks.forEach((deck) => {
+        const target = snapshotById.get(deck.id);
+        if (
+          deck.status === "playing" &&
+          target?.status === "playing"
+        ) {
+          if (deck.buffer && target.buffer && deck.buffer === target.buffer) {
+            keepPlayingIds.add(deck.id);
+          } else if (target.buffer) {
+            restartIds.add(deck.id);
+            restartStartMs.set(deck.id, performance.now());
+          }
+        } else if (target?.status === "playing" && target.buffer) {
+          restartIds.add(deck.id);
+          restartStartMs.set(deck.id, performance.now());
+        }
+      });
+      decks.forEach((deck) => {
+        if (!keepPlayingIds.has(deck.id)) {
+          stop(deck.id);
+        }
+      });
+      playbackStartRef.current.forEach((_, id) => {
+        if (!keepPlayingIds.has(id)) {
+          playbackStartRef.current.delete(id);
+        }
+      });
+      setDecksNoHistory(() => {
+        const base = snapshotDecks(snapshot);
+        return base.map((deck) => {
+          if (keepPlayingIds.has(deck.id)) {
+            const current = currentById.get(deck.id);
+            return {
+              ...deck,
+              status: "playing",
+              startedAtMs: current?.startedAtMs,
+              offsetSeconds: current?.offsetSeconds,
+            };
+          }
+          if (restartIds.has(deck.id)) {
+            const startedAtMs = restartStartMs.get(deck.id);
+            const duration = deck.buffer?.duration ?? deck.duration ?? 0;
+            let offsetSeconds = deck.offsetSeconds ?? 0;
+            if (deck.loopEnabled && deck.loopEndSeconds > deck.loopStartSeconds) {
+              const maxOffset = Math.max(
+                deck.loopStartSeconds,
+                deck.loopEndSeconds - 0.01
+              );
+              offsetSeconds = Math.min(
+                Math.max(offsetSeconds, deck.loopStartSeconds),
+                maxOffset
+              );
+            } else if (duration > 0) {
+              offsetSeconds = Math.min(Math.max(offsetSeconds, 0), duration);
+            }
+            return {
+              ...deck,
+              status: "playing",
+              startedAtMs,
+              offsetSeconds,
+            };
+          }
+          if (deck.status === "playing") {
+            return {
+              ...deck,
+              status: "paused",
+              startedAtMs: undefined,
+            };
+          }
+          return deck;
+        });
+      });
       snapshot.forEach((deck) => {
         setDeckGain(deck.id, deck.gain);
         setDeckFilter(deck.id, deck.djFilter);
@@ -367,10 +443,65 @@ const useDecks = () => {
           deck.loopEndSeconds
         );
       });
+      snapshot.forEach((deck) => {
+        if (!restartIds.has(deck.id) || !deck.buffer) return;
+        const startedAtMs = restartStartMs.get(deck.id) ?? performance.now();
+        playbackStartRef.current.set(deck.id, startedAtMs);
+        const tempoRatio = clampPlaybackRate(1 + deck.tempoOffset / 100);
+        const targets = getFilterTargets(deck.djFilter);
+        const duration = deck.buffer.duration;
+        let offsetSeconds = deck.offsetSeconds ?? 0;
+        if (deck.loopEnabled && deck.loopEndSeconds > deck.loopStartSeconds) {
+          const maxOffset = Math.max(deck.loopStartSeconds, deck.loopEndSeconds - 0.01);
+          offsetSeconds = Math.min(
+            Math.max(offsetSeconds, deck.loopStartSeconds),
+            maxOffset
+          );
+        } else {
+          offsetSeconds = Math.min(Math.max(offsetSeconds, 0), duration);
+        }
+        playBuffer(
+          deck.id,
+          deck.buffer,
+          () => {
+            console.info("Deck ended", { deckId: deck.id, loopEnabled: deck.loopEnabled });
+            playbackStartRef.current.delete(deck.id);
+            updateDeck(
+              deck.id,
+              { status: "ready", startedAtMs: undefined, offsetSeconds: 0 },
+              false
+            );
+          },
+          deck.gain,
+          offsetSeconds,
+          tempoRatio,
+          deck.loopEnabled,
+          deck.loopStartSeconds,
+          deck.loopEndSeconds,
+          targets.lowpass,
+          targets.highpass,
+          deck.filterResonance,
+          deck.eqLowGain,
+          deck.eqMidGain,
+          deck.eqHighGain,
+          deck.balance,
+          deck.pitchShift
+        ).catch((error) => {
+          console.warn("Undo playback failed", error);
+          playbackStartRef.current.delete(deck.id);
+          updateDeck(
+            deck.id,
+            { status: "ready", startedAtMs: undefined, offsetSeconds: 0 },
+            false
+          );
+        });
+      });
       historyDisabledRef.current = false;
     },
     [
       decks,
+      getFilterTargets,
+      playBuffer,
       setDeckBalance,
       setDeckEqHigh,
       setDeckEqLow,
@@ -384,6 +515,7 @@ const useDecks = () => {
       setDecksNoHistory,
       snapshotDecks,
       stop,
+      updateDeck,
     ]
   );
 
@@ -634,6 +766,8 @@ const useDecks = () => {
   ) => {
     if (!file) return;
 
+    const requestId = (loadRequestRef.current.get(id) ?? 0) + 1;
+    loadRequestRef.current.set(id, requestId);
     const currentDeck = decks.find((deck) => deck.id === id);
     const wasPlaying = currentDeck?.status === "playing";
     const nextGain = options?.gain ?? 0.9;
@@ -669,11 +803,12 @@ const useDecks = () => {
       stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
       stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
       stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
-    }, false);
+    }, true);
     setDeckPitchShift(id, nextPitchShift);
     setDeckBalance(id, nextBalance);
     try {
       const buffer = await decodeFile(file);
+      if (loadRequestRef.current.get(id) !== requestId) return;
       const duration = Number.isFinite(buffer.duration)
         ? buffer.duration
         : buffer.length / buffer.sampleRate;
@@ -708,7 +843,7 @@ const useDecks = () => {
           ...baseDeck,
           status: "playing",
           startedAtMs,
-        }, true);
+        }, false);
         const filters = getFilterTargets(0);
         const gain = nextGain;
         const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
@@ -739,9 +874,10 @@ const useDecks = () => {
         updateDeck(id, {
           ...baseDeck,
           status: "ready",
-        }, true);
+        }, false);
       }
     } catch (error) {
+      if (loadRequestRef.current.get(id) !== requestId) return;
       updateDeck(id, { status: "error" }, false);
       console.error("Failed to decode audio", error);
     }

@@ -329,6 +329,7 @@ const DeckCard = ({
           onLoopBoundsChange={(startSeconds, endSeconds) =>
             onLoopBoundsChange(deck.id, startSeconds, endSeconds)
           }
+          onLoopEnabledChange={(enabled) => onLoopChange(deck.id, enabled)}
           getCurrentSeconds={getCurrentSeconds}
           getPlaybackSnapshot={() => getDeckPlaybackSnapshot(deck.id)}
           onEmptyClick={() => onLoadClick(deck.id)}
