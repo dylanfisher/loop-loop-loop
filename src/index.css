@@ -939,7 +939,16 @@ button:active {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
 }
+
+.clip-rack__clip-loads {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 
 .transport__record {
   border: 1px solid var(--line);

@@ -376,6 +376,16 @@ const App = () => {
     setClips((prev) => prev.map((clip) => (clip.id === id ? { ...clip, ...updates } : clip)));
   }, []);
 
+  const removeClip = useCallback((id: number) => {
+    setClips((prev) => {
+      const clip = prev.find((item) => item.id === id);
+      if (clip) {
+        URL.revokeObjectURL(clip.url);
+      }
+      return prev.filter((item) => item.id !== id);
+    });
+  }, []);
+
   const handleSaveLoopClip = useCallback(
     async (deckId: number) => {
       const deck = decks.find((item) => item.id === deckId);
@@ -1796,6 +1806,7 @@ const App = () => {
           onLoadClip={handleFileSelected}
           onAddClip={addClip}
           onUpdateClip={updateClip}
+          onRemoveClip={removeClip}
         />
         <DeckStack
           decks={decks}

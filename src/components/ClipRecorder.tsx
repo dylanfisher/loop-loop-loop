@@ -15,9 +15,17 @@ type ClipRecorderProps = {
     clip: Omit<ClipItem, "id" | "url" | "name"> & { name?: string }
   ) => void;
   onUpdateClip: (id: number, updates: Partial<ClipItem>) => void;
+  onRemoveClip: (id: number) => void;
 };
 
-const ClipRecorder = ({ decks, onLoadClip, clips, onAddClip, onUpdateClip }: ClipRecorderProps) => {
+const ClipRecorder = ({
+  decks,
+  onLoadClip,
+  clips,
+  onAddClip,
+  onUpdateClip,
+  onRemoveClip,
+}: ClipRecorderProps) => {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -215,25 +223,30 @@ const ClipRecorder = ({ decks, onLoadClip, clips, onAddClip, onUpdateClip }: Cli
                 <canvas ref={(node) => setCanvasRef(clip.id, node)} />
               </div>
               <div className="clip-rack__clip-actions">
-                {decks.map((deck, index) => (
-                  <button
-                    key={deck.id}
-                    type="button"
-                    onClick={() => {
-                      const file = new File([clip.blob], `${clip.name}.webm`, {
-                        type: clip.blob.type || "audio/webm",
-                      });
-                      onLoadClip(deck.id, file, {
-                        gain: clip.gain,
-                        balance: 0,
-                        pitchShift: 0,
-                        tempoOffset: clip.tempoOffset ?? 0,
-                      });
-                    }}
-                  >
-                    Load Deck {index + 1}
-                  </button>
-                ))}
+                <div className="clip-rack__clip-loads">
+                  {decks.map((deck, index) => (
+                    <button
+                      key={deck.id}
+                      type="button"
+                      onClick={() => {
+                        const file = new File([clip.blob], `${clip.name}.webm`, {
+                          type: clip.blob.type || "audio/webm",
+                        });
+                        onLoadClip(deck.id, file, {
+                          gain: clip.gain,
+                          balance: 0,
+                          pitchShift: 0,
+                          tempoOffset: clip.tempoOffset ?? 0,
+                        });
+                      }}
+                    >
+                      Load Deck {index + 1}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => onRemoveClip(clip.id)}>
+                  Delete
+                </button>
               </div>
             </div>
           ))

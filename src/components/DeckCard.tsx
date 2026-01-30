@@ -728,6 +728,7 @@ const DeckCard = ({
                   value={stretchWindowIndex + 1}
                   defaultValue={stretchWindowSizes.indexOf(16384) + 1}
                   labelTitle="FFT window size. Larger = smoother, smaller = grainier/clearer transients."
+                  centerSnap={0}
                   onChange={(next) => {
                     const index = Math.min(
                       stretchWindowSizes.length - 1,
