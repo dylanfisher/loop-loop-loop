@@ -16,6 +16,17 @@ type DeckNodes = {
   eqLow: BiquadFilterNode[];
   eqMid: BiquadFilterNode[];
   eqHigh: BiquadFilterNode[];
+  delayDry: GainNode;
+  delayWet: GainNode;
+  delaySplit: ChannelSplitterNode;
+  delayMerge: ChannelMergerNode;
+  delayL: DelayNode;
+  delayR: DelayNode;
+  delayFeedbackL: GainNode;
+  delayFeedbackR: GainNode;
+  delayToneL: BiquadFilterNode;
+  delayToneR: BiquadFilterNode;
+  delayPingPong: boolean;
   clipper: WaveShaperNode;
   limiter: DynamicsCompressorNode;
   pitchShift: PitchShiftNodes;
@@ -55,6 +66,11 @@ const pendingEqMid = new Map<number, number>();
 const pendingEqHigh = new Map<number, number>();
 const pendingBalance = new Map<number, number>();
 const pendingPitchShift = new Map<number, number>();
+const pendingDelayTime = new Map<number, number>();
+const pendingDelayFeedback = new Map<number, number>();
+const pendingDelayMix = new Map<number, number>();
+const pendingDelayTone = new Map<number, number>();
+const pendingDelayPingPong = new Map<number, boolean>();
 const isDev = import.meta.env.DEV;
 const defaultPitchShift = 0;
 const defaultBalance = 0;
@@ -67,6 +83,26 @@ const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
   });
 };
 
+const connectDelayFeedback = (nodes: DeckNodes, pingPong: boolean) => {
+  if (nodes.delayPingPong === pingPong) return;
+  nodes.delayFeedbackL.disconnect();
+  nodes.delayFeedbackR.disconnect();
+  nodes.delayToneL.disconnect();
+  nodes.delayToneR.disconnect();
+
+  nodes.delayL.connect(nodes.delayFeedbackL);
+  nodes.delayR.connect(nodes.delayFeedbackR);
+  nodes.delayFeedbackL.connect(nodes.delayToneL);
+  nodes.delayFeedbackR.connect(nodes.delayToneR);
+  if (pingPong) {
+    nodes.delayToneL.connect(nodes.delayR);
+    nodes.delayToneR.connect(nodes.delayL);
+  } else {
+    nodes.delayToneL.connect(nodes.delayL);
+    nodes.delayToneR.connect(nodes.delayR);
+  }
+  nodes.delayPingPong = pingPong;
+};
 
 const ensureDeckNodes = (
   context: AudioContext,
@@ -80,7 +116,12 @@ const ensureDeckNodes = (
   eqMidGain: number,
   eqHighGain: number,
   pitchShift: number,
-  balance: number
+  balance: number,
+  delayTime: number,
+  delayFeedback: number,
+  delayMix: number,
+  delayTone: number,
+  delayPingPong: boolean
 ) => {
   let nodes = deckNodes.get(deckId);
   if (!nodes) {
@@ -116,6 +157,31 @@ const ensureDeckNodes = (
     applyEqGain(eqLow, pendingEqLow.get(deckId) ?? eqLowGain);
     applyEqGain(eqMid, pendingEqMid.get(deckId) ?? eqMidGain);
     applyEqGain(eqHigh, pendingEqHigh.get(deckId) ?? eqHighGain);
+    const delayDry = context.createGain();
+    const delayWet = context.createGain();
+    const delaySplit = context.createChannelSplitter(2);
+    const delayMerge = context.createChannelMerger(2);
+    const delayL = context.createDelay(2.5);
+    const delayR = context.createDelay(2.5);
+    const delayFeedbackL = context.createGain();
+    const delayFeedbackR = context.createGain();
+    const delayToneL = context.createBiquadFilter();
+    const delayToneR = context.createBiquadFilter();
+    delayToneL.type = "lowpass";
+    delayToneR.type = "lowpass";
+    const nextDelayTime = pendingDelayTime.get(deckId) ?? delayTime;
+    delayL.delayTime.value = nextDelayTime;
+    delayR.delayTime.value = nextDelayTime;
+    const nextDelayFeedback = pendingDelayFeedback.get(deckId) ?? delayFeedback;
+    delayFeedbackL.gain.value = nextDelayFeedback;
+    delayFeedbackR.gain.value = nextDelayFeedback;
+    const nextDelayTone = pendingDelayTone.get(deckId) ?? delayTone;
+    delayToneL.frequency.value = nextDelayTone;
+    delayToneR.frequency.value = nextDelayTone;
+    const nextDelayMix = pendingDelayMix.get(deckId) ?? delayMix;
+    delayWet.gain.value = nextDelayMix;
+    delayDry.gain.value = 1 - nextDelayMix;
+    const nextDelayPingPong = pendingDelayPingPong.get(deckId) ?? delayPingPong;
     const deckGain = context.createGain();
     deckGain.gain.value = pendingGains.get(deckId) ?? gain;
     const clipper = createSoftClipper(context);
@@ -134,7 +200,15 @@ const ensureDeckNodes = (
     for (let i = 0; i < eqHigh.length - 1; i++) {
       eqHigh[i].connect(eqHigh[i + 1]);
     }
-    eqHigh[eqHigh.length - 1].connect(deckGain);
+    eqHigh[eqHigh.length - 1].connect(delayDry);
+    eqHigh[eqHigh.length - 1].connect(delaySplit);
+    delaySplit.connect(delayL, 0);
+    delaySplit.connect(delayR, 1);
+    delayL.connect(delayMerge, 0, 0);
+    delayR.connect(delayMerge, 0, 1);
+    delayMerge.connect(delayWet);
+    delayWet.connect(deckGain);
+    delayDry.connect(deckGain);
     deckGain.connect(limiter);
     limiter.connect(clipper);
     clipper.connect(output);
@@ -147,11 +221,23 @@ const ensureDeckNodes = (
       eqLow,
       eqMid,
       eqHigh,
+      delayDry,
+      delayWet,
+      delaySplit,
+      delayMerge,
+      delayL,
+      delayR,
+      delayFeedbackL,
+      delayFeedbackR,
+      delayToneL,
+      delayToneR,
+      delayPingPong: !nextDelayPingPong,
       clipper,
       limiter,
       pitchShift: pitchShiftNodes,
     };
     balanceNode.connect(pitchShiftNodes.input);
+    connectDelayFeedback(nodes, nextDelayPingPong);
     deckNodes.set(deckId, nodes);
   } else {
     nodes.gain.gain.value = gain;
@@ -164,6 +250,15 @@ const ensureDeckNodes = (
     applyEqGain(nodes.eqHigh, eqHighGain);
     nodes.balance.pan.value = balance;
     setPitchShift(nodes.pitchShift, pitchShift);
+    nodes.delayL.delayTime.value = delayTime;
+    nodes.delayR.delayTime.value = delayTime;
+    nodes.delayFeedbackL.gain.value = delayFeedback;
+    nodes.delayFeedbackR.gain.value = delayFeedback;
+    nodes.delayToneL.frequency.value = delayTone;
+    nodes.delayToneR.frequency.value = delayTone;
+    nodes.delayWet.gain.value = delayMix;
+    nodes.delayDry.gain.value = 1 - delayMix;
+    connectDelayFeedback(nodes, delayPingPong);
   }
 
   pendingGains.delete(deckId);
@@ -175,6 +270,11 @@ const ensureDeckNodes = (
   pendingEqHigh.delete(deckId);
   pendingBalance.delete(deckId);
   pendingPitchShift.delete(deckId);
+  pendingDelayTime.delete(deckId);
+  pendingDelayFeedback.delete(deckId);
+  pendingDelayMix.delete(deckId);
+  pendingDelayTone.delete(deckId);
+  pendingDelayPingPong.delete(deckId);
   return nodes;
 };
 
@@ -195,6 +295,11 @@ export const playDeckBuffer = (
   eqLowGain: number,
   eqMidGain: number,
   eqHighGain: number,
+  delayTime: number,
+  delayFeedback: number,
+  delayMix: number,
+  delayTone: number,
+  delayPingPong: boolean,
   balance = defaultBalance,
   pitchShift = defaultPitchShift,
   onEnded?: DeckEndedCallback
@@ -212,7 +317,12 @@ export const playDeckBuffer = (
     eqMidGain,
     eqHighGain,
     pitchShift,
-    balance
+    balance,
+    delayTime,
+    delayFeedback,
+    delayMix,
+    delayTone,
+    delayPingPong
   );
 
   const source = context.createBufferSource();
@@ -404,6 +514,60 @@ export const setDeckPitchShiftValue = (deckId: number, value: number) => {
   }
 };
 
+export const setDeckDelayTimeValue = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delayL.delayTime.value = value;
+    nodes.delayR.delayTime.value = value;
+    pendingDelayTime.delete(deckId);
+  } else {
+    pendingDelayTime.set(deckId, value);
+  }
+};
+
+export const setDeckDelayFeedbackValue = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delayFeedbackL.gain.value = value;
+    nodes.delayFeedbackR.gain.value = value;
+    pendingDelayFeedback.delete(deckId);
+  } else {
+    pendingDelayFeedback.set(deckId, value);
+  }
+};
+
+export const setDeckDelayMixValue = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delayWet.gain.value = value;
+    nodes.delayDry.gain.value = 1 - value;
+    pendingDelayMix.delete(deckId);
+  } else {
+    pendingDelayMix.set(deckId, value);
+  }
+};
+
+export const setDeckDelayToneValue = (deckId: number, value: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delayToneL.frequency.value = value;
+    nodes.delayToneR.frequency.value = value;
+    pendingDelayTone.delete(deckId);
+  } else {
+    pendingDelayTone.set(deckId, value);
+  }
+};
+
+export const setDeckDelayPingPongValue = (deckId: number, value: boolean) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    connectDelayFeedback(nodes, value);
+    pendingDelayPingPong.delete(deckId);
+  } else {
+    pendingDelayPingPong.set(deckId, value);
+  }
+};
+
 export const removeDeckNodes = (deckId: number) => {
   if (isDev) {
     console.info("Deck playback removed", {
@@ -425,6 +589,16 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.eqLow.forEach((node) => node.disconnect());
     nodes.eqMid.forEach((node) => node.disconnect());
     nodes.eqHigh.forEach((node) => node.disconnect());
+    nodes.delayDry.disconnect();
+    nodes.delayWet.disconnect();
+    nodes.delaySplit.disconnect();
+    nodes.delayMerge.disconnect();
+    nodes.delayL.disconnect();
+    nodes.delayR.disconnect();
+    nodes.delayFeedbackL.disconnect();
+    nodes.delayFeedbackR.disconnect();
+    nodes.delayToneL.disconnect();
+    nodes.delayToneR.disconnect();
     nodes.gain.disconnect();
     nodes.limiter.disconnect();
     nodes.clipper.disconnect();
@@ -442,6 +616,11 @@ export const removeDeckNodes = (deckId: number) => {
   pendingEqHigh.delete(deckId);
   pendingBalance.delete(deckId);
   pendingPitchShift.delete(deckId);
+  pendingDelayTime.delete(deckId);
+  pendingDelayFeedback.delete(deckId);
+  pendingDelayMix.delete(deckId);
+  pendingDelayTone.delete(deckId);
+  pendingDelayPingPong.delete(deckId);
 };
 
 export const setDeckLoopParams = (

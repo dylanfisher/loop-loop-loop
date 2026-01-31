@@ -19,6 +19,11 @@ type DeckCardProps = {
   onEqLowChange: (id: number, value: number) => void;
   onEqMidChange: (id: number, value: number) => void;
   onEqHighChange: (id: number, value: number) => void;
+  onDelayTimeChange: (id: number, value: number) => void;
+  onDelayFeedbackChange: (id: number, value: number) => void;
+  onDelayMixChange: (id: number, value: number) => void;
+  onDelayToneChange: (id: number, value: number) => void;
+  onDelayPingPongChange: (id: number, value: boolean) => void;
   onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   automation?: Record<
@@ -99,6 +104,11 @@ const DeckCard = ({
   onEqLowChange,
   onEqMidChange,
   onEqHighChange,
+  onDelayTimeChange,
+  onDelayFeedbackChange,
+  onDelayMixChange,
+  onDelayToneChange,
+  onDelayPingPongChange,
   onBalanceChange,
   onPitchShiftChange,
   automation,
@@ -667,14 +677,82 @@ const DeckCard = ({
               disabled={deck.tempoPitchSync}
             />
           </div>
+          <div className="deck__fx-unit deck__fx-unit--delay deck__fx-unit--span-2">
+            <span
+              className="deck__fx-hint"
+              title="Delay: time-based echo with feedback, tone, and mix controls. Ping pong bounces repeats left/right."
+            />
+            <div className="deck__fx-unit-title">Delay</div>
+            <div className="deck__delay-controls">
+              <Knob
+                className="knob--compact"
+                label="Time"
+                min={0.01}
+                max={1.5}
+                step={0.01}
+                value={deck.delayTime}
+                defaultValue={0.35}
+                labelTitle="Delay time in seconds. Longer values create wider gaps between repeats."
+                onChange={(next) => onDelayTimeChange(deck.id, next)}
+                formatValue={(value) => `${value.toFixed(2)}s`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Feedback"
+                min={0}
+                max={0.95}
+                step={0.01}
+                value={deck.delayFeedback}
+                defaultValue={0.35}
+                labelTitle="Feedback amount. Higher values create more repeats."
+                onChange={(next) => onDelayFeedbackChange(deck.id, next)}
+                formatValue={(value) => `${Math.round(value * 100)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Mix"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delayMix}
+                defaultValue={0.25}
+                labelTitle="Wet/dry mix. 0 = dry, 1 = fully delayed."
+                onChange={(next) => onDelayMixChange(deck.id, next)}
+                formatValue={(value) => `${Math.round(value * 100)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Tone"
+                min={400}
+                max={12000}
+                step={100}
+                value={deck.delayTone}
+                defaultValue={6000}
+                labelTitle="Low-pass filter inside the feedback path. Lower = darker repeats."
+                onChange={(next) => onDelayToneChange(deck.id, next)}
+                formatValue={(value) => `${Math.round(value)} Hz`}
+              />
+              <label className="deck__delay-toggle">
+                <span>Ping Pong</span>
+                <input
+                  type="checkbox"
+                  checked={deck.delayPingPong}
+                  onChange={(event) =>
+                    onDelayPingPongChange(deck.id, event.target.checked)
+                  }
+                />
+              </label>
+            </div>
+          </div>
           <div className="deck__fx-unit deck__fx-unit--stretch deck__fx-unit--span-2">
             <span
               className="deck__fx-hint"
               title="Stretch: offline Paulstretch render of the current loop. Use it to create long ambient textures; settings control scatter (grain spacing), phase randomness, width, and tone. The render replaces the deck buffer."
             />
+            <div className="deck__fx-unit-title">Stretch</div>
             <div className="deck__stretch-grid">
               <Knob
-                label="Stretch"
+                label="Amount"
                 min={1}
                 max={16}
                 step={0.1}

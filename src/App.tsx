@@ -217,6 +217,11 @@ const App = () => {
     setDeckEqMid,
     setDeckEqHigh,
     setDeckBalance,
+    setDeckDelayTime,
+    setDeckDelayFeedback,
+    setDeckDelayMix,
+    setDeckDelayTone,
+    setDeckDelayPingPong,
     setDeckPitchShift,
     seekDeck,
     setDeckZoom,
@@ -1839,6 +1844,11 @@ const App = () => {
           onEqLowChange={setDeckEqLow}
           onEqMidChange={setDeckEqMid}
           onEqHighChange={setDeckEqHigh}
+          onDelayTimeChange={setDeckDelayTime}
+          onDelayFeedbackChange={setDeckDelayFeedback}
+          onDelayMixChange={setDeckDelayMix}
+          onDelayToneChange={setDeckDelayTone}
+          onDelayPingPongChange={setDeckDelayPingPong}
           onBalanceChange={setDeckBalance}
           onPitchShiftChange={setDeckPitchShift}
           onSeek={seekDeck}

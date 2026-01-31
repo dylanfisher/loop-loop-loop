@@ -21,6 +21,11 @@ export type DeckState = {
   stretchPhaseRandomness: number;
   stretchTiltDb: number;
   stretchScatter: number;
+  delayTime: number;
+  delayFeedback: number;
+  delayMix: number;
+  delayTone: number;
+  delayPingPong: boolean;
   djFilter: number;
   filterResonance: number;
   eqLowGain: number;

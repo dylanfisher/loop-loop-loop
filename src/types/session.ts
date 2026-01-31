@@ -40,6 +40,11 @@ export type DeckSession = {
   stretchPhaseRandomness: number;
   stretchTiltDb: number;
   stretchScatter: number;
+  delayTime: number;
+  delayFeedback: number;
+  delayMix: number;
+  delayTone: number;
+  delayPingPong: boolean;
   automation: Record<AutomationParam, AutomationSnapshot>;
 };
 

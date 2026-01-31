@@ -16,6 +16,11 @@ const DEFAULT_STRETCH_STEREO_WIDTH = 1;
 const DEFAULT_STRETCH_PHASE_RANDOMNESS = 0.5;
 const DEFAULT_STRETCH_TILT_DB = 0;
 const DEFAULT_STRETCH_SCATTER = 1;
+const DEFAULT_DELAY_TIME = 0.35;
+const DEFAULT_DELAY_FEEDBACK = 0.35;
+const DEFAULT_DELAY_MIX = 0.25;
+const DEFAULT_DELAY_TONE = 6000;
+const DEFAULT_DELAY_PINGPONG = false;
 const EQ_MAX_DB = 18;
 
 type AutomationTrack = {
@@ -118,6 +123,11 @@ const useDecks = () => {
       stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
       stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
       stretchScatter: DEFAULT_STRETCH_SCATTER,
+      delayTime: DEFAULT_DELAY_TIME,
+      delayFeedback: DEFAULT_DELAY_FEEDBACK,
+      delayMix: DEFAULT_DELAY_MIX,
+      delayTone: DEFAULT_DELAY_TONE,
+      delayPingPong: DEFAULT_DELAY_PINGPONG,
     },
   ]);
   const {
@@ -132,6 +142,11 @@ const useDecks = () => {
     setDeckEqMid,
     setDeckEqHigh,
     setDeckBalance,
+    setDeckDelayTime,
+    setDeckDelayFeedback,
+    setDeckDelayMix,
+    setDeckDelayTone,
+    setDeckDelayPingPong,
     setDeckPitchShift,
     removeDeck: removeDeckNodes,
     getDeckPosition,
@@ -436,6 +451,11 @@ const useDecks = () => {
         setDeckEqMid(deck.id, deck.eqMidGain);
         setDeckEqHigh(deck.id, deck.eqHighGain);
         setDeckBalance(deck.id, deck.balance);
+        setDeckDelayTime(deck.id, deck.delayTime);
+        setDeckDelayFeedback(deck.id, deck.delayFeedback);
+        setDeckDelayMix(deck.id, deck.delayMix);
+        setDeckDelayTone(deck.id, deck.delayTone);
+        setDeckDelayPingPong(deck.id, deck.delayPingPong);
         setDeckPitchShift(deck.id, deck.pitchShift);
         setDeckPlaybackRate(deck.id, clampPlaybackRate(1 + deck.tempoOffset / 100));
         setDeckLoopParams(
@@ -486,6 +506,11 @@ const useDecks = () => {
           deck.eqLowGain,
           deck.eqMidGain,
           deck.eqHighGain,
+          deck.delayTime,
+          deck.delayFeedback,
+          deck.delayMix,
+          deck.delayTone,
+          deck.delayPingPong,
           deck.balance,
           deck.pitchShift
         ).catch((error) => {
@@ -510,6 +535,11 @@ const useDecks = () => {
       setDeckEqMid,
       setDeckFilter,
       setDeckGain,
+      setDeckDelayTime,
+      setDeckDelayFeedback,
+      setDeckDelayMix,
+      setDeckDelayTone,
+      setDeckDelayPingPong,
       setDeckPitchShift,
       setDeckPlaybackRate,
       setDeckResonance,
@@ -731,6 +761,11 @@ const useDecks = () => {
         stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
         stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
         stretchScatter: DEFAULT_STRETCH_SCATTER,
+        delayTime: DEFAULT_DELAY_TIME,
+        delayFeedback: DEFAULT_DELAY_FEEDBACK,
+        delayMix: DEFAULT_DELAY_MIX,
+        delayTone: DEFAULT_DELAY_TONE,
+        delayPingPong: DEFAULT_DELAY_PINGPONG,
       },
     ]);
   };
@@ -807,9 +842,19 @@ const useDecks = () => {
       stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
       stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
       stretchScatter: DEFAULT_STRETCH_SCATTER,
+      delayTime: DEFAULT_DELAY_TIME,
+      delayFeedback: DEFAULT_DELAY_FEEDBACK,
+      delayMix: DEFAULT_DELAY_MIX,
+      delayTone: DEFAULT_DELAY_TONE,
+      delayPingPong: DEFAULT_DELAY_PINGPONG,
     }, true);
     setDeckPitchShift(id, nextPitchShift);
     setDeckBalance(id, nextBalance);
+    setDeckDelayTime(id, DEFAULT_DELAY_TIME);
+    setDeckDelayFeedback(id, DEFAULT_DELAY_FEEDBACK);
+    setDeckDelayMix(id, DEFAULT_DELAY_MIX);
+    setDeckDelayTone(id, DEFAULT_DELAY_TONE);
+    setDeckDelayPingPong(id, DEFAULT_DELAY_PINGPONG);
     try {
       const buffer = await decodeFile(file);
       if (loadRequestRef.current.get(id) !== requestId) return;
@@ -840,6 +885,11 @@ const useDecks = () => {
         stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
         stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
         stretchScatter: DEFAULT_STRETCH_SCATTER,
+        delayTime: DEFAULT_DELAY_TIME,
+        delayFeedback: DEFAULT_DELAY_FEEDBACK,
+        delayMix: DEFAULT_DELAY_MIX,
+        delayTone: DEFAULT_DELAY_TONE,
+        delayPingPong: DEFAULT_DELAY_PINGPONG,
       };
       if (wasPlaying) {
         const startedAtMs = performance.now();
@@ -872,6 +922,11 @@ const useDecks = () => {
           0,
           0,
           0,
+          DEFAULT_DELAY_TIME,
+          DEFAULT_DELAY_FEEDBACK,
+          DEFAULT_DELAY_MIX,
+          DEFAULT_DELAY_TONE,
+          DEFAULT_DELAY_PINGPONG,
           nextBalance,
           nextPitchShift
         );
@@ -927,6 +982,11 @@ const useDecks = () => {
       deck.eqLowGain,
       deck.eqMidGain,
       deck.eqHighGain,
+      deck.delayTime,
+      deck.delayFeedback,
+      deck.delayMix,
+      deck.delayTone,
+      deck.delayPingPong,
       deck.balance,
       deck.pitchShift
     );
@@ -1023,6 +1083,11 @@ const useDecks = () => {
         deck.eqLowGain,
         deck.eqMidGain,
         deck.eqHighGain,
+        deck.delayTime,
+        deck.delayFeedback,
+        deck.delayMix,
+        deck.delayTone,
+        deck.delayPingPong,
         deck.balance,
         deck.pitchShift
       );
@@ -1121,6 +1186,35 @@ const useDecks = () => {
       updateAutomationView(id);
     }
     updateAutomationTickEnabled();
+  };
+
+  const setDeckDelayTimeValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0.01), 1.5);
+    setDeckDelayTime(id, clamped);
+    updateDeck(id, { delayTime: clamped }, false);
+  };
+
+  const setDeckDelayFeedbackValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 0.95);
+    setDeckDelayFeedback(id, clamped);
+    updateDeck(id, { delayFeedback: clamped }, false);
+  };
+
+  const setDeckDelayMixValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelayMix(id, clamped);
+    updateDeck(id, { delayMix: clamped }, false);
+  };
+
+  const setDeckDelayToneValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 400), 12000);
+    setDeckDelayTone(id, clamped);
+    updateDeck(id, { delayTone: clamped }, false);
+  };
+
+  const setDeckDelayPingPongValue = (id: number, value: boolean) => {
+    setDeckDelayPingPong(id, value);
+    updateDeck(id, { delayPingPong: value }, false);
   };
 
 
@@ -1298,6 +1392,11 @@ const useDecks = () => {
           deck.eqLowGain,
           deck.eqMidGain,
           deck.eqHighGain,
+          deck.delayTime,
+          deck.delayFeedback,
+          deck.delayMix,
+          deck.delayTone,
+          deck.delayPingPong,
           deck.balance,
           deck.pitchShift
         );
@@ -1364,6 +1463,11 @@ const useDecks = () => {
             deck.eqLowGain,
             deck.eqMidGain,
             deck.eqHighGain,
+            deck.delayTime,
+            deck.delayFeedback,
+            deck.delayMix,
+            deck.delayTone,
+            deck.delayPingPong,
             deck.balance,
             deck.pitchShift
           );
@@ -1463,6 +1567,11 @@ const useDecks = () => {
         deck.stretchPhaseRandomness ?? DEFAULT_STRETCH_PHASE_RANDOMNESS;
       const nextStretchTiltDb = deck.stretchTiltDb ?? DEFAULT_STRETCH_TILT_DB;
       const nextStretchScatter = deck.stretchScatter ?? DEFAULT_STRETCH_SCATTER;
+      const nextDelayTime = deck.delayTime ?? DEFAULT_DELAY_TIME;
+      const nextDelayFeedback = deck.delayFeedback ?? DEFAULT_DELAY_FEEDBACK;
+      const nextDelayMix = deck.delayMix ?? DEFAULT_DELAY_MIX;
+      const nextDelayTone = deck.delayTone ?? DEFAULT_DELAY_TONE;
+      const nextDelayPingPong = deck.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
       resetAutomation(id, 0, 0.7, 0, 0, 0, nextBalance, nextPitchShift);
 
       const nextDeck = {
@@ -1491,6 +1600,11 @@ const useDecks = () => {
         stretchPhaseRandomness: nextStretchPhaseRandomness,
         stretchTiltDb: nextStretchTiltDb,
         stretchScatter: nextStretchScatter,
+        delayTime: nextDelayTime,
+        delayFeedback: nextDelayFeedback,
+        delayMix: nextDelayMix,
+        delayTone: nextDelayTone,
+        delayPingPong: nextDelayPingPong,
         status: autoplay ? "playing" : "ready",
         startedAtMs: autoplay ? performance.now() : undefined,
       };
@@ -1509,6 +1623,11 @@ const useDecks = () => {
       setDeckEqHigh(id, 0);
       setDeckBalance(id, nextBalance);
       setDeckPitchShift(id, nextPitchShift);
+      setDeckDelayTime(id, nextDelayTime);
+      setDeckDelayFeedback(id, nextDelayFeedback);
+      setDeckDelayMix(id, nextDelayMix);
+      setDeckDelayTone(id, nextDelayTone);
+      setDeckDelayPingPong(id, nextDelayPingPong);
       setDeckPlaybackRate(id, 1);
       setDeckLoopParams(id, true, 0, duration);
 
@@ -1535,6 +1654,11 @@ const useDecks = () => {
           0,
           0,
           0,
+          nextDelayTime,
+          nextDelayFeedback,
+          nextDelayMix,
+          nextDelayTone,
+          nextDelayPingPong,
           nextBalance,
           nextPitchShift
         );
@@ -1547,6 +1671,11 @@ const useDecks = () => {
       removeDeckNodes,
       resetAutomation,
       setDeckBalance,
+      setDeckDelayFeedback,
+      setDeckDelayMix,
+      setDeckDelayPingPong,
+      setDeckDelayTime,
+      setDeckDelayTone,
       setDeckEqHigh,
       setDeckEqLow,
       setDeckEqMid,
@@ -1683,6 +1812,11 @@ const useDecks = () => {
         stretchPhaseRandomness: deck.stretchPhaseRandomness,
         stretchTiltDb: deck.stretchTiltDb,
         stretchScatter: deck.stretchScatter,
+        delayTime: deck.delayTime,
+        delayFeedback: deck.delayFeedback,
+        delayMix: deck.delayMix,
+        delayTone: deck.delayTone,
+        delayPingPong: deck.delayPingPong,
         automation: {
           djFilter: buildSnapshot(automation?.djFilter, deck.djFilter),
           resonance: buildSnapshot(automation?.resonance, deck.filterResonance),
@@ -1822,6 +1956,11 @@ const useDecks = () => {
             sessionDeck.stretchPhaseRandomness ?? DEFAULT_STRETCH_PHASE_RANDOMNESS,
           stretchTiltDb: sessionDeck.stretchTiltDb ?? DEFAULT_STRETCH_TILT_DB,
           stretchScatter: sessionDeck.stretchScatter ?? DEFAULT_STRETCH_SCATTER,
+          delayTime: sessionDeck.delayTime ?? DEFAULT_DELAY_TIME,
+          delayFeedback: sessionDeck.delayFeedback ?? DEFAULT_DELAY_FEEDBACK,
+          delayMix: sessionDeck.delayMix ?? DEFAULT_DELAY_MIX,
+          delayTone: sessionDeck.delayTone ?? DEFAULT_DELAY_TONE,
+          delayPingPong: sessionDeck.delayPingPong ?? DEFAULT_DELAY_PINGPONG,
           startedAtMs: undefined,
         };
       });
@@ -1851,6 +1990,11 @@ const useDecks = () => {
     setDeckEqMid: setDeckEqMidValue,
     setDeckEqHigh: setDeckEqHighValue,
     setDeckBalance: setDeckBalanceValue,
+    setDeckDelayTime: setDeckDelayTimeValue,
+    setDeckDelayFeedback: setDeckDelayFeedbackValue,
+    setDeckDelayMix: setDeckDelayMixValue,
+    setDeckDelayTone: setDeckDelayToneValue,
+    setDeckDelayPingPong: setDeckDelayPingPongValue,
     setDeckPitchShift: setDeckPitchShiftValue,
     seekDeck,
     setDeckZoom: setDeckZoomValue,

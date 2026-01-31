@@ -12,6 +12,11 @@ import {
   setDeckEqMidGain,
   setDeckEqHighGain,
   setDeckBalanceValue,
+  setDeckDelayTimeValue,
+  setDeckDelayFeedbackValue,
+  setDeckDelayMixValue,
+  setDeckDelayToneValue,
+  setDeckDelayPingPongValue,
   setDeckLoopParams,
   setDeckPitchShiftValue,
   setDeckPlaybackRate,
@@ -40,6 +45,11 @@ type AudioEngine = {
     eqLowGain?: number,
     eqMidGain?: number,
     eqHighGain?: number,
+    delayTime?: number,
+    delayFeedback?: number,
+    delayMix?: number,
+    delayTone?: number,
+    delayPingPong?: boolean,
     balance?: number,
     pitchShift?: number
   ) => Promise<void>;
@@ -52,6 +62,11 @@ type AudioEngine = {
   setDeckEqMid: (deckId: number, value: number) => void;
   setDeckEqHigh: (deckId: number, value: number) => void;
   setDeckBalance: (deckId: number, value: number) => void;
+  setDeckDelayTime: (deckId: number, value: number) => void;
+  setDeckDelayFeedback: (deckId: number, value: number) => void;
+  setDeckDelayMix: (deckId: number, value: number) => void;
+  setDeckDelayTone: (deckId: number, value: number) => void;
+  setDeckDelayPingPong: (deckId: number, value: boolean) => void;
   setDeckPitchShift: (deckId: number, value: number) => void;
   removeDeck: (deckId: number) => void;
   getDeckPosition: (deckId: number) => number | null;
@@ -122,6 +137,11 @@ const playBuffer = async (
   eqLowGain = 0,
   eqMidGain = 0,
   eqHighGain = 0,
+  delayTime = 0.35,
+  delayFeedback = 0.35,
+  delayMix = 0.25,
+  delayTone = 6000,
+  delayPingPong = false,
   balance = 0,
   pitchShift = 0
 ) => {
@@ -151,6 +171,11 @@ const playBuffer = async (
     eqLowGain,
     eqMidGain,
     eqHighGain,
+    delayTime,
+    delayFeedback,
+    delayMix,
+    delayTone,
+    delayPingPong,
     balance,
     pitchShift,
     onEnded
@@ -195,6 +220,26 @@ const setDeckEqHigh = (deckId: number, value: number) => {
 
 const setDeckBalance = (deckId: number, value: number) => {
   setDeckBalanceValue(deckId, value);
+};
+
+const setDeckDelayTime = (deckId: number, value: number) => {
+  setDeckDelayTimeValue(deckId, value);
+};
+
+const setDeckDelayFeedback = (deckId: number, value: number) => {
+  setDeckDelayFeedbackValue(deckId, value);
+};
+
+const setDeckDelayMix = (deckId: number, value: number) => {
+  setDeckDelayMixValue(deckId, value);
+};
+
+const setDeckDelayTone = (deckId: number, value: number) => {
+  setDeckDelayToneValue(deckId, value);
+};
+
+const setDeckDelayPingPong = (deckId: number, value: boolean) => {
+  setDeckDelayPingPongValue(deckId, value);
 };
 
 const setDeckPitchShift = (deckId: number, value: number) => {
@@ -259,6 +304,11 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckEqMid,
     setDeckEqHigh,
     setDeckBalance,
+    setDeckDelayTime,
+    setDeckDelayFeedback,
+    setDeckDelayMix,
+    setDeckDelayTone,
+    setDeckDelayPingPong,
     setDeckPitchShift,
     removeDeck,
     getDeckPosition,

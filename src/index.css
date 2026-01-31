@@ -605,6 +605,13 @@ body::before {
   position: relative;
 }
 
+.deck__fx-unit-title {
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .deck__fx-hint {
   position: absolute;
   top: 0;
@@ -640,6 +647,29 @@ body::before {
 
 .deck-stack__list--single .deck__stretch-controls {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.deck__delay-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  row-gap: 10px;
+  justify-items: center;
+}
+
+.deck__delay-toggle {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  font-size: 0.55rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.deck__delay-toggle input {
+  width: 16px;
+  height: 16px;
 }
 
 

@@ -20,6 +20,11 @@ type DeckStackProps = {
   onEqLowChange: (id: number, value: number) => void;
   onEqMidChange: (id: number, value: number) => void;
   onEqHighChange: (id: number, value: number) => void;
+  onDelayTimeChange: (id: number, value: number) => void;
+  onDelayFeedbackChange: (id: number, value: number) => void;
+  onDelayMixChange: (id: number, value: number) => void;
+  onDelayToneChange: (id: number, value: number) => void;
+  onDelayPingPongChange: (id: number, value: boolean) => void;
   onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
@@ -85,6 +90,11 @@ const DeckStack = ({
   onEqLowChange,
   onEqMidChange,
   onEqHighChange,
+  onDelayTimeChange,
+  onDelayFeedbackChange,
+  onDelayMixChange,
+  onDelayToneChange,
+  onDelayPingPongChange,
   onBalanceChange,
   onPitchShiftChange,
   onSeek,
@@ -136,6 +146,11 @@ const DeckStack = ({
             onEqLowChange={onEqLowChange}
             onEqMidChange={onEqMidChange}
             onEqHighChange={onEqHighChange}
+            onDelayTimeChange={onDelayTimeChange}
+            onDelayFeedbackChange={onDelayFeedbackChange}
+            onDelayMixChange={onDelayMixChange}
+            onDelayToneChange={onDelayToneChange}
+            onDelayPingPongChange={onDelayPingPongChange}
             onBalanceChange={onBalanceChange}
             onPitchShiftChange={onPitchShiftChange}
             onSeek={onSeek}

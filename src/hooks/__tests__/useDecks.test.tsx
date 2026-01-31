@@ -30,6 +30,11 @@ const playBuffer = vi.fn(
     _eqLowGain?: number,
     _eqMidGain?: number,
     _eqHighGain?: number,
+    _delayTime?: number,
+    _delayFeedback?: number,
+    _delayMix?: number,
+    _delayTone?: number,
+    _delayPingPong?: boolean,
     _balance?: number,
     _pitchShift?: number
   ) => {
@@ -45,6 +50,11 @@ const setDeckEqLow = vi.fn();
 const setDeckEqMid = vi.fn();
 const setDeckEqHigh = vi.fn();
 const setDeckBalance = vi.fn();
+const setDeckDelayTime = vi.fn();
+const setDeckDelayFeedback = vi.fn();
+const setDeckDelayMix = vi.fn();
+const setDeckDelayTone = vi.fn();
+const setDeckDelayPingPong = vi.fn();
 const setDeckPitchShift = vi.fn();
 const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
@@ -64,6 +74,11 @@ vi.mock("../useAudioEngine", () => ({
     setDeckEqMid,
     setDeckEqHigh,
     setDeckBalance,
+    setDeckDelayTime,
+    setDeckDelayFeedback,
+    setDeckDelayMix,
+    setDeckDelayTone,
+    setDeckDelayPingPong,
     setDeckPitchShift,
     removeDeck,
     getDeckPosition,
@@ -85,6 +100,11 @@ describe("useDecks", () => {
     setDeckEqMid.mockClear();
     setDeckEqHigh.mockClear();
     setDeckBalance.mockClear();
+    setDeckDelayTime.mockClear();
+    setDeckDelayFeedback.mockClear();
+    setDeckDelayMix.mockClear();
+    setDeckDelayTone.mockClear();
+    setDeckDelayPingPong.mockClear();
     setDeckPitchShift.mockClear();
     removeDeck.mockClear();
     getDeckPosition.mockClear();
@@ -300,6 +320,12 @@ describe("useDecks", () => {
         stretchStereoWidth: 1,
         stretchPhaseRandomness: 1,
         stretchTiltDb: 0,
+        stretchScatter: 1,
+        delayTime: 0.35,
+        delayFeedback: 0.35,
+        delayMix: 0.25,
+        delayTone: 6000,
+        delayPingPong: false,
         automation: {
           djFilter: {
             samples: [0, 0.5],
