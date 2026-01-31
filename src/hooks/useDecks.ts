@@ -13,8 +13,9 @@ const STRETCH_WINDOW_SIZES = [2048, 4096, 8192, 16384];
 const DEFAULT_STRETCH_RATIO = 2;
 const DEFAULT_STRETCH_WINDOW_SIZE = 16384;
 const DEFAULT_STRETCH_STEREO_WIDTH = 1;
-const DEFAULT_STRETCH_PHASE_RANDOMNESS = 1;
+const DEFAULT_STRETCH_PHASE_RANDOMNESS = 0.5;
 const DEFAULT_STRETCH_TILT_DB = 0;
+const DEFAULT_STRETCH_SCATTER = 1;
 const EQ_MAX_DB = 18;
 
 type AutomationTrack = {
@@ -116,6 +117,7 @@ const useDecks = () => {
       stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
       stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
       stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
+      stretchScatter: DEFAULT_STRETCH_SCATTER,
     },
   ]);
   const {
@@ -728,6 +730,7 @@ const useDecks = () => {
         stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
         stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
         stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
+        stretchScatter: DEFAULT_STRETCH_SCATTER,
       },
     ]);
   };
@@ -803,6 +806,7 @@ const useDecks = () => {
       stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
       stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
       stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
+      stretchScatter: DEFAULT_STRETCH_SCATTER,
     }, true);
     setDeckPitchShift(id, nextPitchShift);
     setDeckBalance(id, nextBalance);
@@ -835,6 +839,7 @@ const useDecks = () => {
         stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
         stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
         stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
+        stretchScatter: DEFAULT_STRETCH_SCATTER,
       };
       if (wasPlaying) {
         const startedAtMs = performance.now();
@@ -1457,6 +1462,7 @@ const useDecks = () => {
       const nextStretchPhaseRandomness =
         deck.stretchPhaseRandomness ?? DEFAULT_STRETCH_PHASE_RANDOMNESS;
       const nextStretchTiltDb = deck.stretchTiltDb ?? DEFAULT_STRETCH_TILT_DB;
+      const nextStretchScatter = deck.stretchScatter ?? DEFAULT_STRETCH_SCATTER;
       resetAutomation(id, 0, 0.7, 0, 0, 0, nextBalance, nextPitchShift);
 
       const nextDeck = {
@@ -1484,6 +1490,7 @@ const useDecks = () => {
         stretchStereoWidth: nextStretchStereoWidth,
         stretchPhaseRandomness: nextStretchPhaseRandomness,
         stretchTiltDb: nextStretchTiltDb,
+        stretchScatter: nextStretchScatter,
         status: autoplay ? "playing" : "ready",
         startedAtMs: autoplay ? performance.now() : undefined,
       };
@@ -1590,6 +1597,12 @@ const useDecks = () => {
     updateDeck(id, { stretchTiltDb: clamped }, false);
   };
 
+  const setDeckStretchScatter = (id: number, value: number) => {
+    const safeValue = Number.isFinite(value) ? value : DEFAULT_STRETCH_SCATTER;
+    const clamped = Math.min(Math.max(safeValue, 1), 4);
+    updateDeck(id, { stretchScatter: clamped }, false);
+  };
+
   const getDeckPlaybackSnapshotSafe = useCallback(
     (id: number) => {
       const deck = decks.find((item) => item.id === id);
@@ -1669,6 +1682,7 @@ const useDecks = () => {
         stretchStereoWidth: deck.stretchStereoWidth,
         stretchPhaseRandomness: deck.stretchPhaseRandomness,
         stretchTiltDb: deck.stretchTiltDb,
+        stretchScatter: deck.stretchScatter,
         automation: {
           djFilter: buildSnapshot(automation?.djFilter, deck.djFilter),
           resonance: buildSnapshot(automation?.resonance, deck.filterResonance),
@@ -1807,6 +1821,7 @@ const useDecks = () => {
           stretchPhaseRandomness:
             sessionDeck.stretchPhaseRandomness ?? DEFAULT_STRETCH_PHASE_RANDOMNESS,
           stretchTiltDb: sessionDeck.stretchTiltDb ?? DEFAULT_STRETCH_TILT_DB,
+          stretchScatter: sessionDeck.stretchScatter ?? DEFAULT_STRETCH_SCATTER,
           startedAtMs: undefined,
         };
       });
@@ -1848,6 +1863,7 @@ const useDecks = () => {
     setDeckStretchStereoWidth,
     setDeckStretchPhaseRandomness,
     setDeckStretchTiltDb,
+    setDeckStretchScatter,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,

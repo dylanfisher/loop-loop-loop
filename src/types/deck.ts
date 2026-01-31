@@ -20,6 +20,7 @@ export type DeckState = {
   stretchStereoWidth: number;
   stretchPhaseRandomness: number;
   stretchTiltDb: number;
+  stretchScatter: number;
   djFilter: number;
   filterResonance: number;
   eqLowGain: number;

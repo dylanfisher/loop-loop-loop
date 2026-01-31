@@ -229,6 +229,7 @@ const App = () => {
     setDeckStretchStereoWidth,
     setDeckStretchPhaseRandomness,
     setDeckStretchTiltDb,
+    setDeckStretchScatter,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,
@@ -1009,14 +1010,22 @@ const App = () => {
         1
       );
       const tiltDb = Math.min(Math.max(deck.stretchTiltDb ?? 0, -18), 18);
+      const scatter = Math.min(Math.max(deck.stretchScatter ?? 1, 1), 4);
       const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
       const sliceDuration = Math.max(0.01, loopEnd - loopStart);
       // Duration to pull from the buffer in source-time so the rendered input is sliceDuration.
       const inputDurationSource = sliceDuration * tempoRatio;
       const sampleRate = deck.buffer.sampleRate;
       const hopOut = windowSize / 2;
-      const inputSamples = Math.max(1, Math.ceil(sliceDuration * sampleRate));
-      const outputSamples = Math.max(1, Math.ceil(sliceDuration * ratio * sampleRate));
+      const inputSamples = Math.max(
+        1,
+        Math.ceil(sliceDuration * sampleRate * Math.max(1, scatter))
+      );
+      const effectiveRatio = Math.min(ratio * scatter, 64);
+      const outputSamples = Math.max(
+        1,
+        Math.ceil(sliceDuration * effectiveRatio * sampleRate)
+      );
       const maxSilenceTrimSamples = Math.ceil(0.05 * sampleRate);
       const length = Math.max(1, outputSamples + maxSilenceTrimSamples + hopOut);
       const offline = new OfflineAudioContext(
@@ -1038,6 +1047,7 @@ const App = () => {
         stereoWidth,
         phaseRandomness,
         tilt: tiltDb,
+        scatter,
       });
       stretchNode.port.onmessage = null;
       const source = offline.createBufferSource();
@@ -1318,7 +1328,14 @@ const App = () => {
       }
       stretchChain.connect(offline.destination);
 
-      source.start(0, loopStart, inputDurationSource);
+      if (scatter > 1) {
+        source.loop = true;
+        source.loopStart = loopStart;
+        source.loopEnd = loopEnd;
+        source.start(0, loopStart);
+      } else {
+        source.start(0, loopStart, inputDurationSource);
+      }
       keepAlive.start(0);
       keepAlive.stop(length / sampleRate);
 
@@ -1835,6 +1852,7 @@ const App = () => {
           onStretchStereoWidthChange={setDeckStretchStereoWidth}
           onStretchPhaseRandomnessChange={setDeckStretchPhaseRandomness}
           onStretchTiltDbChange={setDeckStretchTiltDb}
+          onStretchScatterChange={setDeckStretchScatter}
           onStretchLoop={handleStretchLoop}
           automationState={automationState}
           onAutomationStart={startAutomationRecording}

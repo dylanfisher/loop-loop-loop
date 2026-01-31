@@ -34,6 +34,7 @@ export const createPaulStretchNode = (
     stereoWidth?: number;
     phaseRandomness?: number;
     tilt?: number;
+    scatter?: number;
   }
 ) => {
   const {
@@ -44,6 +45,7 @@ export const createPaulStretchNode = (
     stereoWidth = 1,
     phaseRandomness = 1,
     tilt = 0,
+    scatter = 1,
   } = options ?? {};
   const node = new AudioWorkletNode(context, "paul-stretch-processor", {
     numberOfInputs: 2,
@@ -59,6 +61,7 @@ export const createPaulStretchNode = (
       stereoWidth,
       phaseRandomness,
       tilt,
+      scatter,
     },
   });
   const param = node.parameters.get("ratio");

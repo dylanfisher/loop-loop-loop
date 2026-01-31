@@ -107,7 +107,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       },
       {
         name: "phaseRandomness",
-        defaultValue: 1,
+        defaultValue: 0.5,
         minValue: 0,
         maxValue: 1,
         automationRate: "k-rate",
@@ -126,6 +126,13 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         maxValue: 18,
         automationRate: "k-rate",
       },
+      {
+        name: "scatter",
+        defaultValue: 1,
+        minValue: 1,
+        maxValue: 4,
+        automationRate: "k-rate",
+      },
     ];
   }
 
@@ -133,11 +140,13 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
   private readonly hopOut: number;
   private readonly window: Float32Array;
   private readonly hopScale: number;
+  private outputStride: number;
   private smoothFactor = 0.6;
   private baseRatio = 1;
   private phaseRandomness = 1;
   private stereoWidth = 1;
   private tiltDb = 0;
+  private scatter = 1;
   private tiltCurve: Float32Array = new Float32Array(0);
   private baseHopIn = 0;
   private debugSent = false;
@@ -160,6 +169,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
   private outputSamplesEmitted = 0;
   private outputSamplesTotal = 0;
   private hasSpectrum = false;
+  private hasInitialRatio = false;
 
   constructor(options?: AudioWorkletNodeOptions) {
     super();
@@ -171,6 +181,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     const outputSamples = Number(config.outputSamples);
     this.winSize = winSize;
     this.hopOut = winSize >> 3;
+    this.outputStride = this.hopOut;
     this.window = createWindow(winSize);
     // Normalize overlap-add so perceived loudness stays closer to the input.
     let windowEnergy = 0;
@@ -179,6 +190,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     }
     this.hopScale = windowEnergy > 0 ? (this.hopOut / windowEnergy) * 0.9 : 0.9;
     if (Number.isFinite(initialRatio) && initialRatio > 0) {
+      this.hasInitialRatio = true;
       this.baseRatio = clamp(initialRatio, 1, 16);
     }
     if (Number.isFinite(inputSamples) && inputSamples > 0) {
@@ -188,6 +200,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       this.maxOutputSamples = Math.floor(outputSamples);
     }
     if (
+      !this.hasInitialRatio &&
       this.maxInputSamples !== null &&
       this.maxOutputSamples !== null &&
       this.maxInputSamples > 0
@@ -425,6 +438,13 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     );
     const tiltParam = parameters.tilt.length ? parameters.tilt[0] : this.tiltDb;
     this.setTilt(tiltParam);
+    const scatterParam = parameters.scatter.length ? parameters.scatter[0] : this.scatter;
+    this.scatter = clamp(
+      Number.isFinite(scatterParam) ? scatterParam : this.scatter,
+      1,
+      4
+    );
+    this.outputStride = Math.max(1, Math.floor(this.hopOut * this.scatter));
     if (!this.debugSent) {
       this.debugSent = true;
       this.port.postMessage({
@@ -434,12 +454,14 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         resolvedRatio,
         hopIn: this.hopIn,
         hopOut: this.hopOut,
+        outputStride: this.outputStride,
         inputSamples: this.maxInputSamples,
         outputSamples: this.maxOutputSamples,
         paramLength: parameters.ratio.length,
         phaseRandomness: this.phaseRandomness,
         stereoWidth: this.stereoWidth,
         tiltDb: this.tiltDb,
+        scatter: this.scatter,
       });
     }
 
@@ -457,7 +479,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         this.inputSamplesWritten += 1;
       }
 
-      if (this.outPos >= this.hopOut) {
+      if (this.outPos >= this.outputStride) {
         const hasInputFrame = this.writePos - this.readPos >= this.winSize;
         const inputDone =
           this.maxInputSamples !== null && this.inputSamplesWritten >= this.maxInputSamples;
@@ -507,7 +529,15 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       }
 
       for (let ch = 0; ch < output.length; ch += 1) {
-        output[ch][i] = this.outBlock[ch][this.outPos] ?? 0;
+        if (this.outPos < this.hopOut) {
+          output[ch][i] = this.outBlock[ch][this.outPos] ?? 0;
+        } else {
+          const gap = this.outputStride - this.hopOut;
+          const fade =
+            gap > 0 ? Math.max(0, 1 - (this.outPos - this.hopOut) / gap) : 0;
+          const index = this.outPos % this.hopOut;
+          output[ch][i] = (this.outBlock[ch][index] ?? 0) * fade;
+        }
       }
       this.outPos += 1;
       this.outputSamplesTotal += 1;

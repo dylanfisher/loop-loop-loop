@@ -69,6 +69,7 @@ type DeckCardProps = {
   onStretchStereoWidthChange: (id: number, value: number) => void;
   onStretchPhaseRandomnessChange: (id: number, value: number) => void;
   onStretchTiltDbChange: (id: number, value: number) => void;
+  onStretchScatterChange: (id: number, value: number) => void;
   onStretchLoop: (id: number) => void;
   onSaveLoopClip: (id: number) => void;
   getDeckPosition: (id: number) => number | null;
@@ -118,6 +119,7 @@ const DeckCard = ({
   onStretchStereoWidthChange,
   onStretchPhaseRandomnessChange,
   onStretchTiltDbChange,
+  onStretchScatterChange,
   onStretchLoop,
   onSaveLoopClip,
   getDeckPosition,
@@ -668,7 +670,7 @@ const DeckCard = ({
           <div className="deck__fx-unit deck__fx-unit--stretch deck__fx-unit--span-2">
             <span
               className="deck__fx-hint"
-              title="Stretch: offline Paulstretch render of the current loop. Use it to create long ambient textures; settings control spacing, phase randomness, width, and tone. The render replaces the deck buffer."
+              title="Stretch: offline Paulstretch render of the current loop. Use it to create long ambient textures; settings control scatter (grain spacing), phase randomness, width, and tone. The render replaces the deck buffer."
             />
             <div className="deck__stretch-grid">
               <Knob
@@ -690,7 +692,7 @@ const DeckCard = ({
                   max={1}
                   step={0.05}
                   value={deck.stretchPhaseRandomness}
-                  defaultValue={1}
+                  defaultValue={0.5}
                   labelTitle="Controls how random the phase is. Higher values sound more diffuse and airy."
                   onChange={(next) => onStretchPhaseRandomnessChange(deck.id, next)}
                   formatValue={(value) => `${Math.round(value * 100)}%`}
@@ -718,6 +720,18 @@ const DeckCard = ({
                   labelTitle="Spectral tilt across frequencies. Positive = brighter, negative = darker."
                   onChange={(next) => onStretchTiltDbChange(deck.id, next)}
                   formatValue={(value) => `${value.toFixed(1)} dB`}
+                />
+                <Knob
+                  className="knob--compact"
+                  label="Scatter"
+                  min={1}
+                  max={4}
+                  step={0.05}
+                  value={deck.stretchScatter}
+                  defaultValue={1}
+                  labelTitle="Grain spacing multiplier. Higher = grains farther apart with more space between."
+                  onChange={(next) => onStretchScatterChange(deck.id, next)}
+                  formatValue={(value) => `${value.toFixed(2)}x`}
                 />
                 <Knob
                   className="knob--compact"

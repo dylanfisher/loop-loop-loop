@@ -33,6 +33,7 @@ type DeckStackProps = {
   onStretchStereoWidthChange: (id: number, value: number) => void;
   onStretchPhaseRandomnessChange: (id: number, value: number) => void;
   onStretchTiltDbChange: (id: number, value: number) => void;
+  onStretchScatterChange: (id: number, value: number) => void;
   onStretchLoop: (id: number) => void;
   onSaveLoopClip: (id: number) => void;
   automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch", {
@@ -97,6 +98,7 @@ const DeckStack = ({
   onStretchStereoWidthChange,
   onStretchPhaseRandomnessChange,
   onStretchTiltDbChange,
+  onStretchScatterChange,
   onStretchLoop,
   onSaveLoopClip,
   automationState,
@@ -147,6 +149,7 @@ const DeckStack = ({
             onStretchStereoWidthChange={onStretchStereoWidthChange}
             onStretchPhaseRandomnessChange={onStretchPhaseRandomnessChange}
             onStretchTiltDbChange={onStretchTiltDbChange}
+            onStretchScatterChange={onStretchScatterChange}
             onStretchLoop={onStretchLoop}
             onSaveLoopClip={onSaveLoopClip}
             automation={automationState.get(deck.id)}

@@ -39,6 +39,7 @@ export type DeckSession = {
   stretchStereoWidth: number;
   stretchPhaseRandomness: number;
   stretchTiltDb: number;
+  stretchScatter: number;
   automation: Record<AutomationParam, AutomationSnapshot>;
 };
 
