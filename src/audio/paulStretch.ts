@@ -1,3 +1,5 @@
+import paulStretchUrl from "./worklets/paulStretchProcessor.ts?worker&url";
+
 const workletPromises = new WeakMap<BaseAudioContext, Promise<void>>();
 const workletReady = new WeakMap<BaseAudioContext, boolean>();
 
@@ -9,7 +11,7 @@ export const ensurePaulStretchWorklet = async (context: BaseAudioContext) => {
   let promise = workletPromises.get(context);
   if (!promise) {
     promise = context.audioWorklet
-      .addModule(new URL("./worklets/paulStretchProcessor.ts", import.meta.url))
+      .addModule(paulStretchUrl)
       .then(() => {
         workletReady.set(context, true);
       })

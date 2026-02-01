@@ -16,6 +16,8 @@ const DEFAULT_FFT_FRAME_SIZE = 1024;
 const DEFAULT_OSAMP = 8;
 const ZERO_THRESHOLD = 0.001;
 
+import pitchVocoderUrl from "./worklets/pitchVocoderProcessor.ts?worker&url";
+
 const workletPromises = new WeakMap<BaseAudioContext, Promise<void>>();
 const workletReady = new WeakMap<BaseAudioContext, boolean>();
 
@@ -27,7 +29,7 @@ export const ensurePitchShiftWorklet = async (context: BaseAudioContext) => {
   let promise = workletPromises.get(context);
   if (!promise) {
     promise = context.audioWorklet
-      .addModule(new URL("./worklets/pitchVocoderProcessor.ts", import.meta.url))
+      .addModule(pitchVocoderUrl)
       .then(() => {
         workletReady.set(context, true);
       })
@@ -62,18 +64,26 @@ export const createPitchShiftNodes = (
       fftFrameSize: options?.fftFrameSize ?? DEFAULT_FFT_FRAME_SIZE,
       osamp: options?.osamp ?? DEFAULT_OSAMP,
     };
-    worklet = new AudioWorkletNode(context, "pitch-vocoder-processor", {
-      numberOfInputs: 1,
-      numberOfOutputs: 1,
-      processorOptions: {
-        fftFrameSize: config.fftFrameSize,
-        osamp: config.osamp,
-      },
-    });
-    worklet.channelCountMode = "max";
-    input.connect(worklet);
-    worklet.connect(wetGain);
-    wetGain.connect(output);
+    try {
+      worklet = new AudioWorkletNode(context, "pitch-vocoder-processor", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        processorOptions: {
+          fftFrameSize: config.fftFrameSize,
+          osamp: config.osamp,
+        },
+      });
+      worklet.channelCountMode = "max";
+      input.connect(worklet);
+      worklet.connect(wetGain);
+      wetGain.connect(output);
+    } catch (error) {
+      workletReady.delete(context);
+      workletPromises.delete(context);
+      if (import.meta.env.DEV) {
+        console.warn("Pitch shift worklet unavailable", error);
+      }
+    }
   }
 
   const nodes: PitchShiftNodes = {
