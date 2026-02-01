@@ -58,6 +58,7 @@ const setDeckDelayPingPong = vi.fn();
 const setDeckPitchShift = vi.fn();
 const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
+const getDeckPlaybackSnapshot = vi.fn(() => null);
 const setDeckLoopParams = vi.fn();
 const setDeckPlaybackRate = vi.fn();
 
@@ -82,6 +83,7 @@ vi.mock("../useAudioEngine", () => ({
     setDeckPitchShift,
     removeDeck,
     getDeckPosition,
+    getDeckPlaybackSnapshot,
     setDeckLoopParams,
     setDeckPlaybackRate,
   }),
@@ -108,6 +110,7 @@ describe("useDecks", () => {
     setDeckPitchShift.mockClear();
     removeDeck.mockClear();
     getDeckPosition.mockClear();
+    getDeckPlaybackSnapshot.mockClear();
     setDeckLoopParams.mockClear();
     setDeckPlaybackRate.mockClear();
   });

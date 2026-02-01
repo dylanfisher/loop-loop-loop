@@ -659,24 +659,23 @@ export const getDeckPlaybackPosition = (deckId: number, currentTime: number) => 
   if (!playback) return null;
 
   const elapsed = playback.playing ? Math.max(0, currentTime - playback.startTime) : 0;
-  let position = Math.min(
-    playback.offsetSeconds + elapsed * playback.playbackRate,
-    playback.duration
-  );
-
-  if (playback.loopEnabled) {
-    const loopStart = playback.loopStart;
-    const loopEnd =
-      playback.loopEnd > loopStart + 0.01 ? playback.loopEnd : playback.duration;
-    const loopDuration = loopEnd - loopStart;
-    if (loopDuration > 0) {
-      const loopOffset = position - loopStart;
-      const wrapped = ((loopOffset % loopDuration) + loopDuration) % loopDuration;
-      position = loopStart + wrapped;
-    }
+  const loopStart = playback.loopStart;
+  const loopEnd =
+    playback.loopEnabled && playback.loopEnd > loopStart + 0.01
+      ? playback.loopEnd
+      : playback.duration;
+  const loopDuration = loopEnd - loopStart;
+  const baseOffset = playback.offsetSeconds;
+  const rate = playback.playbackRate;
+  if (playback.loopEnabled && loopDuration > 0) {
+    const raw = (baseOffset - loopStart) + elapsed * rate;
+    const wrapped = ((raw % loopDuration) + loopDuration) % loopDuration;
+    const position = loopStart + wrapped;
+    return Number.isFinite(position) ? position : null;
   }
 
-  return position;
+  const position = Math.min(baseOffset + elapsed * rate, playback.duration);
+  return Number.isFinite(position) ? position : null;
 };
 
 export const getDeckPlaybackSnapshot = (deckId: number, currentTime: number) => {
@@ -684,6 +683,16 @@ export const getDeckPlaybackSnapshot = (deckId: number, currentTime: number) => 
   if (!playback) return null;
   const position = getDeckPlaybackPosition(deckId, currentTime);
   if (position === null) return null;
+  if (playback.playing) {
+    const elapsed = Math.max(0, currentTime - playback.startTime);
+    if (elapsed > 2) {
+      deckPlayback.set(deckId, {
+        ...playback,
+        startTime: currentTime,
+        offsetSeconds: position,
+      });
+    }
+  }
   const loopStart = playback.loopStart;
   const loopEnd =
     playback.loopEnabled && playback.loopEnd > loopStart + 0.01

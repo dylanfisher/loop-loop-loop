@@ -190,6 +190,16 @@ const Waveform = ({
       snapshot?.loopEnd ?? (loopEndSeconds > resolvedLoopStart ? loopEndSeconds : resolvedDuration);
     const playbackRate = snapshot?.playbackRate ?? 1;
 
+    if (snapshot) {
+      const snapshotPosition = resolvedDuration
+        ? Math.min(snapshot.position, resolvedDuration)
+        : snapshot.position;
+      if (Number.isFinite(snapshotPosition)) {
+        return snapshotPosition;
+      }
+      return lastDisplaySecondsRef.current;
+    }
+
     if (isPlaying) {
       const startMs = localStartMsRef.current ?? startedAtMs ?? null;
       if (startMs !== null) {
@@ -204,19 +214,20 @@ const Waveform = ({
         } else if (resolvedDuration) {
           position = Math.min(position, resolvedDuration);
         }
-        return resolvedDuration ? Math.min(position, resolvedDuration) : position;
+        const resolvedPosition = resolvedDuration ? Math.min(position, resolvedDuration) : position;
+        if (Number.isFinite(resolvedPosition)) {
+          return resolvedPosition;
+        }
+        return lastDisplaySecondsRef.current;
       }
-    }
-
-    if (snapshot) {
-      return resolvedDuration ? Math.min(snapshot.position, resolvedDuration) : snapshot.position;
     }
     if (!resolvedDuration) return 0;
     const engineSeconds = getCurrentSeconds?.();
     if (engineSeconds !== null && engineSeconds !== undefined) {
       return Math.min(engineSeconds, resolvedDuration);
     }
-    return Math.min(offsetSeconds ?? 0, resolvedDuration);
+    const fallback = Math.min(offsetSeconds ?? 0, resolvedDuration);
+    return Number.isFinite(fallback) ? fallback : lastDisplaySecondsRef.current;
   }, [
     getCurrentSeconds,
     getPlayback,
@@ -585,14 +596,15 @@ const Waveform = ({
           return;
         }
         const visualDuration = resolvedDuration / Math.max(1, zoom);
+        const playback = getPlayback();
+        const isActivePlayback = Boolean(playback?.playing) || isPlaying;
         const currentSeconds = getDisplaySeconds();
         const maxWindowStart = Math.max(0, resolvedDuration - visualDuration);
         let desiredWindowStart = windowStartRef.current;
-        if (isPlaying && !isDraggingRef.current) {
-          const snapshot = getPlayback();
-          const resolvedLoopEnabled = snapshot?.loopEnabled ?? loopEnabled;
-          const resolvedLoopStart = snapshot?.loopStart ?? loopStartSeconds;
-          const resolvedLoopEnd = snapshot?.loopEnd ?? loopEndSeconds;
+        if (isActivePlayback && !isDraggingRef.current) {
+          const resolvedLoopEnabled = playback?.loopEnabled ?? loopEnabled;
+          const resolvedLoopStart = playback?.loopStart ?? loopStartSeconds;
+          const resolvedLoopEnd = playback?.loopEnd ?? loopEndSeconds;
           if (resolvedLoopEnabled && resolvedLoopEnd > resolvedLoopStart) {
             const loopDuration = resolvedLoopEnd - resolvedLoopStart;
             if (loopDuration > visualDuration) {
@@ -629,19 +641,13 @@ const Waveform = ({
         visualDurationRef.current = visualDuration;
         renderOverlay();
 
-        if (isPlaying) {
-          rafRef.current = requestAnimationFrame(animate);
-          return;
-        }
       }
 
-      rafRef.current = null;
+      rafRef.current = requestAnimationFrame(animate);
     };
 
-    if (isPlaying && buffer && startedAtMs !== undefined) {
+    if (buffer) {
       rafRef.current = requestAnimationFrame(animate);
-    } else {
-      animate();
     }
 
     return () => {

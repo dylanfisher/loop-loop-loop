@@ -290,11 +290,11 @@ const useDecks = () => {
     []
   );
 
-  const getTempoSyncedPitch = (tempoOffset: number) => {
+  const getTempoSyncedPitch = useCallback((tempoOffset: number) => {
     const rate = clampPlaybackRate(1 + tempoOffset / 100);
     const semitones = -12 * Math.log2(rate);
     return Math.min(24, Math.max(-24, semitones));
-  };
+  }, []);
 
   const historyRef = useRef<{ past: DeckState[][]; future: DeckState[][] }>({
     past: [],
@@ -730,6 +730,32 @@ const useDecks = () => {
       }
     });
   }, [decks, getDeckPlaybackRate, setDeckPlaybackRate]);
+
+  const pitchSyncExpectedRef = useRef(new Map<number, number>());
+
+  useEffect(() => {
+    const seen = new Set<number>();
+    decks.forEach((deck) => {
+      seen.add(deck.id);
+      if (!deck.tempoPitchSync) {
+        pitchSyncExpectedRef.current.delete(deck.id);
+        return;
+      }
+      const expected = getTempoSyncedPitch(deck.tempoOffset);
+      const last = pitchSyncExpectedRef.current.get(deck.id);
+      if (last === expected && deck.pitchShift === expected) return;
+      pitchSyncExpectedRef.current.set(deck.id, expected);
+      if (deck.pitchShift !== expected) {
+        updateDeck(deck.id, { pitchShift: expected }, false);
+      }
+      setDeckPitchShift(deck.id, expected);
+    });
+    Array.from(pitchSyncExpectedRef.current.keys()).forEach((deckId) => {
+      if (!seen.has(deckId)) {
+        pitchSyncExpectedRef.current.delete(deckId);
+      }
+    });
+  }, [decks, getTempoSyncedPitch, setDeckPitchShift, updateDeck]);
 
   const addDeck = () => {
     const id = nextDeckId.current;
@@ -1497,6 +1523,7 @@ const useDecks = () => {
       Math.abs(safeValue - snapped) <= TEMPO_SNAP_THRESHOLD ? snapped : safeValue;
     let nextPitch = 0;
     let shouldSyncPitch = false;
+    const currentDeck = decks.find((deck) => deck.id === id);
     setDecksNoHistory((prev) =>
       prev.map((deck) => {
         if (deck.id !== id) return deck;
@@ -1511,6 +1538,14 @@ const useDecks = () => {
     setDeckPlaybackRate(id, clampPlaybackRate(1 + nextValue / 100));
     if (shouldSyncPitch) {
       setDeckPitchShift(id, nextPitch);
+    }
+    if (currentDeck?.status === "playing") {
+      const position = getDeckPosition(id);
+      if (position !== null) {
+        const startedAtMs = performance.now();
+        playbackStartRef.current.set(id, startedAtMs);
+        updateDeck(id, { offsetSeconds: position, startedAtMs }, false);
+      }
     }
   };
 
@@ -1734,6 +1769,10 @@ const useDecks = () => {
 
   const getDeckPlaybackSnapshotSafe = useCallback(
     (id: number) => {
+      const engineSnapshot = _getDeckPlaybackSnapshot(id);
+      if (engineSnapshot) {
+        return engineSnapshot;
+      }
       const deck = decks.find((item) => item.id === id);
       if (!deck) return null;
       const duration = deck.duration ?? deck.buffer?.duration ?? 0;
@@ -1774,7 +1813,7 @@ const useDecks = () => {
         playbackRate: tempoRatio,
       };
     },
-    [decks, getDeckPlaybackRate]
+    [decks, getDeckPlaybackRate, _getDeckPlaybackSnapshot]
   );
 
   const getSessionDecks = useCallback((): DeckSession[] => {
