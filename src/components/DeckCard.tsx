@@ -715,7 +715,7 @@ const DeckCard = ({
                 max={1}
                 step={0.01}
                 value={deck.delayMix}
-                defaultValue={0.25}
+                defaultValue={0}
                 labelTitle="Wet/dry mix. 0 = dry, 1 = fully delayed."
                 onChange={(next) => onDelayMixChange(deck.id, next)}
                 formatValue={(value) => `${Math.round(value * 100)}%`}

@@ -323,7 +323,7 @@ describe("useDecks", () => {
         stretchScatter: 1,
         delayTime: 0.35,
         delayFeedback: 0.35,
-        delayMix: 0.25,
+        delayMix: 0,
         delayTone: 6000,
         delayPingPong: false,
         automation: {

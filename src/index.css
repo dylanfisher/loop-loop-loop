@@ -1081,12 +1081,6 @@ button:active {
   }
 }
 
-@media (min-width: 1500px) {
-  .deck-stack__list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (min-width: 1200px) {
   .deck__fx {
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1098,5 +1092,15 @@ button:active {
 
   .deck__fx-row {
     display: contents;
+  }
+}
+
+@media (min-width: 1500px) {
+  .deck-stack__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .deck-stack__list--single .deck__fx {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 }
