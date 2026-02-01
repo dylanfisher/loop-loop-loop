@@ -1009,6 +1009,12 @@ const App = () => {
         Math.max(deck.stretchWindowSize ?? 16384, 2048),
         16384
       );
+      const loopSamples = Math.max(1, Math.floor((loopEnd - loopStart) * deck.buffer.sampleRate));
+      const maxWindow = Math.max(
+        1024,
+        Math.pow(2, Math.floor(Math.log2(Math.max(1, Math.floor(loopSamples / 2)))))
+      );
+      const effectiveWindowSize = Math.min(windowSize, maxWindow);
       const stereoWidth = Math.min(Math.max(deck.stretchStereoWidth ?? 1, 0), 2);
       const phaseRandomness = Math.min(
         Math.max(deck.stretchPhaseRandomness ?? 1, 0),
@@ -1021,7 +1027,7 @@ const App = () => {
       // Duration to pull from the buffer in source-time so the rendered input is sliceDuration.
       const inputDurationSource = sliceDuration * tempoRatio;
       const sampleRate = deck.buffer.sampleRate;
-      const hopOut = windowSize / 2;
+      const hopOut = effectiveWindowSize / 2;
       const inputSamples = Math.max(
         1,
         Math.ceil(sliceDuration * sampleRate * Math.max(1, scatter))
@@ -1046,7 +1052,7 @@ const App = () => {
       }
       const stretchNode = createPaulStretchNode(offline, {
         ratio,
-        winSize: windowSize,
+        winSize: effectiveWindowSize,
         inputSamples,
         outputSamples,
         stereoWidth,
