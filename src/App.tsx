@@ -1519,6 +1519,7 @@ const App = () => {
         throw new Error("Unsupported session version");
       }
       const buffers = new Map<number, AudioBuffer | null>();
+      const toArrayBuffer = (data: Uint8Array) => data.slice().buffer as ArrayBuffer;
       for (const deck of sessionFile.decks) {
         if (!deck.wavFile) {
           buffers.set(deck.id, null);
@@ -1529,7 +1530,7 @@ const App = () => {
           buffers.set(deck.id, null);
           continue;
         }
-        const blob = new Blob([data], { type: "audio/wav" });
+        const blob = new Blob([toArrayBuffer(data)], { type: "audio/wav" });
         const wavFile = new File([blob], deck.fileName ?? `Deck ${deck.id}.wav`, {
           type: "audio/wav",
         });
@@ -1550,7 +1551,7 @@ const App = () => {
       for (const clip of sessionFile.clips) {
         const data = files.get(clip.wavFile);
         if (!data) continue;
-        const blob = new Blob([data], { type: "audio/wav" });
+        const blob = new Blob([toArrayBuffer(data)], { type: "audio/wav" });
         const url = URL.createObjectURL(blob);
         nextClips.push({
           id: clip.id,

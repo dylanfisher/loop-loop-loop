@@ -41,7 +41,7 @@ type DeckStackProps = {
   onStretchScatterChange: (id: number, value: number) => void;
   onStretchLoop: (id: number) => void;
   onSaveLoopClip: (id: number) => void;
-  automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch", {
+  automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", {
     samples: Float32Array;
     previewSamples: Float32Array;
     durationSec: number;
@@ -49,20 +49,20 @@ type DeckStackProps = {
     active: boolean;
     currentValue: number;
   }>>;
-  onAutomationStart: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch") => void;
-  onAutomationStop: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch") => void;
+  onAutomationStart: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => void;
+  onAutomationStop: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => void;
   onAutomationValueChange: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch",
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
     value: number
   ) => void;
-  getAutomationPlayhead: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch") => number;
+  getAutomationPlayhead: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => number;
   onAutomationToggle: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch",
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
     active: boolean
   ) => void;
-  onAutomationReset: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "pitch") => void;
+  onAutomationReset: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
     position: number;

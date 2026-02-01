@@ -1,3 +1,5 @@
+export {};
+
 type ChannelState = {
   buffer: Float32Array;
   lastMagnitudes: Float32Array | null;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
-import type { DeckState } from "../types/deck";
+import type { DeckState, DeckStatus } from "../types/deck";
 import type { AutomationParam, DeckSession } from "../types/session";
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -1473,10 +1473,14 @@ const useDecks = () => {
             deck.id,
             deck.buffer,
             () => {
-              console.info("Deck ended", { deckId: deck.id, loopEnabled: value });
+              console.info("Deck ended", { deckId: deck.id, loopEnabled: true });
               playbackStartRef.current.delete(deck.id);
-            updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
-          },
+              updateDeck(
+                deck.id,
+                { status: "ready", startedAtMs: undefined, offsetSeconds: 0 },
+                false
+              );
+            },
             deck.gain,
             clampedOffset,
             getDeckPlaybackRate(deck),
@@ -1609,7 +1613,8 @@ const useDecks = () => {
       const nextDelayPingPong = deck.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
       resetAutomation(id, 0, 0.7, 0, 0, 0, nextBalance, nextPitchShift);
 
-      const nextDeck = {
+      const status: DeckStatus = autoplay ? "playing" : "ready";
+      const nextDeck: DeckState = {
         ...deck,
         fileName: name,
         buffer,
@@ -1640,7 +1645,7 @@ const useDecks = () => {
         delayMix: nextDelayMix,
         delayTone: nextDelayTone,
         delayPingPong: nextDelayPingPong,
-        status: autoplay ? "playing" : "ready",
+        status,
         startedAtMs: autoplay ? performance.now() : undefined,
       };
 
@@ -1966,9 +1971,10 @@ const useDecks = () => {
 
         maxDeckId = Math.max(maxDeckId, sessionDeck.id);
 
+        const status: DeckStatus = buffer ? "paused" : "idle";
         return {
           id: sessionDeck.id,
-          status: buffer ? "paused" : "idle",
+          status,
           fileName: sessionDeck.fileName,
           buffer,
           duration: duration || undefined,

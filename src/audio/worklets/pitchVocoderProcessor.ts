@@ -1,3 +1,5 @@
+export {};
+
 type ChannelState = {
   inFIFO: Float32Array;
   outFIFO: Float32Array;
