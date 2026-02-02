@@ -51,6 +51,7 @@ type DeckStackProps = {
     recording: boolean;
     active: boolean;
     currentValue: number;
+    amplitudeScale: number;
   }>>;
   onAutomationStart: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => void;
   onAutomationStop: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => void;

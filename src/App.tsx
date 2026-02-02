@@ -6,6 +6,7 @@ import Knob from "./components/Knob";
 import useDecks from "./hooks/useDecks";
 import useAudioEngine from "./hooks/useAudioEngine";
 import type { ClipItem } from "./types/clip";
+import type { DeckState } from "./types/deck";
 import type {
   ClipSession,
   ClipSettings,
@@ -2174,7 +2175,6 @@ const App = () => {
         />
         <DeckStack
           decks={decks}
-          onAddDeck={addDeck}
           onRemoveDeck={removeDeck}
           onLoadClick={handleLoadClick}
           onFileSelected={handleFileSelected}

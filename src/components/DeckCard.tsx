@@ -417,7 +417,7 @@ const DeckCard = ({
             onChange={(event) => {
               if (tempoIgnoreChangeRef.current) return;
               const raw = Number(event.target.value);
-              const isFine = tempoFine || event.shiftKey;
+              const isFine = tempoFine;
               const next = isFine ? raw : Math.round(raw * 10) / 10;
               onTempoOffsetChange(deck.id, next, isFine ? { disableSnap: true } : undefined);
             }}
