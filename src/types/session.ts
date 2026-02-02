@@ -57,6 +57,35 @@ export type ClipSession = {
   pitchShift: number;
   tempoOffset: number;
   wavBlobId: string;
+  settings?: ClipSettings;
+};
+
+export type ClipSettings = {
+  gain: number;
+  djFilter: number;
+  filterResonance: number;
+  eqLowGain: number;
+  eqMidGain: number;
+  eqHighGain: number;
+  balance: number;
+  pitchShift: number;
+  tempoOffset: number;
+  tempoPitchSync: boolean;
+  stretchRatio: number;
+  stretchWindowSize: number;
+  stretchStereoWidth: number;
+  stretchPhaseRandomness: number;
+  stretchTiltDb: number;
+  stretchScatter: number;
+  delayTime: number;
+  delayFeedback: number;
+  delayMix: number;
+  delayTone: number;
+  delayPingPong: boolean;
+  loopEnabled: boolean;
+  loopStartSeconds: number;
+  loopEndSeconds: number;
+  automation: Record<AutomationParam, AutomationSnapshot>;
 };
 
 export type SessionState = {

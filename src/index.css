@@ -325,6 +325,16 @@ body::before {
   font-size: 0.7rem;
 }
 
+.deck__action-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
 .deck__meta {
   display: flex;
   align-items: center;

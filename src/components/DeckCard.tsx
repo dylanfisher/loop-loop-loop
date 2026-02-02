@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import type { DeckState } from "../types/deck";
 import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
@@ -76,7 +76,7 @@ type DeckCardProps = {
   onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchScatterChange: (id: number, value: number) => void;
   onStretchLoop: (id: number) => void;
-  onSaveLoopClip: (id: number) => void;
+  onSaveLoopClip: (id: number, includeSettings: boolean) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
     position: number;
@@ -246,6 +246,8 @@ const DeckCard = ({
     return getDeckPosition(deck.id);
   }, [deck.id, getDeckPlaybackSnapshot, getDeckPosition]);
 
+  const [saveSettings, setSaveSettings] = useState(false);
+
   return (
     <div className="deck">
       <div className="deck__header">
@@ -288,7 +290,7 @@ const DeckCard = ({
               disabled={!deck.buffer}
               idleLabel="Save Loop"
               busyLabel="Saving..."
-              onAction={() => onSaveLoopClip(deck.id)}
+              onAction={() => onSaveLoopClip(deck.id, saveSettings)}
             />
             <button type="button" className="deck__action">
               Slice
@@ -300,6 +302,17 @@ const DeckCard = ({
         </div>
         <div className="deck__meta">
           <div className="deck__bpm-summary">
+            <label
+              className="deck__pitch-sync"
+              title="When enabled, Save Loop stores the current deck FX/automation/settings (filters, EQ, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
+            >
+              <input
+                type="checkbox"
+                checked={saveSettings}
+                onChange={(event) => setSaveSettings(event.target.checked)}
+              />
+              Save FX Settings
+            </label>
             <label className="deck__pitch-sync">
               <input
                 type="checkbox"

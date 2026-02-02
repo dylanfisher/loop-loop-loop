@@ -1,3 +1,5 @@
+import type { ClipSettings } from "./session";
+
 export type ClipItem = {
   id: number;
   name: string;
@@ -9,4 +11,5 @@ export type ClipItem = {
   balance: number;
   pitchShift: number;
   tempoOffset: number;
+  settings?: ClipSettings;
 };

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
 import type { DeckState, DeckStatus } from "../types/deck";
-import type { AutomationParam, DeckSession } from "../types/session";
+import type { AutomationParam, AutomationSnapshot, ClipSettings, DeckSession } from "../types/session";
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const AUTOMATION_SAMPLE_RATE = 30;
@@ -231,6 +231,63 @@ const useDecks = () => {
     }
   }, []);
 
+  const applyDeckSettingsToEngine = useCallback(
+    (
+      deckId: number,
+      settings: {
+        gain: number;
+        djFilter: number;
+        filterResonance: number;
+        eqLowGain: number;
+        eqMidGain: number;
+        eqHighGain: number;
+        balance: number;
+        pitchShift: number;
+        tempoOffset: number;
+        delayTime: number;
+        delayFeedback: number;
+        delayMix: number;
+        delayTone: number;
+        delayPingPong: boolean;
+      }
+    ) => {
+      const targets = getFilterTargets(settings.djFilter);
+      setDeckGain(deckId, settings.gain);
+      setDeckFilter(deckId, targets.lowpass);
+      setDeckHighpass(deckId, targets.highpass);
+      setDeckResonance(deckId, settings.filterResonance);
+      setDeckEqLow(deckId, settings.eqLowGain);
+      setDeckEqMid(deckId, settings.eqMidGain);
+      setDeckEqHigh(deckId, settings.eqHighGain);
+      setDeckBalance(deckId, settings.balance);
+      setDeckPitchShift(deckId, settings.pitchShift);
+      setDeckDelayTime(deckId, settings.delayTime);
+      setDeckDelayFeedback(deckId, settings.delayFeedback);
+      setDeckDelayMix(deckId, settings.delayMix);
+      setDeckDelayTone(deckId, settings.delayTone);
+      setDeckDelayPingPong(deckId, settings.delayPingPong);
+      setDeckPlaybackRate(deckId, clampPlaybackRate(1 + settings.tempoOffset / 100));
+    },
+    [
+      getFilterTargets,
+      setDeckBalance,
+      setDeckDelayFeedback,
+      setDeckDelayMix,
+      setDeckDelayPingPong,
+      setDeckDelayTime,
+      setDeckDelayTone,
+      setDeckEqHigh,
+      setDeckEqLow,
+      setDeckEqMid,
+      setDeckFilter,
+      setDeckGain,
+      setDeckHighpass,
+      setDeckPitchShift,
+      setDeckPlaybackRate,
+      setDeckResonance,
+    ]
+  );
+
   const updateAutomationView = useCallback((deckId: number) => {
     const automation = automationRef.current.get(deckId);
     if (!automation) return;
@@ -269,6 +326,70 @@ const useDecks = () => {
         balance: createTrack(balance),
         pitch: createTrack(pitchShift),
       };
+      automationRef.current.set(deckId, automation);
+      automationPlayheadRef.current.set(deckId, {
+        djFilter: 0,
+        resonance: 0,
+        eqLow: 0,
+        eqMid: 0,
+        eqHigh: 0,
+        balance: 0,
+        pitch: 0,
+      });
+      updateAutomationView(deckId);
+      updateAutomationTickEnabled();
+    },
+    [updateAutomationTickEnabled, updateAutomationView]
+  );
+
+  const applyAutomationSnapshots = useCallback(
+    (
+      deckId: number,
+      snapshots: Record<AutomationParam, AutomationSnapshot>,
+      fallbackValues: {
+        djFilter: number;
+        resonance: number;
+        eqLow: number;
+        eqMid: number;
+        eqHigh: number;
+        balance: number;
+        pitch: number;
+      }
+    ) => {
+      const buildTrack = (
+        snapshot: AutomationSnapshot | undefined,
+        fallbackValue: number
+      ): AutomationTrack => {
+        const hasSamples = (snapshot?.samples?.length ?? 0) > 0;
+        const isActive = snapshot?.active ?? hasSamples;
+        return {
+        samples: new Float32Array(snapshot?.samples ?? []),
+        sampleRate: snapshot?.sampleRate ?? AUTOMATION_SAMPLE_RATE,
+        durationSec: snapshot?.durationSec ?? 0,
+        recording: false,
+        active: isActive,
+        paused: isActive,
+        pausedPositionSec: 0,
+        currentValue: snapshot?.currentValue ?? fallbackValue,
+        lastIndex: -1,
+        lastPreviewLength: 0,
+        recordBuffer: [],
+        recordStartMs: 0,
+        lastSampleMs: 0,
+        playbackStartMs: 0,
+        };
+      };
+
+      const automation: AutomationDeck = {
+        djFilter: buildTrack(snapshots.djFilter, fallbackValues.djFilter),
+        resonance: buildTrack(snapshots.resonance, fallbackValues.resonance),
+        eqLow: buildTrack(snapshots.eqLow, fallbackValues.eqLow),
+        eqMid: buildTrack(snapshots.eqMid, fallbackValues.eqMid),
+        eqHigh: buildTrack(snapshots.eqHigh, fallbackValues.eqHigh),
+        balance: buildTrack(snapshots.balance, fallbackValues.balance),
+        pitch: buildTrack(snapshots.pitch, fallbackValues.pitch),
+      };
+
       automationRef.current.set(deckId, automation);
       automationPlayheadRef.current.set(deckId, {
         djFilter: 0,
@@ -826,7 +947,13 @@ const useDecks = () => {
   const handleFileSelected = async (
     id: number,
     file: File | null,
-    options?: { gain?: number; pitchShift?: number; balance?: number; tempoOffset?: number }
+    options?: {
+      gain?: number;
+      pitchShift?: number;
+      balance?: number;
+      tempoOffset?: number;
+      settings?: ClipSettings;
+    }
   ) => {
     if (!file) return;
 
@@ -834,88 +961,150 @@ const useDecks = () => {
     loadRequestRef.current.set(id, requestId);
     const currentDeck = decks.find((deck) => deck.id === id);
     const wasPlaying = currentDeck?.status === "playing";
-    const nextGain = options?.gain ?? 0.9;
-    const nextPitchShift = options?.pitchShift ?? 0;
-    const nextBalance = options?.balance ?? 0;
-    const nextTempoOffset = options?.tempoOffset ?? 0;
+    const clipSettings = options?.settings;
+    const nextGain = clipSettings?.gain ?? options?.gain ?? 0.9;
+    const nextPitchShift = clipSettings?.pitchShift ?? options?.pitchShift ?? 0;
+    const nextBalance = clipSettings?.balance ?? options?.balance ?? 0;
+    const nextTempoOffset = clipSettings?.tempoOffset ?? options?.tempoOffset ?? 0;
+    const nextDjFilter = clipSettings?.djFilter ?? 0;
+    const nextResonance = clipSettings?.filterResonance ?? 0.7;
+    const nextEqLow = clipSettings?.eqLowGain ?? 0;
+    const nextEqMid = clipSettings?.eqMidGain ?? 0;
+    const nextEqHigh = clipSettings?.eqHighGain ?? 0;
+    const nextTempoPitchSync = clipSettings?.tempoPitchSync ?? false;
+    const nextStretchRatio = clipSettings?.stretchRatio ?? DEFAULT_STRETCH_RATIO;
+    const nextStretchWindowSize =
+      clipSettings?.stretchWindowSize ?? DEFAULT_STRETCH_WINDOW_SIZE;
+    const nextStretchStereoWidth =
+      clipSettings?.stretchStereoWidth ?? DEFAULT_STRETCH_STEREO_WIDTH;
+    const nextStretchPhaseRandomness =
+      clipSettings?.stretchPhaseRandomness ?? DEFAULT_STRETCH_PHASE_RANDOMNESS;
+    const nextStretchTiltDb = clipSettings?.stretchTiltDb ?? DEFAULT_STRETCH_TILT_DB;
+    const nextStretchScatter = clipSettings?.stretchScatter ?? DEFAULT_STRETCH_SCATTER;
+    const nextDelayTime = clipSettings?.delayTime ?? DEFAULT_DELAY_TIME;
+    const nextDelayFeedback = clipSettings?.delayFeedback ?? DEFAULT_DELAY_FEEDBACK;
+    const nextDelayMix = clipSettings?.delayMix ?? DEFAULT_DELAY_MIX;
+    const nextDelayTone = clipSettings?.delayTone ?? DEFAULT_DELAY_TONE;
+    const nextDelayPingPong = clipSettings?.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
+    applyDeckSettingsToEngine(id, {
+      gain: nextGain,
+      djFilter: nextDjFilter,
+      filterResonance: nextResonance,
+      eqLowGain: nextEqLow,
+      eqMidGain: nextEqMid,
+      eqHighGain: nextEqHigh,
+      balance: nextBalance,
+      pitchShift: nextPitchShift,
+      tempoOffset: nextTempoOffset,
+      delayTime: nextDelayTime,
+      delayFeedback: nextDelayFeedback,
+      delayMix: nextDelayMix,
+      delayTone: nextDelayTone,
+      delayPingPong: nextDelayPingPong,
+    });
     if (wasPlaying) {
       stop(id);
       playbackStartRef.current.delete(id);
     }
-    resetAutomation(id, 0, 0.7, 0, 0, 0, nextBalance, nextPitchShift);
+    if (clipSettings?.automation) {
+      applyAutomationSnapshots(id, clipSettings.automation, {
+        djFilter: nextDjFilter,
+        resonance: nextResonance,
+        eqLow: nextEqLow,
+        eqMid: nextEqMid,
+        eqHigh: nextEqHigh,
+        balance: nextBalance,
+        pitch: nextPitchShift,
+      });
+    } else {
+      resetAutomation(
+        id,
+        nextDjFilter,
+        nextResonance,
+        nextEqLow,
+        nextEqMid,
+        nextEqHigh,
+        nextBalance,
+        nextPitchShift
+      );
+    }
     updateDeck(id, {
       status: "loading",
       fileName: file.name,
       gain: nextGain,
       startedAtMs: undefined,
       offsetSeconds: 0,
-      djFilter: 0,
-      filterResonance: 0,
-      eqLowGain: 0,
-      eqMidGain: 0,
-      eqHighGain: 0,
+      djFilter: nextDjFilter,
+      filterResonance: nextResonance,
+      eqLowGain: nextEqLow,
+      eqMidGain: nextEqMid,
+      eqHighGain: nextEqHigh,
       balance: nextBalance,
       pitchShift: nextPitchShift,
       zoom: 1,
-      loopEnabled: true,
-      loopStartSeconds: 0,
-      loopEndSeconds: 0,
+      loopEnabled: clipSettings?.loopEnabled ?? true,
+      loopStartSeconds: clipSettings?.loopStartSeconds ?? 0,
+      loopEndSeconds: clipSettings?.loopEndSeconds ?? 0,
       tempoOffset: nextTempoOffset,
-      tempoPitchSync: false,
-      stretchRatio: DEFAULT_STRETCH_RATIO,
-      stretchWindowSize: DEFAULT_STRETCH_WINDOW_SIZE,
-      stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
-      stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
-      stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
-      stretchScatter: DEFAULT_STRETCH_SCATTER,
-      delayTime: DEFAULT_DELAY_TIME,
-      delayFeedback: DEFAULT_DELAY_FEEDBACK,
-      delayMix: DEFAULT_DELAY_MIX,
-      delayTone: DEFAULT_DELAY_TONE,
-      delayPingPong: DEFAULT_DELAY_PINGPONG,
+      tempoPitchSync: nextTempoPitchSync,
+      stretchRatio: nextStretchRatio,
+      stretchWindowSize: nextStretchWindowSize,
+      stretchStereoWidth: nextStretchStereoWidth,
+      stretchPhaseRandomness: nextStretchPhaseRandomness,
+      stretchTiltDb: nextStretchTiltDb,
+      stretchScatter: nextStretchScatter,
+      delayTime: nextDelayTime,
+      delayFeedback: nextDelayFeedback,
+      delayMix: nextDelayMix,
+      delayTone: nextDelayTone,
+      delayPingPong: nextDelayPingPong,
     }, true);
     setDeckPitchShift(id, nextPitchShift);
     setDeckBalance(id, nextBalance);
-    setDeckDelayTime(id, DEFAULT_DELAY_TIME);
-    setDeckDelayFeedback(id, DEFAULT_DELAY_FEEDBACK);
-    setDeckDelayMix(id, DEFAULT_DELAY_MIX);
-    setDeckDelayTone(id, DEFAULT_DELAY_TONE);
-    setDeckDelayPingPong(id, DEFAULT_DELAY_PINGPONG);
+    setDeckDelayTime(id, nextDelayTime);
+    setDeckDelayFeedback(id, nextDelayFeedback);
+    setDeckDelayMix(id, nextDelayMix);
+    setDeckDelayTone(id, nextDelayTone);
+    setDeckDelayPingPong(id, nextDelayPingPong);
     try {
       const buffer = await decodeFile(file);
       if (loadRequestRef.current.get(id) !== requestId) return;
       const duration = Number.isFinite(buffer.duration)
         ? buffer.duration
         : buffer.length / buffer.sampleRate;
+      const loopStart = clipSettings?.loopStartSeconds ?? 0;
+      const loopEnd = duration
+        ? Math.min(Math.max(loopStart + 0.01, clipSettings?.loopEndSeconds ?? duration), duration)
+        : clipSettings?.loopEndSeconds ?? duration;
       const baseDeck = {
         buffer,
         duration,
         gain: nextGain,
         offsetSeconds: 0,
-        djFilter: 0,
-        filterResonance: 0,
-        eqLowGain: 0,
-        eqMidGain: 0,
-        eqHighGain: 0,
+        djFilter: nextDjFilter,
+        filterResonance: nextResonance,
+        eqLowGain: nextEqLow,
+        eqMidGain: nextEqMid,
+        eqHighGain: nextEqHigh,
         balance: nextBalance,
         pitchShift: nextPitchShift,
         zoom: 1,
-        loopEnabled: true,
-        loopStartSeconds: 0,
-        loopEndSeconds: duration,
+        loopEnabled: clipSettings?.loopEnabled ?? true,
+        loopStartSeconds: loopStart,
+        loopEndSeconds: loopEnd,
         tempoOffset: nextTempoOffset,
-        tempoPitchSync: false,
-        stretchRatio: DEFAULT_STRETCH_RATIO,
-        stretchWindowSize: DEFAULT_STRETCH_WINDOW_SIZE,
-        stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
-        stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
-        stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
-        stretchScatter: DEFAULT_STRETCH_SCATTER,
-        delayTime: DEFAULT_DELAY_TIME,
-        delayFeedback: DEFAULT_DELAY_FEEDBACK,
-        delayMix: DEFAULT_DELAY_MIX,
-        delayTone: DEFAULT_DELAY_TONE,
-        delayPingPong: DEFAULT_DELAY_PINGPONG,
+        tempoPitchSync: nextTempoPitchSync,
+        stretchRatio: nextStretchRatio,
+        stretchWindowSize: nextStretchWindowSize,
+        stretchStereoWidth: nextStretchStereoWidth,
+        stretchPhaseRandomness: nextStretchPhaseRandomness,
+        stretchTiltDb: nextStretchTiltDb,
+        stretchScatter: nextStretchScatter,
+        delayTime: nextDelayTime,
+        delayFeedback: nextDelayFeedback,
+        delayMix: nextDelayMix,
+        delayTone: nextDelayTone,
+        delayPingPong: nextDelayPingPong,
       };
       if (wasPlaying) {
         const startedAtMs = performance.now();
@@ -925,7 +1114,7 @@ const useDecks = () => {
           status: "playing",
           startedAtMs,
         }, false);
-        const filters = getFilterTargets(0);
+        const filters = getFilterTargets(nextDjFilter);
         const gain = nextGain;
         const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
         void playBuffer(
@@ -939,20 +1128,20 @@ const useDecks = () => {
           gain,
           0,
           tempoRatio,
-          true,
-          0,
-          duration,
+          baseDeck.loopEnabled,
+          baseDeck.loopStartSeconds,
+          baseDeck.loopEndSeconds,
           filters.lowpass,
           filters.highpass,
-          0.7,
-          0,
-          0,
-          0,
-          DEFAULT_DELAY_TIME,
-          DEFAULT_DELAY_FEEDBACK,
-          DEFAULT_DELAY_MIX,
-          DEFAULT_DELAY_TONE,
-          DEFAULT_DELAY_PINGPONG,
+          nextResonance,
+          nextEqLow,
+          nextEqMid,
+          nextEqHigh,
+          nextDelayTime,
+          nextDelayFeedback,
+          nextDelayMix,
+          nextDelayTone,
+          nextDelayPingPong,
           nextBalance,
           nextPitchShift
         );
@@ -980,6 +1169,7 @@ const useDecks = () => {
     // eslint-disable-next-line react-hooks/purity -- timestamp is captured during user action
     const startedAtMs = performance.now();
     playbackStartRef.current.set(deck.id, startedAtMs);
+    resumeAutomationDeck(deck.id);
     updateDeck(deck.id, {
       status: "playing",
       startedAtMs,

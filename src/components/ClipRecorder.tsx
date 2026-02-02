@@ -8,7 +8,13 @@ type ClipRecorderProps = {
   onLoadClip: (
     deckId: number,
     file: File,
-    options?: { gain?: number; pitchShift?: number; balance?: number; tempoOffset?: number }
+    options?: {
+      gain?: number;
+      pitchShift?: number;
+      balance?: number;
+      tempoOffset?: number;
+      settings?: ClipItem["settings"];
+    }
   ) => void;
   clips: ClipItem[];
   onAddClip: (
@@ -233,10 +239,11 @@ const ClipRecorder = ({
                           type: clip.blob.type || "audio/webm",
                         });
                         onLoadClip(deck.id, file, {
-                          gain: clip.gain,
-                          balance: 0,
-                          pitchShift: 0,
-                          tempoOffset: clip.tempoOffset ?? 0,
+                          gain: clip.settings?.gain ?? clip.gain,
+                          balance: clip.settings?.balance ?? clip.balance,
+                          pitchShift: clip.settings?.pitchShift ?? clip.pitchShift,
+                          tempoOffset: clip.settings?.tempoOffset ?? clip.tempoOffset ?? 0,
+                          settings: clip.settings,
                         });
                       }}
                     >

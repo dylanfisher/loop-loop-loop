@@ -39,7 +39,7 @@ type DeckStackProps = {
   onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchScatterChange: (id: number, value: number) => void;
   onStretchLoop: (id: number) => void;
-  onSaveLoopClip: (id: number) => void;
+  onSaveLoopClip: (id: number, includeSettings: boolean) => void;
   automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", {
     samples: Float32Array;
     previewSamples: Float32Array;

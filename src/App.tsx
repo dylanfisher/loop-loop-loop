@@ -7,6 +7,7 @@ import useAudioEngine from "./hooks/useAudioEngine";
 import type { ClipItem } from "./types/clip";
 import type {
   ClipSession,
+  ClipSettings,
   DeckSession,
   SessionFileState,
   SessionMeta,
@@ -36,6 +37,7 @@ type PerformanceMemory = {
 };
 
 const eqStageCount = 2;
+const CLIP_AUTOMATION_SAMPLE_RATE = 30;
 
 const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
   const perStageGain = value / eqStageCount;
@@ -345,6 +347,66 @@ const App = () => {
     []
   );
 
+  const buildClipSettings = useCallback(
+    (deck: DeckState, loopDuration: number): ClipSettings => {
+      const automation = automationState.get(deck.id);
+      const toSnapshot = (
+        track:
+          | {
+              samples: Float32Array;
+              durationSec: number;
+              active: boolean;
+              currentValue: number;
+            }
+          | undefined,
+        fallback: number
+      ) => ({
+        samples: Array.from(track?.samples ?? []),
+        sampleRate: CLIP_AUTOMATION_SAMPLE_RATE,
+        durationSec: track?.durationSec ?? 0,
+        active: track?.active ?? false,
+        currentValue: track?.currentValue ?? fallback,
+      });
+
+      return {
+        gain: deck.gain,
+        djFilter: deck.djFilter,
+        filterResonance: deck.filterResonance,
+        eqLowGain: deck.eqLowGain,
+        eqMidGain: deck.eqMidGain,
+        eqHighGain: deck.eqHighGain,
+        balance: deck.balance,
+        pitchShift: deck.pitchShift,
+        tempoOffset: deck.tempoOffset,
+        tempoPitchSync: deck.tempoPitchSync,
+        stretchRatio: deck.stretchRatio,
+        stretchWindowSize: deck.stretchWindowSize,
+        stretchStereoWidth: deck.stretchStereoWidth,
+        stretchPhaseRandomness: deck.stretchPhaseRandomness,
+        stretchTiltDb: deck.stretchTiltDb,
+        stretchScatter: deck.stretchScatter,
+        delayTime: deck.delayTime,
+        delayFeedback: deck.delayFeedback,
+        delayMix: deck.delayMix,
+        delayTone: deck.delayTone,
+        delayPingPong: deck.delayPingPong,
+        loopEnabled: true,
+        loopStartSeconds: 0,
+        loopEndSeconds: loopDuration,
+        automation: {
+          djFilter: toSnapshot(automation?.djFilter, deck.djFilter),
+          resonance: toSnapshot(automation?.resonance, deck.filterResonance),
+          eqLow: toSnapshot(automation?.eqLow, deck.eqLowGain),
+          eqMid: toSnapshot(automation?.eqMid, deck.eqMidGain),
+          eqHigh: toSnapshot(automation?.eqHigh, deck.eqHighGain),
+          balance: toSnapshot(automation?.balance, deck.balance),
+          pitch: toSnapshot(automation?.pitch, deck.pitchShift),
+        },
+      };
+    },
+    [automationState]
+  );
+
   useEffect(() => {
     clipsRef.current = clips;
   }, [clips]);
@@ -386,6 +448,7 @@ const App = () => {
           balance: clip.balance,
           pitchShift: clip.pitchShift,
           tempoOffset: clip.tempoOffset ?? 0,
+          settings: clip.settings,
         },
         ...prev,
       ]);
@@ -408,7 +471,7 @@ const App = () => {
   }, []);
 
   const handleSaveLoopClip = useCallback(
-    async (deckId: number) => {
+    async (deckId: number, includeSettings: boolean) => {
       const deck = decks.find((item) => item.id === deckId);
       if (!deck?.buffer) return;
       const duration = deck.duration ?? deck.buffer.duration;
@@ -467,6 +530,24 @@ const App = () => {
         needsEq ||
         needsBalance ||
         needsGain;
+
+      if (includeSettings) {
+        const sliced = sliceBufferSegment(deck.buffer, loopStart, sliceDuration);
+        const blob = encodeWav(sliced);
+        const settings = buildClipSettings(deck, sliced.duration);
+        addClip({
+          blob,
+          durationSec: sliced.duration,
+          buffer: sliced,
+          gain: settings.gain,
+          balance: settings.balance,
+          pitchShift: settings.pitchShift,
+          tempoOffset: settings.tempoOffset,
+          settings,
+          name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
+        });
+        return;
+      }
 
       if (!needsRender) {
         const sliced = sliceBufferSegment(deck.buffer, loopStart, sliceDuration);
@@ -706,10 +787,11 @@ const App = () => {
           balance: 0,
           pitchShift: 0,
           tempoOffset: 0,
+          settings: undefined,
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
         });
     },
-    [addClip, automationState, decks, getFilterTargets, scheduleLoopedSamples]
+    [addClip, automationState, buildClipSettings, decks, getFilterTargets, scheduleLoopedSamples]
   );
 
   const exportMixdown = useCallback(async () => {
@@ -1441,6 +1523,7 @@ const App = () => {
           pitchShift: clip.pitchShift,
           tempoOffset: clip.tempoOffset ?? 0,
           wavBlobId: blobId,
+          settings: clip.settings,
         });
       }
 
@@ -1584,6 +1667,7 @@ const App = () => {
           balance: clip.balance ?? 0,
           pitchShift: clip.pitchShift ?? 0,
           tempoOffset: clip.tempoOffset ?? 0,
+          settings: clip.settings,
         });
         maxClipId = Math.max(maxClipId, clip.id);
       }
@@ -1687,6 +1771,7 @@ const App = () => {
           balance: clip.balance ?? 0,
           pitchShift: clip.pitchShift ?? 0,
           tempoOffset: clip.tempoOffset ?? 0,
+          settings: clip.settings,
         });
         maxClipId = Math.max(maxClipId, clip.id);
       }
