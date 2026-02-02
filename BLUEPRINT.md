@@ -59,6 +59,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Presets for FX chains, deck states, and mappings.
 - Session persistence: save/load session JSON to IndexedDB plus WAV blobs for deck/clip audio.
 - Clip metadata can include per-clip deck settings + automation snapshots to rehydrate FX on load.
+- Automation lanes support compact preset waveforms and length scaling controls.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
 - Session export/import: zip bundle with `session.json` manifest and WAV audio assets.
 

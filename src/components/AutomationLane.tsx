@@ -11,12 +11,17 @@ type AutomationLaneProps = {
   durationSec: number;
   recording: boolean;
   active: boolean;
+  amplitudeScale: number;
   getPlayhead: () => number;
   onDrawStart: () => void;
   onDrawEnd: () => void;
   onReset: () => void;
   onToggleActive: (active: boolean) => void;
   onDrawValueChange: (value: number) => void;
+  onPreset: (preset: "sine" | "triangle" | "ramp") => void;
+  onLengthScale: (factor: number) => void;
+  onAmplitudeScale: (factor: number) => void;
+  onDurationChange: (durationSec: number) => void;
   disabled?: boolean;
 };
 
@@ -32,12 +37,17 @@ const AutomationLane = ({
   durationSec,
   recording,
   active,
+  amplitudeScale,
   getPlayhead,
   onDrawStart,
   onDrawEnd,
   onReset,
   onToggleActive,
   onDrawValueChange,
+  onPreset,
+  onLengthScale,
+  onAmplitudeScale,
+  onDurationChange,
   disabled = false,
 }: AutomationLaneProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -45,6 +55,8 @@ const AutomationLane = ({
   const playheadRef = useRef<HTMLDivElement | null>(null);
   const getPlayheadRef = useRef(getPlayhead);
   const [liveValue, setLiveValue] = useState<number | null>(null);
+  const dragStateRef = useRef<{ startY: number; startDuration: number } | null>(null);
+  const [liveDuration, setLiveDuration] = useState<number | null>(null);
 
   useEffect(() => {
     getPlayheadRef.current = getPlayhead;
@@ -151,6 +163,42 @@ const AutomationLane = ({
     onDrawEnd();
   }, [disabled, onDrawEnd]);
 
+  const handleDurationPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (disabled) return;
+      dragStateRef.current = {
+        startY: event.clientY,
+        startDuration: durationSec || 1,
+      };
+      setLiveDuration(durationSec || 1);
+    },
+    [disabled, durationSec]
+  );
+
+  useEffect(() => {
+    const handleMove = (event: PointerEvent) => {
+      if (!dragStateRef.current) return;
+      const deltaY = dragStateRef.current.startY - event.clientY;
+      const next = dragStateRef.current.startDuration + deltaY * 0.02;
+      const clamped = clamp(next, 0.25, 60);
+      setLiveDuration(clamped);
+      onDurationChange(clamped);
+    };
+    const handleUp = () => {
+      if (!dragStateRef.current) return;
+      dragStateRef.current = null;
+      setLiveDuration(null);
+    };
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+    };
+  }, [onDurationChange]);
+
   useEffect(() => {
     if (!recording || disabled) return;
     const handleMove = (event: PointerEvent) => {
@@ -176,7 +224,7 @@ const AutomationLane = ({
         <div className="automation-lane__actions">
           <button
             type="button"
-            className={`automation-lane__toggle ${active ? "is-active" : ""}`}
+            className={`automation-lane__toggle button--small ${active ? "is-active" : ""}`}
             onClick={() => onToggleActive(!active)}
             disabled={disabled}
           >
@@ -184,7 +232,7 @@ const AutomationLane = ({
           </button>
           <button
             type="button"
-            className="automation-lane__reset"
+            className="automation-lane__reset button--small"
             onClick={onReset}
             disabled={disabled}
           >
@@ -204,11 +252,83 @@ const AutomationLane = ({
         <canvas ref={canvasRef} width={220} height={70} />
         <div ref={playheadRef} className="automation-lane__playhead" />
       </div>
-      <div className="automation-lane__value">
+      <div className="automation-lane__tools">
+        <div className="automation-lane__preset-tools">
+          <button
+            type="button"
+            className="automation-lane__tool"
+            title="Preset: Sine wave"
+            onClick={() => onPreset("sine")}
+            disabled={disabled}
+          >
+            Sin
+          </button>
+          <button
+            type="button"
+            className="automation-lane__tool"
+            title="Preset: Triangle wave"
+            onClick={() => onPreset("triangle")}
+            disabled={disabled}
+          >
+            Tri
+          </button>
+          <button
+            type="button"
+            className="automation-lane__tool"
+            title="Preset: Ramp up"
+            onClick={() => onPreset("ramp")}
+            disabled={disabled}
+          >
+            Ramp
+          </button>
+        </div>
+        <div className="automation-lane__length-tools">
+          <button
+            type="button"
+            className="automation-lane__tool"
+            title="Half automation length"
+            onClick={() => onLengthScale(0.5)}
+            disabled={disabled}
+          >
+            1/2
+          </button>
+          <button
+            type="button"
+            className="automation-lane__tool"
+            title="Double automation length"
+            onClick={() => onLengthScale(2)}
+            disabled={disabled}
+          >
+            2x
+          </button>
+          <button
+            type="button"
+            className="automation-lane__tool"
+            title="Half automation amplitude"
+            onClick={() => onAmplitudeScale(0.5)}
+            disabled={disabled || amplitudeScale <= 1 / 3}
+          >
+            1/2 Y
+          </button>
+          <button
+            type="button"
+            className="automation-lane__tool"
+            title="Double automation amplitude"
+            onClick={() => onAmplitudeScale(2)}
+            disabled={disabled || amplitudeScale >= 1}
+          >
+            2x Y
+          </button>
+        </div>
+      </div>
+      <div
+        className="automation-lane__value"
+        onPointerDown={handleDurationPointerDown}
+      >
         {recording
           ? (liveValue ?? value).toFixed(2)
           : active
-            ? `${durationSec.toFixed(2)}s`
+            ? `${(liveDuration ?? durationSec).toFixed(2)}s`
             : "—"}
       </div>
     </div>

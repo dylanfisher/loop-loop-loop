@@ -62,6 +62,10 @@ type DeckStackProps = {
     active: boolean
   ) => void;
   onAutomationReset: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => void;
+  onAutomationPreset: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", preset: "sine" | "triangle" | "ramp", min: number, max: number) => void;
+  onAutomationLengthScale: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", factor: number) => void;
+  onAutomationAmplitudeScale: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", factor: number, min: number, max: number) => void;
+  onAutomationDurationChange: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", durationSec: number) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
     position: number;
@@ -116,6 +120,10 @@ const DeckStack = ({
   getAutomationPlayhead,
   onAutomationToggle,
   onAutomationReset,
+  onAutomationPreset,
+  onAutomationLengthScale,
+  onAutomationAmplitudeScale,
+  onAutomationDurationChange,
   getDeckPosition,
   getDeckPlaybackSnapshot,
   setFileInputRef,
@@ -167,6 +175,10 @@ const DeckStack = ({
             getAutomationPlayhead={getAutomationPlayhead}
             onAutomationToggle={onAutomationToggle}
             onAutomationReset={onAutomationReset}
+            onAutomationPreset={onAutomationPreset}
+            onAutomationLengthScale={onAutomationLengthScale}
+            onAutomationAmplitudeScale={onAutomationAmplitudeScale}
+            onAutomationDurationChange={onAutomationDurationChange}
             getDeckPosition={getDeckPosition}
             getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}
             setFileInputRef={setFileInputRef}

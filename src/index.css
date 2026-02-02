@@ -862,6 +862,39 @@ body::before {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.14em;
+  user-select: none;
+  cursor: ns-resize;
+}
+
+.automation-lane__tools {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.automation-lane__preset-tools,
+.automation-lane__length-tools {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.automation-lane__tool {
+  padding: 2px 6px;
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 8px;
+}
+
+.button--small {
+  padding: 2px 6px;
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 8px;
 }
 
 button {
@@ -883,10 +916,15 @@ button.is-active {
   border-color: var(--accent);
 }
 
-button:hover {
+button:hover:not(:disabled) {
   background: #f5f5f5;
   color: var(--ink);
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
+}
+
+button:disabled {
+  color: var(--muted);
+  opacity: 0.6;
 }
 
 button:active {

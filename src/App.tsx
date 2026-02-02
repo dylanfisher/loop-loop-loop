@@ -244,6 +244,10 @@ const App = () => {
     getAutomationPlayhead,
     toggleAutomationActive,
     resetAutomationTrack,
+    applyAutomationPreset,
+    adjustAutomationLength,
+    adjustAutomationAmplitude,
+    setAutomationDuration,
     getDeckPosition,
     getDeckPlaybackSnapshot,
     getSessionDecks,
@@ -2013,6 +2017,10 @@ const App = () => {
           getAutomationPlayhead={getAutomationPlayhead}
           onAutomationToggle={toggleAutomationActive}
           onAutomationReset={resetAutomationTrack}
+          onAutomationPreset={applyAutomationPreset}
+          onAutomationLengthScale={adjustAutomationLength}
+          onAutomationAmplitudeScale={adjustAutomationAmplitude}
+          onAutomationDurationChange={setAutomationDuration}
           getDeckPosition={getDeckPosition}
           getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}
           setFileInputRef={setFileInputRef}

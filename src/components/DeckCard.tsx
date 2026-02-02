@@ -35,6 +35,7 @@ type DeckCardProps = {
       recording: boolean;
       active: boolean;
       currentValue: number;
+      amplitudeScale: number;
     }
   >;
   onAutomationStart: (
@@ -62,6 +63,30 @@ type DeckCardProps = {
   onAutomationReset: (
     id: number,
     param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch"
+  ) => void;
+  onAutomationPreset: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    preset: "sine" | "triangle" | "ramp",
+    min: number,
+    max: number
+  ) => void;
+  onAutomationLengthScale: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    factor: number
+  ) => void;
+  onAutomationAmplitudeScale: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    factor: number,
+    min: number,
+    max: number
+  ) => void;
+  onAutomationDurationChange: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    durationSec: number
   ) => void;
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
@@ -118,6 +143,10 @@ const DeckCard = ({
   getAutomationPlayhead,
   onAutomationToggle,
   onAutomationReset,
+  onAutomationPreset,
+  onAutomationLengthScale,
+  onAutomationAmplitudeScale,
+  onAutomationDurationChange,
   onSeek,
   onZoomChange,
   onLoopChange,
@@ -177,6 +206,7 @@ const DeckCard = ({
     recording: false,
     active: false,
     currentValue: djFilter,
+    amplitudeScale: 1,
   };
   const resonanceAutomation = automation?.resonance ?? {
     samples: new Float32Array(0),
@@ -185,6 +215,7 @@ const DeckCard = ({
     recording: false,
     active: false,
     currentValue: resonanceValue,
+    amplitudeScale: 1,
   };
   const eqLowAutomation = automation?.eqLow ?? {
     samples: new Float32Array(0),
@@ -193,6 +224,7 @@ const DeckCard = ({
     recording: false,
     active: false,
     currentValue: deck.eqLowGain,
+    amplitudeScale: 1,
   };
   const eqMidAutomation = automation?.eqMid ?? {
     samples: new Float32Array(0),
@@ -201,6 +233,7 @@ const DeckCard = ({
     recording: false,
     active: false,
     currentValue: deck.eqMidGain,
+    amplitudeScale: 1,
   };
   const eqHighAutomation = automation?.eqHigh ?? {
     samples: new Float32Array(0),
@@ -209,6 +242,7 @@ const DeckCard = ({
     recording: false,
     active: false,
     currentValue: deck.eqHighGain,
+    amplitudeScale: 1,
   };
   const balanceAutomation = automation?.balance ?? {
     samples: new Float32Array(0),
@@ -217,6 +251,7 @@ const DeckCard = ({
     recording: false,
     active: false,
     currentValue: deck.balance,
+    amplitudeScale: 1,
   };
   const pitchAutomation = automation?.pitch ?? {
     samples: new Float32Array(0),
@@ -225,6 +260,7 @@ const DeckCard = ({
     recording: false,
     active: false,
     currentValue: deck.pitchShift,
+    amplitudeScale: 1,
   };
   const djFilterValue = djAutomation.active ? djAutomation.currentValue : djFilter;
   const resonanceDisplayValue = resonanceAutomation.active
@@ -447,6 +483,7 @@ const DeckCard = ({
               durationSec={djAutomation.durationSec}
               recording={djAutomation.recording}
               active={djAutomation.active}
+              amplitudeScale={djAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "djFilter")}
               onDrawStart={() => onAutomationStart(deck.id, "djFilter")}
               onDrawEnd={() => onAutomationStop(deck.id, "djFilter")}
@@ -454,6 +491,18 @@ const DeckCard = ({
               onToggleActive={(next) => onAutomationToggle(deck.id, "djFilter", next)}
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "djFilter", value)
+              }
+              onPreset={(preset) =>
+                onAutomationPreset(deck.id, "djFilter", preset, -1, 1)
+              }
+              onLengthScale={(factor) =>
+                onAutomationLengthScale(deck.id, "djFilter", factor)
+              }
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(deck.id, "djFilter", factor, -1, 1)
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "djFilter", durationSec)
               }
             />
           </div>
@@ -484,6 +533,7 @@ const DeckCard = ({
               durationSec={resonanceAutomation.durationSec}
               recording={resonanceAutomation.recording}
               active={resonanceAutomation.active}
+              amplitudeScale={resonanceAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "resonance")}
               onDrawStart={() => onAutomationStart(deck.id, "resonance")}
               onDrawEnd={() => onAutomationStop(deck.id, "resonance")}
@@ -491,6 +541,24 @@ const DeckCard = ({
               onToggleActive={(next) => onAutomationToggle(deck.id, "resonance", next)}
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "resonance", value)
+              }
+              onPreset={(preset) =>
+                onAutomationPreset(deck.id, "resonance", preset, resonanceMin, resonanceMax)
+              }
+              onLengthScale={(factor) =>
+                onAutomationLengthScale(deck.id, "resonance", factor)
+              }
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(
+                  deck.id,
+                  "resonance",
+                  factor,
+                  resonanceMin,
+                  resonanceMax
+                )
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "resonance", durationSec)
               }
             />
           </div>
@@ -524,6 +592,7 @@ const DeckCard = ({
               durationSec={eqLowAutomation.durationSec}
               recording={eqLowAutomation.recording}
               active={eqLowAutomation.active}
+              amplitudeScale={eqLowAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "eqLow")}
               onDrawStart={() => onAutomationStart(deck.id, "eqLow")}
               onDrawEnd={() => onAutomationStop(deck.id, "eqLow")}
@@ -531,6 +600,14 @@ const DeckCard = ({
               onToggleActive={(next) => onAutomationToggle(deck.id, "eqLow", next)}
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "eqLow", value)
+              }
+              onPreset={(preset) => onAutomationPreset(deck.id, "eqLow", preset, -18, 18)}
+              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqLow", factor)}
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(deck.id, "eqLow", factor, -18, 18)
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "eqLow", durationSec)
               }
             />
           </div>
@@ -562,6 +639,7 @@ const DeckCard = ({
               durationSec={eqMidAutomation.durationSec}
               recording={eqMidAutomation.recording}
               active={eqMidAutomation.active}
+              amplitudeScale={eqMidAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "eqMid")}
               onDrawStart={() => onAutomationStart(deck.id, "eqMid")}
               onDrawEnd={() => onAutomationStop(deck.id, "eqMid")}
@@ -569,6 +647,14 @@ const DeckCard = ({
               onToggleActive={(next) => onAutomationToggle(deck.id, "eqMid", next)}
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "eqMid", value)
+              }
+              onPreset={(preset) => onAutomationPreset(deck.id, "eqMid", preset, -18, 18)}
+              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqMid", factor)}
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(deck.id, "eqMid", factor, -18, 18)
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "eqMid", durationSec)
               }
             />
           </div>
@@ -600,6 +686,7 @@ const DeckCard = ({
               durationSec={eqHighAutomation.durationSec}
               recording={eqHighAutomation.recording}
               active={eqHighAutomation.active}
+              amplitudeScale={eqHighAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "eqHigh")}
               onDrawStart={() => onAutomationStart(deck.id, "eqHigh")}
               onDrawEnd={() => onAutomationStop(deck.id, "eqHigh")}
@@ -607,6 +694,16 @@ const DeckCard = ({
               onToggleActive={(next) => onAutomationToggle(deck.id, "eqHigh", next)}
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "eqHigh", value)
+              }
+              onPreset={(preset) => onAutomationPreset(deck.id, "eqHigh", preset, -18, 18)}
+              onLengthScale={(factor) =>
+                onAutomationLengthScale(deck.id, "eqHigh", factor)
+              }
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(deck.id, "eqHigh", factor, -18, 18)
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "eqHigh", durationSec)
               }
             />
           </div>
@@ -640,6 +737,7 @@ const DeckCard = ({
               durationSec={balanceAutomation.durationSec}
               recording={balanceAutomation.recording}
               active={balanceAutomation.active}
+              amplitudeScale={balanceAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "balance")}
               onDrawStart={() => onAutomationStart(deck.id, "balance")}
               onDrawEnd={() => onAutomationStop(deck.id, "balance")}
@@ -647,6 +745,14 @@ const DeckCard = ({
               onToggleActive={(next) => onAutomationToggle(deck.id, "balance", next)}
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "balance", value)
+              }
+              onPreset={(preset) => onAutomationPreset(deck.id, "balance", preset, -1, 1)}
+              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "balance", factor)}
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(deck.id, "balance", factor, -1, 1)
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "balance", durationSec)
               }
             />
           </div>
@@ -679,6 +785,7 @@ const DeckCard = ({
               durationSec={pitchAutomation.durationSec}
               recording={pitchAutomation.recording}
               active={pitchAutomation.active}
+              amplitudeScale={pitchAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "pitch")}
               onDrawStart={() => onAutomationStart(deck.id, "pitch")}
               onDrawEnd={() => onAutomationStop(deck.id, "pitch")}
@@ -686,6 +793,14 @@ const DeckCard = ({
               onToggleActive={(next) => onAutomationToggle(deck.id, "pitch", next)}
               onDrawValueChange={(value) =>
                 onAutomationValueChange(deck.id, "pitch", value)
+              }
+              onPreset={(preset) => onAutomationPreset(deck.id, "pitch", preset, -24, 24)}
+              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "pitch", factor)}
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(deck.id, "pitch", factor, -24, 24)
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "pitch", durationSec)
               }
               disabled={deck.tempoPitchSync}
             />

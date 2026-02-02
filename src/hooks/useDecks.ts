@@ -32,6 +32,7 @@ type AutomationTrack = {
   paused: boolean;
   pausedPositionSec: number;
   currentValue: number;
+  amplitudeScale: number;
   lastIndex: number;
   lastPreviewLength: number;
   recordBuffer: number[];
@@ -57,6 +58,7 @@ type AutomationView = {
   recording: boolean;
   active: boolean;
   currentValue: number;
+  amplitudeScale: number;
 };
 
 const toAutomationView = (track: AutomationTrack): AutomationView => ({
@@ -66,6 +68,7 @@ const toAutomationView = (track: AutomationTrack): AutomationView => ({
   recording: track.recording,
   active: track.active,
   currentValue: track.currentValue,
+  amplitudeScale: track.amplitudeScale,
 });
 
 const createTrack = (initialValue: number): AutomationTrack => ({
@@ -77,6 +80,7 @@ const createTrack = (initialValue: number): AutomationTrack => ({
   paused: false,
   pausedPositionSec: 0,
   currentValue: initialValue,
+  amplitudeScale: 1,
   lastIndex: -1,
   lastPreviewLength: 0,
   recordBuffer: [],
@@ -176,7 +180,7 @@ const useDecks = () => {
     return { lowpass: max, highpass: min };
   }, []);
 
-  const ensureAutomationDeck = (deckId: number, deck: DeckState) => {
+  const ensureAutomationDeck = useCallback((deckId: number, deck: DeckState) => {
     let automation = automationRef.current.get(deckId);
     if (!automation) {
       automation = {
@@ -213,7 +217,7 @@ const useDecks = () => {
       });
     }
     return automation;
-  };
+  }, []);
 
   const updateAutomationTickEnabled = useCallback(() => {
     let enabled = false;
@@ -371,6 +375,7 @@ const useDecks = () => {
         paused: isActive,
         pausedPositionSec: 0,
         currentValue: snapshot?.currentValue ?? fallbackValue,
+        amplitudeScale: 1,
         lastIndex: -1,
         lastPreviewLength: 0,
         recordBuffer: [],
@@ -400,6 +405,168 @@ const useDecks = () => {
         balance: 0,
         pitch: 0,
       });
+      updateAutomationView(deckId);
+      updateAutomationTickEnabled();
+    },
+    [updateAutomationTickEnabled, updateAutomationView]
+  );
+
+  const buildAutomationPresetSamples = useCallback(
+    (
+      preset: "sine" | "triangle" | "ramp",
+      min: number,
+      max: number,
+      durationSec: number
+    ) => {
+      const sampleRate = AUTOMATION_SAMPLE_RATE;
+      const length = Math.max(2, Math.round(durationSec * sampleRate));
+      const range = max - min || 1;
+      const samples = new Float32Array(length);
+      for (let i = 0; i < length; i += 1) {
+        const t = length > 1 ? i / (length - 1) : 0;
+        let normalized = 0;
+        if (preset === "sine") {
+          normalized = (Math.sin(t * Math.PI * 2) + 1) * 0.5;
+        } else if (preset === "triangle") {
+          normalized = t < 0.5 ? t * 2 : 2 - t * 2;
+        } else {
+          normalized = t;
+        }
+        samples[i] = min + normalized * range;
+      }
+      return { samples, sampleRate };
+    },
+    []
+  );
+
+  const applyAutomationPreset = useCallback(
+    (
+      deckId: number,
+      param: AutomationParam,
+      preset: "sine" | "triangle" | "ramp",
+      min: number,
+      max: number
+    ) => {
+      const deck = decks.find((item) => item.id === deckId);
+      if (!deck) return;
+      const automation = ensureAutomationDeck(deckId, deck);
+      const track = automation[param];
+      const duration = track.durationSec > 0 ? track.durationSec : 2;
+      const { samples, sampleRate } = buildAutomationPresetSamples(
+        preset,
+        min,
+        max,
+        duration
+      );
+      track.samples = samples;
+      track.sampleRate = sampleRate;
+      track.durationSec = samples.length / sampleRate;
+      track.recording = false;
+      track.active = true;
+      track.amplitudeScale = 1;
+      track.currentValue = samples[0] ?? track.currentValue;
+      track.lastIndex = -1;
+      track.lastPreviewLength = 0;
+      track.recordBuffer = [];
+      track.recordStartMs = 0;
+      track.lastSampleMs = 0;
+      if (deck.status === "playing") {
+        track.paused = false;
+        track.pausedPositionSec = 0;
+        track.playbackStartMs = performance.now();
+      } else {
+        track.paused = true;
+        track.pausedPositionSec = 0;
+        track.playbackStartMs = 0;
+      }
+      updateAutomationView(deckId);
+      updateAutomationTickEnabled();
+    },
+    [
+      buildAutomationPresetSamples,
+      decks,
+      ensureAutomationDeck,
+      updateAutomationTickEnabled,
+      updateAutomationView,
+    ]
+  );
+
+  const adjustAutomationLength = useCallback(
+    (deckId: number, param: AutomationParam, factor: number) => {
+      const automation = automationRef.current.get(deckId);
+      if (!automation) return;
+      const track = automation[param];
+      if (!track.samples.length || factor <= 0) return;
+      const currentDuration = track.durationSec || track.samples.length / track.sampleRate;
+      const nextDuration = Math.max(MIN_AUTOMATION_DURATION, currentDuration * factor);
+      const nextSampleRate = clamp(
+        track.samples.length / nextDuration,
+        5,
+        240
+      );
+      track.sampleRate = nextSampleRate;
+      track.durationSec = track.samples.length / nextSampleRate;
+      const playheads = automationPlayheadRef.current.get(deckId);
+      const playhead = playheads ? playheads[param] : 0;
+      if (track.paused) {
+        track.pausedPositionSec = playhead * track.durationSec;
+      } else {
+        track.playbackStartMs = performance.now() - playhead * track.durationSec * 1000;
+      }
+      updateAutomationView(deckId);
+      updateAutomationTickEnabled();
+    },
+    [updateAutomationTickEnabled, updateAutomationView]
+  );
+
+  const setAutomationDuration = useCallback(
+    (deckId: number, param: AutomationParam, durationSec: number) => {
+      const automation = automationRef.current.get(deckId);
+      if (!automation) return;
+      const track = automation[param];
+      if (!track.samples.length || durationSec <= 0) return;
+      const nextSampleRate = clamp(
+        track.samples.length / durationSec,
+        5,
+        240
+      );
+      track.sampleRate = nextSampleRate;
+      track.durationSec = track.samples.length / nextSampleRate;
+      const playheads = automationPlayheadRef.current.get(deckId);
+      const playhead = playheads ? playheads[param] : 0;
+      if (track.paused) {
+        track.pausedPositionSec = playhead * track.durationSec;
+      } else {
+        track.playbackStartMs = performance.now() - playhead * track.durationSec * 1000;
+      }
+      updateAutomationView(deckId);
+      updateAutomationTickEnabled();
+    },
+    [updateAutomationTickEnabled, updateAutomationView]
+  );
+
+  const adjustAutomationAmplitude = useCallback(
+    (deckId: number, param: AutomationParam, factor: number, min: number, max: number) => {
+      const automation = automationRef.current.get(deckId);
+      if (!automation) return;
+      const track = automation[param];
+      if (!track.samples.length || factor <= 0) return;
+      const minScale = 1 / 3;
+      const nextScale = clamp(track.amplitudeScale * factor, minScale, 1);
+      const actualFactor =
+        track.amplitudeScale > 0 ? nextScale / track.amplitudeScale : 1;
+      if (Math.abs(actualFactor - 1) < 1e-6) {
+        return;
+      }
+      const mid = (min + max) / 2;
+      const nextSamples = new Float32Array(track.samples.length);
+      for (let i = 0; i < track.samples.length; i += 1) {
+        const scaled = mid + (track.samples[i] - mid) * actualFactor;
+        nextSamples[i] = clamp(scaled, min, max);
+      }
+      track.samples = nextSamples;
+      track.amplitudeScale = nextScale;
+      track.currentValue = nextSamples[0] ?? track.currentValue;
       updateAutomationView(deckId);
       updateAutomationTickEnabled();
     },
@@ -1440,10 +1607,11 @@ const useDecks = () => {
     if (param === "pitch" && deck.tempoPitchSync) return;
     const automation = ensureAutomationDeck(id, deck);
     const track = automation[param];
-    track.recording = true;
-    track.active = true;
-    track.paused = false;
-    track.pausedPositionSec = 0;
+      track.recording = true;
+      track.active = true;
+      track.paused = false;
+      track.pausedPositionSec = 0;
+      track.amplitudeScale = 1;
     track.recordBuffer = [];
     track.samples = new Float32Array(0);
     track.durationSec = 0;
@@ -1486,6 +1654,7 @@ const useDecks = () => {
       track.samples = new Float32Array(0);
       track.durationSec = 0;
     }
+    track.amplitudeScale = 1;
     track.recordBuffer = [];
     track.lastPreviewLength = 0;
     updateAutomationView(id);
@@ -1551,6 +1720,7 @@ const useDecks = () => {
     track.active = false;
     track.paused = false;
     track.pausedPositionSec = 0;
+    track.amplitudeScale = 1;
     track.playbackStartMs = 0;
     track.lastPreviewLength = 0;
     updateAutomationView(id);
@@ -2250,6 +2420,10 @@ const useDecks = () => {
     getAutomationPlayhead,
     toggleAutomationActive,
     resetAutomationTrack,
+    applyAutomationPreset,
+    adjustAutomationLength,
+    adjustAutomationAmplitude,
+    setAutomationDuration,
     getDeckPosition,
     getDeckPlaybackSnapshot: getDeckPlaybackSnapshotSafe,
     setFileInputRef,
