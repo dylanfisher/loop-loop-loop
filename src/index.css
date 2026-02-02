@@ -135,6 +135,13 @@ body::before {
   gap: 16px;
 }
 
+.app__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .app__main {
   display: grid;
   grid-template-columns: 1fr;

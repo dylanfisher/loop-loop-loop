@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import DeckStack from "./components/DeckStack";
 import ClipRecorder from "./components/ClipRecorder";
-import TransportBar from "./components/TransportBar";
+import AsyncActionButton from "./components/AsyncActionButton";
 import useDecks from "./hooks/useDecks";
 import useAudioEngine from "./hooks/useAudioEngine";
 import type { ClipItem } from "./types/clip";
@@ -1737,7 +1737,6 @@ const App = () => {
           <div className="app__project">
             {sessionName.trim() ? `Project: ${sessionName}` : "Project: Untitled"}
           </div>
-          <div className="app__status">{sessionStatus ?? "Audio engine: idle"}</div>
           <div className="perf-panel" aria-live="polite">
             <span className="perf-panel__label">Perf</span>
             <span className="perf-panel__metric">{perfStats.fps} fps</span>
@@ -1748,11 +1747,37 @@ const App = () => {
               </span>
             )}
           </div>
-          <button type="button" onClick={handleGlobalPlaybackToggle}>
-            {hasActivePlayback ? "Pause All" : "Play All"}
-          </button>
+          <div className="app__header-actions">
+            <button type="button" onClick={addDeck}>
+              Add Deck
+            </button>
+            <button
+              type="button"
+              onClick={undo}
+              disabled={!canUndo}
+              title="Undo"
+              aria-label="Undo"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              onClick={redo}
+              disabled={!canRedo}
+              title="Redo"
+              aria-label="Redo"
+            >
+              →
+            </button>
+            <button type="button" onClick={handleGlobalPlaybackToggle}>
+              {hasActivePlayback ? "Pause" : "Play"}
+            </button>
+            <button type="button" className="transport__record" onClick={handleRecordToggle}>
+              {recording ? "Stop Recording" : "Record"}
+            </button>
+          </div>
           <details className="session-bar__details">
-            <summary>Restore + Zip</summary>
+            <summary>Restore + Export</summary>
             <div className="session-bar__details-body">
               <div className="app__header-hint">
                 Sessions save inside this browser. Export creates a shareable zip.
@@ -1795,6 +1820,30 @@ const App = () => {
                   Load Session
                 </button>
               </div>
+              <div className="session-bar__group session-bar__group--mix">
+                <div className="transport__export">
+                  <label>
+                    Minutes
+                    <input
+                      type="number"
+                      min="1"
+                      max="60"
+                      step="1"
+                      value={exportMinutes}
+                      onChange={(event) =>
+                        handleExportMinutesChange(Number(event.target.value))
+                      }
+                    />
+                  </label>
+                  <AsyncActionButton
+                    onAction={exportMixdown}
+                    disabled={exporting}
+                    busy={exporting}
+                    idleLabel="Export Mix"
+                    busyLabel="Exporting..."
+                  />
+                </div>
+              </div>
               <div className="session-bar__group session-bar__group--export">
                 <button type="button" onClick={handleExportSession} disabled={sessionBusy}>
                   Export Zip
@@ -1814,19 +1863,6 @@ const App = () => {
           />
         </div>
       </header>
-
-      <TransportBar
-        exportMinutes={exportMinutes}
-        onExportMinutesChange={handleExportMinutesChange}
-        onExport={exportMixdown}
-        exporting={exporting}
-        recording={recording}
-        onRecordToggle={handleRecordToggle}
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-      />
 
       <main className="app__main">
         <ClipRecorder

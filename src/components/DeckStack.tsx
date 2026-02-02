@@ -3,7 +3,6 @@ import type { DeckState } from "../types/deck";
 
 type DeckStackProps = {
   decks: DeckState[];
-  onAddDeck: () => void;
   onRemoveDeck: (id: number) => void;
   onLoadClick: (id: number) => void;
   onFileSelected: (id: number, file: File | null, options?: {
@@ -78,7 +77,6 @@ type DeckStackProps = {
 
 const DeckStack = ({
   decks,
-  onAddDeck,
   onRemoveDeck,
   onLoadClick,
   onFileSelected,
@@ -124,11 +122,6 @@ const DeckStack = ({
 }: DeckStackProps) => {
   return (
     <section className="deck-stack">
-      <div className="deck-stack__header">
-        <button type="button" onClick={onAddDeck}>
-          Add Deck
-        </button>
-      </div>
       <div className={`deck-stack__list ${decks.length === 1 ? "deck-stack__list--single" : ""}`.trim()}>
         {decks.map((deck, index) => (
           <DeckCard
