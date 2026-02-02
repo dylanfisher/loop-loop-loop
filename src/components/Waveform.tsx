@@ -643,11 +643,19 @@ const Waveform = ({
 
       }
 
-      rafRef.current = requestAnimationFrame(animate);
+      if (isPlaying) {
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        rafRef.current = null;
+      }
     };
 
     if (buffer) {
-      rafRef.current = requestAnimationFrame(animate);
+      if (isPlaying) {
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        animate();
+      }
     }
 
     return () => {

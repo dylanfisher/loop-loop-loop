@@ -74,6 +74,8 @@ type AudioEngine = {
   setDeckPlaybackRate: (deckId: number, value: number) => void;
   getMasterStream: () => MediaStream | null;
   getDeckPlaybackSnapshot: (deckId: number) => import("./deck").DeckPlaybackSnapshot | null;
+  suspendContext: () => Promise<void>;
+  resumeContext: () => Promise<void>;
 };
 
 let audioContext: AudioContext | null = null;
@@ -107,6 +109,22 @@ const ensureContext = async () => {
   }
 
   return audioContext;
+};
+
+const suspendContext = async () => {
+  if (audioContext && audioContext.state === "running") {
+    await audioContext.suspend();
+  }
+};
+
+const resumeContext = async () => {
+  if (!audioContext) {
+    await ensureContext();
+    return;
+  }
+  if (audioContext.state === "suspended") {
+    await audioContext.resume();
+  }
 };
 
 
@@ -316,5 +334,7 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckPlaybackRate: updateDeckPlaybackRate,
     getMasterStream,
     getDeckPlaybackSnapshot: getDeckSnapshot,
+    suspendContext,
+    resumeContext,
   };
 };

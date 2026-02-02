@@ -197,7 +197,7 @@ const App = () => {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
-  const { getMasterStream, decodeFile } = useAudioEngine();
+  const { getMasterStream, decodeFile, resumeContext, suspendContext } = useAudioEngine();
   const clipIdRef = useRef(1);
   const clipNameRef = useRef(1);
   const clipsRef = useRef<ClipItem[]>([]);
@@ -253,6 +253,8 @@ const App = () => {
     loadDeckBuffer,
   } = useDecks();
 
+  const hasActivePlayback = decks.some((deck) => deck.status === "playing");
+
   const getFilterTargets = useCallback((djFilter: number) => {
     const min = 60;
     const max = 20000;
@@ -274,7 +276,12 @@ const App = () => {
     return { lowpass: max, highpass: min };
   }, []);
 
+  const shouldAnimatePerf = hasActivePlayback || recording;
+
   useEffect(() => {
+    if (!shouldAnimatePerf) {
+      return undefined;
+    }
     let raf = 0;
     let intervalId = 0;
     let frames = 0;
@@ -308,7 +315,15 @@ const App = () => {
       cancelAnimationFrame(raf);
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [shouldAnimatePerf]);
+
+  useEffect(() => {
+    if (hasActivePlayback || recording) {
+      void resumeContext();
+      return;
+    }
+    void suspendContext();
+  }, [hasActivePlayback, recording, resumeContext, suspendContext]);
 
   const scheduleLoopedSamples = useCallback(
     (
@@ -1712,7 +1727,6 @@ const App = () => {
     [importSessionFiles, sessionBusy]
   );
 
-  const hasActivePlayback = decks.some((deck) => deck.status === "playing");
   const handleGlobalPlaybackToggle = useCallback(() => {
     if (hasActivePlayback) {
       decks.forEach((deck) => {
