@@ -16,6 +16,29 @@
   --accent-strong: #0a0a0a;
   --shadow: rgba(0, 0, 0, 0.12);
   --soft-shadow: rgba(0, 0, 0, 0.06);
+  --canvas-bg: #f8fafc;
+  --canvas-ink: #111111;
+  --canvas-accent: #0074ff;
+}
+
+body[data-theme="dark"] {
+  color-scheme: dark;
+  background: #0d0f12;
+  color: #f4f4f4;
+  --bg: #0d0f12;
+  --surface: #15181d;
+  --surface-strong: #1a1f26;
+  --ink: #f4f4f4;
+  --muted: #9aa3ad;
+  --line: #2a2f38;
+  --accent: #4ea1ff;
+  --accent-ink: #0b0d10;
+  --accent-strong: #dbe9ff;
+  --shadow: rgba(0, 0, 0, 0.45);
+  --soft-shadow: rgba(0, 0, 0, 0.3);
+  --canvas-bg: #0f141a;
+  --canvas-ink: #f1f5f9;
+  --canvas-accent: #7db7ff;
 }
 
 * {
@@ -30,6 +53,10 @@ body {
   color: var(--ink);
 }
 
+body[data-theme="dark"] {
+  background: radial-gradient(circle at 20% 20%, #1b2128 0%, #0f1216 55%, #0b0d10 100%);
+}
+
 body::before {
   content: "";
   position: fixed;
@@ -42,6 +69,15 @@ body::before {
   opacity: 0.12;
   pointer-events: none;
   z-index: 0;
+}
+
+body[data-theme="dark"]::before {
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0 1px,
+    transparent 1px 5px
+  );
+  opacity: 0.18;
 }
 
 #root {
@@ -71,6 +107,10 @@ body::before {
   z-index: 10;
   user-select: text;
   border-radius: 14px;
+}
+
+body[data-theme="dark"] .app__header {
+  background: rgba(15, 18, 22, 0.9);
 }
 
 .app__brand {
@@ -378,7 +418,7 @@ body::before {
   border: 1px dashed var(--line);
   display: grid;
   place-items: center;
-  background: linear-gradient(120deg, #ffffff, #f6f6f6);
+  background: var(--canvas-bg);
   overflow: visible;
   border-radius: 12px;
 }
@@ -472,7 +512,9 @@ body::before {
 }
 
 .deck__waveform--empty {
-  color: #222;
+  color: var(--muted);
+  background: var(--canvas-bg);
+  border: 1px dashed var(--line);
 }
 
 .deck__waveform--interactive {
@@ -771,13 +813,13 @@ body::before {
 
 .knob__ring {
   fill: none;
-  stroke: #111;
+  stroke: var(--ink);
   stroke-width: 1.5;
 }
 
 
 .knob__indicator {
-  stroke: #111;
+  stroke: var(--ink);
   stroke-width: 3;
   stroke-linecap: round;
 }
@@ -908,6 +950,30 @@ button {
   border-radius: 999px;
   transition: box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
   cursor: pointer;
+}
+
+.icon-button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+}
+
+.icon-button svg path,
+.icon-button svg circle {
+  fill: currentColor;
+  stroke: none;
 }
 
 button.is-active {

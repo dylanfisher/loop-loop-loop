@@ -162,6 +162,12 @@ const App = () => {
   const [exportMinutes, setExportMinutes] = useState(10);
   const [exporting, setExporting] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "light";
+    const stored = window.localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") return stored;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
   const [sessionBusy, setSessionBusy] = useState(false);
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
   const [sessionName, setSessionName] = useState("");
@@ -414,6 +420,12 @@ const App = () => {
   useEffect(() => {
     clipsRef.current = clips;
   }, [clips]);
+
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+    window.localStorage.setItem("theme", theme);
+    window.dispatchEvent(new Event("themechange"));
+  }, [theme]);
 
   useEffect(() => {
     return () => {
@@ -1957,6 +1969,31 @@ const App = () => {
               </div>
             </div>
           </details>
+          <button
+            type="button"
+            className="icon-button app__theme-toggle"
+            onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4.5" />
+                <line x1="12" y1="2" x2="12" y2="5" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+                <line x1="2" y1="12" x2="5" y2="12" />
+                <line x1="19" y1="12" x2="22" y2="12" />
+                <line x1="4.2" y1="4.2" x2="6.4" y2="6.4" />
+                <line x1="17.6" y1="17.6" x2="19.8" y2="19.8" />
+                <line x1="17.6" y1="6.4" x2="19.8" y2="4.2" />
+                <line x1="4.2" y1="19.8" x2="6.4" y2="17.6" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z" />
+              </svg>
+            )}
+          </button>
           <input
             ref={importInputRef}
             type="file"

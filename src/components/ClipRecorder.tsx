@@ -43,6 +43,7 @@ const ClipRecorder = ({
   const startTimeRef = useRef<number | null>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement | null>>(new Map());
   const decodePendingRef = useRef<Set<number>>(new Set());
+  const [themeToken, setThemeToken] = useState(0);
 
   useEffect(() => {
     return () => {
@@ -50,6 +51,12 @@ const ClipRecorder = ({
         window.clearInterval(timerRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const handleThemeChange = () => setThemeToken((prev) => prev + 1);
+    window.addEventListener("themechange", handleThemeChange);
+    return () => window.removeEventListener("themechange", handleThemeChange);
   }, []);
 
   useEffect(() => {
@@ -82,13 +89,16 @@ const ClipRecorder = ({
     canvas.height = Math.floor(height * ratio);
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width, height);
-    context.fillStyle = "#f6f9ff";
+    const styles = getComputedStyle(document.body);
+    const canvasBg = styles.getPropertyValue("--canvas-bg").trim() || "#f6f9ff";
+    const canvasInk = styles.getPropertyValue("--canvas-ink").trim() || "#111";
+    context.fillStyle = canvasBg;
     context.fillRect(0, 0, width, height);
 
     const data = buffer.getChannelData(0);
     const step = Math.max(1, Math.floor(data.length / width));
     const amp = height / 2;
-    context.strokeStyle = "#111111";
+    context.strokeStyle = canvasInk;
     context.lineWidth = 1;
     context.beginPath();
     for (let i = 0; i < width; i += 1) {
@@ -114,7 +124,7 @@ const ClipRecorder = ({
       if (!canvas) return;
       drawPreview(canvas, clip.buffer);
     });
-  }, [clips]);
+  }, [clips, themeToken]);
 
   const setCanvasRef = (id: number, node: HTMLCanvasElement | null) => {
     canvasRefs.current.set(id, node);

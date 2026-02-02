@@ -57,6 +57,13 @@ const AutomationLane = ({
   const [liveValue, setLiveValue] = useState<number | null>(null);
   const dragStateRef = useRef<{ startY: number; startDuration: number } | null>(null);
   const [liveDuration, setLiveDuration] = useState<number | null>(null);
+  const [themeToken, setThemeToken] = useState(0);
+
+  useEffect(() => {
+    const handleThemeChange = () => setThemeToken((prev) => prev + 1);
+    window.addEventListener("themechange", handleThemeChange);
+    return () => window.removeEventListener("themechange", handleThemeChange);
+  }, []);
 
   useEffect(() => {
     getPlayheadRef.current = getPlayhead;
@@ -80,16 +87,19 @@ const AutomationLane = ({
       const { width, height } = canvas;
       ctx.clearRect(0, 0, width, height);
 
-      ctx.fillStyle = "#f8fafc";
+      const styles = getComputedStyle(document.body);
+      const canvasBg = styles.getPropertyValue("--canvas-bg").trim() || "#f8fafc";
+      const canvasInk = styles.getPropertyValue("--canvas-ink").trim() || "#111";
+      ctx.fillStyle = canvasBg;
       ctx.fillRect(0, 0, width, height);
 
-      ctx.strokeStyle = "#111";
+      ctx.strokeStyle = canvasInk;
       ctx.lineWidth = 1;
       ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 
       const activeSamples = recording && previewSamples.length > 1 ? previewSamples : samples;
       if (activeSamples.length > 1) {
-        ctx.strokeStyle = "#111";
+        ctx.strokeStyle = canvasInk;
         ctx.lineWidth = 2;
         ctx.beginPath();
         for (let i = 0; i < activeSamples.length; i += 1) {
@@ -120,7 +130,7 @@ const AutomationLane = ({
     return () => {
       observer.disconnect();
     };
-  }, [max, min, previewSamples, recording, samples]);
+  }, [max, min, previewSamples, recording, samples, themeToken]);
 
   useEffect(() => {
     const playheadEl = playheadRef.current;

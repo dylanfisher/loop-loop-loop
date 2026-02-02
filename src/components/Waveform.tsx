@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type WaveformProps = {
   buffer?: AudioBuffer;
@@ -97,7 +97,9 @@ const drawWaveform = (
   const { width, height } = canvas;
   context.clearRect(0, 0, width, height);
 
-  context.fillStyle = "#f6f9ff";
+  const styles = getComputedStyle(document.body);
+  const canvasBg = styles.getPropertyValue("--canvas-bg").trim() || "#f6f9ff";
+  context.fillStyle = canvasBg;
   context.fillRect(0, 0, width, height);
 
   const amp = height / 2;
@@ -164,6 +166,7 @@ const Waveform = ({
   const localStartMsRef = useRef<number | null>(null);
   const shiftDragRef = useRef(false);
   const shiftStartRef = useRef(0);
+  const [themeToken, setThemeToken] = useState(0);
 
   const waveformGainScale = useMemo(() => {
     const safeGain = Number.isFinite(gain) ? gain : 1;
@@ -180,6 +183,24 @@ const Waveform = ({
         : fallbackDuration;
     return Number.isFinite(nextDuration) ? nextDuration : 0;
   }, [buffer?.duration, duration, getPlayback]);
+
+  const fillWaveformBackground = useCallback((canvas: HTMLCanvasElement) => {
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const styles = getComputedStyle(document.body);
+    const bg = styles.getPropertyValue("--canvas-bg").trim() || "#f8fafc";
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.fillStyle = bg;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.restore();
+  }, []);
+
+  useEffect(() => {
+    const handleThemeChange = () => setThemeToken((prev) => prev + 1);
+    window.addEventListener("themechange", handleThemeChange);
+    return () => window.removeEventListener("themechange", handleThemeChange);
+  }, []);
 
   const getDisplaySeconds = useCallback(() => {
     const snapshot = getPlayback();
@@ -281,14 +302,18 @@ const Waveform = ({
       overlayContext.beginPath();
       overlayContext.rect(0, 0, clipWidth, overlay.clientHeight);
       overlayContext.clip();
-      drawWaveform(overlay, peaks, "#0074FF", waveformGainScale);
+      const styles = getComputedStyle(document.body);
+      const accent = styles.getPropertyValue("--canvas-accent").trim() || "#0074FF";
+      drawWaveform(overlay, peaks, accent, waveformGainScale);
       overlayContext.restore();
     }
 
     const maxX = Math.max(1, overlay.clientWidth - 1);
     const x = Math.min(Math.max(progress * overlay.clientWidth, 1), maxX);
 
-    overlayContext.strokeStyle = "#1a1a1a";
+    const styles = getComputedStyle(document.body);
+    const ink = styles.getPropertyValue("--canvas-ink").trim() || "#1a1a1a";
+    overlayContext.strokeStyle = ink;
     overlayContext.lineWidth = 2;
     overlayContext.beginPath();
     overlayContext.moveTo(x, 0);
@@ -377,6 +402,10 @@ const Waveform = ({
     waveformGainScale,
     zoom,
   ]);
+
+  useEffect(() => {
+    renderOverlay();
+  }, [renderOverlay, themeToken]);
 
   const updateLoopFromPointer = (clientX: number) => {
     const resolvedDuration = getResolvedDuration();
@@ -501,7 +530,10 @@ const Waveform = ({
         eqMidGain,
         eqHighGain
       );
-      drawWaveform(canvas, peaksRef.current, "#111111", waveformGainScale);
+      const styles = getComputedStyle(document.body);
+      const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
+      fillWaveformBackground(canvas);
+      drawWaveform(canvas, peaksRef.current, ink, waveformGainScale);
       renderOverlay();
     };
 
@@ -544,6 +576,8 @@ const Waveform = ({
     getResolvedDuration,
     isPlaying,
     renderOverlay,
+    themeToken,
+    fillWaveformBackground,
     waveformGainScale,
     zoom,
   ]);
@@ -566,7 +600,10 @@ const Waveform = ({
       eqMidGain,
       eqHighGain
     );
-    drawWaveform(canvasRef.current, peaksRef.current, "#111111", waveformGainScale);
+    const styles = getComputedStyle(document.body);
+    const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
+    fillWaveformBackground(canvasRef.current);
+    drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
     renderOverlay();
   }, [
     buffer,
@@ -574,6 +611,8 @@ const Waveform = ({
     eqLowGain,
     eqMidGain,
     renderOverlay,
+    themeToken,
+    fillWaveformBackground,
     waveformGainScale,
     zoom,
   ]);
@@ -634,7 +673,10 @@ const Waveform = ({
             eqMidGain,
             eqHighGain
           );
-          drawWaveform(canvasRef.current, peaksRef.current, "#111111", waveformGainScale);
+          const styles = getComputedStyle(document.body);
+          const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
+          fillWaveformBackground(canvasRef.current);
+          drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
           windowStartRef.current = desiredWindowStart;
         }
 
@@ -678,7 +720,9 @@ const Waveform = ({
     getPlayback,
     getResolvedDuration,
     renderOverlay,
+    themeToken,
     startedAtMs,
+    fillWaveformBackground,
     waveformGainScale,
     zoom,
   ]);
@@ -797,7 +841,10 @@ const Waveform = ({
             eqMidGain,
             eqHighGain
           );
-          drawWaveform(canvasRef.current, peaksRef.current, "#111111", waveformGainScale);
+          const styles = getComputedStyle(document.body);
+          const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
+          fillWaveformBackground(canvasRef.current);
+          drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
           visualDurationRef.current = visualDuration;
           renderOverlay();
         }
@@ -848,7 +895,10 @@ const Waveform = ({
               eqMidGain,
               eqHighGain
             );
-            drawWaveform(canvasRef.current, peaksRef.current, "#111111", waveformGainScale);
+            const styles = getComputedStyle(document.body);
+            const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
+            fillWaveformBackground(canvasRef.current);
+            drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
             visualDurationRef.current = duration / Math.max(1, zoom);
             renderOverlay();
           }
