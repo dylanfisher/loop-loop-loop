@@ -5,6 +5,7 @@ const DB_VERSION = 1;
 const SESSION_STORE = "session";
 const BLOB_STORE = "blobs";
 const SESSION_KEY_PREFIX = "session:";
+export const AUTO_SESSION_ID = "autosave-current";
 
 const openSessionDb = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
@@ -110,6 +111,7 @@ export const listSessionMetas = async () => {
 
   return allSessions
     .filter((session) => Boolean(session?.id))
+    .filter((session) => session.id !== AUTO_SESSION_ID)
     .map((session) => ({
       id: session.id,
       name: session.name,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import DeckStack from "./components/DeckStack";
 import ClipRecorder from "./components/ClipRecorder";
 import AsyncActionButton from "./components/AsyncActionButton";
+import Knob from "./components/Knob";
 import useDecks from "./hooks/useDecks";
 import useAudioEngine from "./hooks/useAudioEngine";
 import type { ClipItem } from "./types/clip";
@@ -22,6 +23,7 @@ import {
 import { createPaulStretchNode, ensurePaulStretchWorklet } from "./audio/paulStretch";
 import { createLimiter, createSoftClipper } from "./audio/clipper";
 import {
+  AUTO_SESSION_ID,
   createSessionBlobId,
   createSessionId,
   listSessionMetas,
@@ -162,6 +164,7 @@ const App = () => {
   const [exportMinutes, setExportMinutes] = useState(10);
   const [exporting, setExporting] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [masterGain, setMasterGainValue] = useState(0.9);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
     const stored = window.localStorage.getItem("theme");
@@ -205,10 +208,20 @@ const App = () => {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
-  const { getMasterStream, decodeFile, resumeContext, suspendContext } = useAudioEngine();
+  const { getMasterStream, decodeFile, resumeContext, suspendContext, setMasterGain } =
+    useAudioEngine();
+  useEffect(() => {
+    setMasterGain(masterGain);
+  }, [masterGain, setMasterGain]);
   const clipIdRef = useRef(1);
   const clipNameRef = useRef(1);
   const clipsRef = useRef<ClipItem[]>([]);
+  const autosaveTimeoutRef = useRef<number | null>(null);
+  const autosaveReadyRef = useRef(false);
+  const [autosaveReady, setAutosaveReady] = useState(false);
+  const applySessionDataRef = useRef<
+    ((session: SessionState, blobs: Map<string, Blob>) => Promise<void>) | null
+  >(null);
   const {
     decks,
     addDeck,
@@ -258,6 +271,7 @@ const App = () => {
     getDeckPlaybackSnapshot,
     getSessionDecks,
     loadSessionDecks,
+    resetDecks,
     undo,
     redo,
     canUndo,
@@ -444,6 +458,7 @@ const App = () => {
   useEffect(() => {
     void refreshSessions();
   }, [refreshSessions]);
+
 
   const addClip = useCallback(
     (clip: Omit<ClipItem, "id" | "url" | "name"> & { name?: string }) => {
@@ -1556,6 +1571,7 @@ const App = () => {
       version: 1,
       name: nextName,
       savedAt: Date.now(),
+      masterGain,
       decks: sessionDecks.map((deck) => {
         const { wavBlobId: _wavBlobId, ...rest } = deck;
         return {
@@ -1600,7 +1616,7 @@ const App = () => {
     }
 
     return { sessionFile, entries: fileEntries };
-  }, [encodeClipsForSession, encodeDecksForSession, sessionName]);
+  }, [encodeClipsForSession, encodeDecksForSession, masterGain, sessionName]);
 
   const handleExportSession = useCallback(async () => {
     if (sessionBusy) return;
@@ -1690,6 +1706,7 @@ const App = () => {
       setClips(nextClips);
       clipIdRef.current = Math.max(1, maxClipId + 1);
       clipNameRef.current = Math.max(1, maxClipId + 1);
+      setMasterGainValue(sessionFile.masterGain ?? 0.9);
       setSessionName(sessionFile.name);
       setSessionStatus(`Imported "${sessionFile.name}".`);
     },
@@ -1710,6 +1727,7 @@ const App = () => {
         id,
         name: nextName,
         savedAt: Date.now(),
+        masterGain,
         decks: sessionDecks,
         clips: clipSessions,
       };
@@ -1724,7 +1742,52 @@ const App = () => {
     } finally {
       setSessionBusy(false);
     }
-  }, [encodeClipsForSession, encodeDecksForSession, refreshSessions, sessionBusy, sessionName]);
+  }, [
+    encodeClipsForSession,
+    encodeDecksForSession,
+    refreshSessions,
+    masterGain,
+    sessionBusy,
+    sessionName,
+  ]);
+
+  useEffect(() => {
+    if (!autosaveReady) return;
+    if (autosaveTimeoutRef.current) {
+      window.clearTimeout(autosaveTimeoutRef.current);
+    }
+    autosaveTimeoutRef.current = window.setTimeout(async () => {
+      try {
+        const { decks: sessionDecks, blobs: deckBlobs } = await encodeDecksForSession();
+        const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
+        const session: SessionState = {
+          version: 1,
+          id: AUTO_SESSION_ID,
+          name: sessionName.trim() || "Untitled",
+          savedAt: Date.now(),
+          masterGain,
+          decks: sessionDecks,
+          clips: clipSessions,
+        };
+        await saveSessionState(session, blobs);
+      } catch (error) {
+        console.error("Autosave failed", error);
+      }
+    }, 1200);
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        window.clearTimeout(autosaveTimeoutRef.current);
+      }
+    };
+  }, [
+    autosaveReady,
+    clips,
+    decks,
+    encodeClipsForSession,
+    encodeDecksForSession,
+    masterGain,
+    sessionName,
+  ]);
 
   const decodeSessionDecks = useCallback(
     async (sessionDecks: DeckSession[], blobs: Map<string, Blob>) => {
@@ -1750,27 +1813,12 @@ const App = () => {
     [decodeFile]
   );
 
-  const handleLoadSession = useCallback(async () => {
-    if (sessionBusy) return;
-    if (!selectedSessionId) {
-      setSessionStatus("Select a session to load.");
-      return;
-    }
-    setSessionBusy(true);
-    setSessionStatus(null);
-    try {
-      const loaded = await loadSessionState(selectedSessionId);
-      if (!loaded) {
-        setSessionStatus("Session not found.");
-        return;
-      }
-
-      clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
-
-      const { session, blobs } = loaded;
+  const applySessionData = useCallback(
+    async (session: SessionState, blobs: Map<string, Blob>) => {
       const buffers = await decodeSessionDecks(session.decks, blobs);
       loadSessionDecks(session.decks, buffers);
 
+      clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
       const nextClips: ClipItem[] = [];
       let maxClipId = 0;
       for (const clip of session.clips) {
@@ -1794,7 +1842,48 @@ const App = () => {
       setClips(nextClips);
       clipIdRef.current = Math.max(1, maxClipId + 1);
       clipNameRef.current = Math.max(1, maxClipId + 1);
+      setMasterGainValue(session.masterGain ?? 0.9);
       setSessionName(session.name);
+    },
+    [decodeSessionDecks, loadSessionDecks]
+  );
+
+  applySessionDataRef.current = applySessionData;
+
+  useEffect(() => {
+    const loadAutosave = async () => {
+      const loaded = await loadSessionState(AUTO_SESSION_ID);
+      if (!loaded) {
+        autosaveReadyRef.current = true;
+        setAutosaveReady(true);
+        return;
+      }
+      await applySessionDataRef.current?.(loaded.session, loaded.blobs);
+      autosaveReadyRef.current = true;
+      setAutosaveReady(true);
+    };
+    void loadAutosave();
+  }, []);
+
+  const handleLoadSession = useCallback(async () => {
+    if (sessionBusy) return;
+    if (!selectedSessionId) {
+      setSessionStatus("Select a session to load.");
+      return;
+    }
+    setSessionBusy(true);
+    setSessionStatus(null);
+    try {
+      const loaded = await loadSessionState(selectedSessionId);
+      if (!loaded) {
+        setSessionStatus("Session not found.");
+        return;
+      }
+
+      clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
+
+      const { session, blobs } = loaded;
+      await applySessionData(session, blobs);
       setSessionStatus(`Loaded "${session.name}".`);
     } catch (error) {
       console.error("Failed to load session", error);
@@ -1802,7 +1891,22 @@ const App = () => {
     } finally {
       setSessionBusy(false);
     }
-  }, [decodeSessionDecks, loadSessionDecks, selectedSessionId, sessionBusy]);
+  }, [applySessionData, selectedSessionId, sessionBusy]);
+
+  const handleNewSession = useCallback(() => {
+    if (!window.confirm("Start a new session? This will clear the current session.")) {
+      return;
+    }
+    resetDecks();
+    clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
+    setClips([]);
+    clipIdRef.current = 1;
+    clipNameRef.current = 1;
+    setMasterGainValue(0.9);
+    setSessionName("");
+    setSelectedSessionId(null);
+    setSessionStatus(null);
+  }, [resetDecks]);
 
   const handleImportClick = useCallback(() => {
     importInputRef.current?.click();
@@ -1844,6 +1948,35 @@ const App = () => {
     });
   }, [decks, hasActivePlayback, pauseDeck, playDeck]);
 
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== " " && event.code !== "Space") return;
+      const appRoot = document.querySelector(".app");
+      if (!appRoot) return;
+      if (document.querySelector(".session-bar__details[open]")) return;
+      const activeElement = document.activeElement;
+      if (activeElement && !appRoot.contains(activeElement)) return;
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          target.isContentEditable
+        ) {
+          return;
+        }
+      }
+      event.preventDefault();
+      handleGlobalPlaybackToggle();
+    };
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [handleGlobalPlaybackToggle]);
+
   return (
     <div className="app">
       <header className="app__header">
@@ -1866,6 +1999,9 @@ const App = () => {
             <button type="button" onClick={addDeck}>
               Add Deck
             </button>
+            <button type="button" onClick={handleNewSession}>
+              New
+            </button>
             <button
               type="button"
               onClick={undo}
@@ -1887,8 +2023,18 @@ const App = () => {
             <button type="button" onClick={handleGlobalPlaybackToggle}>
               {hasActivePlayback ? "Pause" : "Play"}
             </button>
-            <button type="button" className="transport__record" onClick={handleRecordToggle}>
+            <button
+              type="button"
+              className="transport__record"
+              data-active={recording ? "true" : "false"}
+              onClick={handleRecordToggle}
+            >
               {recording ? "Stop Recording" : "Record"}
+              <span
+                className="transport__record-indicator"
+                aria-hidden={!recording}
+                data-active={recording ? "true" : "false"}
+              />
             </button>
           </div>
           <details className="session-bar__details">
@@ -1969,6 +2115,19 @@ const App = () => {
               </div>
             </div>
           </details>
+          <div className="app__header-master" title="Master Gain">
+            <Knob
+              label="Master"
+              min={0}
+              max={1.5}
+              step={0.01}
+              value={masterGain}
+              defaultValue={0.9}
+              className="knob--compact knob--tiny knob--icon-only app__header-knob"
+              labelTitle="Controls global output level after all decks. Affects monitoring and recording."
+              onChange={setMasterGainValue}
+            />
+          </div>
           <button
             type="button"
             className="icon-button app__theme-toggle"

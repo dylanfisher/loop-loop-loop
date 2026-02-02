@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { DeckState } from "../types/deck";
 import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
@@ -92,7 +92,11 @@ type DeckCardProps = {
   onZoomChange: (id: number, value: number) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
-  onTempoOffsetChange: (id: number, value: number) => void;
+  onTempoOffsetChange: (
+    id: number,
+    value: number,
+    options?: { disableSnap?: boolean }
+  ) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
   onStretchRatioChange: (id: number, value: number) => void;
   onStretchWindowSizeChange: (id: number, value: number) => void;
@@ -166,9 +170,9 @@ const DeckCard = ({
   setFileInputRef,
 }: DeckCardProps) => {
   const formatTempo = (value: number) => {
-    if (Math.abs(value) < 0.05) return "0.0%";
+    if (Math.abs(value) < 0.005) return "0.00%";
     const sign = value > 0 ? "+" : "";
-    return `${sign}${value.toFixed(1)}%`;
+    return `${sign}${value.toFixed(2)}%`;
   };
   const stretchWindowSizes = [2048, 4096, 8192, 16384];
   const stretchWindowIndex = Math.max(
@@ -189,15 +193,16 @@ const DeckCard = ({
     Math.max(deck.filterResonance, resonanceMin),
     resonanceMax
   );
-  const formatDjFilter = (value: number) => {
-    if (value > 0.05) return `HP ${value.toFixed(2)}`;
-    if (value < -0.05) return `LP ${Math.abs(value).toFixed(2)}`;
+  const formatDjFilter = (value: number, fine = false) => {
+    const precision = fine ? 3 : 1;
+    if (value > 0.05) return `HP ${value.toFixed(precision)}`;
+    if (value < -0.05) return `LP ${Math.abs(value).toFixed(precision)}`;
     return "Flat";
   };
-  const formatEq = (value: number) => {
+  const formatEq = (value: number, fine = false) => {
     if (value === 0) return "0.0 dB";
     const sign = value > 0 ? "+" : "";
-    return `${sign}${value.toFixed(1)} dB`;
+    return `${sign}${value.toFixed(fine ? 2 : 1)} dB`;
   };
   const djAutomation = automation?.djFilter ?? {
     samples: new Float32Array(0),
@@ -283,6 +288,9 @@ const DeckCard = ({
   }, [deck.id, getDeckPlaybackSnapshot, getDeckPosition]);
 
   const [saveSettings, setSaveSettings] = useState(false);
+  const [tempoFine, setTempoFine] = useState(false);
+  const tempoFineDragRef = useRef<{ startY: number; startValue: number } | null>(null);
+  const tempoIgnoreChangeRef = useRef(false);
 
   return (
     <div className="deck">
@@ -293,82 +301,85 @@ const DeckCard = ({
             <span className="deck__title">{deck.fileName ?? "No file loaded"}</span>
           </span>
           <div className="deck__actions">
-            <input
-              ref={(node) => setFileInputRef(deck.id, node)}
-              className="deck__file-input"
-              type="file"
-              accept="audio/*"
-              onChange={(event) => onFileSelected(deck.id, event.target.files?.[0] ?? null)}
-            />
-            {deck.status === "playing" ? (
-              <button type="button" className="deck__action" onClick={() => onPause(deck)}>
-                Pause
-              </button>
-            ) : (
+            <div className="deck__actions-left">
+              <input
+                ref={(node) => setFileInputRef(deck.id, node)}
+                className="deck__file-input"
+                type="file"
+                accept="audio/*"
+                onChange={(event) => onFileSelected(deck.id, event.target.files?.[0] ?? null)}
+              />
+            </div>
+            <div className="deck__actions-right">
+              {deck.status === "playing" ? (
+                <button type="button" className="deck__action" onClick={() => onPause(deck)}>
+                  Pause
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="deck__action"
+                  disabled={!deck.buffer || deck.status === "loading"}
+                  onClick={() => onPlay(deck)}
+                >
+                  {deck.status === "paused" ? "Resume" : "Play"}
+                </button>
+              )}
               <button
                 type="button"
-                className="deck__action"
-                disabled={!deck.buffer || deck.status === "loading"}
-                onClick={() => onPlay(deck)}
+                className={`deck__action ${deck.loopEnabled ? "is-active" : ""}`}
+                onClick={() => onLoopChange(deck.id, !deck.loopEnabled)}
               >
-                {deck.status === "paused" ? "Resume" : "Play"}
+                {deck.loopEnabled ? "Looping" : "Loop"}
               </button>
-            )}
-            <button
-              type="button"
-              className={`deck__action ${deck.loopEnabled ? "is-active" : ""}`}
-              onClick={() => onLoopChange(deck.id, !deck.loopEnabled)}
-            >
-              {deck.loopEnabled ? "Looping" : "Loop"}
-            </button>
-            <AsyncActionButton
-              className="deck__action"
-              disabled={!deck.buffer}
-              idleLabel="Save Loop"
-              busyLabel="Saving..."
-              onAction={() => onSaveLoopClip(deck.id, saveSettings)}
-            />
-            <button type="button" className="deck__action">
-              Slice
-            </button>
-            <button type="button" className="deck__action" onClick={() => onLoadClick(deck.id)}>
-              {deck.fileName ? "Replace" : "Load"}
-            </button>
+              <AsyncActionButton
+                className="deck__action"
+                disabled={!deck.buffer}
+                idleLabel="Save Loop"
+                busyLabel="Saving..."
+                onAction={() => onSaveLoopClip(deck.id, saveSettings)}
+              />
+              <button type="button" className="deck__action" onClick={() => onLoadClick(deck.id)}>
+                {deck.fileName ? "Replace" : "Load"}
+              </button>
+              <button
+                type="button"
+                className="deck__action deck__remove"
+                onClick={() => onRemove(deck.id)}
+              >
+                Remove
+              </button>
+            </div>
           </div>
         </div>
         <div className="deck__meta">
           <div className="deck__bpm-summary">
-            <label
-              className="deck__pitch-sync"
-              title="When enabled, Save Loop stores the current deck FX/automation/settings (filters, EQ, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
-            >
-              <input
-                type="checkbox"
-                checked={saveSettings}
-                onChange={(event) => setSaveSettings(event.target.checked)}
-              />
-              Save FX Settings
-            </label>
-            <label className="deck__pitch-sync">
-              <input
-                type="checkbox"
-                checked={deck.tempoPitchSync}
-                onChange={(event) => onTempoPitchSyncChange(deck.id, event.target.checked)}
-              />
-              Sync Pitch
-            </label>
-            <span>Tempo {formatTempo(deck.tempoOffset)}</span>
+            <span className={`deck__status deck__status--${deck.status}`}>
+              {deck.status}
+            </span>
+            <div className="deck__meta-actions">
+              <label
+                className="deck__pitch-sync"
+                title="When enabled, Save Loop stores the current deck FX/automation/settings (filters, EQ, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
+              >
+                <input
+                  type="checkbox"
+                  checked={saveSettings}
+                  onChange={(event) => setSaveSettings(event.target.checked)}
+                />
+                Save FX Settings
+              </label>
+              <label className="deck__pitch-sync">
+                <input
+                  type="checkbox"
+                  checked={deck.tempoPitchSync}
+                  onChange={(event) => onTempoPitchSyncChange(deck.id, event.target.checked)}
+                />
+                Sync Pitch
+              </label>
+              <span>Tempo {formatTempo(deck.tempoOffset)}</span>
+            </div>
           </div>
-          <span className={`deck__status deck__status--${deck.status}`}>
-            {deck.status}
-          </span>
-          <button
-            type="button"
-            className="deck__remove"
-            onClick={() => onRemove(deck.id)}
-          >
-            Remove
-          </button>
         </div>
       </div>
       <div className="deck__waveform-row">
@@ -401,10 +412,74 @@ const DeckCard = ({
             type="range"
             min="-100"
             max="100"
-            step="0.1"
+            step={0.001}
             value={deck.tempoOffset}
-            onChange={(event) => onTempoOffsetChange(deck.id, Number(event.target.value))}
+            onChange={(event) => {
+              if (tempoIgnoreChangeRef.current) return;
+              const raw = Number(event.target.value);
+              const isFine = tempoFine || event.shiftKey;
+              const next = isFine ? raw : Math.round(raw * 10) / 10;
+              onTempoOffsetChange(deck.id, next, isFine ? { disableSnap: true } : undefined);
+            }}
             onDoubleClick={() => onTempoOffsetChange(deck.id, 0)}
+            onPointerDown={(event) => {
+              if (event.shiftKey) {
+                tempoFineDragRef.current = {
+                  startY: event.clientY,
+                  startValue: deck.tempoOffset,
+                };
+                tempoIgnoreChangeRef.current = true;
+              }
+              setTempoFine(event.shiftKey);
+            }}
+            onPointerMove={(event) => {
+              if (tempoFineDragRef.current) {
+                if (!event.shiftKey) {
+                  tempoFineDragRef.current = null;
+                  tempoIgnoreChangeRef.current = false;
+                  setTempoFine(false);
+                  return;
+                }
+                event.preventDefault();
+                const delta = (tempoFineDragRef.current.startY - event.clientY) * 0.002;
+                const base = tempoFineDragRef.current.startValue;
+                const next = Math.min(100, Math.max(-100, base + delta));
+                onTempoOffsetChange(deck.id, next, { disableSnap: true });
+                return;
+              }
+              if (tempoFine !== event.shiftKey) {
+                setTempoFine(event.shiftKey);
+              }
+            }}
+            onPointerUp={() => {
+              const wasFineDrag = Boolean(tempoFineDragRef.current);
+              tempoFineDragRef.current = null;
+              if (wasFineDrag) {
+                tempoIgnoreChangeRef.current = true;
+                window.setTimeout(() => {
+                  tempoIgnoreChangeRef.current = false;
+                }, 0);
+              } else {
+                tempoIgnoreChangeRef.current = false;
+              }
+              setTempoFine(false);
+            }}
+            onPointerCancel={() => {
+              tempoFineDragRef.current = null;
+              tempoIgnoreChangeRef.current = false;
+              setTempoFine(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Shift") {
+                setTempoFine(true);
+              }
+            }}
+            onKeyUp={(event) => {
+              if (event.key === "Shift") {
+                setTempoFine(false);
+              }
+            }}
+            onBlur={() => setTempoFine(false)}
           />
         </label>
         <div className="deck__waveform-side">
@@ -520,7 +595,7 @@ const DeckCard = ({
               defaultValue={0}
               labelTitle="Boosts the filter edge. Higher values add more bite and focus."
               onChange={(next) => onResonanceChange(deck.id, next)}
-              formatValue={(value) => value.toFixed(2)}
+              formatValue={(value, fine) => value.toFixed(fine ? 3 : 1)}
               isAutomated={resonanceAutomation.active}
             />
             <AutomationLane
@@ -573,7 +648,7 @@ const DeckCard = ({
               label="Low"
               min={-18}
               max={18}
-              step={0.5}
+              step={0.1}
               value={eqLowValue}
               defaultValue={0}
               labelTitle="Low‑shelf EQ. Positive adds bass, negative removes weight."
@@ -620,7 +695,7 @@ const DeckCard = ({
               label="Mid"
               min={-18}
               max={18}
-              step={0.5}
+              step={0.1}
               value={eqMidValue}
               defaultValue={0}
               labelTitle="Mid‑band EQ. Boost presence or cut boxiness."
@@ -667,7 +742,7 @@ const DeckCard = ({
               label="High"
               min={-18}
               max={18}
-              step={0.5}
+              step={0.1}
               value={eqHighValue}
               defaultValue={0}
               labelTitle="High‑shelf EQ. Positive adds air, negative tames brightness."
@@ -723,7 +798,7 @@ const DeckCard = ({
               defaultValue={0}
               labelTitle="Stereo pan. Left is negative, right is positive."
               onChange={(next) => onBalanceChange(deck.id, next)}
-              formatValue={(value) => value.toFixed(2)}
+              formatValue={(value, fine) => value.toFixed(fine ? 3 : 1)}
               centerSnap={0.03}
               isAutomated={balanceAutomation.active}
             />
@@ -763,22 +838,22 @@ const DeckCard = ({
             />
             <Knob
               label="Pitch"
-              min={-12}
-              max={12}
+              min={-24}
+              max={24}
               step={0.1}
               value={pitchValue}
               defaultValue={0}
               labelTitle="Pitch shift in semitones. Positive raises, negative lowers."
               onChange={(next) => onPitchShiftChange(deck.id, next)}
-              formatValue={(value) => `${value.toFixed(1)} st`}
+              formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)} st`}
               centerSnap={0.25}
               isAutomated={pitchAutomation.active}
               disabled={deck.tempoPitchSync}
             />
             <AutomationLane
               label="Automation"
-              min={-12}
-              max={12}
+              min={-24}
+              max={24}
               value={pitchValue}
               samples={pitchAutomation.samples}
               previewSamples={pitchAutomation.previewSamples}
@@ -822,7 +897,7 @@ const DeckCard = ({
                 defaultValue={0.35}
                 labelTitle="Delay time in seconds. Longer values create wider gaps between repeats."
                 onChange={(next) => onDelayTimeChange(deck.id, next)}
-                formatValue={(value) => `${value.toFixed(2)}s`}
+                formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}s`}
               />
               <Knob
                 className="knob--compact"
@@ -834,7 +909,7 @@ const DeckCard = ({
                 defaultValue={0.35}
                 labelTitle="Feedback amount. Higher values create more repeats."
                 onChange={(next) => onDelayFeedbackChange(deck.id, next)}
-                formatValue={(value) => `${Math.round(value * 100)}%`}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
                 className="knob--compact"
@@ -846,7 +921,7 @@ const DeckCard = ({
                 defaultValue={0}
                 labelTitle="Wet/dry mix. 0 = dry, 1 = fully delayed."
                 onChange={(next) => onDelayMixChange(deck.id, next)}
-                formatValue={(value) => `${Math.round(value * 100)}%`}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
                 className="knob--compact"
@@ -858,7 +933,7 @@ const DeckCard = ({
                 defaultValue={6000}
                 labelTitle="Low-pass filter inside the feedback path. Lower = darker repeats."
                 onChange={(next) => onDelayToneChange(deck.id, next)}
-                formatValue={(value) => `${Math.round(value)} Hz`}
+                formatValue={(value, fine) => `${value.toFixed(fine ? 1 : 0)} Hz`}
               />
               <label className="deck__delay-toggle">
                 <span>Ping Pong</span>
@@ -888,7 +963,7 @@ const DeckCard = ({
                 defaultValue={2}
                 labelTitle="Lengthens or shortens the loop. Higher values create longer, slower textures."
                 onChange={(next) => onStretchRatioChange(deck.id, next)}
-                formatValue={(value) => `${value.toFixed(1)}x`}
+                formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}x`}
               />
               <div className="deck__stretch-controls">
                 <Knob
@@ -901,7 +976,7 @@ const DeckCard = ({
                   defaultValue={0.5}
                   labelTitle="Controls how random the phase is. Higher values sound more diffuse and airy."
                   onChange={(next) => onStretchPhaseRandomnessChange(deck.id, next)}
-                  formatValue={(value) => `${Math.round(value * 100)}%`}
+                  formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
                 />
                 <Knob
                   className="knob--compact"
@@ -913,19 +988,19 @@ const DeckCard = ({
                   defaultValue={1}
                   labelTitle="Stereo width after stretch. 0 = mono, 1 = original width, 2 = wide."
                   onChange={(next) => onStretchStereoWidthChange(deck.id, next)}
-                  formatValue={(value) => `${value.toFixed(2)}x`}
+                  formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}x`}
                 />
                 <Knob
                   className="knob--compact"
                   label="Tilt"
                   min={-18}
                   max={18}
-                  step={0.5}
+                  step={0.1}
                   value={deck.stretchTiltDb}
                   defaultValue={0}
                   labelTitle="Spectral tilt across frequencies. Positive = brighter, negative = darker."
                   onChange={(next) => onStretchTiltDbChange(deck.id, next)}
-                  formatValue={(value) => `${value.toFixed(1)} dB`}
+                  formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)} dB`}
                 />
                 <Knob
                   className="knob--compact"
@@ -937,7 +1012,7 @@ const DeckCard = ({
                   defaultValue={1}
                   labelTitle="Grain spacing multiplier. Higher = grains farther apart with more space between."
                   onChange={(next) => onStretchScatterChange(deck.id, next)}
-                  formatValue={(value) => `${value.toFixed(2)}x`}
+                  formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}x`}
                 />
                 <Knob
                   className="knob--compact"

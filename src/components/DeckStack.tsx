@@ -30,7 +30,11 @@ type DeckStackProps = {
   onZoomChange: (id: number, value: number) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
-  onTempoOffsetChange: (id: number, value: number) => void;
+  onTempoOffsetChange: (
+    id: number,
+    value: number,
+    options?: { disableSnap?: boolean }
+  ) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
   onStretchRatioChange: (id: number, value: number) => void;
   onStretchWindowSizeChange: (id: number, value: number) => void;

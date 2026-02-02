@@ -93,6 +93,7 @@ export type SessionState = {
   id: string;
   name: string;
   savedAt: number;
+  masterGain?: number;
   decks: DeckSession[];
   clips: ClipSession[];
 };
@@ -115,6 +116,7 @@ export type SessionFileState = {
   version: 1;
   name: string;
   savedAt: number;
+  masterGain?: number;
   decks: SessionFileDeck[];
   clips: SessionFileClip[];
 };

@@ -105,7 +105,8 @@ const AutomationLane = ({
         for (let i = 0; i < activeSamples.length; i += 1) {
           const t = i / (activeSamples.length - 1);
           const sample = activeSamples[i];
-          const normalized = (sample - min) / (max - min);
+          const raw = (sample - min) / (max - min);
+          const normalized = Number.isFinite(raw) ? clamp(raw, 0, 1) : 0;
           const x = t * width;
           const y = height - normalized * height;
           if (i === 0) {

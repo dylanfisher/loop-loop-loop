@@ -9,7 +9,7 @@ type KnobProps = {
   value: number;
   defaultValue: number;
   onChange: (value: number) => void;
-  formatValue?: (value: number) => string;
+  formatValue?: (value: number, fine?: boolean) => string;
   centerSnap?: number;
   className?: string;
   ariaLabel?: string;
@@ -26,11 +26,15 @@ const snap = (
   min: number,
   max: number,
   defaultValue: number,
-  centerSnap?: number
+  centerSnap?: number,
+  enableCenterSnap = true
 ) => {
   if (!step || step <= 0) return clamp(value, min, max);
   const snapped = Math.round((value - min) / step) * step + min;
   const clamped = clamp(snapped, min, max);
+  if (!enableCenterSnap) {
+    return clamped;
+  }
   const snapTarget = clamp(defaultValue, min, max);
   const tolerance = centerSnap ?? step;
   if (Math.abs(clamped - snapTarget) <= tolerance) {
@@ -62,7 +66,9 @@ const Knob = ({
   const range = max - min;
   const normalized = range > 0 ? clamp((value - min) / range, 0, 1) : 0;
   const angle = -135 + normalized * 270;
-  const display = formatValue ? formatValue(value) : value.toFixed(2);
+  const display = formatValue
+    ? formatValue(value, fineMode)
+    : value.toFixed(fineMode ? 3 : 1);
 
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
@@ -71,10 +77,11 @@ const Knob = ({
       const deltaY = event.clientY - dragState.current.startY;
       const delta = deltaX - deltaY;
       const isFine = event.shiftKey;
-      const sensitivity = isFine ? 0.002 : 0.006;
+      const sensitivity = isFine ? 0.0008 : 0.006;
       const next = dragState.current.startValue + delta * sensitivity * range;
       setFineMode(isFine);
-      onChange(snap(next, step, min, max, defaultValue, centerSnap));
+      const effectiveStep = isFine ? step * 0.1 : step;
+      onChange(snap(next, effectiveStep, min, max, defaultValue, centerSnap, !isFine));
     };
 
     const handleUp = () => {
@@ -105,16 +112,20 @@ const Knob = ({
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
-    const fine = event.shiftKey ? step : step * 5;
+    const fine = event.shiftKey ? step * 0.1 : step * 5;
     if (event.key === "ArrowRight" || event.key === "ArrowUp") {
       event.preventDefault();
       setFineMode(event.shiftKey);
-      onChange(snap(value + fine, step, min, max, defaultValue, centerSnap));
+      onChange(
+        snap(value + fine, fine, min, max, defaultValue, centerSnap, !event.shiftKey)
+      );
     }
     if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
       event.preventDefault();
       setFineMode(event.shiftKey);
-      onChange(snap(value - fine, step, min, max, defaultValue, centerSnap));
+      onChange(
+        snap(value - fine, fine, min, max, defaultValue, centerSnap, !event.shiftKey)
+      );
     }
   };
 

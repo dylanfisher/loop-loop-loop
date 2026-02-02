@@ -47,7 +47,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
-[Header (brand + session controls + performance panel)]
+[Header (brand + session controls + performance panel + master gain)]
 [Clip Recorder]
 [Deck 1] [Deck 2]
 [Deck 3] [Deck 4]

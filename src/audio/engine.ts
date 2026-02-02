@@ -68,6 +68,7 @@ type AudioEngine = {
   setDeckDelayTone: (deckId: number, value: number) => void;
   setDeckDelayPingPong: (deckId: number, value: boolean) => void;
   setDeckPitchShift: (deckId: number, value: number) => void;
+  setMasterGain: (value: number) => void;
   removeDeck: (deckId: number) => void;
   getDeckPosition: (deckId: number) => number | null;
   setDeckLoopParams: (deckId: number, loopEnabled: boolean, start: number, end: number) => void;
@@ -81,12 +82,13 @@ type AudioEngine = {
 let audioContext: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let masterStreamDest: MediaStreamAudioDestinationNode | null = null;
+let masterGainValue = 0.9;
 
 const ensureContextSync = () => {
   if (!audioContext) {
     audioContext = new AudioContext();
     masterGain = audioContext.createGain();
-    masterGain.gain.value = 0.9;
+    masterGain.gain.value = masterGainValue;
     masterGain.connect(audioContext.destination);
     masterStreamDest = audioContext.createMediaStreamDestination();
     masterGain.connect(masterStreamDest);
@@ -98,7 +100,7 @@ const ensureContext = async () => {
   if (!audioContext) {
     audioContext = new AudioContext();
     masterGain = audioContext.createGain();
-    masterGain.gain.value = 0.9;
+    masterGain.gain.value = masterGainValue;
     masterGain.connect(audioContext.destination);
     masterStreamDest = audioContext.createMediaStreamDestination();
     masterGain.connect(masterStreamDest);
@@ -264,6 +266,14 @@ const setDeckPitchShift = (deckId: number, value: number) => {
   setDeckPitchShiftValue(deckId, value);
 };
 
+const setMasterGain = (value: number) => {
+  const nextValue = Math.min(Math.max(value, 0), 1.5);
+  masterGainValue = nextValue;
+  if (masterGain) {
+    masterGain.gain.value = nextValue;
+  }
+};
+
 const removeDeck = (deckId: number) => {
   removeDeckNodes(deckId);
 };
@@ -276,10 +286,10 @@ const getDeckPosition = (deckId: number) => {
 const getDeckSnapshot = (deckId: number) => {
   if (!audioContext) return null;
   const snapshot = getDeckPlaybackSnapshot(deckId, audioContext.currentTime);
-  if (!snapshot && import.meta.env.DEV) {
+  if (!snapshot && import.meta.env.DEV && hasDeckPlayback(deckId)) {
     console.info("Audio snapshot missing", {
       deckId,
-      hasPlayback: hasDeckPlayback(deckId),
+      hasPlayback: true,
       contextState: audioContext.state,
     });
   }
@@ -328,6 +338,7 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckDelayTone,
     setDeckDelayPingPong,
     setDeckPitchShift,
+    setMasterGain,
     removeDeck,
     getDeckPosition,
     setDeckLoopParams: updateDeckLoopParams,

@@ -102,7 +102,7 @@ const useDecks = () => {
     new Map()
   );
   const [automationTickEnabled, setAutomationTickEnabled] = useState(false);
-  const [decks, setDecks] = useState<DeckState[]>([
+  const createInitialDecks = useCallback((): DeckState[] => [
     {
       id: 1,
       status: "idle",
@@ -133,7 +133,9 @@ const useDecks = () => {
       delayTone: DEFAULT_DELAY_TONE,
       delayPingPong: DEFAULT_DELAY_PINGPONG,
     },
-  ]);
+  ], []);
+
+  const [decks, setDecks] = useState<DeckState[]>(createInitialDecks);
   const {
     decodeFile,
     playBuffer,
@@ -432,7 +434,7 @@ const useDecks = () => {
         } else {
           normalized = t;
         }
-        samples[i] = min + normalized * range;
+        samples[i] = clamp(min + normalized * range, min, max);
       }
       return { samples, sampleRate };
     },
@@ -499,11 +501,7 @@ const useDecks = () => {
       if (!track.samples.length || factor <= 0) return;
       const currentDuration = track.durationSec || track.samples.length / track.sampleRate;
       const nextDuration = Math.max(MIN_AUTOMATION_DURATION, currentDuration * factor);
-      const nextSampleRate = clamp(
-        track.samples.length / nextDuration,
-        5,
-        240
-      );
+      const nextSampleRate = track.samples.length / nextDuration;
       track.sampleRate = nextSampleRate;
       track.durationSec = track.samples.length / nextSampleRate;
       const playheads = automationPlayheadRef.current.get(deckId);
@@ -525,11 +523,7 @@ const useDecks = () => {
       if (!automation) return;
       const track = automation[param];
       if (!track.samples.length || durationSec <= 0) return;
-      const nextSampleRate = clamp(
-        track.samples.length / durationSec,
-        5,
-        240
-      );
+      const nextSampleRate = track.samples.length / durationSec;
       track.sampleRate = nextSampleRate;
       track.durationSec = track.samples.length / nextSampleRate;
       const playheads = automationPlayheadRef.current.get(deckId);
@@ -1558,7 +1552,7 @@ const useDecks = () => {
   const setDeckPitchShiftValue = (id: number, value: number) => {
     const deck = decks.find((item) => item.id === id);
     if (deck?.tempoPitchSync) return;
-    const clamped = Math.min(Math.max(value, -12), 12);
+    const clamped = Math.min(Math.max(value, -24), 24);
     setDeckPitchShift(id, clamped);
     updateDeck(id, { pitchShift: clamped }, false);
     const automation = automationRef.current.get(id);
@@ -1877,14 +1871,22 @@ const useDecks = () => {
     );
   };
 
-  const setDeckTempoOffset = (id: number, value: number) => {
+  const setDeckTempoOffset = (
+    id: number,
+    value: number,
+    options?: { disableSnap?: boolean }
+  ) => {
     const safeValue = Number.isFinite(value) ? value : 0;
-    const snapped =
-      Math.abs(safeValue) > 100
-        ? safeValue
-        : Math.round(safeValue / TEMPO_SNAP_STEP) * TEMPO_SNAP_STEP;
-    const nextValue =
-      Math.abs(safeValue - snapped) <= TEMPO_SNAP_THRESHOLD ? snapped : safeValue;
+    const disableSnap = options?.disableSnap ?? false;
+    let nextValue = safeValue;
+    if (!disableSnap) {
+      const snapped =
+        Math.abs(safeValue) > 100
+          ? safeValue
+          : Math.round(safeValue / TEMPO_SNAP_STEP) * TEMPO_SNAP_STEP;
+      nextValue =
+        Math.abs(safeValue - snapped) <= TEMPO_SNAP_THRESHOLD ? snapped : safeValue;
+    }
     let nextPitch = 0;
     let shouldSyncPitch = false;
     const currentDeck = decks.find((deck) => deck.id === id);
@@ -2272,23 +2274,26 @@ const useDecks = () => {
         const ensureTrack = (
           snapshot: DeckSession["automation"][AutomationParam] | undefined,
           fallbackValue: number
-        ): AutomationTrack => ({
-          samples: new Float32Array(snapshot?.samples ?? []),
-          sampleRate: snapshot?.sampleRate ?? AUTOMATION_SAMPLE_RATE,
-          durationSec: snapshot?.durationSec ?? 0,
-          recording: false,
-          active: snapshot?.active ?? false,
-          paused: false,
-          pausedPositionSec: 0,
-          currentValue: snapshot?.currentValue ?? fallbackValue,
-          lastIndex: -1,
-          lastPreviewLength: 0,
-          recordBuffer: [],
-          recordStartMs: 0,
-          lastSampleMs: 0,
-          playbackStartMs:
-            snapshot?.active && (snapshot?.durationSec ?? 0) > 0 ? performance.now() : 0,
-        });
+        ): AutomationTrack => {
+          const isActive = snapshot?.active ?? false;
+          return {
+            samples: new Float32Array(snapshot?.samples ?? []),
+            sampleRate: snapshot?.sampleRate ?? AUTOMATION_SAMPLE_RATE,
+            durationSec: snapshot?.durationSec ?? 0,
+            recording: false,
+            active: isActive,
+            paused: isActive,
+            pausedPositionSec: 0,
+            currentValue: snapshot?.currentValue ?? fallbackValue,
+            amplitudeScale: 1,
+            lastIndex: -1,
+            lastPreviewLength: 0,
+            recordBuffer: [],
+            recordStartMs: 0,
+            lastSampleMs: 0,
+            playbackStartMs: 0,
+          };
+        };
 
         const automation: AutomationDeck = {
           djFilter: ensureTrack(sessionDeck.automation.djFilter, sessionDeck.djFilter),
@@ -2380,6 +2385,33 @@ const useDecks = () => {
     [decks, removeDeckNodes, setDecksNoHistory, stop, syncHistoryState, updateAutomationTickEnabled]
   );
 
+  const resetDecks = useCallback(() => {
+    decks.forEach((deck) => {
+      stop(deck.id);
+      removeDeckNodes(deck.id);
+    });
+    playbackStartRef.current = new Map();
+    playbackRateRef.current = new Map();
+    fileInputRefs.current = new Map();
+    automationRef.current = new Map();
+    automationPlayheadRef.current = new Map();
+    automationUiUpdateRef.current = new Map();
+    historyRef.current = { past: [], future: [] };
+    syncHistoryState();
+    nextDeckId.current = 2;
+    setDecksNoHistory(() => createInitialDecks());
+    setAutomationState(new Map());
+    updateAutomationTickEnabled();
+  }, [
+    createInitialDecks,
+    decks,
+    removeDeckNodes,
+    setDecksNoHistory,
+    stop,
+    syncHistoryState,
+    updateAutomationTickEnabled,
+  ]);
+
   return {
     decks,
     addDeck,
@@ -2430,6 +2462,7 @@ const useDecks = () => {
     loadDeckBuffer,
     getSessionDecks,
     loadSessionDecks,
+    resetDecks,
     undo,
     redo,
     canUndo: historyState.canUndo,
