@@ -1954,11 +1954,7 @@ const App = () => {
       if (event.defaultPrevented) return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.key !== " " && event.code !== "Space") return;
-      const appRoot = document.querySelector(".app");
-      if (!appRoot) return;
       if (document.querySelector(".session-bar__details[open]")) return;
-      const activeElement = document.activeElement;
-      if (activeElement && !appRoot.contains(activeElement)) return;
       const target = event.target as HTMLElement | null;
       if (target) {
         const tag = target.tagName;

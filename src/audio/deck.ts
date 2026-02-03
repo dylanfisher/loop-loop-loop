@@ -740,3 +740,18 @@ export const setDeckPlaybackRate = (
     });
   }
 };
+
+export const setDeckPlaybackOffsetValue = (
+  deckId: number,
+  offsetSeconds: number,
+  currentTime?: number
+) => {
+  const playback = deckPlayback.get(deckId);
+  if (!playback) return;
+  const clampedOffset = Math.min(Math.max(0, offsetSeconds), playback.duration);
+  deckPlayback.set(deckId, {
+    ...playback,
+    offsetSeconds: clampedOffset,
+    startTime: currentTime ?? playback.startTime,
+  });
+};

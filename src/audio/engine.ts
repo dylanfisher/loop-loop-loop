@@ -18,6 +18,7 @@ import {
   setDeckDelayToneValue,
   setDeckDelayPingPongValue,
   setDeckLoopParams,
+  setDeckPlaybackOffsetValue,
   setDeckPitchShiftValue,
   setDeckPlaybackRate,
   stopDeckPlayback,
@@ -73,6 +74,7 @@ type AudioEngine = {
   getDeckPosition: (deckId: number) => number | null;
   setDeckLoopParams: (deckId: number, loopEnabled: boolean, start: number, end: number) => void;
   setDeckPlaybackRate: (deckId: number, value: number) => void;
+  setDeckPlaybackOffset: (deckId: number, offsetSeconds: number) => void;
   getMasterStream: () => MediaStream | null;
   getDeckPlaybackSnapshot: (deckId: number) => import("./deck").DeckPlaybackSnapshot | null;
   suspendContext: () => Promise<void>;
@@ -309,6 +311,14 @@ const updateDeckPlaybackRate = (deckId: number, value: number) => {
   setDeckPlaybackRate(deckId, value, audioContext.currentTime);
 };
 
+const updateDeckPlaybackOffset = (deckId: number, offsetSeconds: number) => {
+  if (!audioContext) {
+    setDeckPlaybackOffsetValue(deckId, offsetSeconds);
+    return;
+  }
+  setDeckPlaybackOffsetValue(deckId, offsetSeconds, audioContext.currentTime);
+};
+
 const getMasterStream = () => {
   const context = ensureContextSync();
   if (!masterStreamDest) {
@@ -343,6 +353,7 @@ export const getAudioEngine = (): AudioEngine => {
     getDeckPosition,
     setDeckLoopParams: updateDeckLoopParams,
     setDeckPlaybackRate: updateDeckPlaybackRate,
+    setDeckPlaybackOffset: updateDeckPlaybackOffset,
     getMasterStream,
     getDeckPlaybackSnapshot: getDeckSnapshot,
     suspendContext,

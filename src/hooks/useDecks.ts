@@ -159,6 +159,7 @@ const useDecks = () => {
     getDeckPlaybackSnapshot: _getDeckPlaybackSnapshot,
     setDeckLoopParams,
     setDeckPlaybackRate,
+    setDeckPlaybackOffset,
   } = useAudioEngine();
 
   const getFilterTargets = useCallback((djFilter: number) => {
@@ -1472,6 +1473,7 @@ const useDecks = () => {
     }
 
     updateDeck(id, { offsetSeconds }, false);
+    setDeckPlaybackOffset(id, offsetSeconds);
   };
 
   const setDeckGainValue = (id: number, value: number) => {

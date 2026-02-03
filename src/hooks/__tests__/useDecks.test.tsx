@@ -61,6 +61,7 @@ const getDeckPosition = vi.fn(() => null);
 const getDeckPlaybackSnapshot = vi.fn(() => null);
 const setDeckLoopParams = vi.fn();
 const setDeckPlaybackRate = vi.fn();
+const setDeckPlaybackOffset = vi.fn();
 
 vi.mock("../useAudioEngine", () => ({
   default: () => ({
@@ -86,6 +87,7 @@ vi.mock("../useAudioEngine", () => ({
     getDeckPlaybackSnapshot,
     setDeckLoopParams,
     setDeckPlaybackRate,
+    setDeckPlaybackOffset,
   }),
 }));
 
@@ -113,6 +115,7 @@ describe("useDecks", () => {
     getDeckPlaybackSnapshot.mockClear();
     setDeckLoopParams.mockClear();
     setDeckPlaybackRate.mockClear();
+    setDeckPlaybackOffset.mockClear();
   });
 
   afterEach(() => {
