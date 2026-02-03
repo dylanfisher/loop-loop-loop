@@ -1155,7 +1155,7 @@ const App = () => {
         1
       );
       const tiltDb = Math.min(Math.max(deck.stretchTiltDb ?? 0, -18), 18);
-      const scatter = Math.min(Math.max(deck.stretchScatter ?? 1, 1), 4);
+      const scatter = Math.min(Math.max(deck.stretchScatter ?? 1, 1), 16);
       const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
       const sliceDuration = Math.max(0.01, loopEnd - loopStart);
       // Duration to pull from the buffer in source-time so the rendered input is sliceDuration.
@@ -1166,7 +1166,7 @@ const App = () => {
         1,
         Math.ceil(sliceDuration * sampleRate * Math.max(1, scatter))
       );
-      const effectiveRatio = Math.min(ratio * scatter, 64);
+      const effectiveRatio = Math.min(ratio * scatter, 128);
       const outputSamples = Math.max(
         1,
         Math.ceil(sliceDuration * effectiveRatio * sampleRate)

@@ -27,6 +27,7 @@ type DeckNodes = {
   delayToneL: BiquadFilterNode;
   delayToneR: BiquadFilterNode;
   delayPingPong: boolean;
+  delayActive: boolean;
   clipper: WaveShaperNode;
   limiter: DynamicsCompressorNode;
   pitchShift: PitchShiftNodes;
@@ -102,6 +103,20 @@ const connectDelayFeedback = (nodes: DeckNodes, pingPong: boolean) => {
     nodes.delayToneR.connect(nodes.delayR);
   }
   nodes.delayPingPong = pingPong;
+};
+
+const setDelayRouting = (nodes: DeckNodes, active: boolean) => {
+  if (nodes.delayActive === active) return;
+  const eqOut = nodes.eqHigh[nodes.eqHigh.length - 1];
+  if (nodes.delayActive) {
+    eqOut.disconnect(nodes.delaySplit);
+    nodes.delayMerge.disconnect(nodes.delayWet);
+  }
+  if (active) {
+    eqOut.connect(nodes.delaySplit);
+    nodes.delayMerge.connect(nodes.delayWet);
+  }
+  nodes.delayActive = active;
 };
 
 const ensureDeckNodes = (
@@ -201,12 +216,10 @@ const ensureDeckNodes = (
       eqHigh[i].connect(eqHigh[i + 1]);
     }
     eqHigh[eqHigh.length - 1].connect(delayDry);
-    eqHigh[eqHigh.length - 1].connect(delaySplit);
     delaySplit.connect(delayL, 0);
     delaySplit.connect(delayR, 1);
     delayL.connect(delayMerge, 0, 0);
     delayR.connect(delayMerge, 0, 1);
-    delayMerge.connect(delayWet);
     delayWet.connect(deckGain);
     delayDry.connect(deckGain);
     deckGain.connect(limiter);
@@ -232,12 +245,14 @@ const ensureDeckNodes = (
       delayToneL,
       delayToneR,
       delayPingPong: !nextDelayPingPong,
+      delayActive: false,
       clipper,
       limiter,
       pitchShift: pitchShiftNodes,
     };
     balanceNode.connect(pitchShiftNodes.input);
     connectDelayFeedback(nodes, nextDelayPingPong);
+    setDelayRouting(nodes, nextDelayMix > 0);
     deckNodes.set(deckId, nodes);
   } else {
     nodes.gain.gain.value = gain;
@@ -259,6 +274,7 @@ const ensureDeckNodes = (
     nodes.delayWet.gain.value = delayMix;
     nodes.delayDry.gain.value = 1 - delayMix;
     connectDelayFeedback(nodes, delayPingPong);
+    setDelayRouting(nodes, delayMix > 0);
   }
 
   pendingGains.delete(deckId);

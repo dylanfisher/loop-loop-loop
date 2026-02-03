@@ -660,9 +660,7 @@ const useDecks = () => {
           deck.status === "playing" &&
           target?.status === "playing"
         ) {
-          if (deck.buffer && target.buffer && deck.buffer === target.buffer) {
-            keepPlayingIds.add(deck.id);
-          } else if (target.buffer) {
+          if (target.buffer) {
             restartIds.add(deck.id);
             restartStartMs.set(deck.id, performance.now());
           }
@@ -2135,7 +2133,7 @@ const useDecks = () => {
 
   const setDeckStretchScatter = (id: number, value: number) => {
     const safeValue = Number.isFinite(value) ? value : DEFAULT_STRETCH_SCATTER;
-    const clamped = Math.min(Math.max(safeValue, 1), 4);
+    const clamped = Math.min(Math.max(safeValue, 1), 16);
     updateDeck(id, { stretchScatter: clamped }, false);
   };
 

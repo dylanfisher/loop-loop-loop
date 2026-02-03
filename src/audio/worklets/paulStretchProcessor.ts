@@ -444,9 +444,9 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     this.scatter = clamp(
       Number.isFinite(scatterParam) ? scatterParam : this.scatter,
       1,
-      4
+      16
     );
-    this.outputStride = Math.max(1, Math.floor(this.hopOut * this.scatter));
+    this.outputStride = Math.max(1, Math.floor(this.hopOut * this.scatter * this.scatter));
     if (!this.debugSent) {
       this.debugSent = true;
       this.port.postMessage({
