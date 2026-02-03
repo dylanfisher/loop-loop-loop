@@ -2018,12 +2018,6 @@ const App = () => {
             </div>
           ) : null}
           <div className="app__header-actions">
-            <button type="button" onClick={addDeck}>
-              Add Deck
-            </button>
-            <button type="button" onClick={handleNewSession}>
-              New
-            </button>
             <button
               type="button"
               onClick={undo}
@@ -2041,6 +2035,12 @@ const App = () => {
               aria-label="Redo"
             >
               →
+            </button>
+            <button type="button" onClick={addDeck}>
+              Add Deck
+            </button>
+            <button type="button" onClick={handleNewSession}>
+              New
             </button>
             <button type="button" onClick={handleGlobalPlaybackToggle}>
               {hasActivePlayback ? "Pause" : "Play"}

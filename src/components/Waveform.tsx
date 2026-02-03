@@ -364,6 +364,7 @@ const Waveform = ({
   const renderCountRef = useRef(0);
   const peaksPerSecondRef = useRef(200);
   const balanceRef = useRef(0);
+  const lastBufferRef = useRef<AudioBuffer | null>(null);
 
   useEffect(() => {
     renderCountRef.current += 1;
@@ -832,7 +833,14 @@ const Waveform = ({
   useEffect(() => {
     if (!buffer) {
       bandPeaksRef.current = null;
+      peaksPerSecondRef.current = 0;
+      lastBufferRef.current = null;
       return;
+    }
+    if (lastBufferRef.current !== buffer) {
+      lastBufferRef.current = buffer;
+      bandPeaksRef.current = null;
+      peaksPerSecondRef.current = 0;
     }
     const width = Math.max(1, Math.floor(canvasRef.current?.clientWidth ?? 1));
     const nextPeaksPerSecond = computePeaksPerSecond(

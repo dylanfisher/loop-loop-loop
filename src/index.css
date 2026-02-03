@@ -166,7 +166,7 @@ body[data-theme="dark"] .app__header {
 }
 
 .app__header-row--primary {
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
 }
 
