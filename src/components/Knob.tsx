@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
 type KnobProps = {
@@ -61,6 +61,8 @@ const Knob = ({
 }: KnobProps) => {
   const knobRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<{ startX: number; startY: number; startValue: number } | null>(null);
+  const pendingValueRef = useRef<number | null>(null);
+  const changeRafRef = useRef<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const [fineMode, setFineMode] = useState(false);
   const range = max - min;
@@ -69,6 +71,24 @@ const Knob = ({
   const display = formatValue
     ? formatValue(value, fineMode)
     : value.toFixed(fineMode ? 3 : 1);
+
+  const flushPendingChange = useCallback(() => {
+    if (pendingValueRef.current === null) return;
+    onChange(pendingValueRef.current);
+    pendingValueRef.current = null;
+  }, [onChange]);
+
+  const scheduleChange = useCallback(
+    (nextValue: number) => {
+      pendingValueRef.current = nextValue;
+      if (changeRafRef.current !== null) return;
+      changeRafRef.current = requestAnimationFrame(() => {
+        changeRafRef.current = null;
+        flushPendingChange();
+      });
+    },
+    [flushPendingChange]
+  );
 
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
@@ -81,12 +101,13 @@ const Knob = ({
       const next = dragState.current.startValue + delta * sensitivity * range;
       setFineMode(isFine);
       const effectiveStep = isFine ? step * 0.1 : step;
-      onChange(snap(next, effectiveStep, min, max, defaultValue, centerSnap, !isFine));
+      scheduleChange(snap(next, effectiveStep, min, max, defaultValue, centerSnap, !isFine));
     };
 
     const handleUp = () => {
       if (!dragState.current) return;
       dragState.current = null;
+      flushPendingChange();
       setDragging(false);
       setFineMode(false);
     };
@@ -99,7 +120,15 @@ const Knob = ({
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
     };
-  }, [centerSnap, defaultValue, max, min, onChange, range, step]);
+  }, [centerSnap, defaultValue, max, min, range, scheduleChange, flushPendingChange, step]);
+
+  useEffect(() => {
+    return () => {
+      if (changeRafRef.current !== null) {
+        cancelAnimationFrame(changeRafRef.current);
+      }
+    };
+  }, []);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (disabled) return;

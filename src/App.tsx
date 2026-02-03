@@ -23,6 +23,7 @@ import {
 } from "./audio/pitchShift";
 import { createPaulStretchNode, ensurePaulStretchWorklet } from "./audio/paulStretch";
 import { createLimiter, createSoftClipper } from "./audio/clipper";
+import PerfOverlay from "./components/PerfOverlay";
 import {
   AUTO_SESSION_ID,
   createSessionBlobId,
@@ -174,6 +175,10 @@ const App = () => {
   });
   const [sessionBusy, setSessionBusy] = useState(false);
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
+  const [debugPerf, setDebugPerf] = useState(() => {
+    if (!import.meta.env.DEV) return false;
+    return localStorage.getItem("debugPerf") === "true";
+  });
   const [sessionName, setSessionName] = useState("");
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -1974,24 +1979,44 @@ const App = () => {
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [handleGlobalPlaybackToggle]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const handleDebugToggle = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (!event.ctrlKey || !event.shiftKey) return;
+      if (event.key.toLowerCase() !== "p") return;
+      event.preventDefault();
+      setDebugPerf((prev) => {
+        const next = !prev;
+        localStorage.setItem("debugPerf", String(next));
+        return next;
+      });
+    };
+    window.addEventListener("keydown", handleDebugToggle);
+    return () => window.removeEventListener("keydown", handleDebugToggle);
+  }, []);
+
   return (
     <div className="app">
+      {import.meta.env.DEV && debugPerf ? <PerfOverlay /> : null}
       <header className="app__header">
         <div className="app__header-row app__header-row--primary">
           <div className="app__brand">Loop Loop Loop</div>
           <div className="app__project">
             {sessionName.trim() ? `Project: ${sessionName}` : "Project: Untitled"}
           </div>
-          <div className="perf-panel" aria-live="polite">
-            <span className="perf-panel__label">Perf</span>
-            <span className="perf-panel__metric">{perfStats.fps} fps</span>
-            <span className="perf-panel__metric">{perfStats.frameMs} ms</span>
-            {perfStats.heapUsedMB !== null && perfStats.heapLimitMB !== null && (
-              <span className="perf-panel__metric">
-                heap {perfStats.heapUsedMB}/{perfStats.heapLimitMB} MB
-              </span>
-            )}
-          </div>
+          {debugPerf ? (
+            <div className="perf-panel" aria-live="polite">
+              <span className="perf-panel__label">Perf</span>
+              <span className="perf-panel__metric">{perfStats.fps} fps</span>
+              <span className="perf-panel__metric">{perfStats.frameMs} ms</span>
+              {perfStats.heapUsedMB !== null && perfStats.heapLimitMB !== null && (
+                <span className="perf-panel__metric">
+                  heap {perfStats.heapUsedMB}/{perfStats.heapLimitMB} MB
+                </span>
+              )}
+            </div>
+          ) : null}
           <div className="app__header-actions">
             <button type="button" onClick={addDeck}>
               Add Deck

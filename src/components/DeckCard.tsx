@@ -1,9 +1,10 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { DeckState } from "../types/deck";
 import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
 import Waveform from "./Waveform";
 import AsyncActionButton from "./AsyncActionButton";
+import { setPerfCounter } from "../utils/perf";
 
 type DeckCardProps = {
   deck: DeckState;
@@ -169,6 +170,12 @@ const DeckCard = ({
   getDeckPlaybackSnapshot,
   setFileInputRef,
 }: DeckCardProps) => {
+  const renderCountRef = useRef(0);
+  useEffect(() => {
+    renderCountRef.current += 1;
+    setPerfCounter("deckCardRenders", renderCountRef.current);
+  });
+
   const formatTempo = (value: number) => {
     if (Math.abs(value) < 0.005) return "0.00%";
     const sign = value > 0 ? "+" : "";
@@ -281,11 +288,52 @@ const DeckCard = ({
     ? pitchAutomation.currentValue
     : deck.pitchShift;
 
+  const playbackSnapshotRef = useRef(getDeckPlaybackSnapshot);
+  const deckPositionRef = useRef(getDeckPosition);
+
+  useEffect(() => {
+    playbackSnapshotRef.current = getDeckPlaybackSnapshot;
+  }, [getDeckPlaybackSnapshot]);
+
+  useEffect(() => {
+    deckPositionRef.current = getDeckPosition;
+  }, [getDeckPosition]);
+
   const getCurrentSeconds = useCallback(() => {
-    const snapshot = getDeckPlaybackSnapshot(deck.id);
+    const snapshot = playbackSnapshotRef.current(deck.id);
     if (snapshot) return snapshot.position;
-    return getDeckPosition(deck.id);
-  }, [deck.id, getDeckPlaybackSnapshot, getDeckPosition]);
+    return deckPositionRef.current(deck.id);
+  }, [deck.id]);
+
+  const handleSeek = useCallback(
+    (progress: number) => {
+      onSeek(deck.id, progress);
+    },
+    [deck.id, onSeek]
+  );
+
+  const handleLoopBoundsChange = useCallback(
+    (startSeconds: number, endSeconds: number) => {
+      onLoopBoundsChange(deck.id, startSeconds, endSeconds);
+    },
+    [deck.id, onLoopBoundsChange]
+  );
+
+  const handleLoopEnabledChange = useCallback(
+    (enabled: boolean) => {
+      onLoopChange(deck.id, enabled);
+    },
+    [deck.id, onLoopChange]
+  );
+
+  const handlePlaybackSnapshot = useCallback(
+    () => playbackSnapshotRef.current(deck.id),
+    [deck.id]
+  );
+
+  const handleEmptyClick = useCallback(() => {
+    onLoadClick(deck.id);
+  }, [deck.id, onLoadClick]);
 
   const [saveSettings, setSaveSettings] = useState(false);
   const [tempoFine, setTempoFine] = useState(false);
@@ -397,14 +445,12 @@ const DeckCard = ({
           loopEnabled={deck.loopEnabled}
           loopStartSeconds={deck.loopStartSeconds}
           loopEndSeconds={deck.loopEndSeconds}
-          onSeek={(progress) => onSeek(deck.id, progress)}
-          onLoopBoundsChange={(startSeconds, endSeconds) =>
-            onLoopBoundsChange(deck.id, startSeconds, endSeconds)
-          }
-          onLoopEnabledChange={(enabled) => onLoopChange(deck.id, enabled)}
+          onSeek={handleSeek}
+          onLoopBoundsChange={handleLoopBoundsChange}
+          onLoopEnabledChange={handleLoopEnabledChange}
           getCurrentSeconds={getCurrentSeconds}
-          getPlaybackSnapshot={() => getDeckPlaybackSnapshot(deck.id)}
-          onEmptyClick={() => onLoadClick(deck.id)}
+          getPlaybackSnapshot={handlePlaybackSnapshot}
+          onEmptyClick={handleEmptyClick}
         />
         <label className="deck__bpm-slider deck__bpm-slider--vertical">
           <span>Tempo</span>

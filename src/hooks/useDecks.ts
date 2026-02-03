@@ -1868,6 +1868,9 @@ const useDecks = () => {
           };
         }
 
+        if (deck.loopEnabled) {
+          setDeckLoopParams(deck.id, true, nextStart, nextEnd);
+        }
         return { ...deck, loopStartSeconds: nextStart, loopEndSeconds: nextEnd };
       })
     );

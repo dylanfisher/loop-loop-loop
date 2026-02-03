@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { setPerfCounter, setPerfTiming } from "../utils/perf";
 
 type WaveformProps = {
   buffer?: AudioBuffer;
@@ -85,6 +86,148 @@ const buildPeaks = (
   return peaks;
 };
 
+type BandPeaks = {
+  peaksPerSecond: number;
+  length: number;
+  lowMin: Float32Array;
+  lowMax: Float32Array;
+  midMin: Float32Array;
+  midMax: Float32Array;
+  highMin: Float32Array;
+  highMax: Float32Array;
+};
+
+const buildBandPeaks = (buffer: AudioBuffer, peaksPerSecond: number): BandPeaks => {
+  const data = buffer.getChannelData(0);
+  const sampleRate = buffer.sampleRate;
+  const samplesPerPeak = Math.max(1, Math.floor(sampleRate / peaksPerSecond));
+  const totalPeaks = Math.max(1, Math.ceil(data.length / samplesPerPeak));
+  const lowMin = new Float32Array(totalPeaks);
+  const lowMax = new Float32Array(totalPeaks);
+  const midMin = new Float32Array(totalPeaks);
+  const midMax = new Float32Array(totalPeaks);
+  const highMin = new Float32Array(totalPeaks);
+  const highMax = new Float32Array(totalPeaks);
+  const lowCut = 120;
+  const highCut = 8000;
+  const lowAlpha = Math.exp((-2 * Math.PI * lowCut) / sampleRate);
+  const highAlpha = Math.exp((-2 * Math.PI * highCut) / sampleRate);
+  let lowState = 0;
+  let highLowState = 0;
+
+  let index = 0;
+  for (let peakIndex = 0; peakIndex < totalPeaks; peakIndex += 1) {
+    let lowMinValue = 1;
+    let lowMaxValue = -1;
+    let midMinValue = 1;
+    let midMaxValue = -1;
+    let highMinValue = 1;
+    let highMaxValue = -1;
+    const end = Math.min(index + samplesPerPeak, data.length);
+    for (; index < end; index += 1) {
+      const sample = data[index];
+      lowState = (1 - lowAlpha) * sample + lowAlpha * lowState;
+      highLowState = (1 - highAlpha) * sample + highAlpha * highLowState;
+      const low = lowState;
+      const high = sample - highLowState;
+      const mid = highLowState - low;
+      if (low < lowMinValue) lowMinValue = low;
+      if (low > lowMaxValue) lowMaxValue = low;
+      if (mid < midMinValue) midMinValue = mid;
+      if (mid > midMaxValue) midMaxValue = mid;
+      if (high < highMinValue) highMinValue = high;
+      if (high > highMaxValue) highMaxValue = high;
+    }
+    lowMin[peakIndex] = lowMinValue;
+    lowMax[peakIndex] = lowMaxValue;
+    midMin[peakIndex] = midMinValue;
+    midMax[peakIndex] = midMaxValue;
+    highMin[peakIndex] = highMinValue;
+    highMax[peakIndex] = highMaxValue;
+  }
+
+  return {
+    peaksPerSecond,
+    length: totalPeaks,
+    lowMin,
+    lowMax,
+    midMin,
+    midMax,
+    highMin,
+    highMax,
+  };
+};
+
+const buildPeaksFromBands = (
+  bands: BandPeaks,
+  duration: number,
+  width: number,
+  zoom: number,
+  startSeconds: number,
+  eqLowGain: number,
+  eqMidGain: number,
+  eqHighGain: number
+) => {
+  const visualDuration = duration / Math.max(1, zoom);
+  const windowStart = Math.min(Math.max(0, startSeconds), Math.max(0, duration - visualDuration));
+  const windowEnd = Math.min(duration, windowStart + visualDuration);
+  const startIndex = Math.min(
+    bands.length,
+    Math.max(0, Math.floor(windowStart * bands.peaksPerSecond))
+  );
+  const endIndex = Math.min(
+    bands.length,
+    Math.max(startIndex + 1, Math.ceil(windowEnd * bands.peaksPerSecond))
+  );
+  const range = Math.max(1, endIndex - startIndex);
+
+  const peaks: Array<{ min: number; max: number }> = new Array(Math.max(1, width));
+  const lowGain = Math.pow(10, eqLowGain / 20);
+  const midGain = Math.pow(10, eqMidGain / 20);
+  const highGain = Math.pow(10, eqHighGain / 20);
+
+  const scaleBand = (min: number, max: number, gain: number) => {
+    const scaledMin = min * gain;
+    const scaledMax = max * gain;
+    return scaledMin < scaledMax
+      ? [scaledMin, scaledMax]
+      : [scaledMax, scaledMin];
+  };
+
+  for (let i = 0; i < peaks.length; i += 1) {
+    const segStart = startIndex + Math.floor((i * range) / peaks.length);
+    const segEnd = Math.min(
+      endIndex,
+      startIndex + Math.max(1, Math.floor(((i + 1) * range) / peaks.length))
+    );
+    let lowMinValue = 1;
+    let lowMaxValue = -1;
+    let midMinValue = 1;
+    let midMaxValue = -1;
+    let highMinValue = 1;
+    let highMaxValue = -1;
+    for (let j = segStart; j < segEnd; j += 1) {
+      lowMinValue = Math.min(lowMinValue, bands.lowMin[j]);
+      lowMaxValue = Math.max(lowMaxValue, bands.lowMax[j]);
+      midMinValue = Math.min(midMinValue, bands.midMin[j]);
+      midMaxValue = Math.max(midMaxValue, bands.midMax[j]);
+      highMinValue = Math.min(highMinValue, bands.highMin[j]);
+      highMaxValue = Math.max(highMaxValue, bands.highMax[j]);
+    }
+
+    const [lowMinScaled, lowMaxScaled] = scaleBand(lowMinValue, lowMaxValue, lowGain);
+    const [midMinScaled, midMaxScaled] = scaleBand(midMinValue, midMaxValue, midGain);
+    const [highMinScaled, highMaxScaled] = scaleBand(highMinValue, highMaxValue, highGain);
+
+    peaks[i] = {
+      min: lowMinScaled + midMinScaled + highMinScaled,
+      max: lowMaxScaled + midMaxScaled + highMaxScaled,
+    };
+  }
+
+  return peaks;
+};
+
 const drawWaveform = (
   canvas: HTMLCanvasElement,
   peaks: Array<{ min: number; max: number }>,
@@ -104,19 +247,22 @@ const drawWaveform = (
 
   const amp = height / 2;
 
-  context.strokeStyle = color;
-  context.lineWidth = 1;
-  context.beginPath();
+  context.fillStyle = color;
 
-  for (let i = 0; i < peaks.length; i += 1) {
+  const count = Math.max(1, peaks.length);
+  const step = width / count;
+  const barWidth = Math.max(1, Math.ceil(step));
+  for (let i = 0; i < count; i += 1) {
     const peak = peaks[i];
     const scaledMin = Math.max(-1, Math.min(1, peak.min * scale));
     const scaledMax = Math.max(-1, Math.min(1, peak.max * scale));
-    context.moveTo(i, amp + scaledMin * amp);
-    context.lineTo(i, amp + scaledMax * amp);
+    const yMin = amp + scaledMin * amp;
+    const yMax = amp + scaledMax * amp;
+    const top = Math.min(yMin, yMax);
+    const height = Math.max(1, Math.abs(yMax - yMin));
+    const x = Math.floor(i * step);
+    context.fillRect(x, top, barWidth, height);
   }
-
-  context.stroke();
 };
 
 const Waveform = ({
@@ -140,9 +286,11 @@ const Waveform = ({
   onEmptyClick,
   getPlaybackSnapshot,
 }: WaveformProps) => {
+  const bandPeaksPerSecond = 200;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  const overlayRafRef = useRef<number | null>(null);
   const peaksRef = useRef<Array<{ min: number; max: number }>>([]);
   const windowStartRef = useRef(0);
   const visualDurationRef = useRef(0);
@@ -161,12 +309,21 @@ const Waveform = ({
   const loopStartRef = useRef(loopStartSeconds);
   const loopEndRef = useRef(loopEndSeconds);
   const loopDragOffsetRef = useRef(0);
+  const loopChangeRafRef = useRef<number | null>(null);
+  const pendingLoopChangeRef = useRef<{ start: number; end: number } | null>(null);
+  const bandPeaksRef = useRef<BandPeaks | null>(null);
   const pointerDownRef = useRef(false);
   const lastDisplaySecondsRef = useRef(0);
   const localStartMsRef = useRef<number | null>(null);
   const shiftDragRef = useRef(false);
   const shiftStartRef = useRef(0);
   const [themeToken, setThemeToken] = useState(0);
+  const renderCountRef = useRef(0);
+
+  useEffect(() => {
+    renderCountRef.current += 1;
+    setPerfCounter("waveformRenders", renderCountRef.current);
+  });
 
   const waveformGainScale = useMemo(() => {
     const safeGain = Number.isFinite(gain) ? gain : 1;
@@ -195,6 +352,44 @@ const Waveform = ({
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.restore();
   }, []);
+
+  const buildPeaksWithPerf = useCallback(
+    (
+      bufferValue: AudioBuffer,
+      width: number,
+      zoomValue: number,
+      startSeconds: number,
+      lowGain: number,
+      midGain: number,
+      highGain: number
+    ) => {
+      const start = performance.now();
+      const bands = bandPeaksRef.current;
+      const peaks = bands
+        ? buildPeaksFromBands(
+            bands,
+            bufferValue.duration,
+            width,
+            zoomValue,
+            startSeconds,
+            lowGain,
+            midGain,
+            highGain
+          )
+        : buildPeaks(
+            bufferValue,
+            width,
+            zoomValue,
+            startSeconds,
+            lowGain,
+            midGain,
+            highGain
+          );
+      setPerfTiming("buildPeaksMs", performance.now() - start);
+      return peaks;
+    },
+    []
+  );
 
   useEffect(() => {
     const handleThemeChange = () => setThemeToken((prev) => prev + 1);
@@ -271,6 +466,7 @@ const Waveform = ({
     const overlayContext = overlay.getContext("2d");
     if (!overlayContext) return;
 
+    const renderStart = performance.now();
     overlayContext.clearRect(0, 0, overlay.width, overlay.height);
 
     const visualDuration = resolvedDuration / Math.max(1, zoom);
@@ -391,6 +587,7 @@ const Waveform = ({
         overlayContext.stroke();
       }
     }
+    setPerfTiming("renderOverlayMs", performance.now() - renderStart);
   }, [
     buffer,
     getDisplaySeconds,
@@ -406,6 +603,62 @@ const Waveform = ({
   useEffect(() => {
     renderOverlay();
   }, [renderOverlay, themeToken]);
+
+  useEffect(() => {
+    if (!buffer) {
+      bandPeaksRef.current = null;
+      return;
+    }
+    const start = performance.now();
+    bandPeaksRef.current = buildBandPeaks(buffer, bandPeaksPerSecond);
+    setPerfTiming("buildBandPeaksMs", performance.now() - start);
+  }, [bandPeaksPerSecond, buffer]);
+
+  const scheduleRenderOverlay = useCallback(() => {
+    if (overlayRafRef.current !== null) return;
+    overlayRafRef.current = requestAnimationFrame(() => {
+      overlayRafRef.current = null;
+      renderOverlay();
+    });
+  }, [renderOverlay]);
+
+  useEffect(() => {
+    return () => {
+      if (overlayRafRef.current !== null) {
+        cancelAnimationFrame(overlayRafRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (loopChangeRafRef.current !== null) {
+        cancelAnimationFrame(loopChangeRafRef.current);
+      }
+    };
+  }, []);
+
+  const flushLoopBoundsChange = useCallback(() => {
+    if (!pendingLoopChangeRef.current) return;
+    onLoopBoundsChange?.(
+      pendingLoopChangeRef.current.start,
+      pendingLoopChangeRef.current.end
+    );
+    pendingLoopChangeRef.current = null;
+  }, [onLoopBoundsChange]);
+
+  const scheduleLoopBoundsChange = useCallback(
+    (start: number, end: number) => {
+      if (!onLoopBoundsChange) return;
+      pendingLoopChangeRef.current = { start, end };
+      if (loopChangeRafRef.current !== null) return;
+      loopChangeRafRef.current = requestAnimationFrame(() => {
+        loopChangeRafRef.current = null;
+        flushLoopBoundsChange();
+      });
+    },
+    [flushLoopBoundsChange, onLoopBoundsChange]
+  );
 
   const updateLoopFromPointer = (clientX: number) => {
     const resolvedDuration = getResolvedDuration();
@@ -425,13 +678,13 @@ const Waveform = ({
       const nextStart = Math.min(seconds, nextEnd - minGap);
       loopStartRef.current = nextStart;
       loopEndRef.current = nextEnd;
-      onLoopBoundsChange(nextStart, nextEnd);
+      scheduleLoopBoundsChange(nextStart, nextEnd);
     } else if (activeLoopDragRef.current === "end") {
       const nextStart = loopStartRef.current;
       const nextEnd = Math.max(seconds, nextStart + minGap);
       loopStartRef.current = nextStart;
       loopEndRef.current = nextEnd;
-      onLoopBoundsChange(nextStart, nextEnd);
+      scheduleLoopBoundsChange(nextStart, nextEnd);
     }
   };
 
@@ -477,8 +730,8 @@ const Waveform = ({
 
     loopStartRef.current = clampedStart;
     loopEndRef.current = finalEnd;
-    onLoopBoundsChange(clampedStart, finalEnd);
-    renderOverlay();
+    scheduleLoopBoundsChange(clampedStart, finalEnd);
+    scheduleRenderOverlay();
   };
 
   const clampWindowStart = (nextStart: number, durationSeconds: number, zoomValue: number) => {
@@ -521,7 +774,7 @@ const Waveform = ({
         }
       }
       windowStartRef.current = nextStart;
-      peaksRef.current = buildPeaks(
+      peaksRef.current = buildPeaksWithPerf(
         buffer,
         width,
         zoom,
@@ -569,6 +822,7 @@ const Waveform = ({
     return () => observer.disconnect();
   }, [
     buffer,
+    buildPeaksWithPerf,
     eqHighGain,
     eqLowGain,
     eqMidGain,
@@ -591,7 +845,7 @@ const Waveform = ({
   useEffect(() => {
     if (!canvasRef.current || !buffer) return;
     const width = Math.max(1, Math.floor(canvasRef.current.clientWidth));
-    peaksRef.current = buildPeaks(
+    peaksRef.current = buildPeaksWithPerf(
       buffer,
       width,
       zoom,
@@ -607,6 +861,7 @@ const Waveform = ({
     renderOverlay();
   }, [
     buffer,
+    buildPeaksWithPerf,
     eqHighGain,
     eqLowGain,
     eqMidGain,
@@ -640,7 +895,12 @@ const Waveform = ({
         const currentSeconds = getDisplaySeconds();
         const maxWindowStart = Math.max(0, resolvedDuration - visualDuration);
         let desiredWindowStart = windowStartRef.current;
-        if (isActivePlayback && !isDraggingRef.current) {
+        if (
+          isActivePlayback &&
+          !isDraggingRef.current &&
+          !activeLoopDragRef.current &&
+          !shiftDragRef.current
+        ) {
           const resolvedLoopEnabled = playback?.loopEnabled ?? loopEnabled;
           const resolvedLoopStart = playback?.loopStart ?? loopStartSeconds;
           const resolvedLoopEnd = playback?.loopEnd ?? loopEndSeconds;
@@ -664,7 +924,7 @@ const Waveform = ({
           canvasRef.current
         ) {
           const width = Math.max(1, Math.floor(canvasRef.current.clientWidth));
-          peaksRef.current = buildPeaks(
+          peaksRef.current = buildPeaksWithPerf(
             buffer,
             width,
             zoom,
@@ -708,6 +968,7 @@ const Waveform = ({
     };
   }, [
     buffer,
+    buildPeaksWithPerf,
     eqHighGain,
     eqLowGain,
     eqMidGain,
@@ -787,9 +1048,9 @@ const Waveform = ({
               windowStartRef.current + progress * visualDuration;
             loopStartRef.current = shiftStartRef.current;
             loopEndRef.current = shiftStartRef.current;
-            onLoopBoundsChange(shiftStartRef.current, shiftStartRef.current);
+            scheduleLoopBoundsChange(shiftStartRef.current, shiftStartRef.current);
             onLoopEnabledChange?.(true);
-            renderOverlay();
+            scheduleRenderOverlay();
           }
           event.currentTarget.setPointerCapture(event.pointerId);
           return;
@@ -832,7 +1093,7 @@ const Waveform = ({
         velocityRef.current = deltaSeconds / (deltaT / 1000);
         if (nextStart !== windowStartRef.current && canvasRef.current) {
           windowStartRef.current = nextStart;
-          peaksRef.current = buildPeaks(
+          peaksRef.current = buildPeaksWithPerf(
             buffer,
             Math.max(1, Math.floor(canvasRef.current.clientWidth)),
             zoom,
@@ -857,6 +1118,7 @@ const Waveform = ({
         if (shiftDragRef.current) {
           shiftDragRef.current = false;
           pointerDownRef.current = false;
+          flushLoopBoundsChange();
           return;
         }
         pointerDownRef.current = false;
@@ -886,7 +1148,7 @@ const Waveform = ({
           );
           if (nextStart !== windowStartRef.current && canvasRef.current) {
             windowStartRef.current = nextStart;
-            peaksRef.current = buildPeaks(
+            peaksRef.current = buildPeaksWithPerf(
               buffer,
               Math.max(1, Math.floor(canvasRef.current.clientWidth)),
               zoom,
@@ -916,6 +1178,7 @@ const Waveform = ({
         activeLoopDragRef.current = null;
         shiftDragRef.current = false;
         pointerDownRef.current = false;
+        flushLoopBoundsChange();
       }}
     >
       {buffer && (
@@ -970,8 +1233,8 @@ const Waveform = ({
               const clampedEnd = clampedStart + loopDuration;
               loopStartRef.current = clampedStart;
               loopEndRef.current = clampedEnd;
-              onLoopBoundsChange?.(clampedStart, clampedEnd);
-              renderOverlay();
+              scheduleLoopBoundsChange(clampedStart, clampedEnd);
+              scheduleRenderOverlay();
             }}
             onPointerUp={(event) => {
               if (activeLoopDragRef.current === "region") {
@@ -979,6 +1242,7 @@ const Waveform = ({
                 isDraggingRef.current = false;
               }
               pointerDownRef.current = false;
+              flushLoopBoundsChange();
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           />
@@ -1032,8 +1296,8 @@ const Waveform = ({
               const clampedEnd = clampedStart + loopDuration;
               loopStartRef.current = clampedStart;
               loopEndRef.current = clampedEnd;
-              onLoopBoundsChange?.(clampedStart, clampedEnd);
-              renderOverlay();
+              scheduleLoopBoundsChange(clampedStart, clampedEnd);
+              scheduleRenderOverlay();
             }}
               onPointerUp={(event) => {
                 if (activeLoopDragRef.current === "region") {
@@ -1041,6 +1305,7 @@ const Waveform = ({
                   isDraggingRef.current = false;
                 }
                 pointerDownRef.current = false;
+                flushLoopBoundsChange();
                 event.currentTarget.releasePointerCapture(event.pointerId);
               }}
             />
@@ -1063,7 +1328,7 @@ const Waveform = ({
             onPointerMove={(event) => {
               if (!isDraggingRef.current || activeLoopDragRef.current !== "start") return;
               updateLoopFromPointer(event.clientX);
-              renderOverlay();
+              scheduleRenderOverlay();
             }}
             onPointerUp={(event) => {
               if (activeLoopDragRef.current === "start") {
@@ -1071,6 +1336,7 @@ const Waveform = ({
                 isDraggingRef.current = false;
               }
               pointerDownRef.current = false;
+              flushLoopBoundsChange();
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           >
@@ -1094,7 +1360,7 @@ const Waveform = ({
             onPointerMove={(event) => {
               if (!isDraggingRef.current || activeLoopDragRef.current !== "end") return;
               updateLoopFromPointer(event.clientX);
-              renderOverlay();
+              scheduleRenderOverlay();
             }}
             onPointerUp={(event) => {
               if (activeLoopDragRef.current === "end") {
@@ -1102,6 +1368,7 @@ const Waveform = ({
                 isDraggingRef.current = false;
               }
               pointerDownRef.current = false;
+              flushLoopBoundsChange();
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           >
