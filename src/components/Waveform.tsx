@@ -50,7 +50,7 @@ const buildPeaks = (
     Math.max(0, Math.floor(startSeconds * buffer.sampleRate)),
     Math.max(0, data.length - visibleSamples)
   );
-  const step = Math.max(1, Math.floor(visibleSamples / width));
+  const step = Math.max(1 / width, visibleSamples / width);
   const peaks: Array<{ min: number; max: number }> = [];
   const sampleRate = buffer.sampleRate;
   const lowCut = 120;
@@ -65,10 +65,15 @@ const buildPeaks = (
   let highLowState = 0;
 
   for (let i = 0; i < width; i += 1) {
-    let min = 1;
-    let max = -1;
-    const start = startSample + i * step;
-    const end = Math.min(start + step, startSample + visibleSamples);
+    let min = 0;
+    let max = 0;
+    let hasSample = false;
+    const start = startSample + Math.floor(i * step);
+    const rawEnd = startSample + Math.floor((i + 1) * step);
+    const end = Math.min(
+      Math.max(rawEnd, start + 1),
+      startSample + visibleSamples
+    );
     for (let j = start; j < end; j += 1) {
       const sample = data[j];
       lowState = (1 - lowAlpha) * sample + lowAlpha * lowState;
@@ -77,8 +82,14 @@ const buildPeaks = (
       const high = sample - highLowState;
       const mid = highLowState - low;
       const shaped = low * lowGain + mid * midGain + high * highGain;
-      if (shaped < min) min = shaped;
-      if (shaped > max) max = shaped;
+      if (!hasSample) {
+        min = shaped;
+        max = shaped;
+        hasSample = true;
+      } else {
+        if (shaped < min) min = shaped;
+        if (shaped > max) max = shaped;
+      }
     }
     peaks.push({ min, max });
   }
@@ -237,8 +248,8 @@ const drawWaveform = (
   const context = canvas.getContext("2d");
   if (!context) return;
 
-  const width = canvas.clientWidth || canvas.width;
-  const height = canvas.clientHeight || canvas.height;
+  const width = Math.max(1, Math.floor(canvas.clientWidth || canvas.width));
+  const height = Math.max(1, Math.floor(canvas.clientHeight || canvas.height));
   context.clearRect(0, 0, width, height);
 
   const styles = getComputedStyle(document.body);
@@ -251,12 +262,19 @@ const drawWaveform = (
   context.fillStyle = color;
 
   const count = Math.max(1, peaks.length);
+  let maxAbs = 0;
+  for (let i = 0; i < count; i += 1) {
+    const peak = peaks[i];
+    maxAbs = Math.max(maxAbs, Math.abs(peak.min), Math.abs(peak.max));
+  }
+  const normalize = maxAbs > 1 ? 1 / maxAbs : 1;
+  const finalScale = scale * normalize;
   const step = width / count;
   const barWidth = Math.max(1, Math.ceil(step));
   for (let i = 0; i < count; i += 1) {
     const peak = peaks[i];
-    const scaledMin = Math.max(-1, Math.min(1, peak.min * scale));
-    const scaledMax = Math.max(-1, Math.min(1, peak.max * scale));
+    const scaledMin = Math.max(-1, Math.min(1, peak.min * finalScale));
+    const scaledMax = Math.max(-1, Math.min(1, peak.max * finalScale));
     const yMin = amp + scaledMin * amp;
     const yMax = amp + scaledMax * amp;
     const top = Math.min(yMin, yMax);
@@ -287,7 +305,7 @@ const Waveform = ({
   onEmptyClick,
   getPlaybackSnapshot,
 }: WaveformProps) => {
-  const bandPeaksPerSecond = 200;
+  const MAX_BAND_PEAKS_PER_SECOND = 4000;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -325,6 +343,7 @@ const Waveform = ({
   const shiftStartRef = useRef(0);
   const [themeToken, setThemeToken] = useState(0);
   const renderCountRef = useRef(0);
+  const peaksPerSecondRef = useRef(200);
 
   useEffect(() => {
     renderCountRef.current += 1;
@@ -395,6 +414,43 @@ const Waveform = ({
       return peaks;
     },
     []
+  );
+
+  const computePeaksPerSecond = useCallback(
+    (width: number, durationSeconds: number, zoomValue: number) => {
+      if (!durationSeconds || !Number.isFinite(durationSeconds)) return 200;
+      const visualDuration = durationSeconds / Math.max(1, zoomValue);
+      if (!visualDuration || !Number.isFinite(visualDuration)) return 200;
+      const target = (Math.max(1, width) / visualDuration) * 2;
+      return Math.max(200, Math.round(target));
+    },
+    []
+  );
+
+  const rebuildBandPeaks = useCallback(
+    (nextPeaksPerSecond: number) => {
+      if (!buffer) return;
+      const start = performance.now();
+      bandPeaksRef.current = buildBandPeaks(buffer, nextPeaksPerSecond);
+      peaksPerSecondRef.current = nextPeaksPerSecond;
+      setPerfTiming("buildBandPeaksMs", performance.now() - start);
+    },
+    [buffer]
+  );
+
+  const resolveBandPeaks = useCallback(
+    (nextPeaksPerSecond: number) => {
+      if (!buffer) return;
+      if (nextPeaksPerSecond > MAX_BAND_PEAKS_PER_SECOND) {
+        bandPeaksRef.current = null;
+        peaksPerSecondRef.current = 0;
+        return;
+      }
+      if (nextPeaksPerSecond !== peaksPerSecondRef.current) {
+        rebuildBandPeaks(nextPeaksPerSecond);
+      }
+    },
+    [buffer, rebuildBandPeaks]
   );
 
   useEffect(() => {
@@ -745,10 +801,14 @@ const Waveform = ({
       bandPeaksRef.current = null;
       return;
     }
-    const start = performance.now();
-    bandPeaksRef.current = buildBandPeaks(buffer, bandPeaksPerSecond);
-    setPerfTiming("buildBandPeaksMs", performance.now() - start);
-  }, [bandPeaksPerSecond, buffer]);
+    const width = Math.max(1, Math.floor(canvasRef.current?.clientWidth ?? 1));
+    const nextPeaksPerSecond = computePeaksPerSecond(
+      width,
+      buffer.duration,
+      zoom
+    );
+    resolveBandPeaks(nextPeaksPerSecond);
+  }, [buffer, computePeaksPerSecond, resolveBandPeaks, zoom]);
 
   useEffect(() => {
     if (isPlaying && startedAtMs !== undefined) {
@@ -810,6 +870,12 @@ const Waveform = ({
           overlayContext.setTransform(ratio, 0, 0, ratio, 0, 0);
         }
       }
+      const nextPeaksPerSecond = computePeaksPerSecond(
+        Math.max(1, Math.floor(clientWidth)),
+        buffer.duration,
+        zoom
+      );
+      resolveBandPeaks(nextPeaksPerSecond);
       updateWindow(windowStartRef.current, Math.max(1, Math.floor(clientWidth)));
     };
 
@@ -830,6 +896,8 @@ const Waveform = ({
     renderOverlay,
     themeToken,
     fillWaveformBackground,
+    computePeaksPerSecond,
+    resolveBandPeaks,
     waveformGainScale,
     zoom,
   ]);
@@ -863,6 +931,8 @@ const Waveform = ({
     }
     prevZoomRef.current = zoom;
     const width = Math.max(1, Math.floor(canvasRef.current.clientWidth));
+    const nextPeaksPerSecond = computePeaksPerSecond(width, buffer.duration, zoom);
+    resolveBandPeaks(nextPeaksPerSecond);
     peaksRef.current = buildPeaksWithPerf(
       buffer,
       width,
@@ -891,6 +961,8 @@ const Waveform = ({
     renderOverlay,
     themeToken,
     fillWaveformBackground,
+    computePeaksPerSecond,
+    resolveBandPeaks,
     waveformGainScale,
     zoom,
   ]);
