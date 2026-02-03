@@ -9,6 +9,7 @@ type WaveformProps = {
   offsetSeconds?: number;
   zoom?: number;
   gain?: number;
+  balance?: number;
   eqLowGain?: number;
   eqMidGain?: number;
   eqHighGain?: number;
@@ -39,17 +40,23 @@ const buildPeaks = (
   width: number,
   zoom: number,
   startSeconds: number,
+  balance: number,
   eqLowGain: number,
   eqMidGain: number,
   eqHighGain: number
 ) => {
-  const data = buffer.getChannelData(0);
+  const left = buffer.getChannelData(0);
+  const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
   const effectiveZoom = Math.max(1, zoom);
-  const visibleSamples = Math.max(1, Math.floor(data.length / effectiveZoom));
+  const visibleSamples = Math.max(1, Math.floor(left.length / effectiveZoom));
   const startSample = Math.min(
     Math.max(0, Math.floor(startSeconds * buffer.sampleRate)),
-    Math.max(0, data.length - visibleSamples)
+    Math.max(0, left.length - visibleSamples)
   );
+  const clampedBalance = Math.max(-1, Math.min(1, balance));
+  const panAngle = (clampedBalance + 1) * 0.25 * Math.PI;
+  const leftGain = Math.cos(panAngle);
+  const rightGain = Math.sin(panAngle);
   const step = Math.max(1 / width, visibleSamples / width);
   const peaks: Array<{ min: number; max: number }> = [];
   const sampleRate = buffer.sampleRate;
@@ -75,7 +82,7 @@ const buildPeaks = (
       startSample + visibleSamples
     );
     for (let j = start; j < end; j += 1) {
-      const sample = data[j];
+      const sample = right ? left[j] * leftGain + right[j] * rightGain : left[j];
       lowState = (1 - lowAlpha) * sample + lowAlpha * lowState;
       highLowState = (1 - highAlpha) * sample + highAlpha * highLowState;
       const low = lowState;
@@ -108,11 +115,20 @@ type BandPeaks = {
   highMax: Float32Array;
 };
 
-const buildBandPeaks = (buffer: AudioBuffer, peaksPerSecond: number): BandPeaks => {
-  const data = buffer.getChannelData(0);
+const buildBandPeaks = (
+  buffer: AudioBuffer,
+  peaksPerSecond: number,
+  balance: number
+): BandPeaks => {
+  const left = buffer.getChannelData(0);
+  const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
   const sampleRate = buffer.sampleRate;
+  const clampedBalance = Math.max(-1, Math.min(1, balance));
+  const panAngle = (clampedBalance + 1) * 0.25 * Math.PI;
+  const leftGain = Math.cos(panAngle);
+  const rightGain = Math.sin(panAngle);
   const samplesPerPeak = Math.max(1, Math.floor(sampleRate / peaksPerSecond));
-  const totalPeaks = Math.max(1, Math.ceil(data.length / samplesPerPeak));
+  const totalPeaks = Math.max(1, Math.ceil(left.length / samplesPerPeak));
   const lowMin = new Float32Array(totalPeaks);
   const lowMax = new Float32Array(totalPeaks);
   const midMin = new Float32Array(totalPeaks);
@@ -134,9 +150,11 @@ const buildBandPeaks = (buffer: AudioBuffer, peaksPerSecond: number): BandPeaks 
     let midMaxValue = -1;
     let highMinValue = 1;
     let highMaxValue = -1;
-    const end = Math.min(index + samplesPerPeak, data.length);
+    const end = Math.min(index + samplesPerPeak, left.length);
     for (; index < end; index += 1) {
-      const sample = data[index];
+      const sample = right
+        ? left[index] * leftGain + right[index] * rightGain
+        : left[index];
       lowState = (1 - lowAlpha) * sample + lowAlpha * lowState;
       highLowState = (1 - highAlpha) * sample + highAlpha * highLowState;
       const low = lowState;
@@ -292,6 +310,7 @@ const Waveform = ({
   offsetSeconds,
   zoom = 1,
   gain = 1,
+  balance = 0,
   eqLowGain = 0,
   eqMidGain = 0,
   eqHighGain = 0,
@@ -344,6 +363,7 @@ const Waveform = ({
   const [themeToken, setThemeToken] = useState(0);
   const renderCountRef = useRef(0);
   const peaksPerSecondRef = useRef(200);
+  const balanceRef = useRef(0);
 
   useEffect(() => {
     renderCountRef.current += 1;
@@ -384,6 +404,7 @@ const Waveform = ({
       width: number,
       zoomValue: number,
       startSeconds: number,
+      balanceValue: number,
       lowGain: number,
       midGain: number,
       highGain: number
@@ -406,6 +427,7 @@ const Waveform = ({
             width,
             zoomValue,
             startSeconds,
+            balanceValue,
             lowGain,
             midGain,
             highGain
@@ -431,7 +453,11 @@ const Waveform = ({
     (nextPeaksPerSecond: number) => {
       if (!buffer) return;
       const start = performance.now();
-      bandPeaksRef.current = buildBandPeaks(buffer, nextPeaksPerSecond);
+      bandPeaksRef.current = buildBandPeaks(
+        buffer,
+        nextPeaksPerSecond,
+        balanceRef.current
+      );
       peaksPerSecondRef.current = nextPeaksPerSecond;
       setPerfTiming("buildBandPeaksMs", performance.now() - start);
     },
@@ -439,8 +465,15 @@ const Waveform = ({
   );
 
   const resolveBandPeaks = useCallback(
-    (nextPeaksPerSecond: number) => {
+    (nextPeaksPerSecond: number, balanceValue: number) => {
       if (!buffer) return;
+      if (balanceRef.current !== balanceValue) {
+        balanceRef.current = balanceValue;
+        if (nextPeaksPerSecond <= MAX_BAND_PEAKS_PER_SECOND) {
+          rebuildBandPeaks(nextPeaksPerSecond);
+          return;
+        }
+      }
       if (nextPeaksPerSecond > MAX_BAND_PEAKS_PER_SECOND) {
         bandPeaksRef.current = null;
         peaksPerSecondRef.current = 0;
@@ -807,8 +840,8 @@ const Waveform = ({
       buffer.duration,
       zoom
     );
-    resolveBandPeaks(nextPeaksPerSecond);
-  }, [buffer, computePeaksPerSecond, resolveBandPeaks, zoom]);
+    resolveBandPeaks(nextPeaksPerSecond, balance);
+  }, [balance, buffer, computePeaksPerSecond, resolveBandPeaks, zoom]);
 
   useEffect(() => {
     if (isPlaying && startedAtMs !== undefined) {
@@ -840,6 +873,7 @@ const Waveform = ({
         width,
         zoom,
         startSeconds,
+        balance,
         eqLowGain,
         eqMidGain,
         eqHighGain
@@ -875,7 +909,7 @@ const Waveform = ({
         buffer.duration,
         zoom
       );
-      resolveBandPeaks(nextPeaksPerSecond);
+      resolveBandPeaks(nextPeaksPerSecond, balance);
       updateWindow(windowStartRef.current, Math.max(1, Math.floor(clientWidth)));
     };
 
@@ -888,6 +922,7 @@ const Waveform = ({
 
     return () => observer.disconnect();
   }, [
+    balance,
     buffer,
     buildPeaksWithPerf,
     eqHighGain,
@@ -932,12 +967,13 @@ const Waveform = ({
     prevZoomRef.current = zoom;
     const width = Math.max(1, Math.floor(canvasRef.current.clientWidth));
     const nextPeaksPerSecond = computePeaksPerSecond(width, buffer.duration, zoom);
-    resolveBandPeaks(nextPeaksPerSecond);
+    resolveBandPeaks(nextPeaksPerSecond, balance);
     peaksRef.current = buildPeaksWithPerf(
       buffer,
       width,
       zoom,
       windowStartRef.current,
+      balance,
       eqLowGain,
       eqMidGain,
       eqHighGain
@@ -948,6 +984,7 @@ const Waveform = ({
     drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
     renderOverlay();
   }, [
+    balance,
     buffer,
     buildPeaksWithPerf,
     eqHighGain,
@@ -1167,6 +1204,7 @@ const Waveform = ({
             Math.max(1, Math.floor(canvasRef.current.clientWidth)),
             zoom,
             nextStart,
+            balance,
             eqLowGain,
             eqMidGain,
             eqHighGain
@@ -1225,6 +1263,7 @@ const Waveform = ({
               Math.max(1, Math.floor(canvasRef.current.clientWidth)),
               zoom,
               nextStart,
+              balance,
               eqLowGain,
               eqMidGain,
               eqHighGain
