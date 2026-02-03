@@ -237,7 +237,8 @@ const drawWaveform = (
   const context = canvas.getContext("2d");
   if (!context) return;
 
-  const { width, height } = canvas;
+  const width = canvas.clientWidth || canvas.width;
+  const height = canvas.clientHeight || canvas.height;
   context.clearRect(0, 0, width, height);
 
   const styles = getComputedStyle(document.body);
@@ -309,6 +310,11 @@ const Waveform = ({
   const loopStartRef = useRef(loopStartSeconds);
   const loopEndRef = useRef(loopEndSeconds);
   const loopDragOffsetRef = useRef(0);
+  const loopDragActiveRef = useRef(false);
+  const loopDragWindowStartRef = useRef(0);
+  const hasInitializedWindowRef = useRef(false);
+  const prevZoomRef = useRef(zoom);
+  const panPointerIdRef = useRef<number | null>(null);
   const loopChangeRafRef = useRef<number | null>(null);
   const pendingLoopChangeRef = useRef<{ start: number; end: number } | null>(null);
   const bandPeaksRef = useRef<BandPeaks | null>(null);
@@ -604,16 +610,6 @@ const Waveform = ({
     renderOverlay();
   }, [renderOverlay, themeToken]);
 
-  useEffect(() => {
-    if (!buffer) {
-      bandPeaksRef.current = null;
-      return;
-    }
-    const start = performance.now();
-    bandPeaksRef.current = buildBandPeaks(buffer, bandPeaksPerSecond);
-    setPerfTiming("buildBandPeaksMs", performance.now() - start);
-  }, [bandPeaksPerSecond, buffer]);
-
   const scheduleRenderOverlay = useCallback(() => {
     if (overlayRafRef.current !== null) return;
     overlayRafRef.current = requestAnimationFrame(() => {
@@ -670,7 +666,10 @@ const Waveform = ({
 
     const visualDuration = resolvedDuration / Math.max(1, zoom);
     const progress = (clientX - rect.left) / rect.width;
-    const seconds = windowStartRef.current + progress * visualDuration;
+    const baseWindowStart = loopDragActiveRef.current
+      ? loopDragWindowStartRef.current
+      : windowStartRef.current;
+    const seconds = baseWindowStart + progress * visualDuration;
     const minGap = Math.min(0.05, Math.max(0.005, resolvedDuration * 0.25));
 
     if (activeLoopDragRef.current === "start") {
@@ -719,7 +718,8 @@ const Waveform = ({
 
     const visualDuration = resolvedDuration / Math.max(1, zoom);
     const progress = (clientX - rect.left) / rect.width;
-    const seconds = windowStartRef.current + progress * visualDuration;
+    const baseWindowStart = loopDragWindowStartRef.current;
+    const seconds = baseWindowStart + progress * visualDuration;
     const startSeconds = shiftStartRef.current;
     const clampedStart = Math.min(Math.max(Math.min(startSeconds, seconds), 0), resolvedDuration);
     const clampedEnd = Math.min(Math.max(Math.max(startSeconds, seconds), 0), resolvedDuration);
@@ -741,6 +741,16 @@ const Waveform = ({
   };
 
   useEffect(() => {
+    if (!buffer) {
+      bandPeaksRef.current = null;
+      return;
+    }
+    const start = performance.now();
+    bandPeaksRef.current = buildBandPeaks(buffer, bandPeaksPerSecond);
+    setPerfTiming("buildBandPeaksMs", performance.now() - start);
+  }, [bandPeaksPerSecond, buffer]);
+
+  useEffect(() => {
     if (isPlaying && startedAtMs !== undefined) {
       localStartMsRef.current = startedAtMs;
       return;
@@ -756,29 +766,20 @@ const Waveform = ({
     const canvas = canvasRef.current;
     const overlay = overlayRef.current;
 
-    windowStartRef.current = 0;
-    lastDisplaySecondsRef.current = 0;
-    visualDurationRef.current = 0;
+    if (!hasInitializedWindowRef.current) {
+      windowStartRef.current = 0;
+      lastDisplaySecondsRef.current = 0;
+      visualDurationRef.current = 0;
+      hasInitializedWindowRef.current = true;
+    }
 
     const updateWindow = (startSeconds: number, width: number) => {
-      let nextStart = startSeconds;
-      const resolvedDuration = getResolvedDuration();
-      if (resolvedDuration && isPlaying && !activeLoopDragRef.current) {
-        const visualDuration = resolvedDuration / Math.max(1, zoom);
-        const currentSeconds = getDisplaySeconds();
-        const windowEnd = startSeconds + visualDuration;
-        if (currentSeconds >= windowEnd) {
-          nextStart = clampWindowStart(currentSeconds, resolvedDuration, zoom);
-        } else if (currentSeconds < startSeconds) {
-          nextStart = clampWindowStart(currentSeconds, resolvedDuration, zoom);
-        }
-      }
-      windowStartRef.current = nextStart;
+      windowStartRef.current = startSeconds;
       peaksRef.current = buildPeaksWithPerf(
         buffer,
         width,
         zoom,
-        nextStart,
+        startSeconds,
         eqLowGain,
         eqMidGain,
         eqHighGain
@@ -826,9 +827,6 @@ const Waveform = ({
     eqHighGain,
     eqLowGain,
     eqMidGain,
-    getDisplaySeconds,
-    getResolvedDuration,
-    isPlaying,
     renderOverlay,
     themeToken,
     fillWaveformBackground,
@@ -842,8 +840,28 @@ const Waveform = ({
     loopEndRef.current = loopEndSeconds;
   }, [loopEndSeconds, loopStartSeconds]);
 
+
   useEffect(() => {
     if (!canvasRef.current || !buffer) return;
+    const resolvedDuration = getResolvedDuration();
+    const zoomChanged = zoom !== prevZoomRef.current;
+    if (resolvedDuration && zoomChanged) {
+      const visualDuration = resolvedDuration / Math.max(1, zoom);
+      let centerSeconds: number | null = null;
+      if (loopEnabled && loopEndSeconds > loopStartSeconds) {
+        centerSeconds = (loopStartSeconds + loopEndSeconds) / 2;
+      } else {
+        const playheadSeconds = getDisplaySeconds();
+        centerSeconds = Math.min(Math.max(playheadSeconds, 0), resolvedDuration);
+      }
+      const nextWindowStart = clampWindowStart(
+        centerSeconds - visualDuration / 2,
+        resolvedDuration,
+        zoom
+      );
+      windowStartRef.current = nextWindowStart;
+    }
+    prevZoomRef.current = zoom;
     const width = Math.max(1, Math.floor(canvasRef.current.clientWidth));
     peaksRef.current = buildPeaksWithPerf(
       buffer,
@@ -865,6 +883,11 @@ const Waveform = ({
     eqHighGain,
     eqLowGain,
     eqMidGain,
+    getDisplaySeconds,
+    getResolvedDuration,
+    loopEnabled,
+    loopEndSeconds,
+    loopStartSeconds,
     renderOverlay,
     themeToken,
     fillWaveformBackground,
@@ -890,55 +913,6 @@ const Waveform = ({
           return;
         }
         const visualDuration = resolvedDuration / Math.max(1, zoom);
-        const playback = getPlayback();
-        const isActivePlayback = Boolean(playback?.playing) || isPlaying;
-        const currentSeconds = getDisplaySeconds();
-        const maxWindowStart = Math.max(0, resolvedDuration - visualDuration);
-        let desiredWindowStart = windowStartRef.current;
-        if (
-          isActivePlayback &&
-          !isDraggingRef.current &&
-          !activeLoopDragRef.current &&
-          !shiftDragRef.current
-        ) {
-          const resolvedLoopEnabled = playback?.loopEnabled ?? loopEnabled;
-          const resolvedLoopStart = playback?.loopStart ?? loopStartSeconds;
-          const resolvedLoopEnd = playback?.loopEnd ?? loopEndSeconds;
-          if (resolvedLoopEnabled && resolvedLoopEnd > resolvedLoopStart) {
-            const loopDuration = resolvedLoopEnd - resolvedLoopStart;
-            if (loopDuration > visualDuration) {
-              desiredWindowStart = Math.min(resolvedLoopStart, maxWindowStart);
-            }
-          } else {
-            const windowEnd = windowStartRef.current + visualDuration;
-            if (currentSeconds >= windowEnd) {
-              desiredWindowStart = Math.min(currentSeconds, maxWindowStart);
-            } else if (currentSeconds < windowStartRef.current) {
-              desiredWindowStart = Math.max(0, Math.min(currentSeconds, maxWindowStart));
-            }
-          }
-        }
-
-        if (
-          Math.abs(desiredWindowStart - windowStartRef.current) > 0.0001 &&
-          canvasRef.current
-        ) {
-          const width = Math.max(1, Math.floor(canvasRef.current.clientWidth));
-          peaksRef.current = buildPeaksWithPerf(
-            buffer,
-            width,
-            zoom,
-            desiredWindowStart,
-            eqLowGain,
-            eqMidGain,
-            eqHighGain
-          );
-          const styles = getComputedStyle(document.body);
-          const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
-          fillWaveformBackground(canvasRef.current);
-          drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
-          windowStartRef.current = desiredWindowStart;
-        }
 
         visualDurationRef.current = visualDuration;
         renderOverlay();
@@ -1028,7 +1002,17 @@ const Waveform = ({
         onSeek(clampedProgress);
       }}
       onPointerDown={(event) => {
+        const target = event.target as HTMLElement | null;
+        if (
+          target?.closest(
+            ".deck__loop-region, .deck__loop-connector, .deck__loop-handle"
+          )
+        ) {
+          return;
+        }
+        if (loopDragActiveRef.current) return;
         pointerDownRef.current = true;
+        panPointerIdRef.current = event.pointerId;
         if (!buffer) return;
         activeLoopDragRef.current = null;
         if (inertiaRef.current) {
@@ -1044,6 +1028,7 @@ const Waveform = ({
             const rect = event.currentTarget.getBoundingClientRect();
             const visualDuration = resolvedDuration / Math.max(1, zoom);
             const progress = (event.clientX - rect.left) / rect.width;
+            loopDragWindowStartRef.current = windowStartRef.current;
             shiftStartRef.current =
               windowStartRef.current + progress * visualDuration;
             loopStartRef.current = shiftStartRef.current;
@@ -1064,14 +1049,26 @@ const Waveform = ({
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={(event) => {
-        if (!isDraggingRef.current || !buffer || !duration) return;
-        if (shiftDragRef.current) {
-          updateShiftLoopFromPointer(event.clientX);
+        if (
+          loopDragActiveRef.current ||
+          activeLoopDragRef.current ||
+          (event.target as HTMLElement | null)?.closest(
+            ".deck__loop-region, .deck__loop-connector, .deck__loop-handle"
+          )
+        ) {
           return;
         }
-        if (activeLoopDragRef.current && onLoopBoundsChange) {
-          updateLoopFromPointer(event.clientX);
-          dragMovedRef.current = true;
+        if (
+          !isDraggingRef.current ||
+          !pointerDownRef.current ||
+          panPointerIdRef.current !== event.pointerId ||
+          !buffer ||
+          !duration
+        ) {
+          return;
+        }
+        if (shiftDragRef.current) {
+          updateShiftLoopFromPointer(event.clientX);
           return;
         }
         const now = performance.now();
@@ -1122,6 +1119,9 @@ const Waveform = ({
           return;
         }
         pointerDownRef.current = false;
+        if (panPointerIdRef.current === event.pointerId) {
+          panPointerIdRef.current = null;
+        }
         if (!buffer || !duration) return;
 
         const friction = 6;
@@ -1178,6 +1178,8 @@ const Waveform = ({
         activeLoopDragRef.current = null;
         shiftDragRef.current = false;
         pointerDownRef.current = false;
+        loopDragActiveRef.current = false;
+        panPointerIdRef.current = null;
         flushLoopBoundsChange();
       }}
     >
@@ -1189,6 +1191,14 @@ const Waveform = ({
             onPointerDown={(event) => {
               event.stopPropagation();
               if (!loopEnabled) return;
+              loopDragActiveRef.current = true;
+              loopDragWindowStartRef.current = windowStartRef.current;
+              panPointerIdRef.current = null;
+              if (wrapperRef.current?.hasPointerCapture(event.pointerId)) {
+                wrapperRef.current.releasePointerCapture(event.pointerId);
+              }
+              isDraggingRef.current = false;
+              pointerDownRef.current = false;
               if (inertiaRef.current) {
                 cancelAnimationFrame(inertiaRef.current);
                 inertiaRef.current = null;
@@ -1202,19 +1212,22 @@ const Waveform = ({
                 const rect = wrapperRef.current.getBoundingClientRect();
                 const visualDuration = resolvedDuration / Math.max(1, zoom);
                 const progress = (event.clientX - rect.left) / rect.width;
-                const pointerSeconds = windowStartRef.current + progress * visualDuration;
+                const pointerSeconds =
+                  loopDragWindowStartRef.current + progress * visualDuration;
                 loopDragOffsetRef.current = pointerSeconds - loopStartRef.current;
               }
               event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onPointerMove={(event) => {
+              event.stopPropagation();
               if (!isDraggingRef.current || activeLoopDragRef.current !== "region") return;
               const resolvedDuration = getResolvedDuration();
               if (!resolvedDuration || !wrapperRef.current) return;
               const rect = wrapperRef.current.getBoundingClientRect();
               const visualDuration = resolvedDuration / Math.max(1, zoom);
               const progress = (event.clientX - rect.left) / rect.width;
-              const pointerSeconds = windowStartRef.current + progress * visualDuration;
+              const pointerSeconds =
+                loopDragWindowStartRef.current + progress * visualDuration;
               const minGap = Math.min(
                 0.05,
                 Math.max(0.005, resolvedDuration * 0.25)
@@ -1243,6 +1256,7 @@ const Waveform = ({
               }
               pointerDownRef.current = false;
               flushLoopBoundsChange();
+              loopDragActiveRef.current = false;
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           />
@@ -1250,34 +1264,45 @@ const Waveform = ({
             <div
               ref={loopConnectorRef}
               className="deck__loop-connector is-active"
-            onPointerDown={(event) => {
-              event.stopPropagation();
-              if (!loopEnabled) return;
-              if (inertiaRef.current) {
-                cancelAnimationFrame(inertiaRef.current);
-                inertiaRef.current = null;
-              }
-              activeLoopDragRef.current = "region";
-              isDraggingRef.current = true;
-              dragMovedRef.current = true;
-              const resolvedDuration = getResolvedDuration();
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                if (!loopEnabled) return;
+                loopDragActiveRef.current = true;
+                loopDragWindowStartRef.current = windowStartRef.current;
+                panPointerIdRef.current = null;
+                if (wrapperRef.current?.hasPointerCapture(event.pointerId)) {
+                  wrapperRef.current.releasePointerCapture(event.pointerId);
+                }
+                isDraggingRef.current = false;
+                pointerDownRef.current = false;
+                if (inertiaRef.current) {
+                  cancelAnimationFrame(inertiaRef.current);
+                  inertiaRef.current = null;
+                }
+                activeLoopDragRef.current = "region";
+                isDraggingRef.current = true;
+                dragMovedRef.current = true;
+                const resolvedDuration = getResolvedDuration();
               if (resolvedDuration && wrapperRef.current) {
                 const rect = wrapperRef.current.getBoundingClientRect();
                 const visualDuration = resolvedDuration / Math.max(1, zoom);
                 const progress = (event.clientX - rect.left) / rect.width;
-                const pointerSeconds = windowStartRef.current + progress * visualDuration;
+                const pointerSeconds =
+                  loopDragWindowStartRef.current + progress * visualDuration;
                 loopDragOffsetRef.current = pointerSeconds - loopStartRef.current;
               }
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }}
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
             onPointerMove={(event) => {
+              event.stopPropagation();
               if (!isDraggingRef.current || activeLoopDragRef.current !== "region") return;
               const resolvedDuration = getResolvedDuration();
               if (!resolvedDuration || !wrapperRef.current) return;
               const rect = wrapperRef.current.getBoundingClientRect();
               const visualDuration = resolvedDuration / Math.max(1, zoom);
               const progress = (event.clientX - rect.left) / rect.width;
-              const pointerSeconds = windowStartRef.current + progress * visualDuration;
+              const pointerSeconds =
+                loopDragWindowStartRef.current + progress * visualDuration;
               const minGap = Math.min(
                 0.05,
                 Math.max(0.005, resolvedDuration * 0.25)
@@ -1306,6 +1331,7 @@ const Waveform = ({
                 }
                 pointerDownRef.current = false;
                 flushLoopBoundsChange();
+                loopDragActiveRef.current = false;
                 event.currentTarget.releasePointerCapture(event.pointerId);
               }}
             />
@@ -1315,6 +1341,14 @@ const Waveform = ({
             className={`deck__loop-handle ${loopEnabled ? "is-active" : ""}`}
             onPointerDown={(event) => {
               event.stopPropagation();
+              loopDragActiveRef.current = true;
+              loopDragWindowStartRef.current = windowStartRef.current;
+              panPointerIdRef.current = null;
+              if (wrapperRef.current?.hasPointerCapture(event.pointerId)) {
+                wrapperRef.current.releasePointerCapture(event.pointerId);
+              }
+              isDraggingRef.current = false;
+              pointerDownRef.current = false;
               if (inertiaRef.current) {
                 cancelAnimationFrame(inertiaRef.current);
                 inertiaRef.current = null;
@@ -1326,6 +1360,7 @@ const Waveform = ({
               event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onPointerMove={(event) => {
+              event.stopPropagation();
               if (!isDraggingRef.current || activeLoopDragRef.current !== "start") return;
               updateLoopFromPointer(event.clientX);
               scheduleRenderOverlay();
@@ -1337,6 +1372,7 @@ const Waveform = ({
               }
               pointerDownRef.current = false;
               flushLoopBoundsChange();
+              loopDragActiveRef.current = false;
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           >
@@ -1347,6 +1383,14 @@ const Waveform = ({
             className={`deck__loop-handle ${loopEnabled ? "is-active" : ""}`}
             onPointerDown={(event) => {
               event.stopPropagation();
+              loopDragActiveRef.current = true;
+              loopDragWindowStartRef.current = windowStartRef.current;
+              panPointerIdRef.current = null;
+              if (wrapperRef.current?.hasPointerCapture(event.pointerId)) {
+                wrapperRef.current.releasePointerCapture(event.pointerId);
+              }
+              isDraggingRef.current = false;
+              pointerDownRef.current = false;
               if (inertiaRef.current) {
                 cancelAnimationFrame(inertiaRef.current);
                 inertiaRef.current = null;
@@ -1358,6 +1402,7 @@ const Waveform = ({
               event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onPointerMove={(event) => {
+              event.stopPropagation();
               if (!isDraggingRef.current || activeLoopDragRef.current !== "end") return;
               updateLoopFromPointer(event.clientX);
               scheduleRenderOverlay();
@@ -1369,6 +1414,7 @@ const Waveform = ({
               }
               pointerDownRef.current = false;
               flushLoopBoundsChange();
+              loopDragActiveRef.current = false;
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
           >
