@@ -17,13 +17,12 @@ import type {
 } from "./types/session";
 import { encodeWav } from "./utils/audio";
 import {
-  createPitchShiftNodes,
   ensurePitchShiftWorklet,
-  setPitchShift,
 } from "./audio/pitchShift";
 import { createPaulStretchNode, ensurePaulStretchWorklet } from "./audio/paulStretch";
 import { createLimiter, createSoftClipper } from "./audio/clipper";
 import { applyPostEqEffectsOffline } from "./audio/effects/postEqPipeline";
+import { applyPitchShiftOffline } from "./audio/effects/pitchShift";
 import PerfOverlay from "./components/PerfOverlay";
 import {
   AUTO_SESSION_ID,
@@ -720,10 +719,6 @@ const App = () => {
       if (balanceNode) {
         balanceNode.pan.value = balanceValue;
       }
-      const pitchShiftNodes = needsPitch ? createPitchShiftNodes(offline) : null;
-      if (pitchShiftNodes) {
-        setPitchShift(pitchShiftNodes, pitchValue);
-      }
       const highpass = needsFilter ? offline.createBiquadFilter() : null;
       const lowpass = needsFilter ? offline.createBiquadFilter() : null;
       if (highpass && lowpass) {
@@ -841,31 +836,22 @@ const App = () => {
           }
         );
       }
-      if (needsPitch && pitchTrack?.active && pitchTrack.durationSec > 0 && pitchShiftNodes?.worklet) {
-        const pitchParam = pitchShiftNodes.worklet.parameters.get("pitch");
-        if (pitchParam) {
-          pitchShiftNodes.dryGain.gain.value = 0;
-          pitchShiftNodes.wetGain.gain.value = 1;
-          scheduleLoopedSamples(
-            pitchTrack.samples,
-            pitchTrack.durationSec,
-            renderDuration,
-            (value, time) => {
-              pitchParam.setValueAtTime(value, time);
-            }
-          );
-        }
-      }
-
       let chain: AudioNode = source;
       if (balanceNode) {
         chain.connect(balanceNode);
         chain = balanceNode;
       }
-      if (pitchShiftNodes) {
-        chain.connect(pitchShiftNodes.input);
-        chain = pitchShiftNodes.output;
-      }
+      chain = applyPitchShiftOffline(offline, chain, {
+        pitch: pitchValue,
+        renderDuration,
+        automation: pitchTrack
+          ? {
+              active: pitchTrack.active,
+              samples: pitchTrack.samples,
+              durationSec: pitchTrack.durationSec,
+            }
+          : undefined,
+      });
       if (highpass && lowpass) {
         chain.connect(highpass);
         highpass.connect(lowpass);
@@ -975,6 +961,9 @@ const App = () => {
       source.buffer = deck.buffer;
       const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
       source.playbackRate.value = tempoRatio;
+      const pitchValue = (automationState.get(deck.id)?.pitch?.active
+        ? automationState.get(deck.id)?.pitch?.currentValue
+        : deck.pitchShift) ?? deck.pitchShift;
       const delayTime = Math.min(Math.max(deck.delayTime ?? 0.35, 0.01), 1.5);
       const delayFeedback = Math.min(Math.max(deck.delayFeedback ?? 0.35, 0), 0.95);
       const delayMix = Math.min(Math.max(deck.delayMix ?? 0, 0), 1);
@@ -988,7 +977,6 @@ const App = () => {
       const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
 
       const balanceNode = offline.createStereoPanner();
-      const pitchShiftNodes = createPitchShiftNodes(offline);
       const highpass = offline.createBiquadFilter();
       highpass.type = "highpass";
       const lowpass = offline.createBiquadFilter();
@@ -1032,7 +1020,6 @@ const App = () => {
       const eqMidValue = eqMidTrack?.active ? eqMidTrack.currentValue : deck.eqMidGain;
       const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
       const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
-      const pitchValue = pitchTrack?.active ? pitchTrack.currentValue : deck.pitchShift;
 
       const targets = getFilterTargets(djFilterValue);
       highpass.frequency.value = targets.highpass;
@@ -1044,7 +1031,6 @@ const App = () => {
       applyEqGain(eqHigh, eqHighValue);
       gainNode.gain.value = deck.gain;
       balanceNode.pan.value = balanceValue;
-      setPitchShift(pitchShiftNodes, pitchValue);
 
       if (djFilterTrack?.active && djFilterTrack.durationSec > 0) {
         scheduleLoopedSamples(
@@ -1118,25 +1104,19 @@ const App = () => {
           }
         );
       }
-      if (pitchTrack?.active && pitchTrack.durationSec > 0 && pitchShiftNodes.worklet) {
-        const pitchParam = pitchShiftNodes.worklet.parameters.get("pitch");
-        if (pitchParam) {
-          pitchShiftNodes.dryGain.gain.value = 0;
-          pitchShiftNodes.wetGain.gain.value = 1;
-          scheduleLoopedSamples(
-            pitchTrack.samples,
-            pitchTrack.durationSec,
-            durationSec,
-            (value, time) => {
-              pitchParam.setValueAtTime(value, time);
-            }
-          );
-        }
-      }
-
       source.connect(balanceNode);
-      balanceNode.connect(pitchShiftNodes.input);
-      pitchShiftNodes.output.connect(highpass);
+      const preEq = applyPitchShiftOffline(offline, balanceNode, {
+        pitch: pitchValue,
+        renderDuration: durationSec,
+        automation: pitchTrack
+          ? {
+              active: pitchTrack.active,
+              samples: pitchTrack.samples,
+              durationSec: pitchTrack.durationSec,
+            }
+          : undefined,
+      });
+      preEq.connect(highpass);
       highpass.connect(lowpass);
       lowpass.connect(eqLow[0]);
       for (let i = 0; i < eqLow.length - 1; i++) {
@@ -1419,10 +1399,6 @@ const App = () => {
       if (balanceNode) {
         balanceNode.pan.value = balanceValue;
       }
-      const pitchShiftNodes = needsPitch ? createPitchShiftNodes(offline) : null;
-      if (pitchShiftNodes) {
-        setPitchShift(pitchShiftNodes, pitchValue);
-      }
       const highpass = needsFilter ? offline.createBiquadFilter() : null;
       const lowpass = needsFilter ? offline.createBiquadFilter() : null;
       if (highpass && lowpass) {
@@ -1544,31 +1520,22 @@ const App = () => {
           }
         );
       }
-      if (needsPitch && pitchTrack?.active && pitchTrack.durationSec > 0 && pitchShiftNodes?.worklet) {
-        const pitchParam = pitchShiftNodes.worklet.parameters.get("pitch");
-        if (pitchParam) {
-          pitchShiftNodes.dryGain.gain.value = 0;
-          pitchShiftNodes.wetGain.gain.value = 1;
-          scheduleLoopedSamples(
-            pitchTrack.samples,
-            pitchTrack.durationSec,
-            renderDuration,
-            (value, time) => {
-              pitchParam.setValueAtTime(value, time);
-            }
-          );
-        }
-      }
-
       let chain: AudioNode = source;
       if (balanceNode) {
         chain.connect(balanceNode);
         chain = balanceNode;
       }
-      if (pitchShiftNodes) {
-        chain.connect(pitchShiftNodes.input);
-        chain = pitchShiftNodes.output;
-      }
+      chain = applyPitchShiftOffline(offline, chain, {
+        pitch: pitchValue,
+        renderDuration,
+        automation: pitchTrack
+          ? {
+              active: pitchTrack.active,
+              samples: pitchTrack.samples,
+              durationSec: pitchTrack.durationSec,
+            }
+          : undefined,
+      });
       if (highpass && lowpass) {
         chain.connect(highpass);
         highpass.connect(lowpass);
