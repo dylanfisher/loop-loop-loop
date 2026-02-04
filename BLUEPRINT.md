@@ -19,7 +19,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ### DSP Modules
 - Beat/onset detection (WASM or lightweight JS analysis).
-- FX chain: filters, delay (time/feedback/mix/tone + ping-pong), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
+- FX chain: filters, delay (time/feedback/mix/tone + ping-pong), Fractal Resonator (mix/structure/depth/drift/decay/tone), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
 - Modulation system: LFOs, envelopes, random/stochastic sources.
 
 ## BPM Detection & Control (Planned)
@@ -45,6 +45,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Canvas/WebGL for waveform, spectrum, and experimental visual feedback.
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
+- Deck FX layout includes a Fractal Resonator unit (6 compact controls) for live modal-resonance sculpting.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
@@ -55,6 +56,14 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 [Deck 3] [Deck 4]
 [Transport]
 ```
+
+### Effect Pipeline Parity (Constraint)
+- Per-deck effects must stay behaviorally aligned across all output paths:
+  - Live playback graph (real-time deck engine)
+  - Save Loop baked render path (offline clip render when not saving metadata-only settings)
+  - Export Mix offline render path
+  - Global recording path (master stream capture)
+- New effects should be added to all four paths in the same change set (or explicitly documented as intentionally excluded).
 
 ### State & Presets
 - Session state stored in memory with optional persistence to IndexedDB.

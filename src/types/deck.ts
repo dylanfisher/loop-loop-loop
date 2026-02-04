@@ -26,6 +26,12 @@ export type DeckState = {
   delayMix: number;
   delayTone: number;
   delayPingPong: boolean;
+  fractalMix: number;
+  fractalStructure: number;
+  fractalDepth: number;
+  fractalDrift: number;
+  fractalDecay: number;
+  fractalTone: number;
   djFilter: number;
   filterResonance: number;
   eqLowGain: number;

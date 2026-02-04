@@ -25,6 +25,12 @@ type DeckCardProps = {
   onDelayMixChange: (id: number, value: number) => void;
   onDelayToneChange: (id: number, value: number) => void;
   onDelayPingPongChange: (id: number, value: boolean) => void;
+  onFractalMixChange: (id: number, value: number) => void;
+  onFractalStructureChange: (id: number, value: number) => void;
+  onFractalDepthChange: (id: number, value: number) => void;
+  onFractalDriftChange: (id: number, value: number) => void;
+  onFractalDecayChange: (id: number, value: number) => void;
+  onFractalToneChange: (id: number, value: number) => void;
   onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   automation?: Record<
@@ -140,6 +146,12 @@ const DeckCard = ({
   onDelayMixChange,
   onDelayToneChange,
   onDelayPingPongChange,
+  onFractalMixChange,
+  onFractalStructureChange,
+  onFractalDepthChange,
+  onFractalDriftChange,
+  onFractalDecayChange,
+  onFractalToneChange,
   onBalanceChange,
   onPitchShiftChange,
   automation,
@@ -994,6 +1006,87 @@ const DeckCard = ({
                   }
                 />
               </label>
+            </div>
+          </div>
+          <div className="deck__fx-unit deck__fx-unit--fractal deck__fx-unit--span-2">
+            <span
+              className="deck__fx-hint"
+              title="Fractal Resonator: a recursive modal resonator that smears the deck into evolving, harmonic textures."
+            />
+            <div className="deck__fx-unit-title">Fractal Resonator</div>
+            <div className="deck__fractal-controls">
+              <Knob
+                className="knob--compact"
+                label="Mix"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.fractalMix}
+                defaultValue={0}
+                labelTitle="Wet/dry blend for the resonator."
+                onChange={(next) => onFractalMixChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Structure"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.fractalStructure}
+                defaultValue={0.45}
+                labelTitle="Shapes modal spacing from clustered to spread."
+                onChange={(next) => onFractalStructureChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Depth"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.fractalDepth}
+                defaultValue={0.35}
+                labelTitle="Controls resonance density and emphasis."
+                onChange={(next) => onFractalDepthChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Drift"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.fractalDrift}
+                defaultValue={0.15}
+                labelTitle="Detunes resonant modes for motion and shimmer."
+                onChange={(next) => onFractalDriftChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Decay"
+                min={0}
+                max={0.96}
+                step={0.01}
+                value={deck.fractalDecay}
+                defaultValue={0.2}
+                labelTitle="Feedback amount inside the resonator."
+                onChange={(next) => onFractalDecayChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Tone"
+                min={300}
+                max={14000}
+                step={100}
+                value={deck.fractalTone}
+                defaultValue={6000}
+                labelTitle="Top-end damping for the resonator body."
+                onChange={(next) => onFractalToneChange(deck.id, next)}
+                formatValue={(value, fine) => `${value.toFixed(fine ? 1 : 0)} Hz`}
+              />
             </div>
           </div>
           <div className="deck__fx-unit deck__fx-unit--stretch deck__fx-unit--span-2">

@@ -17,6 +17,12 @@ import {
   setDeckDelayMixValue,
   setDeckDelayToneValue,
   setDeckDelayPingPongValue,
+  setDeckFractalMixValue,
+  setDeckFractalStructureValue,
+  setDeckFractalDepthValue,
+  setDeckFractalDriftValue,
+  setDeckFractalDecayValue,
+  setDeckFractalToneValue,
   setDeckLoopParams,
   setDeckPlaybackOffsetValue,
   setDeckPitchShiftValue,
@@ -52,7 +58,13 @@ type AudioEngine = {
     delayTone?: number,
     delayPingPong?: boolean,
     balance?: number,
-    pitchShift?: number
+    pitchShift?: number,
+    fractalMix?: number,
+    fractalStructure?: number,
+    fractalDepth?: number,
+    fractalDrift?: number,
+    fractalDecay?: number,
+    fractalTone?: number
   ) => Promise<void>;
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
@@ -68,6 +80,12 @@ type AudioEngine = {
   setDeckDelayMix: (deckId: number, value: number) => void;
   setDeckDelayTone: (deckId: number, value: number) => void;
   setDeckDelayPingPong: (deckId: number, value: boolean) => void;
+  setDeckFractalMix: (deckId: number, value: number) => void;
+  setDeckFractalStructure: (deckId: number, value: number) => void;
+  setDeckFractalDepth: (deckId: number, value: number) => void;
+  setDeckFractalDrift: (deckId: number, value: number) => void;
+  setDeckFractalDecay: (deckId: number, value: number) => void;
+  setDeckFractalTone: (deckId: number, value: number) => void;
   setDeckPitchShift: (deckId: number, value: number) => void;
   setMasterGain: (value: number) => void;
   removeDeck: (deckId: number) => void;
@@ -165,7 +183,13 @@ const playBuffer = async (
   delayTone = 6000,
   delayPingPong = false,
   balance = 0,
-  pitchShift = 0
+  pitchShift = 0,
+  fractalMix = 0,
+  fractalStructure = 0.45,
+  fractalDepth = 0.35,
+  fractalDrift = 0.15,
+  fractalDecay = 0.2,
+  fractalTone = 6000
 ) => {
   const context = await ensureContext();
   try {
@@ -200,6 +224,12 @@ const playBuffer = async (
     delayPingPong,
     balance,
     pitchShift,
+    fractalMix,
+    fractalStructure,
+    fractalDepth,
+    fractalDrift,
+    fractalDecay,
+    fractalTone,
     onEnded
   );
 };
@@ -262,6 +292,30 @@ const setDeckDelayTone = (deckId: number, value: number) => {
 
 const setDeckDelayPingPong = (deckId: number, value: boolean) => {
   setDeckDelayPingPongValue(deckId, value);
+};
+
+const setDeckFractalMix = (deckId: number, value: number) => {
+  setDeckFractalMixValue(deckId, value);
+};
+
+const setDeckFractalStructure = (deckId: number, value: number) => {
+  setDeckFractalStructureValue(deckId, value);
+};
+
+const setDeckFractalDepth = (deckId: number, value: number) => {
+  setDeckFractalDepthValue(deckId, value);
+};
+
+const setDeckFractalDrift = (deckId: number, value: number) => {
+  setDeckFractalDriftValue(deckId, value);
+};
+
+const setDeckFractalDecay = (deckId: number, value: number) => {
+  setDeckFractalDecayValue(deckId, value);
+};
+
+const setDeckFractalTone = (deckId: number, value: number) => {
+  setDeckFractalToneValue(deckId, value);
 };
 
 const setDeckPitchShift = (deckId: number, value: number) => {
@@ -347,6 +401,12 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
+    setDeckFractalMix,
+    setDeckFractalStructure,
+    setDeckFractalDepth,
+    setDeckFractalDrift,
+    setDeckFractalDecay,
+    setDeckFractalTone,
     setDeckPitchShift,
     setMasterGain,
     removeDeck,

@@ -799,6 +799,14 @@ input[type="range"]::-moz-focus-outer {
   justify-items: center;
 }
 
+.deck__fractal-controls {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  row-gap: 10px;
+  justify-items: center;
+}
+
 .deck__delay-toggle {
   display: grid;
   gap: 6px;
@@ -1313,6 +1321,10 @@ button:active {
 
   .deck__stretch-grid {
     grid-template-columns: 1fr;
+  }
+
+  .deck__fractal-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .app__header {

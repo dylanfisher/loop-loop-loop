@@ -55,6 +55,12 @@ const setDeckDelayFeedback = vi.fn();
 const setDeckDelayMix = vi.fn();
 const setDeckDelayTone = vi.fn();
 const setDeckDelayPingPong = vi.fn();
+const setDeckFractalMix = vi.fn();
+const setDeckFractalStructure = vi.fn();
+const setDeckFractalDepth = vi.fn();
+const setDeckFractalDrift = vi.fn();
+const setDeckFractalDecay = vi.fn();
+const setDeckFractalTone = vi.fn();
 const setDeckPitchShift = vi.fn();
 const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
@@ -81,6 +87,12 @@ vi.mock("../useAudioEngine", () => ({
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
+    setDeckFractalMix,
+    setDeckFractalStructure,
+    setDeckFractalDepth,
+    setDeckFractalDrift,
+    setDeckFractalDecay,
+    setDeckFractalTone,
     setDeckPitchShift,
     removeDeck,
     getDeckPosition,
@@ -109,6 +121,12 @@ describe("useDecks", () => {
     setDeckDelayMix.mockClear();
     setDeckDelayTone.mockClear();
     setDeckDelayPingPong.mockClear();
+    setDeckFractalMix.mockClear();
+    setDeckFractalStructure.mockClear();
+    setDeckFractalDepth.mockClear();
+    setDeckFractalDrift.mockClear();
+    setDeckFractalDecay.mockClear();
+    setDeckFractalTone.mockClear();
     setDeckPitchShift.mockClear();
     removeDeck.mockClear();
     getDeckPosition.mockClear();
@@ -332,6 +350,12 @@ describe("useDecks", () => {
         delayMix: 0,
         delayTone: 6000,
         delayPingPong: false,
+        fractalMix: 0,
+        fractalStructure: 0.45,
+        fractalDepth: 0.35,
+        fractalDrift: 0.15,
+        fractalDecay: 0.2,
+        fractalTone: 6000,
         automation: {
           djFilter: {
             samples: [0, 0.5],

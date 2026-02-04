@@ -8,3 +8,4 @@
 - When implementing new features, add or update tests when it makes sense to do so.
 - Run `npm test` after modifying files that should be covered by unit/integration tests (hooks, audio engine, or core UI logic), and report results.
 - Run `npm run lint` after modifying JS/TS source files, and fix any lint errors.
+- For any new or modified audio effect, keep processing parity across pipelines: live deck playback, Save Loop offline render (baked path), Export Mix offline render, and global master recording output.

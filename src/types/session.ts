@@ -45,6 +45,12 @@ export type DeckSession = {
   delayMix: number;
   delayTone: number;
   delayPingPong: boolean;
+  fractalMix: number;
+  fractalStructure: number;
+  fractalDepth: number;
+  fractalDrift: number;
+  fractalDecay: number;
+  fractalTone: number;
   automation: Record<AutomationParam, AutomationSnapshot>;
 };
 
@@ -82,6 +88,12 @@ export type ClipSettings = {
   delayMix: number;
   delayTone: number;
   delayPingPong: boolean;
+  fractalMix: number;
+  fractalStructure: number;
+  fractalDepth: number;
+  fractalDrift: number;
+  fractalDecay: number;
+  fractalTone: number;
   loopEnabled: boolean;
   loopStartSeconds: number;
   loopEndSeconds: number;

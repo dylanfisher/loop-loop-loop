@@ -277,6 +277,12 @@ const App = () => {
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
+    setDeckFractalMix,
+    setDeckFractalStructure,
+    setDeckFractalDepth,
+    setDeckFractalDrift,
+    setDeckFractalDecay,
+    setDeckFractalTone,
     setDeckPitchShift,
     seekDeck,
     setDeckZoom,
@@ -448,6 +454,12 @@ const App = () => {
         delayMix: deck.delayMix,
         delayTone: deck.delayTone,
         delayPingPong: deck.delayPingPong,
+        fractalMix: deck.fractalMix,
+        fractalStructure: deck.fractalStructure,
+        fractalDepth: deck.fractalDepth,
+        fractalDrift: deck.fractalDrift,
+        fractalDecay: deck.fractalDecay,
+        fractalTone: deck.fractalTone,
         loopEnabled: true,
         loopStartSeconds: 0,
         loopEndSeconds: loopDuration,
@@ -587,6 +599,12 @@ const App = () => {
       const pitchTrack = automationState.get(deckId)?.pitch;
       const pitchActive =
         Math.abs(deck.pitchShift) >= 0.001 || pitchTrack?.active === true;
+      const fractalMix = Math.min(Math.max(deck.fractalMix ?? 0, 0), 1);
+      const fractalStructure = Math.min(Math.max(deck.fractalStructure ?? 0.45, 0), 1);
+      const fractalDepth = Math.min(Math.max(deck.fractalDepth ?? 0.35, 0), 1);
+      const fractalDrift = Math.min(Math.max(deck.fractalDrift ?? 0.15, 0), 1);
+      const fractalDecay = Math.min(Math.max(deck.fractalDecay ?? 0.2, 0), 0.985);
+      const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
 
       const automation = automationState.get(deckId);
       const djFilterTrack = automation?.djFilter;
@@ -621,6 +639,7 @@ const App = () => {
         eqHighTrack?.active === true;
       const needsBalance = !approxEqual(balanceValue, 0) || balanceTrack?.active === true;
       const needsGain = !approxEqual(deck.gain, 0.9);
+      const needsFractal = fractalMix > 0.001;
 
       const needsRender =
         !approxEqual(tempoRatio, 1) ||
@@ -628,7 +647,8 @@ const App = () => {
         needsFilter ||
         needsEq ||
         needsBalance ||
-        needsGain;
+        needsGain ||
+        needsFractal;
 
       if (includeSettings) {
         const sliced = sliceBufferSegment(deck.buffer, loopStart, sliceDuration);
@@ -740,6 +760,7 @@ const App = () => {
       if (gainNode) {
         gainNode.gain.value = deck.gain;
       }
+      const fractalOut = needsFractal ? offline.createGain() : null;
 
       if (needsFilter && djFilterTrack?.active && djFilterTrack.durationSec > 0 && lowpass && highpass) {
         scheduleLoopedSamples(
@@ -858,6 +879,71 @@ const App = () => {
         }
         chain = eqHigh[eqHigh.length - 1];
       }
+      if (fractalOut) {
+        const fractalDry = offline.createGain();
+        const fractalWet = offline.createGain();
+        const fractalInput = offline.createGain();
+        const fractalFeedback = offline.createGain();
+        const fractalFeedbackDelay = offline.createDelay(1);
+        const fractalToneNode = offline.createBiquadFilter();
+        fractalToneNode.type = "lowpass";
+        fractalToneNode.frequency.value = fractalTone;
+        const fractalBody = offline.createGain();
+        fractalBody.gain.value = 0.015 + (1 - fractalDepth) * 0.03;
+        const fractalDrive = offline.createWaveShaper();
+        fractalDrive.oversample = "4x";
+        const driveCurve = new Float32Array(2048);
+        const driveAmount = 3 + fractalDepth * 11;
+        for (let i = 0; i < driveCurve.length; i += 1) {
+          const x = (i * 2) / (driveCurve.length - 1) - 1;
+          driveCurve[i] = ((1 + driveAmount) * x) / (1 + driveAmount * Math.abs(x));
+        }
+        fractalDrive.curve = driveCurve;
+
+        fractalDry.gain.value = 1 - fractalMix;
+        fractalWet.gain.value = fractalMix * (0.75 + fractalDepth * 0.85);
+        fractalFeedback.gain.value = 0.15 + fractalDecay * 0.75;
+        fractalFeedbackDelay.delayTime.value = 0.012 + fractalStructure * 0.08;
+
+        const modeCount = 16;
+        const minFreq = 70;
+        const maxFreq = Math.min(12000, fractalTone);
+        const spreadPower = 0.25 + fractalStructure * 3.4;
+        const baseQ = 12 + fractalDepth * 60;
+        const normalization = 3 / modeCount;
+        for (let i = 0; i < modeCount; i += 1) {
+          const filter = offline.createBiquadFilter();
+          filter.type = "bandpass";
+          const modeGain = offline.createGain();
+          const t = modeCount <= 1 ? 0 : i / (modeCount - 1);
+          const curve = Math.pow(t, spreadPower);
+          const base = minFreq * Math.pow(maxFreq / minFreq, curve);
+          const seed = Math.sin((i + 1) * 12.9898) * 43758.5453;
+          const normalizedSeed = ((seed - Math.floor(seed)) * 2) - 1;
+          const cents = normalizedSeed * fractalDrift * 1200;
+          const freq = Math.min(12000, Math.max(80, base * Math.pow(2, cents / 1200)));
+          filter.frequency.value = freq;
+          filter.Q.value = baseQ + (1 - t) * 14;
+          modeGain.gain.value =
+            normalization * (0.6 + fractalDepth * (2.2 - t * 0.35));
+          fractalInput.connect(filter);
+          filter.connect(modeGain);
+          modeGain.connect(fractalToneNode);
+        }
+        fractalInput.connect(fractalBody);
+        fractalBody.connect(fractalToneNode);
+        fractalToneNode.connect(fractalDrive);
+        fractalDrive.connect(fractalWet);
+        fractalWet.connect(fractalFeedback);
+        fractalFeedback.connect(fractalFeedbackDelay);
+        fractalFeedbackDelay.connect(fractalInput);
+
+        chain.connect(fractalDry);
+        chain.connect(fractalInput);
+        fractalDry.connect(fractalOut);
+        fractalWet.connect(fractalOut);
+        chain = fractalOut;
+      }
       if (gainNode) {
         chain.connect(gainNode);
         chain = gainNode;
@@ -925,6 +1011,17 @@ const App = () => {
       source.buffer = deck.buffer;
       const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
       source.playbackRate.value = tempoRatio;
+      const delayTime = Math.min(Math.max(deck.delayTime ?? 0.35, 0.01), 1.5);
+      const delayFeedback = Math.min(Math.max(deck.delayFeedback ?? 0.35, 0), 0.95);
+      const delayMix = Math.min(Math.max(deck.delayMix ?? 0, 0), 1);
+      const delayTone = Math.min(Math.max(deck.delayTone ?? 6000, 400), 12000);
+      const delayPingPong = deck.delayPingPong ?? false;
+      const fractalMix = Math.min(Math.max(deck.fractalMix ?? 0, 0), 1);
+      const fractalStructure = Math.min(Math.max(deck.fractalStructure ?? 0.45, 0), 1);
+      const fractalDepth = Math.min(Math.max(deck.fractalDepth ?? 0.35, 0), 1);
+      const fractalDrift = Math.min(Math.max(deck.fractalDrift ?? 0.15, 0), 1);
+      const fractalDecay = Math.min(Math.max(deck.fractalDecay ?? 0.2, 0), 0.985);
+      const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
 
       const balanceNode = offline.createStereoPanner();
       const pitchShiftNodes = createPitchShiftNodes(offline);
@@ -951,6 +1048,37 @@ const App = () => {
         return filter;
       });
       const gainNode = offline.createGain();
+      const delayDry = offline.createGain();
+      const delayWet = offline.createGain();
+      const delaySplit = offline.createChannelSplitter(2);
+      const delayMerge = offline.createChannelMerger(2);
+      const delayL = offline.createDelay(2.5);
+      const delayR = offline.createDelay(2.5);
+      const delayFeedbackL = offline.createGain();
+      const delayFeedbackR = offline.createGain();
+      const delayToneL = offline.createBiquadFilter();
+      const delayToneR = offline.createBiquadFilter();
+      delayToneL.type = "lowpass";
+      delayToneR.type = "lowpass";
+      delayL.delayTime.value = delayTime;
+      delayR.delayTime.value = delayTime;
+      delayFeedbackL.gain.value = delayFeedback;
+      delayFeedbackR.gain.value = delayFeedback;
+      delayToneL.frequency.value = delayTone;
+      delayToneR.frequency.value = delayTone;
+      delayDry.gain.value = 1 - delayMix;
+      delayWet.gain.value = delayMix;
+      const fractalDry = offline.createGain();
+      const fractalWet = offline.createGain();
+      const fractalInput = offline.createGain();
+      const fractalFeedback = offline.createGain();
+      const fractalFeedbackDelay = offline.createDelay(1);
+      const fractalToneNode = offline.createBiquadFilter();
+      fractalToneNode.type = "lowpass";
+      const fractalDrive = offline.createWaveShaper();
+      fractalDrive.oversample = "4x";
+      const fractalBody = offline.createGain();
+      const fractalOut = offline.createGain();
       const clipper = createSoftClipper(offline);
       const limiter = createLimiter(offline);
 
@@ -984,6 +1112,72 @@ const App = () => {
       gainNode.gain.value = deck.gain;
       balanceNode.pan.value = balanceValue;
       setPitchShift(pitchShiftNodes, pitchValue);
+      fractalDry.gain.value = 1 - fractalMix;
+      fractalWet.gain.value = fractalMix * (0.75 + fractalDepth * 0.85);
+      fractalFeedback.gain.value = 0.15 + fractalDecay * 0.75;
+      fractalFeedbackDelay.delayTime.value = 0.012 + fractalStructure * 0.08;
+      fractalToneNode.frequency.value = fractalTone;
+      fractalBody.gain.value = 0.015 + (1 - fractalDepth) * 0.03;
+      const driveCurve = new Float32Array(2048);
+      const driveAmount = 3 + fractalDepth * 11;
+      for (let i = 0; i < driveCurve.length; i += 1) {
+        const x = (i * 2) / (driveCurve.length - 1) - 1;
+        driveCurve[i] = ((1 + driveAmount) * x) / (1 + driveAmount * Math.abs(x));
+      }
+      fractalDrive.curve = driveCurve;
+      const modeCount = 16;
+      const minFreq = 70;
+      const maxFreq = Math.min(12000, fractalTone);
+      const spreadPower = 0.25 + fractalStructure * 3.4;
+      const baseQ = 12 + fractalDepth * 60;
+      const normalization = 3 / modeCount;
+      for (let i = 0; i < modeCount; i += 1) {
+        const filter = offline.createBiquadFilter();
+        filter.type = "bandpass";
+        const modeGain = offline.createGain();
+        const t = modeCount <= 1 ? 0 : i / (modeCount - 1);
+        const curve = Math.pow(t, spreadPower);
+        const base = minFreq * Math.pow(maxFreq / minFreq, curve);
+        const seed = Math.sin((i + 1) * 12.9898) * 43758.5453;
+        const normalizedSeed = ((seed - Math.floor(seed)) * 2) - 1;
+        const cents = normalizedSeed * fractalDrift * 1200;
+        const freq = Math.min(12000, Math.max(80, base * Math.pow(2, cents / 1200)));
+        filter.frequency.value = freq;
+        filter.Q.value = baseQ + (1 - t) * 14;
+        modeGain.gain.value = normalization * (0.6 + fractalDepth * (2.2 - t * 0.35));
+        fractalInput.connect(filter);
+        filter.connect(modeGain);
+        modeGain.connect(fractalToneNode);
+      }
+      fractalInput.connect(fractalBody);
+      fractalBody.connect(fractalToneNode);
+      fractalToneNode.connect(fractalDrive);
+      fractalDrive.connect(fractalWet);
+      if (fractalMix > 0.001) {
+        fractalWet.connect(fractalFeedback);
+        fractalFeedback.connect(fractalFeedbackDelay);
+        fractalFeedbackDelay.connect(fractalInput);
+        fractalWet.connect(fractalOut);
+      }
+      if (delayMix > 0.001) {
+        delaySplit.connect(delayL, 0);
+        delaySplit.connect(delayR, 1);
+        delayL.connect(delayMerge, 0, 0);
+        delayR.connect(delayMerge, 0, 1);
+        delayMerge.connect(delayWet);
+        delayWet.connect(gainNode);
+        delayL.connect(delayFeedbackL);
+        delayR.connect(delayFeedbackR);
+        delayFeedbackL.connect(delayToneL);
+        delayFeedbackR.connect(delayToneR);
+        if (delayPingPong) {
+          delayToneL.connect(delayR);
+          delayToneR.connect(delayL);
+        } else {
+          delayToneL.connect(delayL);
+          delayToneR.connect(delayR);
+        }
+      }
 
       if (djFilterTrack?.active && djFilterTrack.durationSec > 0) {
         scheduleLoopedSamples(
@@ -1089,7 +1283,16 @@ const App = () => {
       for (let i = 0; i < eqHigh.length - 1; i++) {
         eqHigh[i].connect(eqHigh[i + 1]);
       }
-      eqHigh[eqHigh.length - 1].connect(gainNode);
+      eqHigh[eqHigh.length - 1].connect(fractalDry);
+      if (fractalMix > 0.001) {
+        eqHigh[eqHigh.length - 1].connect(fractalInput);
+      }
+      fractalDry.connect(fractalOut);
+      fractalOut.connect(delayDry);
+      if (delayMix > 0.001) {
+        fractalOut.connect(delaySplit);
+      }
+      delayDry.connect(gainNode);
       gainNode.connect(limiter);
       limiter.connect(clipper);
       clipper.connect(masterMix);
@@ -2331,6 +2534,12 @@ const App = () => {
           onDelayMixChange={setDeckDelayMix}
           onDelayToneChange={setDeckDelayTone}
           onDelayPingPongChange={setDeckDelayPingPong}
+          onFractalMixChange={setDeckFractalMix}
+          onFractalStructureChange={setDeckFractalStructure}
+          onFractalDepthChange={setDeckFractalDepth}
+          onFractalDriftChange={setDeckFractalDrift}
+          onFractalDecayChange={setDeckFractalDecay}
+          onFractalToneChange={setDeckFractalTone}
           onBalanceChange={setDeckBalance}
           onPitchShiftChange={setDeckPitchShift}
           onSeek={seekDeck}
