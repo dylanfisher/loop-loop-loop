@@ -235,7 +235,14 @@ const ClipRecorder = ({
             <div key={clip.id} className="clip-rack__clip">
               <div className="clip-rack__clip-info">
                 <span>{clip.name}</span>
-                <span>{clip.durationSec.toFixed(1)}s</span>
+                <div className="clip-rack__clip-meta">
+                  {clip.settings ? (
+                    <span className="clip-rack__clip-badge" title="Saved with FX settings metadata">
+                      FX
+                    </span>
+                  ) : null}
+                  <span>{clip.durationSec.toFixed(1)}s</span>
+                </div>
               </div>
               <div className="clip-rack__clip-waveform">
                 <canvas ref={(node) => setCanvasRef(clip.id, node)} />

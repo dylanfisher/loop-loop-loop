@@ -65,6 +65,18 @@ type PerformanceMemory = {
 };
 
 const CLIP_AUTOMATION_SAMPLE_RATE = 30;
+const ZOOM_STEPS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+const isTextInputTarget = (target: EventTarget | null) => {
+  const node = target as HTMLElement | null;
+  if (!node) return false;
+  const tag = node.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    node.isContentEditable
+  );
+};
 
 const trimBufferLeadingSamples = (
   context: BaseAudioContext,
@@ -241,6 +253,8 @@ const App = () => {
     heapUsedMB: null,
     heapLimitMB: null,
   });
+  const [activeDeckId, setActiveDeckId] = useState<number | null>(null);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const statusTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -356,6 +370,16 @@ const App = () => {
     canRedo,
     loadDeckBuffer,
   } = useDecks();
+  useEffect(() => {
+    if (decks.length === 0) {
+      setActiveDeckId(null);
+      return;
+    }
+    if (activeDeckId !== null && decks.some((deck) => deck.id === activeDeckId)) {
+      return;
+    }
+    setActiveDeckId(decks[0].id);
+  }, [activeDeckId, decks]);
   const isCurrentProjectBrandNew =
     clips.length === 0 &&
     decks.every((deck) => !deck.buffer && !deck.fileName);
@@ -2044,6 +2068,10 @@ const App = () => {
     [importSessionFiles, sessionBusy]
   );
 
+  const handleDeckActivate = useCallback((deckId: number) => {
+    setActiveDeckId(deckId);
+  }, []);
+
   const handleGlobalPlaybackToggle = useCallback(() => {
     if (hasActivePlayback) {
       decks.forEach((deck) => {
@@ -2060,30 +2088,157 @@ const App = () => {
     });
   }, [decks, hasActivePlayback, pauseDeck, playDeck]);
 
+  const getActiveDeck = useCallback(
+    () => (activeDeckId === null ? null : decks.find((deck) => deck.id === activeDeckId) ?? null),
+    [activeDeckId, decks]
+  );
+
+  const handleFocusedDeckPlaybackToggle = useCallback(() => {
+    const deck = getActiveDeck();
+    if (!deck || !deck.buffer) return;
+    if (deck.status === "playing") {
+      pauseDeck(deck);
+      return;
+    }
+    if (deck.status === "ready" || deck.status === "paused") {
+      void playDeck(deck);
+    }
+  }, [getActiveDeck, pauseDeck, playDeck]);
+
+  const handleFocusedDeckRearrangerPanelToggle = useCallback(() => {
+    const deck = getActiveDeck();
+    if (!deck) return;
+    setDeckFxPanelOpen(deck.id, "rearranger", !deck.fxPanelOpen.rearranger);
+  }, [getActiveDeck, setDeckFxPanelOpen]);
+
+  const handleFocusedDeckLoopToggle = useCallback(() => {
+    const deck = getActiveDeck();
+    if (!deck) return;
+    setDeckLoop(deck.id, !deck.loopEnabled);
+  }, [getActiveDeck, setDeckLoop]);
+
+  const handleFocusedDeckLoopReset = useCallback(() => {
+    const deck = getActiveDeck();
+    if (!deck || !deck.buffer) return;
+    const duration = deck.duration ?? deck.buffer.duration;
+    setDeckLoopBounds(deck.id, 0, duration);
+  }, [getActiveDeck, setDeckLoopBounds]);
+
+  const handleFocusedDeckZoom = useCallback(
+    (direction: "in" | "out") => {
+      const deck = getActiveDeck();
+      if (!deck) return;
+      const nearestIndex = ZOOM_STEPS.reduce((best, step, index) => {
+        const bestDiff = Math.abs(ZOOM_STEPS[best] - deck.zoom);
+        const nextDiff = Math.abs(step - deck.zoom);
+        return nextDiff < bestDiff ? index : best;
+      }, 0);
+      const nextIndex =
+        direction === "in"
+          ? Math.min(ZOOM_STEPS.length - 1, nearestIndex + 1)
+          : Math.max(0, nearestIndex - 1);
+      setDeckZoom(deck.id, ZOOM_STEPS[nextIndex]);
+    },
+    [getActiveDeck, setDeckZoom]
+  );
+
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      if (event.key !== " " && event.code !== "Space") return;
-      if (document.querySelector(".session-bar__details[open]")) return;
-      const target = event.target as HTMLElement | null;
-      if (target) {
-        const tag = target.tagName;
-        if (
-          tag === "INPUT" ||
-          tag === "TEXTAREA" ||
-          tag === "SELECT" ||
-          target.isContentEditable
-        ) {
+      const key = event.key;
+      const lower = key.toLowerCase();
+      const hasPrimaryModifier = event.metaKey || event.ctrlKey;
+
+      if (hasPrimaryModifier) {
+        if (lower === "z") {
+          event.preventDefault();
+          if (event.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
           return;
         }
+        if (lower === "s") {
+          event.preventDefault();
+          void handleSaveSession();
+          return;
+        }
+        if (lower === "o") {
+          event.preventDefault();
+          void handleLoadSession();
+        }
+        return;
       }
-      event.preventDefault();
-      handleGlobalPlaybackToggle();
+
+      if (isTextInputTarget(event.target)) return;
+
+      if (key === "?" && !event.altKey) {
+        event.preventDefault();
+        setShowKeyboardShortcuts((prev) => !prev);
+        return;
+      }
+
+      if (event.altKey) return;
+
+      if (key === " " || event.code === "Space") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          handleGlobalPlaybackToggle();
+        } else {
+          handleFocusedDeckPlaybackToggle();
+        }
+        return;
+      }
+
+      if (event.shiftKey) {
+        if (lower === "l") {
+          event.preventDefault();
+          handleFocusedDeckLoopReset();
+        }
+        return;
+      }
+
+      if (lower === "r") {
+        event.preventDefault();
+        handleFocusedDeckRearrangerPanelToggle();
+        return;
+      }
+      if (lower === "l") {
+        event.preventDefault();
+        handleFocusedDeckLoopToggle();
+        return;
+      }
+      if (key === "=") {
+        event.preventDefault();
+        handleFocusedDeckZoom("out");
+        return;
+      }
+      if (key === "-") {
+        event.preventDefault();
+        handleFocusedDeckZoom("in");
+        return;
+      }
+      if (lower === "a") {
+        event.preventDefault();
+        addDeck();
+      }
     };
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
-  }, [handleGlobalPlaybackToggle]);
+  }, [
+    addDeck,
+    handleGlobalPlaybackToggle,
+    handleFocusedDeckLoopReset,
+    handleFocusedDeckLoopToggle,
+    handleFocusedDeckPlaybackToggle,
+    handleFocusedDeckRearrangerPanelToggle,
+    handleFocusedDeckZoom,
+    handleLoadSession,
+    handleSaveSession,
+    redo,
+    undo,
+  ]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -2261,6 +2416,16 @@ const App = () => {
           </div>
           <button
             type="button"
+            className="icon-button"
+            onClick={() => setShowKeyboardShortcuts((prev) => !prev)}
+            title="Keyboard shortcuts (?)"
+            aria-label="Toggle keyboard shortcuts"
+            aria-pressed={showKeyboardShortcuts}
+          >
+            ?
+          </button>
+          <button
+            type="button"
             className="icon-button app__theme-toggle"
             onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -2308,6 +2473,8 @@ const App = () => {
         />
         <DeckStack
           decks={decks}
+          activeDeckId={activeDeckId}
+          onDeckActivate={handleDeckActivate}
           onRemoveDeck={removeDeck}
           onLoadClick={handleLoadClick}
           onFileSelected={handleFileSelected}
@@ -2373,6 +2540,38 @@ const App = () => {
           onCropLoop={handleCropLoop}
         />
       </main>
+      {showKeyboardShortcuts ? (
+        <div className="app__shortcuts" role="dialog" aria-modal="false" aria-label="Keyboard shortcuts">
+          <div className="app__shortcuts-card">
+            <div className="app__shortcuts-header">
+              <strong>Keyboard Shortcuts</strong>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setShowKeyboardShortcuts(false)}
+                aria-label="Close keyboard shortcuts"
+              >
+                ×
+              </button>
+            </div>
+            <ul className="app__shortcuts-list">
+              <li><kbd>Space</kbd> Play/Pause active deck</li>
+              <li><kbd>Shift</kbd> + <kbd>Space</kbd> Global Play/Pause</li>
+              <li><kbd>R</kbd> Toggle Rearranger panel (active deck)</li>
+              <li><kbd>L</kbd> Toggle loop (active deck)</li>
+              <li><kbd>Shift</kbd> + <kbd>L</kbd> Reset loop to full file</li>
+              <li><kbd>=</kbd> Zoom out waveform</li>
+              <li><kbd>-</kbd> Zoom in waveform</li>
+              <li><kbd>A</kbd> Add deck</li>
+              <li><kbd>Cmd/Ctrl</kbd> + <kbd>Z</kbd> Undo</li>
+              <li><kbd>Cmd/Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> Redo</li>
+              <li><kbd>Cmd/Ctrl</kbd> + <kbd>S</kbd> Save session</li>
+              <li><kbd>Cmd/Ctrl</kbd> + <kbd>O</kbd> Open session</li>
+              <li><kbd>?</kbd> Toggle this panel</li>
+            </ul>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

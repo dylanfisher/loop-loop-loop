@@ -9,6 +9,8 @@ import { setPerfCounter } from "../utils/perf";
 type DeckCardProps = {
   deck: DeckState;
   label: string;
+  isActive: boolean;
+  onActivate: (id: number) => void;
   onRemove: (id: number) => void;
   onLoadClick: (id: number) => void;
   onFileSelected: (id: number, file: File | null, options?: { gain?: number }) => void;
@@ -154,6 +156,8 @@ const FX_PANEL_KEYS: DeckFxPanel[] = [
 const DeckCard = ({
   deck,
   label,
+  isActive,
+  onActivate,
   onRemove,
   onLoadClick,
   onFileSelected,
@@ -259,6 +263,13 @@ const DeckCard = ({
     const sign = value > 0 ? "+" : "";
     return `${sign}${value.toFixed(fine ? 2 : 1)} dB`;
   };
+  const isDifferent = (value: number, target: number, epsilon = 1e-3) =>
+    Math.abs(value - target) > epsilon;
+  const hasAutomationData = (track: {
+    samples: Float32Array;
+    previewSamples: Float32Array;
+    recording: boolean;
+  }) => track.samples.length > 0 || track.previewSamples.length > 0 || track.recording;
   const djAutomation = automation?.djFilter ?? {
     samples: new Float32Array(0),
     previewSamples: new Float32Array(0),
@@ -401,9 +412,123 @@ const DeckCard = ({
   const toggleAllFxPanels = useCallback(() => {
     onFxPanelsToggleAll(deck.id, !allFxOpen);
   }, [allFxOpen, deck.id, onFxPanelsToggleAll]);
+  const fxIndicators: Record<DeckFxPanel, { automation: boolean; modified: boolean }> = {
+    djFilter: {
+      automation: hasAutomationData(djAutomation),
+      modified: isDifferent(deck.djFilter, 0),
+    },
+    resonance: {
+      automation: hasAutomationData(resonanceAutomation),
+      modified: isDifferent(deck.filterResonance, 0),
+    },
+    eqLow: {
+      automation: hasAutomationData(eqLowAutomation),
+      modified: isDifferent(deck.eqLowGain, 0),
+    },
+    eqMid: {
+      automation: hasAutomationData(eqMidAutomation),
+      modified: isDifferent(deck.eqMidGain, 0),
+    },
+    eqHigh: {
+      automation: hasAutomationData(eqHighAutomation),
+      modified: isDifferent(deck.eqHighGain, 0),
+    },
+    balance: {
+      automation: hasAutomationData(balanceAutomation),
+      modified: isDifferent(deck.balance, 0),
+    },
+    pitch: {
+      automation: hasAutomationData(pitchAutomation),
+      modified: isDifferent(deck.pitchShift, 0),
+    },
+    delay: {
+      automation: false,
+      modified:
+        isDifferent(deck.delayMix, 0) ||
+        isDifferent(deck.delayTime, 0.35) ||
+        isDifferent(deck.delayFeedback, 0.35) ||
+        isDifferent(deck.delayTone, 6000, 1) ||
+        deck.delayPingPong,
+    },
+    fractal: {
+      automation: false,
+      modified:
+        isDifferent(deck.fractalMix, 0) ||
+        isDifferent(deck.fractalStructure, 0.45) ||
+        isDifferent(deck.fractalDepth, 0.35) ||
+        isDifferent(deck.fractalDrift, 0.15) ||
+        isDifferent(deck.fractalDecay, 0.2) ||
+        isDifferent(deck.fractalTone, 6000, 1),
+    },
+    rearranger: {
+      automation: false,
+      modified:
+        Math.round(deck.rearrangerSlices) > 0 ||
+        Math.round(deck.rearrangerOffset) !== 0 ||
+        isDifferent(deck.rearrangerChaos, 0) ||
+        isDifferent(deck.rearrangerReverse, 0) ||
+        deck.rearrangerAuto ||
+        (deck.rearrangerRegions?.length ?? 0) > 0,
+    },
+    stretch: {
+      automation: false,
+      modified:
+        isDifferent(deck.stretchRatio, 2) ||
+        Math.round(deck.stretchWindowSize) !== 16384 ||
+        isDifferent(deck.stretchStereoWidth, 1) ||
+        isDifferent(deck.stretchPhaseRandomness, 0.5) ||
+        isDifferent(deck.stretchTiltDb, 0) ||
+        isDifferent(deck.stretchScatter, 1),
+    },
+  };
+  const fxHints: Record<DeckFxPanel, string> = {
+    djFilter: "DJ Filter: sweeps between low-pass and high-pass for transitions and tone shaping.",
+    resonance: "Resonance: boosts filter edge intensity for sharper sweeps.",
+    eqLow: "Low EQ: shape bass energy; boost for weight, cut for cleanup.",
+    eqMid: "Mid EQ: shape presence and body; boost clarity or reduce boxiness.",
+    eqHigh: "High EQ: shape brightness and air.",
+    balance: "Balance: pan the deck left/right in stereo.",
+    pitch: "Pitch: semitone shift for key matching or creative detune.",
+    delay: "Delay: time, feedback, tone, mix, and ping-pong echo.",
+    fractal: "Fractal Resonator: recursive modal texture generator.",
+    rearranger: "Rearranger: slice, rotate, randomize, and reverse loop segments.",
+    stretch: "Stretch: offline Paulstretch render with phase/width/tilt/scatter controls.",
+  };
+  const renderFxToggleLabel = (panel: DeckFxPanel, label: string) => {
+    const indicator = fxIndicators[panel];
+    return (
+      <>
+        <span className="deck__fx-toggle-label" title={fxHints[panel]}>
+          {fxPanelOpen[panel] ? `${label} -` : `${label} +`}
+        </span>
+        {(indicator.automation || indicator.modified) && (
+          <span className="deck__fx-toggle-indicators">
+            {indicator.automation ? (
+              <span
+                className="deck__fx-toggle-indicator deck__fx-toggle-indicator--automation"
+                title="Automation present"
+                aria-hidden="true"
+              />
+            ) : null}
+            {indicator.modified ? (
+              <span
+                className="deck__fx-toggle-indicator deck__fx-toggle-indicator--modified"
+                title="Adjusted"
+                aria-hidden="true"
+              />
+            ) : null}
+          </span>
+        )}
+      </>
+    );
+  };
 
   return (
-    <div className="deck">
+    <div
+      className={`deck ${isActive ? "deck--active" : ""}`.trim()}
+      onPointerDownCapture={() => onActivate(deck.id)}
+      onFocusCapture={() => onActivate(deck.id)}
+    >
       <div className="deck__header">
         <div className="deck__label-row">
           <span className="deck__label">
@@ -669,12 +794,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.djFilter}
               onClick={() => toggleFxPanel("djFilter")}
             >
-              {fxPanelOpen.djFilter ? "DJ Filter -" : "DJ Filter +"}
+              {renderFxToggleLabel("djFilter", "DJ Filter")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="DJ Filter: sweeps between low‑pass and high‑pass to carve the sound. Use it to fade lows/highs during transitions. It runs in real time and affects both playback and rendered stretch output."
-            />
             <Knob
               label="DJ Filter"
               min={-1}
@@ -730,12 +851,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.resonance}
               onClick={() => toggleFxPanel("resonance")}
             >
-              {fxPanelOpen.resonance ? "Resonance -" : "Resonance +"}
+              {renderFxToggleLabel("resonance", "Resonance")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="Resonance: boosts the cutoff edge for sharper, more pronounced filter sweeps. Higher values add bite and intensity; it pairs with DJ Filter and is rendered into stretch output."
-            />
             <Knob
               label="Resonance"
               min={resonanceMin}
@@ -798,12 +915,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.eqLow}
               onClick={() => toggleFxPanel("eqLow")}
             >
-              {fxPanelOpen.eqLow ? "Low EQ -" : "Low EQ +"}
+              {renderFxToggleLabel("eqLow", "Low EQ")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="Low EQ: shapes bass energy. Boost to add weight, cut to clean up muddiness. Affects live playback and stretch renders."
-            />
             <Knob
               label="Low"
               min={-18}
@@ -855,12 +968,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.eqMid}
               onClick={() => toggleFxPanel("eqMid")}
             >
-              {fxPanelOpen.eqMid ? "Mid EQ -" : "Mid EQ +"}
+              {renderFxToggleLabel("eqMid", "Mid EQ")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="Mid EQ: controls presence and body. Boost for clarity, cut to reduce boxiness. Impacts live playback and stretch renders."
-            />
             <Knob
               label="Mid"
               min={-18}
@@ -912,12 +1021,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.eqHigh}
               onClick={() => toggleFxPanel("eqHigh")}
             >
-              {fxPanelOpen.eqHigh ? "High EQ -" : "High EQ +"}
+              {renderFxToggleLabel("eqHigh", "High EQ")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="High EQ: adjusts brightness and air. Boost for sparkle, cut for smoothness. Applied during playback and in stretch renders."
-            />
             <Knob
               label="High"
               min={-18}
@@ -973,12 +1078,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.balance}
               onClick={() => toggleFxPanel("balance")}
             >
-              {fxPanelOpen.balance ? "Balance -" : "Balance +"}
+              {renderFxToggleLabel("balance", "Balance")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="Balance: pans the deck left/right in the stereo field. Use it to place layers in the mix; it affects playback and rendered output."
-            />
             <Knob
               label="Balance"
               min={-1}
@@ -1030,12 +1131,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.pitch}
               onClick={() => toggleFxPanel("pitch")}
             >
-              {fxPanelOpen.pitch ? "Pitch -" : "Pitch +"}
+              {renderFxToggleLabel("pitch", "Pitch")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="Pitch: shifts the deck in semitones. Use for key matching or creative detune. When tempo‑pitch sync is off, it changes pitch independently; included in stretch renders."
-            />
             <Knob
               label="Pitch"
               min={-24}
@@ -1089,12 +1186,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.delay}
               onClick={() => toggleFxPanel("delay")}
             >
-              {fxPanelOpen.delay ? "Delay -" : "Delay +"}
+              {renderFxToggleLabel("delay", "Delay")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="Delay: time-based echo with feedback, tone, and mix controls. Ping pong bounces repeats left/right."
-            />
             <div className="deck__delay-controls">
               <Knob
                 className="knob--compact"
@@ -1165,12 +1258,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.fractal}
               onClick={() => toggleFxPanel("fractal")}
             >
-              {fxPanelOpen.fractal ? "Fractal Resonator -" : "Fractal Resonator +"}
+              {renderFxToggleLabel("fractal", "Fractal Resonator")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="Fractal Resonator: a recursive modal resonator that smears the deck into evolving, harmonic textures."
-            />
             <div className="deck__fractal-controls">
               <Knob
                 className="knob--compact"
@@ -1255,12 +1344,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.rearranger}
               onClick={() => toggleFxPanel("rearranger")}
             >
-              {fxPanelOpen.rearranger ? "Rearranger -" : "Rearranger +"}
+              {renderFxToggleLabel("rearranger", "Rearranger")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="Loop Rearranger: chops the loop into slices, rotates and randomizes slice order, and can reverse slices. Drag the colored handles under the waveform to shape slice boundaries."
-            />
             <div className="deck__rearranger-controls">
               <Knob
                 className="knob--compact"
@@ -1344,12 +1429,8 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.stretch}
               onClick={() => toggleFxPanel("stretch")}
             >
-              {fxPanelOpen.stretch ? "Stretch -" : "Stretch +"}
+              {renderFxToggleLabel("stretch", "Stretch")}
             </button>
-            <span
-              className="deck__fx-hint"
-              title="Stretch: offline Paulstretch render of the current loop. Use it to create long ambient textures; settings control scatter (grain spacing), phase randomness, width, and tone. The render replaces the deck buffer."
-            />
             <div className="deck__stretch-grid">
               <Knob
                 label="Amount"

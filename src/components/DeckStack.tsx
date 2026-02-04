@@ -3,6 +3,8 @@ import type { DeckFxPanel, DeckState } from "../types/deck";
 
 type DeckStackProps = {
   decks: DeckState[];
+  activeDeckId: number | null;
+  onDeckActivate: (id: number) => void;
   onRemoveDeck: (id: number) => void;
   onLoadClick: (id: number) => void;
   onFileSelected: (id: number, file: File | null, options?: {
@@ -103,6 +105,8 @@ type DeckStackProps = {
 
 const DeckStack = ({
   decks,
+  activeDeckId,
+  onDeckActivate,
   onRemoveDeck,
   onLoadClick,
   onFileSelected,
@@ -175,6 +179,8 @@ const DeckStack = ({
             key={deck.id}
             deck={deck}
             label={`Deck ${index + 1}`}
+            isActive={activeDeckId === deck.id}
+            onActivate={onDeckActivate}
             onRemove={onRemoveDeck}
             onLoadClick={onLoadClick}
             onFileSelected={onFileSelected}

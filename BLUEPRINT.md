@@ -47,6 +47,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Deck FX layout includes a Fractal Resonator unit (6 compact controls) for live modal-resonance sculpting.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
+- Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
 - Brand-new projects show a dismissible Welcome panel above the clip recorder with first-run guidance.
