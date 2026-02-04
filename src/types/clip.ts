@@ -12,4 +12,5 @@ export type ClipItem = {
   pitchShift: number;
   tempoOffset: number;
   settings?: ClipSettings;
+  applyFxSettings?: boolean;
 };

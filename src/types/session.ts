@@ -75,6 +75,7 @@ export type ClipSession = {
   tempoOffset: number;
   wavBlobId: string;
   settings?: ClipSettings;
+  applyFxSettings?: boolean;
 };
 
 export type ClipSettings = {

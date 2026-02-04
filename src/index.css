@@ -852,6 +852,12 @@ input[type="range"]::-moz-focus-outer {
   gap: 8px;
 }
 
+.deck__fx-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .deck__fx-title-toggle {
   font-size: 0.56rem;
   letter-spacing: 0.12em;
@@ -1414,12 +1420,19 @@ button:active {
   min-width: 20px;
   height: 16px;
   border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--line));
-  background: color-mix(in oklab, var(--accent) 14%, transparent);
-  color: color-mix(in oklab, var(--accent) 70%, var(--ink));
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  color: var(--muted);
   font-size: 0.56rem;
   letter-spacing: 0.1em;
   padding: 0 5px;
+  cursor: pointer;
+}
+
+.clip-rack__clip-badge.is-active {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: color-mix(in oklab, var(--accent) 70%, var(--ink));
 }
 
 .clip-rack__clip-actions {

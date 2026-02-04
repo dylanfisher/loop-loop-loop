@@ -5,17 +5,7 @@ import useAudioEngine from "../hooks/useAudioEngine";
 
 type ClipRecorderProps = {
   decks: DeckState[];
-  onLoadClip: (
-    deckId: number,
-    file: File,
-    options?: {
-      gain?: number;
-      pitchShift?: number;
-      balance?: number;
-      tempoOffset?: number;
-      settings?: ClipItem["settings"];
-    }
-  ) => void;
+  onLoadClip: (deckId: number, clip: ClipItem) => void | Promise<void>;
   clips: ClipItem[];
   onAddClip: (
     clip: Omit<ClipItem, "id" | "url" | "name"> & { name?: string }
@@ -237,9 +227,22 @@ const ClipRecorder = ({
                 <span>{clip.name}</span>
                 <div className="clip-rack__clip-meta">
                   {clip.settings ? (
-                    <span className="clip-rack__clip-badge" title="Saved with FX settings metadata">
+                    <button
+                      type="button"
+                      className={`clip-rack__clip-badge ${clip.applyFxSettings ? "is-active" : ""}`.trim()}
+                      title={
+                        clip.applyFxSettings
+                          ? "FX settings will be applied when loading this clip"
+                          : "FX settings metadata is saved, but will not be applied on load"
+                      }
+                      onClick={() =>
+                        onUpdateClip(clip.id, {
+                          applyFxSettings: !clip.applyFxSettings,
+                        })
+                      }
+                    >
                       FX
-                    </span>
+                    </button>
                   ) : null}
                   <span>{clip.durationSec.toFixed(1)}s</span>
                 </div>
@@ -253,18 +256,7 @@ const ClipRecorder = ({
                     <button
                       key={deck.id}
                       type="button"
-                      onClick={() => {
-                        const file = new File([clip.blob], `${clip.name}.webm`, {
-                          type: clip.blob.type || "audio/webm",
-                        });
-                        onLoadClip(deck.id, file, {
-                          gain: clip.settings?.gain ?? clip.gain,
-                          balance: clip.settings?.balance ?? clip.balance,
-                          pitchShift: clip.settings?.pitchShift ?? clip.pitchShift,
-                          tempoOffset: clip.settings?.tempoOffset ?? clip.tempoOffset ?? 0,
-                          settings: clip.settings,
-                        });
-                      }}
+                      onClick={() => void onLoadClip(deck.id, clip)}
                     >
                       Load Deck {index + 1}
                     </button>

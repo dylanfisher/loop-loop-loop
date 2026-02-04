@@ -59,6 +59,7 @@ type DeckStackProps = {
   onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
   onFxPanelsToggleAll: (id: number, open: boolean) => void;
+  onFxResetAll: (id: number) => void;
   onStretchLoop: (id: number) => void;
   stretchEstimateByDeckId: Record<number, string>;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
@@ -152,6 +153,7 @@ const DeckStack = ({
   onRearrangeLoop,
   onFxPanelToggle,
   onFxPanelsToggleAll,
+  onFxResetAll,
   onStretchLoop,
   stretchEstimateByDeckId,
   onSaveLoopClip,
@@ -226,6 +228,7 @@ const DeckStack = ({
             onRearrangeLoop={onRearrangeLoop}
             onFxPanelToggle={onFxPanelToggle}
             onFxPanelsToggleAll={onFxPanelsToggleAll}
+            onFxResetAll={onFxResetAll}
             onStretchLoop={onStretchLoop}
             stretchEstimate={stretchEstimateByDeckId[deck.id] ?? null}
             onSaveLoopClip={onSaveLoopClip}

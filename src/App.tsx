@@ -347,6 +347,7 @@ const App = () => {
     setDeckRearrangerRegions,
     setDeckFxPanelOpen,
     setDeckFxPanelsOpen,
+    resetDeckFx,
     applyDeckFxPanelStatePatch,
     automationState,
     startAutomationRecording,
@@ -579,6 +580,7 @@ const App = () => {
           pitchShift: clip.pitchShift,
           tempoOffset: clip.tempoOffset ?? 0,
           settings: clip.settings,
+          applyFxSettings: clip.applyFxSettings ?? false,
         },
         ...prev,
       ]);
@@ -625,61 +627,69 @@ const App = () => {
           ? Math.min(deck.loopEndSeconds, duration)
           : duration;
       if (loopEnd <= loopStart + 0.01) return null;
-      const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
       const sliceDuration = Math.max(0.01, loopEnd - loopStart);
-      const renderDuration = sliceDuration / Math.max(0.01, tempoRatio);
-      const sampleRate = deck.buffer.sampleRate;
-      const pitchTrack = automationState.get(deckId)?.pitch;
+      const sliced = sliceBufferSegment(deck.buffer, loopStart, sliceDuration);
+      const blob = encodeWav(sliced);
+      const settings = buildClipSettings(deck, sliced.duration);
+      return {
+        blob,
+        durationSec: sliced.duration,
+        buffer: sliced,
+        gain: 0.9,
+        balance: 0,
+        pitchShift: 0,
+        tempoOffset: 0,
+        settings,
+        applyFxSettings: includeSettings,
+        name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
+      };
+    },
+    [buildClipSettings, decks]
+  );
+
+  const renderClipWithSettingsBaked = useCallback(
+    async (buffer: AudioBuffer, settings: ClipSettings) => {
+      const tempoRatio = Math.min(Math.max(1 + settings.tempoOffset / 100, 0.01), 16);
+      const renderDuration = buffer.duration / Math.max(0.01, tempoRatio);
+      const sampleRate = buffer.sampleRate;
+      const pitchTrack = settings.automation?.pitch;
+      const djFilterTrack = settings.automation?.djFilter;
+      const resonanceTrack = settings.automation?.resonance;
+      const eqLowTrack = settings.automation?.eqLow;
+      const eqMidTrack = settings.automation?.eqMid;
+      const eqHighTrack = settings.automation?.eqHigh;
+      const balanceTrack = settings.automation?.balance;
       const pitchActive =
-        Math.abs(deck.pitchShift) >= 0.001 || pitchTrack?.active === true;
-      const fractalMix = Math.min(Math.max(deck.fractalMix ?? 0, 0), 1);
-      const fractalStructure = Math.min(Math.max(deck.fractalStructure ?? 0.45, 0), 1);
-      const fractalDepth = Math.min(Math.max(deck.fractalDepth ?? 0.35, 0), 1);
-      const fractalDrift = Math.min(Math.max(deck.fractalDrift ?? 0.15, 0), 1);
-      const fractalDecay = Math.min(Math.max(deck.fractalDecay ?? 0.2, 0), 0.985);
-      const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
-      const delayTime = Math.min(Math.max(deck.delayTime ?? 0.35, 0.01), 1.5);
-      const delayFeedback = Math.min(Math.max(deck.delayFeedback ?? 0.35, 0), 0.95);
-      const delayMix = Math.min(Math.max(deck.delayMix ?? 0, 0), 1);
-      const delayTone = Math.min(Math.max(deck.delayTone ?? 6000, 400), 12000);
-      const delayPingPong = deck.delayPingPong ?? false;
-
-      const automation = automationState.get(deckId);
-      const djFilterTrack = automation?.djFilter;
-      const resonanceTrack = automation?.resonance;
-      const eqLowTrack = automation?.eqLow;
-      const eqMidTrack = automation?.eqMid;
-      const eqHighTrack = automation?.eqHigh;
-      const balanceTrack = automation?.balance;
-
-      const djFilterValue = djFilterTrack?.active ? djFilterTrack.currentValue : deck.djFilter;
-      const resonanceValue = resonanceTrack?.active
-        ? resonanceTrack.currentValue
-        : deck.filterResonance;
-      const eqLowValue = eqLowTrack?.active ? eqLowTrack.currentValue : deck.eqLowGain;
-      const eqMidValue = eqMidTrack?.active ? eqMidTrack.currentValue : deck.eqMidGain;
-      const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
-      const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
-      const pitchValue = pitchTrack?.active ? pitchTrack.currentValue : deck.pitchShift;
+        Math.abs(settings.pitchShift) >= 0.001 || pitchTrack?.active === true;
+      const fractalMix = Math.min(Math.max(settings.fractalMix ?? 0, 0), 1);
+      const fractalStructure = Math.min(Math.max(settings.fractalStructure ?? 0.45, 0), 1);
+      const fractalDepth = Math.min(Math.max(settings.fractalDepth ?? 0.35, 0), 1);
+      const fractalDrift = Math.min(Math.max(settings.fractalDrift ?? 0.15, 0), 1);
+      const fractalDecay = Math.min(Math.max(settings.fractalDecay ?? 0.2, 0), 0.985);
+      const fractalTone = Math.min(Math.max(settings.fractalTone ?? 6000, 300), 14000);
+      const delayTime = Math.min(Math.max(settings.delayTime ?? 0.35, 0.01), 1.5);
+      const delayFeedback = Math.min(Math.max(settings.delayFeedback ?? 0.35, 0), 0.95);
+      const delayMix = Math.min(Math.max(settings.delayMix ?? 0, 0), 1);
+      const delayTone = Math.min(Math.max(settings.delayTone ?? 6000, 400), 12000);
+      const delayPingPong = settings.delayPingPong ?? false;
 
       const needsPitch = pitchActive || pitchTrack?.active === true;
       const needsFilter =
-        !approxEqual(djFilterValue, 0) ||
-        !approxEqual(resonanceValue, 0) ||
+        !approxEqual(settings.djFilter, 0) ||
+        !approxEqual(settings.filterResonance, 0) ||
         djFilterTrack?.active === true ||
         resonanceTrack?.active === true;
       const needsEq =
-        !approxEqual(eqLowValue, 0) ||
-        !approxEqual(eqMidValue, 0) ||
-        !approxEqual(eqHighValue, 0) ||
+        !approxEqual(settings.eqLowGain, 0) ||
+        !approxEqual(settings.eqMidGain, 0) ||
+        !approxEqual(settings.eqHighGain, 0) ||
         eqLowTrack?.active === true ||
         eqMidTrack?.active === true ||
         eqHighTrack?.active === true;
-      const needsBalance = !approxEqual(balanceValue, 0) || balanceTrack?.active === true;
-      const needsGain = !approxEqual(deck.gain, 0.9);
+      const needsBalance = !approxEqual(settings.balance, 0) || balanceTrack?.active === true;
+      const needsGain = !approxEqual(settings.gain, 0.9);
       const needsDelay = delayMix > 0.001;
       const needsFractal = fractalMix > 0.001;
-
       const needsRender =
         !approxEqual(tempoRatio, 1) ||
         needsPitch ||
@@ -689,38 +699,16 @@ const App = () => {
         needsGain ||
         needsDelay ||
         needsFractal;
+      if (!needsRender) return buffer;
 
-      if (includeSettings) {
-        const sliced = sliceBufferSegment(deck.buffer, loopStart, sliceDuration);
-        const blob = encodeWav(sliced);
-        const settings = buildClipSettings(deck, sliced.duration);
-        return {
-          blob,
-          durationSec: sliced.duration,
-          buffer: sliced,
-          gain: settings.gain,
-          balance: settings.balance,
-          pitchShift: settings.pitchShift,
-          tempoOffset: settings.tempoOffset,
-          settings,
-          name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
-        };
-      }
-
-      if (!needsRender) {
-        const sliced = sliceBufferSegment(deck.buffer, loopStart, sliceDuration);
-        const blob = encodeWav(sliced);
-        return {
-          blob,
-          durationSec: sliced.duration,
-          buffer: sliced,
-          gain: 0.9,
-          balance: 0,
-          pitchShift: 0,
-          tempoOffset: 0,
-          name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
-        };
-      }
+      const toAutomation = (track?: ClipSettings["automation"][keyof ClipSettings["automation"]]) =>
+        track
+          ? {
+              active: track.active,
+              samples: Float32Array.from(track.samples),
+              durationSec: track.durationSec,
+            }
+          : undefined;
 
       const targetSamples = Math.max(1, Math.ceil(renderDuration * sampleRate));
       const fftFrameSize = 1024;
@@ -732,7 +720,7 @@ const App = () => {
       const extraSamples = latencySamples + maxSilenceTrimSamples;
       const length = Math.max(1, targetSamples + extraSamples);
       const offline = new OfflineAudioContext(
-        deck.buffer.numberOfChannels,
+        buffer.numberOfChannels,
         length,
         sampleRate
       );
@@ -740,81 +728,39 @@ const App = () => {
         try {
           await ensurePitchShiftWorklet(offline);
         } catch (error) {
-          console.warn("Pitch shift worklet unavailable for clip render", error);
+          console.warn("Pitch shift worklet unavailable for clip bake", error);
         }
       }
       const source = offline.createBufferSource();
-      source.buffer = deck.buffer;
+      source.buffer = buffer;
       source.playbackRate.value = tempoRatio;
 
       let chain: AudioNode = source;
       chain = applyBalanceOffline(offline, chain, {
-        balance: balanceValue,
+        balance: settings.balance,
         renderDuration,
-        automation: balanceTrack
-          ? {
-              active: balanceTrack.active,
-              samples: balanceTrack.samples,
-              durationSec: balanceTrack.durationSec,
-            }
-          : undefined,
+        automation: toAutomation(balanceTrack),
       });
       chain = applyPitchShiftOffline(offline, chain, {
-        pitch: pitchValue,
+        pitch: settings.pitchShift,
         renderDuration,
-        automation: pitchTrack
-          ? {
-              active: pitchTrack.active,
-              samples: pitchTrack.samples,
-              durationSec: pitchTrack.durationSec,
-            }
-          : undefined,
+        automation: toAutomation(pitchTrack),
       });
       chain = applyDjFilterOffline(offline, chain, {
-        djFilter: djFilterValue,
-        resonance: resonanceValue,
+        djFilter: settings.djFilter,
+        resonance: settings.filterResonance,
         renderDuration,
-        djAutomation: djFilterTrack
-          ? {
-              active: djFilterTrack.active,
-              samples: djFilterTrack.samples,
-              durationSec: djFilterTrack.durationSec,
-            }
-          : undefined,
-        resonanceAutomation: resonanceTrack
-          ? {
-              active: resonanceTrack.active,
-              samples: resonanceTrack.samples,
-              durationSec: resonanceTrack.durationSec,
-            }
-          : undefined,
+        djAutomation: toAutomation(djFilterTrack),
+        resonanceAutomation: toAutomation(resonanceTrack),
       });
       chain = applyEq3Offline(offline, chain, {
-        low: eqLowValue,
-        mid: eqMidValue,
-        high: eqHighValue,
+        low: settings.eqLowGain,
+        mid: settings.eqMidGain,
+        high: settings.eqHighGain,
         renderDuration,
-        lowAutomation: eqLowTrack
-          ? {
-              active: eqLowTrack.active,
-              samples: eqLowTrack.samples,
-              durationSec: eqLowTrack.durationSec,
-            }
-          : undefined,
-        midAutomation: eqMidTrack
-          ? {
-              active: eqMidTrack.active,
-              samples: eqMidTrack.samples,
-              durationSec: eqMidTrack.durationSec,
-            }
-          : undefined,
-        highAutomation: eqHighTrack
-          ? {
-              active: eqHighTrack.active,
-              samples: eqHighTrack.samples,
-              durationSec: eqHighTrack.durationSec,
-            }
-          : undefined,
+        lowAutomation: toAutomation(eqLowTrack),
+        midAutomation: toAutomation(eqMidTrack),
+        highAutomation: toAutomation(eqHighTrack),
       });
       chain = applyPostEqEffectsOffline(
         offline,
@@ -838,9 +784,9 @@ const App = () => {
         },
         "saveLoop"
       );
-      chain = applyGainOffline(offline, chain, { gain: deck.gain, bypassAt: 0.9 });
+      chain = applyGainOffline(offline, chain, { gain: settings.gain, bypassAt: 0.9 });
       chain.connect(offline.destination);
-      source.start(0, loopStart, renderDuration);
+      source.start(0, 0, renderDuration);
       const rendered = await offline.startRendering();
       const silenceTrimSamples = findLeadingSilenceSamples(
         rendered,
@@ -848,26 +794,66 @@ const App = () => {
         1e-4
       );
       const totalTrim = Math.min(latencySamples + silenceTrimSamples, extraSamples);
-      const trimmed = trimBufferLeadingSamples(
+      return trimBufferLeadingSamples(
         offline,
         rendered,
         totalTrim,
         targetSamples
       );
-      const blob = encodeWav(trimmed);
-      return {
-        blob,
-        durationSec: trimmed.duration,
-        buffer: trimmed,
-        gain: 0.9,
-        balance: 0,
-        pitchShift: 0,
-        tempoOffset: 0,
-        settings: undefined,
-        name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
-      };
     },
-    [automationState, buildClipSettings, decks]
+    []
+  );
+
+  const handleLoadClipToDeck = useCallback(
+    async (deckId: number, clip: ClipItem) => {
+      const applyFxSettings = Boolean(clip.settings && clip.applyFxSettings);
+      const makeClipFile = (blob: Blob, ext: string, fallbackType: string) =>
+        new File([blob], `${clip.name}.${ext}`, {
+          type: blob.type || fallbackType,
+        });
+      if (clip.settings && !applyFxSettings) {
+        try {
+          const cached = clipBufferCacheRef.current.get(clip.id);
+          const sourceBuffer = (() => {
+            if (clip.buffer) return clip.buffer;
+            if (cached && cached.blob === clip.blob) return cached.buffer;
+            return null;
+          })();
+          const rawBuffer =
+            sourceBuffer ??
+            (await decodeFile(makeClipFile(clip.blob, "wav", "audio/wav")));
+          const baked = await renderClipWithSettingsBaked(rawBuffer, clip.settings);
+          const bakedBlob = encodeWav(baked);
+          await handleFileSelected(
+            deckId,
+            makeClipFile(bakedBlob, "wav", "audio/wav"),
+            {
+              gain: clip.gain,
+              balance: clip.balance,
+              pitchShift: clip.pitchShift,
+              tempoOffset: clip.tempoOffset ?? 0,
+            }
+          );
+          return;
+        } catch (error) {
+          console.warn("Failed to bake clip with settings; loading raw clip", error);
+        }
+      }
+      await handleFileSelected(
+        deckId,
+        makeClipFile(clip.blob, "webm", "audio/webm"),
+        {
+          gain: applyFxSettings ? clip.settings?.gain : clip.gain,
+          balance: applyFxSettings ? clip.settings?.balance : clip.balance,
+          pitchShift: applyFxSettings ? clip.settings?.pitchShift : clip.pitchShift,
+          tempoOffset: applyFxSettings
+            ? clip.settings?.tempoOffset
+            : clip.tempoOffset ?? 0,
+          settings: applyFxSettings ? clip.settings : undefined,
+        }
+      );
+    },
+    [decodeFile, handleFileSelected, renderClipWithSettingsBaked]
   );
 
   const handleSaveLoopClip = useCallback(
@@ -1664,6 +1650,7 @@ const App = () => {
           tempoOffset: clip.tempoOffset ?? 0,
           wavBlobId: blobId,
           settings: clip.settings,
+          applyFxSettings: clip.applyFxSettings ?? false,
         });
       }
 
@@ -1810,6 +1797,7 @@ const App = () => {
           pitchShift: clip.pitchShift ?? 0,
           tempoOffset: clip.tempoOffset ?? 0,
           settings: clip.settings,
+          applyFxSettings: clip.applyFxSettings ?? Boolean(clip.settings),
         });
         maxClipId = Math.max(maxClipId, clip.id);
       }
@@ -1960,6 +1948,7 @@ const App = () => {
           pitchShift: clip.pitchShift ?? 0,
           tempoOffset: clip.tempoOffset ?? 0,
           settings: clip.settings,
+          applyFxSettings: clip.applyFxSettings ?? Boolean(clip.settings),
         });
         maxClipId = Math.max(maxClipId, clip.id);
       }
@@ -2466,7 +2455,7 @@ const App = () => {
         <ClipRecorder
           decks={decks}
           clips={clips}
-          onLoadClip={handleFileSelected}
+          onLoadClip={handleLoadClipToDeck}
           onAddClip={addClip}
           onUpdateClip={updateClip}
           onRemoveClip={removeClip}
@@ -2520,6 +2509,7 @@ const App = () => {
           onRearrangeLoop={handleRearrangeLoop}
           onFxPanelToggle={setDeckFxPanelOpen}
           onFxPanelsToggleAll={setDeckFxPanelsOpen}
+          onFxResetAll={resetDeckFx}
           onStretchLoop={handleStretchLoop}
           stretchEstimateByDeckId={stretchEstimateByDeckId}
           automationState={automationState}

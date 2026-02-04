@@ -34,6 +34,7 @@ const DEFAULT_REARRANGER_CHAOS = 0;
 const DEFAULT_REARRANGER_REVERSE = 0;
 const DEFAULT_REARRANGER_AUTO = false;
 const MAX_REARRANGER_SLICES = 32;
+const DEFAULT_RESONANCE = 0;
 const EQ_MAX_DB = 18;
 const FX_ACTIVE_EPSILON = 1e-3;
 const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
@@ -1159,7 +1160,7 @@ const useDecks = () => {
   const addDeck = () => {
     const id = nextDeckId.current;
     nextDeckId.current += 1;
-    resetAutomation(id, 0, 0.7, 0, 0, 0, 0, 0);
+    resetAutomation(id, 0, DEFAULT_RESONANCE, 0, 0, 0, 0, 0);
     setDecksWithHistory((prev) => [
       ...prev,
       {
@@ -1258,7 +1259,7 @@ const useDecks = () => {
     const nextBalance = clipSettings?.balance ?? options?.balance ?? 0;
     const nextTempoOffset = clipSettings?.tempoOffset ?? options?.tempoOffset ?? 0;
     const nextDjFilter = clipSettings?.djFilter ?? 0;
-    const nextResonance = clipSettings?.filterResonance ?? 0.7;
+    const nextResonance = clipSettings?.filterResonance ?? DEFAULT_RESONANCE;
     const nextEqLow = clipSettings?.eqLowGain ?? 0;
     const nextEqMid = clipSettings?.eqMidGain ?? 0;
     const nextEqHigh = clipSettings?.eqHighGain ?? 0;
@@ -2362,7 +2363,7 @@ const useDecks = () => {
       const nextRearrangerRegionsManual =
         options?.rearrangerRegionsManual ?? deck.rearrangerRegionsManual ?? false;
       if (!preserveFxState) {
-        resetAutomation(id, 0, 0.7, 0, 0, 0, nextBalance, nextPitchShift);
+        resetAutomation(id, 0, DEFAULT_RESONANCE, 0, 0, 0, nextBalance, nextPitchShift);
       }
 
       const status: DeckStatus = autoplay ? "playing" : "ready";
@@ -2717,6 +2718,87 @@ const useDecks = () => {
       )
     );
   };
+
+  const resetDeckFx = useCallback(
+    (id: number) => {
+      const deck = decks.find((item) => item.id === id);
+      if (!deck) return;
+      const nextPitchShift = deck.tempoPitchSync
+        ? getTempoSyncedPitch(deck.tempoOffset)
+        : 0;
+      applyDeckSettingsToEngine(id, {
+        gain: deck.gain,
+        djFilter: 0,
+        filterResonance: DEFAULT_RESONANCE,
+        eqLowGain: 0,
+        eqMidGain: 0,
+        eqHighGain: 0,
+        balance: 0,
+        pitchShift: nextPitchShift,
+        tempoOffset: deck.tempoOffset,
+        delayTime: DEFAULT_DELAY_TIME,
+        delayFeedback: DEFAULT_DELAY_FEEDBACK,
+        delayMix: DEFAULT_DELAY_MIX,
+        delayTone: DEFAULT_DELAY_TONE,
+        delayPingPong: DEFAULT_DELAY_PINGPONG,
+        fractalMix: DEFAULT_FRACTAL_MIX,
+        fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
+        fractalDepth: DEFAULT_FRACTAL_DEPTH,
+        fractalDrift: DEFAULT_FRACTAL_DRIFT,
+        fractalDecay: DEFAULT_FRACTAL_DECAY,
+        fractalTone: DEFAULT_FRACTAL_TONE,
+      });
+      resetAutomation(
+        id,
+        0,
+        DEFAULT_RESONANCE,
+        0,
+        0,
+        0,
+        0,
+        nextPitchShift
+      );
+      updateDeck(
+        id,
+        {
+          djFilter: 0,
+          filterResonance: DEFAULT_RESONANCE,
+          eqLowGain: 0,
+          eqMidGain: 0,
+          eqHighGain: 0,
+          balance: 0,
+          pitchShift: nextPitchShift,
+          stretchRatio: DEFAULT_STRETCH_RATIO,
+          stretchWindowSize: DEFAULT_STRETCH_WINDOW_SIZE,
+          stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
+          stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
+          stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
+          stretchScatter: DEFAULT_STRETCH_SCATTER,
+          delayTime: DEFAULT_DELAY_TIME,
+          delayFeedback: DEFAULT_DELAY_FEEDBACK,
+          delayMix: DEFAULT_DELAY_MIX,
+          delayTone: DEFAULT_DELAY_TONE,
+          delayPingPong: DEFAULT_DELAY_PINGPONG,
+          fractalMix: DEFAULT_FRACTAL_MIX,
+          fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
+          fractalDepth: DEFAULT_FRACTAL_DEPTH,
+          fractalDrift: DEFAULT_FRACTAL_DRIFT,
+          fractalDecay: DEFAULT_FRACTAL_DECAY,
+          fractalTone: DEFAULT_FRACTAL_TONE,
+          rearrangerSlices: DEFAULT_REARRANGER_SLICES,
+          rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
+          rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
+          rearrangerReverse: DEFAULT_REARRANGER_REVERSE,
+          rearrangerAuto: DEFAULT_REARRANGER_AUTO,
+          rearrangerRegions: undefined,
+          rearrangerRegionIds: undefined,
+          rearrangerRegionsManual: false,
+        },
+        false
+      );
+    },
+    [applyDeckSettingsToEngine, decks, getTempoSyncedPitch, resetAutomation, updateDeck]
+  );
 
   const applyDeckFxPanelStatePatch = useCallback(
     (patch: Record<number, Partial<DeckFxPanelState>>) => {
@@ -3103,6 +3185,7 @@ const useDecks = () => {
     setDeckRearrangerRegions,
     setDeckFxPanelOpen,
     setDeckFxPanelsOpen,
+    resetDeckFx,
     applyDeckFxPanelStatePatch,
     automationState,
     startAutomationRecording,

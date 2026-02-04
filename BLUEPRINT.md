@@ -47,6 +47,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Deck FX layout includes a Fractal Resonator unit (6 compact controls) for live modal-resonance sculpting.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
+- Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
@@ -80,6 +81,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Auto-rearrange (On Loop) updates are treated as transient: they do not create undo history snapshots and skip immediate autosave scheduling to avoid runaway memory/encode pressure during continuous looping.
 - Auto-rearrange playback reload path reuses existing deck audio nodes (source-only restart) to avoid repeated node graph teardown/rebuild churn on every loop.
 - Clip metadata can include per-clip deck settings + automation snapshots to rehydrate FX on load.
+- Save Loop clips always persist FX settings metadata; Clip Rack exposes a per-clip FX badge toggle that controls whether those saved settings are applied when loading the clip into a deck.
+- Save Loop clip audio is always exported from the raw loop slice (unbaked audio); FX settings are stored as metadata and can be selectively applied on clip load via the Clip Rack FX toggle.
 - Automation lanes support compact preset waveforms and length scaling controls.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
 - Session export/import: zip bundle with `session.json` manifest and WAV audio assets.

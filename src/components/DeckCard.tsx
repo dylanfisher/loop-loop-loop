@@ -122,6 +122,7 @@ type DeckCardProps = {
   onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
   onFxPanelsToggleAll: (id: number, open: boolean) => void;
+  onFxResetAll: (id: number) => void;
   onStretchLoop: (id: number) => void;
   stretchEstimate?: string | null;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
@@ -214,6 +215,7 @@ const DeckCard = ({
   onRearrangeLoop,
   onFxPanelToggle,
   onFxPanelsToggleAll,
+  onFxResetAll,
   onStretchLoop,
   stretchEstimate,
   onSaveLoopClip,
@@ -444,21 +446,27 @@ const DeckCard = ({
     delay: {
       automation: false,
       modified:
-        isDifferent(deck.delayMix, 0) ||
-        isDifferent(deck.delayTime, 0.35) ||
-        isDifferent(deck.delayFeedback, 0.35) ||
-        isDifferent(deck.delayTone, 6000, 1) ||
-        deck.delayPingPong,
+        deck.delayMix > 1e-3 &&
+        (
+          isDifferent(deck.delayMix, 0) ||
+          isDifferent(deck.delayTime, 0.35) ||
+          isDifferent(deck.delayFeedback, 0.35) ||
+          isDifferent(deck.delayTone, 6000, 1) ||
+          deck.delayPingPong
+        ),
     },
     fractal: {
       automation: false,
       modified:
-        isDifferent(deck.fractalMix, 0) ||
-        isDifferent(deck.fractalStructure, 0.45) ||
-        isDifferent(deck.fractalDepth, 0.35) ||
-        isDifferent(deck.fractalDrift, 0.15) ||
-        isDifferent(deck.fractalDecay, 0.2) ||
-        isDifferent(deck.fractalTone, 6000, 1),
+        deck.fractalMix > 1e-3 &&
+        (
+          isDifferent(deck.fractalMix, 0) ||
+          isDifferent(deck.fractalStructure, 0.45) ||
+          isDifferent(deck.fractalDepth, 0.35) ||
+          isDifferent(deck.fractalDrift, 0.15) ||
+          isDifferent(deck.fractalDecay, 0.2) ||
+          isDifferent(deck.fractalTone, 6000, 1)
+        ),
     },
     rearranger: {
       automation: false,
@@ -780,9 +788,18 @@ const DeckCard = ({
       <div className="deck__fx">
         <div className="deck__fx-title">
           <span>Deck FX</span>
-          <button type="button" className="deck__action deck__fx-title-toggle" onClick={toggleAllFxPanels}>
-            {allFxOpen ? "Close All" : "Open All"}
-          </button>
+          <div className="deck__fx-title-actions">
+            <button
+              type="button"
+              className="deck__action deck__fx-title-toggle"
+              onClick={() => onFxResetAll(deck.id)}
+            >
+              Reset FX
+            </button>
+            <button type="button" className="deck__action deck__fx-title-toggle" onClick={toggleAllFxPanels}>
+              {allFxOpen ? "Close All" : "Open All"}
+            </button>
+          </div>
         </div>
         <div className="deck__fx-row">
           <div
