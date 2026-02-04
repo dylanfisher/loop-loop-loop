@@ -25,6 +25,7 @@ import { applyPostEqEffectsOffline } from "./audio/effects/postEqPipeline";
 import { applyPitchShiftOffline } from "./audio/effects/pitchShift";
 import { applyDjFilterOffline } from "./audio/effects/djFilter";
 import { applyEq3Offline } from "./audio/effects/eq3";
+import { applyBalanceOffline } from "./audio/effects/balance";
 import PerfOverlay from "./components/PerfOverlay";
 import {
   AUTO_SESSION_ID,
@@ -364,26 +365,6 @@ const App = () => {
     void suspendContext();
   }, [hasActivePlayback, recording, resumeContext, suspendContext]);
 
-  const scheduleLoopedSamples = useCallback(
-    (
-    samples: Float32Array,
-    durationSec: number,
-    renderDuration: number,
-    onValue: (value: number, time: number) => void
-  ) => {
-    if (!durationSec || samples.length === 0 || renderDuration <= 0) return;
-    const sampleRate = samples.length / durationSec;
-    if (!Number.isFinite(sampleRate) || sampleRate <= 0) return;
-    const totalSteps = Math.max(1, Math.ceil(renderDuration * sampleRate));
-    for (let i = 0; i < totalSteps; i += 1) {
-      const time = i / sampleRate;
-      const value = samples[i % samples.length] ?? 0;
-      onValue(value, time);
-    }
-  },
-    []
-  );
-
   const buildClipSettings = useCallback(
     (deck: DeckState, loopDuration: number): ClipSettings => {
       const automation = automationState.get(deck.id);
@@ -615,7 +596,6 @@ const App = () => {
         eqLowTrack?.active === true ||
         eqMidTrack?.active === true ||
         eqHighTrack?.active === true;
-      const needsBalance = !approxEqual(balanceValue, 0) || balanceTrack?.active === true;
       const needsGain = !approxEqual(deck.gain, 0.9);
       const needsDelay = delayMix > 0.001;
       const needsFractal = fractalMix > 0.001;
@@ -688,30 +668,23 @@ const App = () => {
       const source = offline.createBufferSource();
       source.buffer = deck.buffer;
       source.playbackRate.value = tempoRatio;
-      const balanceNode = needsBalance ? offline.createStereoPanner() : null;
-      if (balanceNode) {
-        balanceNode.pan.value = balanceValue;
-      }
       const gainNode = needsGain ? offline.createGain() : null;
       if (gainNode) {
         gainNode.gain.value = deck.gain;
       }
 
-      if (needsBalance && balanceTrack?.active && balanceTrack.durationSec > 0 && balanceNode) {
-        scheduleLoopedSamples(
-          balanceTrack.samples,
-          balanceTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            balanceNode.pan.setValueAtTime(value, time);
-          }
-        );
-      }
       let chain: AudioNode = source;
-      if (balanceNode) {
-        chain.connect(balanceNode);
-        chain = balanceNode;
-      }
+      chain = applyBalanceOffline(offline, chain, {
+        balance: balanceValue,
+        renderDuration,
+        automation: balanceTrack
+          ? {
+              active: balanceTrack.active,
+              samples: balanceTrack.samples,
+              durationSec: balanceTrack.durationSec,
+            }
+          : undefined,
+      });
       chain = applyPitchShiftOffline(offline, chain, {
         pitch: pitchValue,
         renderDuration,
@@ -823,7 +796,7 @@ const App = () => {
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
         });
     },
-    [addClip, automationState, buildClipSettings, decks, scheduleLoopedSamples]
+    [addClip, automationState, buildClipSettings, decks]
   );
 
   const exportMixdown = useCallback(async () => {
@@ -873,7 +846,6 @@ const App = () => {
       const fractalDecay = Math.min(Math.max(deck.fractalDecay ?? 0.2, 0), 0.985);
       const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
 
-      const balanceNode = offline.createStereoPanner();
       const gainNode = offline.createGain();
       const clipper = createSoftClipper(offline);
       const limiter = createLimiter(offline);
@@ -897,20 +869,18 @@ const App = () => {
       const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
 
       gainNode.gain.value = deck.gain;
-      balanceNode.pan.value = balanceValue;
-
-      if (balanceTrack?.active && balanceTrack.durationSec > 0) {
-        scheduleLoopedSamples(
-          balanceTrack.samples,
-          balanceTrack.durationSec,
-          durationSec,
-          (value, time) => {
-            balanceNode.pan.setValueAtTime(value, time);
-          }
-        );
-      }
-      source.connect(balanceNode);
-      const preEq = applyPitchShiftOffline(offline, balanceNode, {
+      let preEq: AudioNode = applyBalanceOffline(offline, source, {
+        balance: balanceValue,
+        renderDuration: durationSec,
+        automation: balanceTrack
+          ? {
+              active: balanceTrack.active,
+              samples: balanceTrack.samples,
+              durationSec: balanceTrack.durationSec,
+            }
+          : undefined,
+      });
+      preEq = applyPitchShiftOffline(offline, preEq, {
         pitch: pitchValue,
         renderDuration: durationSec,
         automation: pitchTrack
@@ -1027,7 +997,6 @@ const App = () => {
     decks,
     exportMinutes,
     exporting,
-    scheduleLoopedSamples,
   ]);
 
   const handleExportMinutesChange = useCallback((value: number) => {
@@ -1219,7 +1188,6 @@ const App = () => {
         eqLowTrack?.active === true ||
         eqMidTrack?.active === true ||
         eqHighTrack?.active === true;
-      const needsBalance = !approxEqual(balanceValue, 0) || balanceTrack?.active === true;
       const needsGain = !approxEqual(deck.gain, 0.9);
 
       if (needsPitch) {
@@ -1230,10 +1198,6 @@ const App = () => {
         }
       }
 
-      const balanceNode = needsBalance ? offline.createStereoPanner() : null;
-      if (balanceNode) {
-        balanceNode.pan.value = balanceValue;
-      }
       const gainNode = needsGain ? offline.createGain() : null;
       if (gainNode) {
         gainNode.gain.value = deck.gain;
@@ -1243,21 +1207,18 @@ const App = () => {
       const limiter = limiterNeeded ? createLimiter(offline) : null;
 
       const renderDuration = sliceDuration;
-      if (needsBalance && balanceTrack?.active && balanceTrack.durationSec > 0 && balanceNode) {
-        scheduleLoopedSamples(
-          balanceTrack.samples,
-          balanceTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            balanceNode.pan.setValueAtTime(value, time);
-          }
-        );
-      }
       let chain: AudioNode = source;
-      if (balanceNode) {
-        chain.connect(balanceNode);
-        chain = balanceNode;
-      }
+      chain = applyBalanceOffline(offline, chain, {
+        balance: balanceValue,
+        renderDuration,
+        automation: balanceTrack
+          ? {
+              active: balanceTrack.active,
+              samples: balanceTrack.samples,
+              durationSec: balanceTrack.durationSec,
+            }
+          : undefined,
+      });
       chain = applyPitchShiftOffline(offline, chain, {
         pitch: pitchValue,
         renderDuration,
@@ -1429,7 +1390,6 @@ const App = () => {
       automationState,
       decks,
       loadDeckBuffer,
-      scheduleLoopedSamples,
       stretchCalibration,
     ]
   );
