@@ -20,13 +20,13 @@ import {
   ensurePitchShiftWorklet,
 } from "./audio/pitchShift";
 import { createPaulStretchNode, ensurePaulStretchWorklet } from "./audio/paulStretch";
-import { createLimiter, createSoftClipper } from "./audio/clipper";
 import { applyPostEqEffectsOffline } from "./audio/effects/postEqPipeline";
 import { applyPitchShiftOffline } from "./audio/effects/pitchShift";
 import { applyDjFilterOffline } from "./audio/effects/djFilter";
 import { applyEq3Offline } from "./audio/effects/eq3";
 import { applyBalanceOffline } from "./audio/effects/balance";
 import { applyGainOffline } from "./audio/effects/gain";
+import { applyMasterProtectOffline } from "./audio/effects/masterProtect";
 import PerfOverlay from "./components/PerfOverlay";
 import {
   AUTO_SESSION_ID,
@@ -840,8 +840,6 @@ const App = () => {
       const fractalDecay = Math.min(Math.max(deck.fractalDecay ?? 0.2, 0), 0.985);
       const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
 
-      const clipper = createSoftClipper(offline);
-      const limiter = createLimiter(offline);
 
       const automation = automationState.get(deck.id);
       const djFilterTrack = automation?.djFilter;
@@ -952,9 +950,8 @@ const App = () => {
         "exportMix"
       );
       const postGain = applyGainOffline(offline, postEq, { gain: deck.gain, bypassAt: 0.9 });
-      postGain.connect(limiter);
-      limiter.connect(clipper);
-      clipper.connect(masterMix);
+      const protectedOut = applyMasterProtectOffline(offline, postGain, { enabled: true });
+      protectedOut.connect(masterMix);
 
       const loopStart = deck.loopStartSeconds ?? 0;
       const loopEnd =
@@ -1191,8 +1188,6 @@ const App = () => {
       }
 
       const limiterNeeded = needsGain || needsEq || needsFilter || needsPitch;
-      const clipper = limiterNeeded ? createSoftClipper(offline) : null;
-      const limiter = limiterNeeded ? createLimiter(offline) : null;
 
       const renderDuration = sliceDuration;
       let chain: AudioNode = source;
@@ -1265,11 +1260,7 @@ const App = () => {
           : undefined,
       });
       chain = applyGainOffline(offline, chain, { gain: deck.gain, bypassAt: 0.9 });
-      if (limiter && clipper) {
-        chain.connect(limiter);
-        limiter.connect(clipper);
-        chain = clipper;
-      }
+      chain = applyMasterProtectOffline(offline, chain, { enabled: limiterNeeded });
       chain.connect(stretchNode, 0, 0);
       keepAlive.connect(stretchNode, 0, 1);
       let stretchChain: AudioNode = stretchNode;
