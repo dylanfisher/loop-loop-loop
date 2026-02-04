@@ -56,8 +56,8 @@ describe("stretchEstimate", () => {
     expect(formatStretchEstimate(73.2)).toBe("~1m 13s");
   });
 
-  it("formats label with learning state", () => {
-    expect(formatStretchEstimateLabel(3.25, 0)).toBe("Approx render: ~3.3s (learning...)");
+  it("formats label consistently", () => {
+    expect(formatStretchEstimateLabel(3.25, 0)).toBe("Approx render: ~3.3s");
     expect(formatStretchEstimateLabel(3.25, 5)).toBe("Approx render: ~3.3s");
   });
 

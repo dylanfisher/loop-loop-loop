@@ -377,6 +377,9 @@ const Waveform = ({
   const balanceRef = useRef(0);
   const lastBufferRef = useRef<AudioBuffer | null>(null);
   const totalTimeLabelRef = useRef<HTMLSpanElement | null>(null);
+  const getResolvedDurationRef = useRef<() => number>(() => 0);
+  const getDisplaySecondsRef = useRef<() => number>(() => 0);
+  const renderOverlayRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     renderCountRef.current += 1;
@@ -564,6 +567,14 @@ const Waveform = ({
     startedAtMs,
   ]);
 
+  useEffect(() => {
+    getResolvedDurationRef.current = getResolvedDuration;
+  }, [getResolvedDuration]);
+
+  useEffect(() => {
+    getDisplaySecondsRef.current = getDisplaySeconds;
+  }, [getDisplaySeconds]);
+
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
     if (!overlay || !buffer) return;
@@ -710,6 +721,10 @@ const Waveform = ({
     waveformGainScale,
     zoom,
   ]);
+
+  useEffect(() => {
+    renderOverlayRef.current = renderOverlay;
+  }, [renderOverlay]);
 
   useEffect(() => {
     renderOverlay();
@@ -905,7 +920,7 @@ const Waveform = ({
       const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
       fillWaveformBackground(canvas);
       drawWaveform(canvas, peaksRef.current, ink, waveformGainScale);
-      renderOverlay();
+      renderOverlayRef.current();
     };
 
     const resize = () => {
@@ -951,7 +966,6 @@ const Waveform = ({
     eqHighGain,
     eqLowGain,
     eqMidGain,
-    renderOverlay,
     themeToken,
     fillWaveformBackground,
     computePeaksPerSecond,
@@ -969,7 +983,7 @@ const Waveform = ({
 
   useEffect(() => {
     if (!canvasRef.current || !buffer) return;
-    const resolvedDuration = getResolvedDuration();
+    const resolvedDuration = getResolvedDurationRef.current();
     const zoomChanged = zoom !== prevZoomRef.current;
     if (resolvedDuration && zoomChanged) {
       const visualDuration = resolvedDuration / Math.max(1, zoom);
@@ -977,7 +991,7 @@ const Waveform = ({
       if (loopEnabled && loopEndSeconds > loopStartSeconds) {
         centerSeconds = (loopStartSeconds + loopEndSeconds) / 2;
       } else {
-        const playheadSeconds = getDisplaySeconds();
+        const playheadSeconds = getDisplaySecondsRef.current();
         centerSeconds = Math.min(Math.max(playheadSeconds, 0), resolvedDuration);
       }
       const nextWindowStart = clampWindowStart(
@@ -1005,7 +1019,7 @@ const Waveform = ({
     const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
     fillWaveformBackground(canvasRef.current);
     drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
-    renderOverlay();
+    renderOverlayRef.current();
   }, [
     balance,
     buffer,
@@ -1013,12 +1027,9 @@ const Waveform = ({
     eqHighGain,
     eqLowGain,
     eqMidGain,
-    getDisplaySeconds,
-    getResolvedDuration,
     loopEnabled,
     loopEndSeconds,
     loopStartSeconds,
-    renderOverlay,
     themeToken,
     fillWaveformBackground,
     computePeaksPerSecond,

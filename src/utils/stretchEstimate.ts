@@ -45,8 +45,8 @@ export const formatStretchEstimate = (seconds: number) => {
 };
 
 export const formatStretchEstimateLabel = (seconds: number, sampleCount: number) => {
-  const learningSuffix = sampleCount < 5 ? " (learning...)" : "";
-  return `Approx render: ${formatStretchEstimate(seconds)}${learningSuffix}`;
+  void sampleCount;
+  return `Approx render: ${formatStretchEstimate(seconds)}`;
 };
 
 export const loadStretchCalibrationState = (): StretchCalibrationState => {

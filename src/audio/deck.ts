@@ -557,6 +557,7 @@ export const setDeckDelayMixValue = (deckId: number, value: number) => {
   if (nodes) {
     nodes.delayWet.gain.value = value;
     nodes.delayDry.gain.value = 1 - value;
+    setDelayRouting(nodes, value > 0);
     pendingDelayMix.delete(deckId);
   } else {
     pendingDelayMix.set(deckId, value);

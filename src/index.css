@@ -1212,6 +1212,7 @@ button:active {
 .transport__export {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -1230,6 +1231,12 @@ button:active {
   border: 1px solid var(--line);
   font-size: 0.68rem;
   border-radius: 8px;
+}
+
+.transport__estimate {
+  color: var(--muted);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
 }
 
 .transport__record {

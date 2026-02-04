@@ -33,6 +33,7 @@ import {
   saveSessionState,
 } from "./utils/sessionStore";
 import { createZip, readZip } from "./utils/zip";
+import { encodeWavOffThread } from "./utils/wavWorkerClient";
 import {
   applyStretchCalibration,
   estimateStretchRenderSeconds,
@@ -169,10 +170,19 @@ const applyBufferGain = (buffer: AudioBuffer, gain: number) => {
   }
 };
 
+const formatEstimateDuration = (seconds: number) => {
+  const safeSeconds = Math.max(1, Math.round(seconds));
+  if (safeSeconds < 60) return `~${safeSeconds}s`;
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `~${minutes}m ${remainingSeconds}s`;
+};
+
 const App = () => {
   const [clips, setClips] = useState<ClipItem[]>([]);
   const [exportMinutes, setExportMinutes] = useState(10);
   const [exporting, setExporting] = useState(false);
+  const [exportEstimateLabel, setExportEstimateLabel] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [masterGain, setMasterGainValue] = useState(0.9);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -239,6 +249,7 @@ const App = () => {
   const clipIdRef = useRef(1);
   const clipNameRef = useRef(1);
   const clipsRef = useRef<ClipItem[]>([]);
+  const clipBufferCacheRef = useRef<Map<number, { blob: Blob; buffer: AudioBuffer }>>(new Map());
   const autosaveTimeoutRef = useRef<number | null>(null);
   const autosaveReadyRef = useRef(false);
   const [autosaveReady, setAutosaveReady] = useState(false);
@@ -456,6 +467,23 @@ const App = () => {
 
   useEffect(() => {
     clipsRef.current = clips;
+    const nextIds = new Set<number>();
+    clips.forEach((clip) => {
+      nextIds.add(clip.id);
+      const cached = clipBufferCacheRef.current.get(clip.id);
+      if (clip.buffer) {
+        clipBufferCacheRef.current.set(clip.id, { blob: clip.blob, buffer: clip.buffer });
+        return;
+      }
+      if (cached && cached.blob !== clip.blob) {
+        clipBufferCacheRef.current.delete(clip.id);
+      }
+    });
+    clipBufferCacheRef.current.forEach((_, id) => {
+      if (!nextIds.has(id)) {
+        clipBufferCacheRef.current.delete(id);
+      }
+    });
   }, [clips]);
 
   useEffect(() => {
@@ -490,6 +518,9 @@ const App = () => {
       const name = clip.name ?? `Clip ${clipNameRef.current}`;
       clipNameRef.current += 1;
       const url = URL.createObjectURL(clip.blob);
+      if (clip.buffer) {
+        clipBufferCacheRef.current.set(id, { blob: clip.blob, buffer: clip.buffer });
+      }
       setClips((prev) => [
         {
           id,
@@ -511,6 +542,19 @@ const App = () => {
   );
 
   const updateClip = useCallback((id: number, updates: Partial<ClipItem>) => {
+    if (updates.buffer && updates.blob) {
+      clipBufferCacheRef.current.set(id, { blob: updates.blob, buffer: updates.buffer });
+    } else if (updates.buffer) {
+      const existing = clipsRef.current.find((clip) => clip.id === id);
+      if (existing) {
+        clipBufferCacheRef.current.set(id, { blob: existing.blob, buffer: updates.buffer });
+      }
+    } else if (updates.blob) {
+      const cached = clipBufferCacheRef.current.get(id);
+      if (cached && cached.blob !== updates.blob) {
+        clipBufferCacheRef.current.delete(id);
+      }
+    }
     setClips((prev) => prev.map((clip) => (clip.id === id ? { ...clip, ...updates } : clip)));
   }, []);
 
@@ -520,6 +564,7 @@ const App = () => {
       if (clip) {
         URL.revokeObjectURL(clip.url);
       }
+      clipBufferCacheRef.current.delete(id);
       return prev.filter((item) => item.id !== id);
     });
   }, []);
@@ -850,10 +895,14 @@ const App = () => {
 
   const exportMixdown = useCallback(async () => {
     if (exporting) return;
-    const activeDecks = decks.filter(
-      (deck) => deck.status === "playing" && deck.buffer
+    const activeDecks = decks.filter((deck) => deck.buffer);
+    if (activeDecks.length === 0) {
+      setSessionStatus("Load at least one deck before exporting.");
+      return;
+    }
+    setExportEstimateLabel(
+      `Approx export: ${formatEstimateDuration(Math.max(1, exportMinutes) * 30)}`
     );
-    if (activeDecks.length === 0) return;
     setExporting(true);
     const durationSec = Math.max(1, exportMinutes) * 60;
     const sampleRate = activeDecks[0].buffer?.sampleRate ?? 44100;
@@ -1071,6 +1120,7 @@ const App = () => {
       URL.revokeObjectURL(url);
     } finally {
       setExporting(false);
+      setExportEstimateLabel(null);
     }
   }, [
     automationState,
@@ -1584,7 +1634,7 @@ const App = () => {
         if (!deck?.buffer) {
           return deckSession;
         }
-        const wav = encodeWav(deck.buffer);
+        const wav = await encodeWavOffThread(deck.buffer);
         const blobId = createSessionBlobId("deck");
         blobs.set(blobId, wav);
         return { ...deckSession, wavBlobId: blobId };
@@ -1602,12 +1652,18 @@ const App = () => {
       for (const clip of clips) {
         let buffer = clip.buffer;
         if (!buffer) {
-          const file = new File([clip.blob], `${clip.name}.webm`, {
-            type: clip.blob.type || "audio/webm",
-          });
-          buffer = await decodeFile(file);
+          const cached = clipBufferCacheRef.current.get(clip.id);
+          if (cached && cached.blob === clip.blob) {
+            buffer = cached.buffer;
+          } else {
+            const file = new File([clip.blob], `${clip.name}.webm`, {
+              type: clip.blob.type || "audio/webm",
+            });
+            buffer = await decodeFile(file);
+            clipBufferCacheRef.current.set(clip.id, { blob: clip.blob, buffer });
+          }
         }
-        const wav = encodeWav(buffer);
+        const wav = await encodeWavOffThread(buffer);
         const blobId = createSessionBlobId("clip");
         nextBlobs.set(blobId, wav);
         clipSessions.push({
@@ -1817,7 +1873,7 @@ const App = () => {
   ]);
 
   useEffect(() => {
-    if (!autosaveReady) return;
+    if (!autosaveReady || hasActivePlayback) return;
     if (autosaveTimeoutRef.current) {
       window.clearTimeout(autosaveTimeoutRef.current);
     }
@@ -1846,6 +1902,7 @@ const App = () => {
     };
   }, [
     autosaveReady,
+    hasActivePlayback,
     clips,
     decks,
     encodeClipsForSession,
@@ -2184,6 +2241,9 @@ const App = () => {
                     idleLabel="Export Mix"
                     busyLabel="Exporting..."
                   />
+                  {exportEstimateLabel ? (
+                    <span className="transport__estimate">{exportEstimateLabel}</span>
+                  ) : null}
                 </div>
               </div>
               <div className="session-bar__group session-bar__group--export">
