@@ -1,17 +1,16 @@
-type EqAutomation = {
-  active: boolean;
-  samples: Float32Array;
-  durationSec: number;
-};
+import {
+  scheduleLoopedAutomation,
+  type OfflineAutomationTrack,
+} from "./automation";
 
 export type Eq3OfflineParams = {
   low: number;
   mid: number;
   high: number;
   renderDuration: number;
-  lowAutomation?: EqAutomation;
-  midAutomation?: EqAutomation;
-  highAutomation?: EqAutomation;
+  lowAutomation?: OfflineAutomationTrack;
+  midAutomation?: OfflineAutomationTrack;
+  highAutomation?: OfflineAutomationTrack;
 };
 
 const EQ_STAGE_COUNT = 2;
@@ -24,23 +23,6 @@ const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
   filters.forEach((filter) => {
     filter.gain.value = perStageGain;
   });
-};
-
-const scheduleLoopedSamples = (
-  samples: Float32Array,
-  durationSec: number,
-  renderDuration: number,
-  onValue: (value: number, time: number) => void
-) => {
-  if (!durationSec || samples.length === 0 || renderDuration <= 0) return;
-  const sampleRate = samples.length / durationSec;
-  if (!Number.isFinite(sampleRate) || sampleRate <= 0) return;
-  const totalSteps = Math.max(1, Math.ceil(renderDuration * sampleRate));
-  for (let i = 0; i < totalSteps; i += 1) {
-    const time = i / sampleRate;
-    const value = samples[i % samples.length] ?? 0;
-    onValue(value, time);
-  }
 };
 
 export const applyEq3Offline = (
@@ -83,7 +65,7 @@ export const applyEq3Offline = (
   applyEqGain(eqHigh, params.high);
 
   if (params.lowAutomation?.active && params.lowAutomation.durationSec > 0) {
-    scheduleLoopedSamples(
+    scheduleLoopedAutomation(
       params.lowAutomation.samples,
       params.lowAutomation.durationSec,
       params.renderDuration,
@@ -96,7 +78,7 @@ export const applyEq3Offline = (
     );
   }
   if (params.midAutomation?.active && params.midAutomation.durationSec > 0) {
-    scheduleLoopedSamples(
+    scheduleLoopedAutomation(
       params.midAutomation.samples,
       params.midAutomation.durationSec,
       params.renderDuration,
@@ -109,7 +91,7 @@ export const applyEq3Offline = (
     );
   }
   if (params.highAutomation?.active && params.highAutomation.durationSec > 0) {
-    scheduleLoopedSamples(
+    scheduleLoopedAutomation(
       params.highAutomation.samples,
       params.highAutomation.durationSec,
       params.renderDuration,

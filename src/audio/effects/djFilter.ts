@@ -1,15 +1,14 @@
-type FilterAutomation = {
-  active: boolean;
-  samples: Float32Array;
-  durationSec: number;
-};
+import {
+  scheduleLoopedAutomation,
+  type OfflineAutomationTrack,
+} from "./automation";
 
 export type DjFilterOfflineParams = {
   djFilter: number;
   resonance: number;
   renderDuration: number;
-  djAutomation?: FilterAutomation;
-  resonanceAutomation?: FilterAutomation;
+  djAutomation?: OfflineAutomationTrack;
+  resonanceAutomation?: OfflineAutomationTrack;
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -34,23 +33,6 @@ const getFilterTargets = (djFilter: number) => {
     return { lowpass: max, highpass };
   }
   return { lowpass: max, highpass: min };
-};
-
-const scheduleLoopedSamples = (
-  samples: Float32Array,
-  durationSec: number,
-  renderDuration: number,
-  onValue: (value: number, time: number) => void
-) => {
-  if (!durationSec || samples.length === 0 || renderDuration <= 0) return;
-  const sampleRate = samples.length / durationSec;
-  if (!Number.isFinite(sampleRate) || sampleRate <= 0) return;
-  const totalSteps = Math.max(1, Math.ceil(renderDuration * sampleRate));
-  for (let i = 0; i < totalSteps; i += 1) {
-    const time = i / sampleRate;
-    const value = samples[i % samples.length] ?? 0;
-    onValue(value, time);
-  }
 };
 
 export const applyDjFilterOffline = (
@@ -79,7 +61,7 @@ export const applyDjFilterOffline = (
   lowpass.Q.value = params.resonance;
 
   if (params.djAutomation?.active && params.djAutomation.durationSec > 0) {
-    scheduleLoopedSamples(
+    scheduleLoopedAutomation(
       params.djAutomation.samples,
       params.djAutomation.durationSec,
       params.renderDuration,
@@ -92,7 +74,7 @@ export const applyDjFilterOffline = (
   }
 
   if (params.resonanceAutomation?.active && params.resonanceAutomation.durationSec > 0) {
-    scheduleLoopedSamples(
+    scheduleLoopedAutomation(
       params.resonanceAutomation.samples,
       params.resonanceAutomation.durationSec,
       params.renderDuration,
