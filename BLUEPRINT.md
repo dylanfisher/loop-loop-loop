@@ -92,6 +92,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 ## Code Structure (Audio Engine Module)
 - `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.
 - `src/audio/deck.ts`: Deck source lifecycle (buffer sources, gain, per-deck FX chain).
+- `src/audio/effects/`: Modular effect plugins + shared offline post-EQ pipeline (`postEqPipeline.ts`) used by Save Loop and Export Mix.
 - `src/audio/analysis.ts`: Metering/FFT/onset analysis and UI data feeds.
 - `src/audio/bpm.ts`: Offline BPM estimation helper for deck metadata.
 - `src/workers/bpmWorker.ts`: Worker for BPM estimation off the main thread.

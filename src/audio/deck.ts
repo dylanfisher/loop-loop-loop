@@ -5,6 +5,14 @@ import {
   type PitchShiftNodes,
 } from "./pitchShift";
 import { createLimiter, createSoftClipper } from "./clipper";
+import {
+  FRACTAL_DEFAULTS,
+  applyFractalLiveParams,
+  fractalSeedForIndex,
+  normalizeFractalParams,
+  type FractalParams,
+} from "./effects/fractalResonator";
+import { normalizeDelayParams } from "./effects/delay";
 
 type DeckEndedCallback = () => void;
 
@@ -58,15 +66,6 @@ type DeckPlaybackState = {
   playing: boolean;
 };
 
-type FractalParams = {
-  mix: number;
-  structure: number;
-  depth: number;
-  drift: number;
-  decay: number;
-  tone: number;
-};
-
 export type DeckPlaybackSnapshot = {
   position: number;
   duration: number;
@@ -101,31 +100,12 @@ const defaultBalance = 0;
 const eqStageCount = 2;
 const FRACTAL_MODE_COUNT = 16;
 const FRACTAL_BYPASS_EPSILON = 1e-4;
-const FRACTAL_DEFAULTS: FractalParams = {
-  mix: 0,
-  structure: 0.45,
-  depth: 0.35,
-  drift: 0.15,
-  decay: 0.2,
-  tone: 6000,
-};
 
 const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
   const perStageGain = value / eqStageCount;
   filters.forEach((filter) => {
     filter.gain.value = perStageGain;
   });
-};
-
-const createDriveCurve = (amount: number) => {
-  const n = 2048;
-  const curve = new Float32Array(n);
-  const k = Math.max(1, amount);
-  for (let i = 0; i < n; i += 1) {
-    const x = (i * 2) / (n - 1) - 1;
-    curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
-  }
-  return curve;
 };
 
 const connectDelayFeedback = (nodes: DeckNodes, pingPong: boolean) => {
@@ -158,52 +138,32 @@ const applyFractalSettings = (
   decay: number,
   tone: number
 ) => {
-  const safeMix = Math.min(Math.max(mix, 0), 1);
-  const safeStructure = Math.min(Math.max(structure, 0), 1);
-  const safeDepth = Math.min(Math.max(depth, 0), 1);
-  const safeDrift = Math.min(Math.max(drift, 0), 1);
-  const safeDecay = Math.min(Math.max(decay, 0), 0.985);
-  const safeTone = Math.min(Math.max(tone, 300), 14000);
-  nodes.fractalDry.gain.value = 1 - safeMix;
-  nodes.fractalWet.gain.value = safeMix * (0.75 + safeDepth * 0.85);
-  nodes.fractalFeedback.gain.value = 0.15 + safeDecay * 0.75;
-  nodes.fractalTone.frequency.value = safeTone;
-  // Keep minimal source body; let resonances dominate by default.
-  nodes.fractalBody.gain.value = 0.015 + (1 - safeDepth) * 0.03;
-  // Feedback time steers metallic/comb character.
-  nodes.fractalFeedbackDelay.delayTime.value = 0.012 + safeStructure * 0.08;
-  nodes.fractalDrive.curve = createDriveCurve(3 + safeDepth * 11);
-
-  const minFreq = 70;
-  const maxFreq = Math.min(12000, safeTone);
-  const spreadPower = 0.25 + safeStructure * 3.4;
-  const baseQ = 12 + safeDepth * 60;
-  const normalization = 3 / Math.max(1, nodes.fractalModeFilters.length);
-
-  for (let i = 0; i < nodes.fractalModeFilters.length; i += 1) {
-    const t = nodes.fractalModeFilters.length <= 1 ? 0 : i / (nodes.fractalModeFilters.length - 1);
-    const curve = Math.pow(t, spreadPower);
-    const base = minFreq * Math.pow(maxFreq / minFreq, curve);
-    const cents = (nodes.fractalSeeds[i] ?? 0) * safeDrift * 1200;
-    const freq = Math.min(12000, Math.max(80, base * Math.pow(2, cents / 1200)));
-    const filter = nodes.fractalModeFilters[i];
-    filter.frequency.value = freq;
-    filter.Q.value = baseQ + (1 - t) * 14;
-    nodes.fractalModeGains[i].gain.value =
-      normalization * (0.6 + safeDepth * (2.2 - t * 0.35));
-  }
-
-  return safeMix;
+  const params = applyFractalLiveParams(
+    {
+      dry: nodes.fractalDry,
+      wet: nodes.fractalWet,
+      feedback: nodes.fractalFeedback,
+      feedbackDelay: nodes.fractalFeedbackDelay,
+      tone: nodes.fractalTone,
+      drive: nodes.fractalDrive,
+      body: nodes.fractalBody,
+      modeFilters: nodes.fractalModeFilters,
+      modeGains: nodes.fractalModeGains,
+      seeds: nodes.fractalSeeds,
+    },
+    { mix, structure, depth, drift, decay, tone }
+  );
+  return params.mix;
 };
 
 const getFractalParams = (deckId: number): FractalParams =>
   fractalParamsByDeck.get(deckId) ?? FRACTAL_DEFAULTS;
 
 const setFractalParams = (deckId: number, params: Partial<FractalParams>) => {
-  const next: FractalParams = {
+  const next = normalizeFractalParams({
     ...getFractalParams(deckId),
     ...params,
-  };
+  });
   fractalParamsByDeck.set(deckId, next);
   return next;
 };
@@ -281,6 +241,13 @@ const ensureDeckNodes = (
   fractalDecay: number,
   fractalTone: number
 ) => {
+  const normalizedDelay = normalizeDelayParams({
+    time: delayTime,
+    feedback: delayFeedback,
+    mix: delayMix,
+    tone: delayTone,
+    pingPong: delayPingPong,
+  });
   let nodes = deckNodes.get(deckId);
   if (!nodes) {
     const balanceNode = context.createStereoPanner();
@@ -327,19 +294,19 @@ const ensureDeckNodes = (
     const delayToneR = context.createBiquadFilter();
     delayToneL.type = "lowpass";
     delayToneR.type = "lowpass";
-    const nextDelayTime = pendingDelayTime.get(deckId) ?? delayTime;
+    const nextDelayTime = pendingDelayTime.get(deckId) ?? normalizedDelay.time;
     delayL.delayTime.value = nextDelayTime;
     delayR.delayTime.value = nextDelayTime;
-    const nextDelayFeedback = pendingDelayFeedback.get(deckId) ?? delayFeedback;
+    const nextDelayFeedback = pendingDelayFeedback.get(deckId) ?? normalizedDelay.feedback;
     delayFeedbackL.gain.value = nextDelayFeedback;
     delayFeedbackR.gain.value = nextDelayFeedback;
-    const nextDelayTone = pendingDelayTone.get(deckId) ?? delayTone;
+    const nextDelayTone = pendingDelayTone.get(deckId) ?? normalizedDelay.tone;
     delayToneL.frequency.value = nextDelayTone;
     delayToneR.frequency.value = nextDelayTone;
-    const nextDelayMix = pendingDelayMix.get(deckId) ?? delayMix;
+    const nextDelayMix = pendingDelayMix.get(deckId) ?? normalizedDelay.mix;
     delayWet.gain.value = nextDelayMix;
     delayDry.gain.value = 1 - nextDelayMix;
-    const nextDelayPingPong = pendingDelayPingPong.get(deckId) ?? delayPingPong;
+    const nextDelayPingPong = pendingDelayPingPong.get(deckId) ?? normalizedDelay.pingPong;
     const fractalDry = context.createGain();
     const fractalWet = context.createGain();
     const fractalInput = context.createGain();
@@ -359,7 +326,10 @@ const ensureDeckNodes = (
     const fractalModeGains = Array.from({ length: FRACTAL_MODE_COUNT }, () =>
       context.createGain()
     );
-    const fractalSeeds = Array.from({ length: FRACTAL_MODE_COUNT }, () => Math.random() * 2 - 1);
+    const fractalSeeds = Array.from(
+      { length: FRACTAL_MODE_COUNT },
+      (_, index) => fractalSeedForIndex(index)
+    );
     const postFractal = context.createGain();
     const deckGain = context.createGain();
     deckGain.gain.value = pendingGains.get(deckId) ?? gain;
@@ -463,14 +433,14 @@ const ensureDeckNodes = (
     applyEqGain(nodes.eqHigh, eqHighGain);
     nodes.balance.pan.value = balance;
     setPitchShift(nodes.pitchShift, pitchShift);
-    nodes.delayL.delayTime.value = delayTime;
-    nodes.delayR.delayTime.value = delayTime;
-    nodes.delayFeedbackL.gain.value = delayFeedback;
-    nodes.delayFeedbackR.gain.value = delayFeedback;
-    nodes.delayToneL.frequency.value = delayTone;
-    nodes.delayToneR.frequency.value = delayTone;
-    nodes.delayWet.gain.value = delayMix;
-    nodes.delayDry.gain.value = 1 - delayMix;
+    nodes.delayL.delayTime.value = normalizedDelay.time;
+    nodes.delayR.delayTime.value = normalizedDelay.time;
+    nodes.delayFeedbackL.gain.value = normalizedDelay.feedback;
+    nodes.delayFeedbackR.gain.value = normalizedDelay.feedback;
+    nodes.delayToneL.frequency.value = normalizedDelay.tone;
+    nodes.delayToneR.frequency.value = normalizedDelay.tone;
+    nodes.delayWet.gain.value = normalizedDelay.mix;
+    nodes.delayDry.gain.value = 1 - normalizedDelay.mix;
     const nextFractal = setFractalParams(deckId, {
       mix: fractalMix,
       structure: fractalStructure,
@@ -480,8 +450,8 @@ const ensureDeckNodes = (
       tone: fractalTone,
     });
     applyFractalState(nodes, nextFractal);
-    connectDelayFeedback(nodes, delayPingPong);
-    setDelayRouting(nodes, delayMix > 0);
+    connectDelayFeedback(nodes, normalizedDelay.pingPong);
+    setDelayRouting(nodes, normalizedDelay.mix > 0);
   }
 
   pendingGains.delete(deckId);
@@ -750,57 +720,62 @@ export const setDeckPitchShiftValue = (deckId: number, value: number) => {
 };
 
 export const setDeckDelayTimeValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ time: value }).time;
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.delayL.delayTime.value = value;
-    nodes.delayR.delayTime.value = value;
+    nodes.delayL.delayTime.value = normalized;
+    nodes.delayR.delayTime.value = normalized;
     pendingDelayTime.delete(deckId);
   } else {
-    pendingDelayTime.set(deckId, value);
+    pendingDelayTime.set(deckId, normalized);
   }
 };
 
 export const setDeckDelayFeedbackValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ feedback: value }).feedback;
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.delayFeedbackL.gain.value = value;
-    nodes.delayFeedbackR.gain.value = value;
+    nodes.delayFeedbackL.gain.value = normalized;
+    nodes.delayFeedbackR.gain.value = normalized;
     pendingDelayFeedback.delete(deckId);
   } else {
-    pendingDelayFeedback.set(deckId, value);
+    pendingDelayFeedback.set(deckId, normalized);
   }
 };
 
 export const setDeckDelayMixValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ mix: value }).mix;
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.delayWet.gain.value = value;
-    nodes.delayDry.gain.value = 1 - value;
-    setDelayRouting(nodes, value > 0);
+    nodes.delayWet.gain.value = normalized;
+    nodes.delayDry.gain.value = 1 - normalized;
+    setDelayRouting(nodes, normalized > 0);
     pendingDelayMix.delete(deckId);
   } else {
-    pendingDelayMix.set(deckId, value);
+    pendingDelayMix.set(deckId, normalized);
   }
 };
 
 export const setDeckDelayToneValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ tone: value }).tone;
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.delayToneL.frequency.value = value;
-    nodes.delayToneR.frequency.value = value;
+    nodes.delayToneL.frequency.value = normalized;
+    nodes.delayToneR.frequency.value = normalized;
     pendingDelayTone.delete(deckId);
   } else {
-    pendingDelayTone.set(deckId, value);
+    pendingDelayTone.set(deckId, normalized);
   }
 };
 
 export const setDeckDelayPingPongValue = (deckId: number, value: boolean) => {
+  const normalized = normalizeDelayParams({ pingPong: value }).pingPong;
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    connectDelayFeedback(nodes, value);
+    connectDelayFeedback(nodes, normalized);
     pendingDelayPingPong.delete(deckId);
   } else {
-    pendingDelayPingPong.set(deckId, value);
+    pendingDelayPingPong.set(deckId, normalized);
   }
 };
 
