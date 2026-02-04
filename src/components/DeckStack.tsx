@@ -43,6 +43,7 @@ type DeckStackProps = {
   onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchScatterChange: (id: number, value: number) => void;
   onStretchLoop: (id: number) => void;
+  stretchEstimateByDeckId: Record<number, string>;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
   automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", {
     samples: Float32Array;
@@ -117,6 +118,7 @@ const DeckStack = ({
   onStretchTiltDbChange,
   onStretchScatterChange,
   onStretchLoop,
+  stretchEstimateByDeckId,
   onSaveLoopClip,
   automationState,
   onAutomationStart,
@@ -172,6 +174,7 @@ const DeckStack = ({
             onStretchTiltDbChange={onStretchTiltDbChange}
             onStretchScatterChange={onStretchScatterChange}
             onStretchLoop={onStretchLoop}
+            stretchEstimate={stretchEstimateByDeckId[deck.id] ?? null}
             onSaveLoopClip={onSaveLoopClip}
             automation={automationState.get(deck.id)}
             onAutomationStart={onAutomationStart}

@@ -45,6 +45,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Canvas/WebGL for waveform, spectrum, and experimental visual feedback.
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
+- Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
+- Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
 [Header (brand + session controls + performance panel + master gain)]

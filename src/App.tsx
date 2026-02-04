@@ -33,6 +33,14 @@ import {
   saveSessionState,
 } from "./utils/sessionStore";
 import { createZip, readZip } from "./utils/zip";
+import {
+  applyStretchCalibration,
+  estimateStretchRenderSeconds,
+  formatStretchEstimateLabel,
+  loadStretchCalibrationState,
+  saveStretchCalibrationState,
+  updateStretchCalibrationState,
+} from "./utils/stretchEstimate";
 
 type PerformanceMemory = {
   usedJSHeapSize: number;
@@ -182,6 +190,12 @@ const App = () => {
   const [sessionName, setSessionName] = useState("");
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [stretchEstimateByDeckId, setStretchEstimateByDeckId] = useState<Record<number, string>>(
+    {}
+  );
+  const [stretchCalibration, setStretchCalibration] = useState(() =>
+    loadStretchCalibrationState()
+  );
   const [perfStats, setPerfStats] = useState<{
     fps: number;
     frameMs: number;
@@ -211,6 +225,9 @@ const App = () => {
       }
     };
   }, [sessionStatus]);
+  useEffect(() => {
+    saveStretchCalibrationState(stretchCalibration);
+  }, [stretchCalibration]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
@@ -1132,6 +1149,9 @@ const App = () => {
     async (deckId: number) => {
       const deck = decks.find((item) => item.id === deckId);
       if (!deck?.buffer) return;
+      const startedAtMs = performance.now();
+      let renderCompleted = false;
+      let baseEstimateSeconds = 0;
       const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
       const loopEnd =
         deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
@@ -1149,57 +1169,74 @@ const App = () => {
         Math.pow(2, Math.floor(Math.log2(Math.max(1, Math.floor(loopSamples / 2)))))
       );
       const effectiveWindowSize = Math.min(windowSize, maxWindow);
-      const stereoWidth = Math.min(Math.max(deck.stretchStereoWidth ?? 1, 0), 2);
-      const phaseRandomness = Math.min(
-        Math.max(deck.stretchPhaseRandomness ?? 1, 0),
-        1
-      );
-      const tiltDb = Math.min(Math.max(deck.stretchTiltDb ?? 0, -18), 18);
-      const scatter = Math.min(Math.max(deck.stretchScatter ?? 1, 1), 16);
-      const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
-      const sliceDuration = Math.max(0.01, loopEnd - loopStart);
-      // Duration to pull from the buffer in source-time so the rendered input is sliceDuration.
-      const inputDurationSource = sliceDuration * tempoRatio;
-      const sampleRate = deck.buffer.sampleRate;
-      const hopOut = effectiveWindowSize / 2;
-      const inputSamples = Math.max(
-        1,
-        Math.ceil(sliceDuration * sampleRate * Math.max(1, scatter))
-      );
-      const effectiveRatio = Math.min(ratio * scatter, 128);
-      const outputSamples = Math.max(
-        1,
-        Math.ceil(sliceDuration * effectiveRatio * sampleRate)
-      );
-      const maxSilenceTrimSamples = Math.ceil(0.05 * sampleRate);
-      const length = Math.max(1, outputSamples + maxSilenceTrimSamples + hopOut);
-      const offline = new OfflineAudioContext(
-        deck.buffer.numberOfChannels,
-        length,
-        sampleRate
-      );
-      try {
-        await ensurePaulStretchWorklet(offline);
-      } catch (error) {
-        console.warn("Paulstretch worklet unavailable", error);
-        return;
-      }
-      const stretchNode = createPaulStretchNode(offline, {
-        ratio,
-        winSize: effectiveWindowSize,
-        inputSamples,
-        outputSamples,
-        stereoWidth,
-        phaseRandomness,
-        tilt: tiltDb,
-        scatter,
+      baseEstimateSeconds = estimateStretchRenderSeconds({
+        loopDurationSec: loopEnd - loopStart,
+        stretchRatio: ratio,
+        windowSize: effectiveWindowSize,
       });
-      stretchNode.port.onmessage = null;
-      const source = offline.createBufferSource();
-      const keepAlive = offline.createConstantSource();
-      keepAlive.offset.value = 1e-6;
-      source.buffer = deck.buffer;
-      source.playbackRate.value = tempoRatio;
+      const calibratedEstimateSeconds = applyStretchCalibration(
+        baseEstimateSeconds,
+        stretchCalibration
+      );
+      setStretchEstimateByDeckId((prev) => ({
+        ...prev,
+        [deckId]: formatStretchEstimateLabel(
+          calibratedEstimateSeconds,
+          stretchCalibration.sampleCount
+        ),
+      }));
+      try {
+        const stereoWidth = Math.min(Math.max(deck.stretchStereoWidth ?? 1, 0), 2);
+        const phaseRandomness = Math.min(
+          Math.max(deck.stretchPhaseRandomness ?? 1, 0),
+          1
+        );
+        const tiltDb = Math.min(Math.max(deck.stretchTiltDb ?? 0, -18), 18);
+        const scatter = Math.min(Math.max(deck.stretchScatter ?? 1, 1), 16);
+        const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
+        const sliceDuration = Math.max(0.01, loopEnd - loopStart);
+        // Duration to pull from the buffer in source-time so the rendered input is sliceDuration.
+        const inputDurationSource = sliceDuration * tempoRatio;
+        const sampleRate = deck.buffer.sampleRate;
+        const hopOut = effectiveWindowSize / 2;
+        const inputSamples = Math.max(
+          1,
+          Math.ceil(sliceDuration * sampleRate * Math.max(1, scatter))
+        );
+        const effectiveRatio = Math.min(ratio * scatter, 128);
+        const outputSamples = Math.max(
+          1,
+          Math.ceil(sliceDuration * effectiveRatio * sampleRate)
+        );
+        const maxSilenceTrimSamples = Math.ceil(0.05 * sampleRate);
+        const length = Math.max(1, outputSamples + maxSilenceTrimSamples + hopOut);
+        const offline = new OfflineAudioContext(
+          deck.buffer.numberOfChannels,
+          length,
+          sampleRate
+        );
+        try {
+          await ensurePaulStretchWorklet(offline);
+        } catch (error) {
+          console.warn("Paulstretch worklet unavailable", error);
+          return;
+        }
+        const stretchNode = createPaulStretchNode(offline, {
+          ratio,
+          winSize: effectiveWindowSize,
+          inputSamples,
+          outputSamples,
+          stereoWidth,
+          phaseRandomness,
+          tilt: tiltDb,
+          scatter,
+        });
+        stretchNode.port.onmessage = null;
+        const source = offline.createBufferSource();
+        const keepAlive = offline.createConstantSource();
+        keepAlive.offset.value = 1e-6;
+        source.buffer = deck.buffer;
+        source.playbackRate.value = tempoRatio;
 
       const automation = automationState.get(deckId);
       const djFilterTrack = automation?.djFilter;
@@ -1509,11 +1546,33 @@ const App = () => {
         const gain = Math.min(4, Math.max(0.25, sourceRms / stretchedRms));
         applyBufferGain(trimmed, gain);
       }
-      const name = `${deck.fileName ?? "Loop"} Stretch ${ratio.toFixed(1)}x`;
-      const wasPlaying = deck.status === "playing";
-      loadDeckBuffer(deckId, trimmed, { name, autoplay: wasPlaying });
+        const name = `${deck.fileName ?? "Loop"} Stretch ${ratio.toFixed(1)}x`;
+        const wasPlaying = deck.status === "playing";
+        loadDeckBuffer(deckId, trimmed, { name, autoplay: wasPlaying });
+        renderCompleted = true;
+      } finally {
+        setStretchEstimateByDeckId((prev) => {
+          if (!(deckId in prev)) return prev;
+          const next = { ...prev };
+          delete next[deckId];
+          return next;
+        });
+        if (renderCompleted && baseEstimateSeconds > 0) {
+          const actualSeconds = Math.max(0.001, (performance.now() - startedAtMs) / 1000);
+          setStretchCalibration((prev) =>
+            updateStretchCalibrationState(prev, baseEstimateSeconds, actualSeconds)
+          );
+        }
+      }
     },
-    [automationState, decks, getFilterTargets, loadDeckBuffer, scheduleLoopedSamples]
+    [
+      automationState,
+      decks,
+      getFilterTargets,
+      loadDeckBuffer,
+      scheduleLoopedSamples,
+      stretchCalibration,
+    ]
   );
 
   const encodeDecksForSession = useCallback(async () => {
@@ -2227,6 +2286,7 @@ const App = () => {
           onStretchTiltDbChange={setDeckStretchTiltDb}
           onStretchScatterChange={setDeckStretchScatter}
           onStretchLoop={handleStretchLoop}
+          stretchEstimateByDeckId={stretchEstimateByDeckId}
           automationState={automationState}
           onAutomationStart={startAutomationRecording}
           onAutomationStop={stopAutomationRecording}

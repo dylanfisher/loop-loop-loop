@@ -106,6 +106,7 @@ type DeckCardProps = {
   onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchScatterChange: (id: number, value: number) => void;
   onStretchLoop: (id: number) => void;
+  stretchEstimate?: string | null;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
@@ -165,6 +166,7 @@ const DeckCard = ({
   onStretchTiltDbChange,
   onStretchScatterChange,
   onStretchLoop,
+  stretchEstimate,
   onSaveLoopClip,
   getDeckPosition,
   getDeckPlaybackSnapshot,
@@ -1090,6 +1092,9 @@ const DeckCard = ({
                 busyLabel="Stretching..."
                 onAction={() => onStretchLoop(deck.id)}
               />
+              {stretchEstimate ? (
+                <span className="deck__stretch-estimate">{stretchEstimate}</span>
+              ) : null}
             </div>
           </div>
         </div>

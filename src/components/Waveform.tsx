@@ -302,6 +302,17 @@ const drawWaveform = (
   }
 };
 
+const formatTimeLabel = (seconds: number) => {
+  const safeSeconds = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const secs = safeSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(secs).padStart(2, "0")}`;
+};
+
 const Waveform = ({
   buffer,
   isPlaying,
@@ -365,6 +376,7 @@ const Waveform = ({
   const peaksPerSecondRef = useRef(200);
   const balanceRef = useRef(0);
   const lastBufferRef = useRef<AudioBuffer | null>(null);
+  const totalTimeLabelRef = useRef<HTMLSpanElement | null>(null);
 
   useEffect(() => {
     renderCountRef.current += 1;
@@ -582,6 +594,9 @@ const Waveform = ({
       );
     }
     lastDisplaySecondsRef.current = currentSeconds;
+    if (totalTimeLabelRef.current) {
+      totalTimeLabelRef.current.textContent = formatTimeLabel(resolvedDuration);
+    }
     const rawProgress = visualDuration
       ? (currentSeconds - windowStartRef.current) / visualDuration
       : 0;
@@ -1543,6 +1558,9 @@ const Waveform = ({
       )}
       <canvas ref={canvasRef} />
       <canvas ref={overlayRef} className="deck__waveform-overlay" />
+      <div className="deck__waveform-time" aria-hidden="true">
+        <span ref={totalTimeLabelRef}>{formatTimeLabel(buffer.duration)}</span>
+      </div>
     </div>
   );
 };
