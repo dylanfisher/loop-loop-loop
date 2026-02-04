@@ -26,6 +26,7 @@ import { applyPitchShiftOffline } from "./audio/effects/pitchShift";
 import { applyDjFilterOffline } from "./audio/effects/djFilter";
 import { applyEq3Offline } from "./audio/effects/eq3";
 import { applyBalanceOffline } from "./audio/effects/balance";
+import { applyGainOffline } from "./audio/effects/gain";
 import PerfOverlay from "./components/PerfOverlay";
 import {
   AUTO_SESSION_ID,
@@ -668,10 +669,6 @@ const App = () => {
       const source = offline.createBufferSource();
       source.buffer = deck.buffer;
       source.playbackRate.value = tempoRatio;
-      const gainNode = needsGain ? offline.createGain() : null;
-      if (gainNode) {
-        gainNode.gain.value = deck.gain;
-      }
 
       let chain: AudioNode = source;
       chain = applyBalanceOffline(offline, chain, {
@@ -764,10 +761,7 @@ const App = () => {
         },
         "saveLoop"
       );
-      if (gainNode) {
-        chain.connect(gainNode);
-        chain = gainNode;
-      }
+      chain = applyGainOffline(offline, chain, { gain: deck.gain, bypassAt: 0.9 });
       chain.connect(offline.destination);
       source.start(0, loopStart, renderDuration);
       const rendered = await offline.startRendering();
@@ -846,7 +840,6 @@ const App = () => {
       const fractalDecay = Math.min(Math.max(deck.fractalDecay ?? 0.2, 0), 0.985);
       const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
 
-      const gainNode = offline.createGain();
       const clipper = createSoftClipper(offline);
       const limiter = createLimiter(offline);
 
@@ -868,7 +861,6 @@ const App = () => {
       const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
       const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
 
-      gainNode.gain.value = deck.gain;
       let preEq: AudioNode = applyBalanceOffline(offline, source, {
         balance: balanceValue,
         renderDuration: durationSec,
@@ -959,8 +951,8 @@ const App = () => {
         },
         "exportMix"
       );
-      postEq.connect(gainNode);
-      gainNode.connect(limiter);
+      const postGain = applyGainOffline(offline, postEq, { gain: deck.gain, bypassAt: 0.9 });
+      postGain.connect(limiter);
       limiter.connect(clipper);
       clipper.connect(masterMix);
 
@@ -1198,10 +1190,6 @@ const App = () => {
         }
       }
 
-      const gainNode = needsGain ? offline.createGain() : null;
-      if (gainNode) {
-        gainNode.gain.value = deck.gain;
-      }
       const limiterNeeded = needsGain || needsEq || needsFilter || needsPitch;
       const clipper = limiterNeeded ? createSoftClipper(offline) : null;
       const limiter = limiterNeeded ? createLimiter(offline) : null;
@@ -1276,10 +1264,7 @@ const App = () => {
             }
           : undefined,
       });
-      if (gainNode) {
-        chain.connect(gainNode);
-        chain = gainNode;
-      }
+      chain = applyGainOffline(offline, chain, { gain: deck.gain, bypassAt: 0.9 });
       if (limiter && clipper) {
         chain.connect(limiter);
         limiter.connect(clipper);
