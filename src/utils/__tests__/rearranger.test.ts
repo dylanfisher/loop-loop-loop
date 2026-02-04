@@ -142,6 +142,29 @@ describe("rearranger", () => {
     expect(next[3]).toBeCloseTo(1, 6);
   });
 
+  it("keeps rearranged region boundaries sample-quantized across repeated derives", () => {
+    let regions = [0, 0.13, 0.31, 0.77, 1];
+    const segmentSamples = 44101;
+    for (let i = 0; i < 200; i += 1) {
+      regions = deriveRearrangedRegions(
+        {
+          slices: 4,
+          offset: (i % 5) - 2,
+          chaos: 0.35,
+          reverse: 0,
+          regions,
+        },
+        { chaosSeed: i * 17 + 3, segmentSamples }
+      );
+      expect(regions[0]).toBe(0);
+      expect(regions[regions.length - 1]).toBe(1);
+      for (let j = 1; j < regions.length - 1; j += 1) {
+        const quantized = regions[j] * segmentSamples;
+        expect(Math.abs(quantized - Math.round(quantized))).toBeLessThan(1e-9);
+      }
+    }
+  });
+
   it("reorders persistent region ids with slice order", () => {
     const nextIds = deriveRearrangedRegionIds(
       {

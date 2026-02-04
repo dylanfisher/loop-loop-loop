@@ -13,6 +13,7 @@ export type RearrangerSliceMap = {
 
 type RearrangerBuildOptions = {
   chaosSeed?: number;
+  segmentSamples?: number;
 };
 
 const seedRand = (seed: number) => {
@@ -238,11 +239,32 @@ export const deriveRearrangedRegions = (
   if (normalized.slices <= 1) return [0, 1];
   const regions = normalizeRearrangerRegions(normalized.regions, normalized.slices);
   const map = buildRearrangerMap(normalized, options);
-  const lengths = new Array<number>(map.length);
-  for (let i = 0; i < map.length; i += 1) {
-    const sourceIndex = map[i].sourceIndex;
-    lengths[i] = Math.max(0, (regions[sourceIndex + 1] ?? 1) - (regions[sourceIndex] ?? 0));
+  const segmentSamples = Math.max(0, Math.floor(options?.segmentSamples ?? 0));
+  if (segmentSamples > 0) {
+    const starts = new Array<number>(regions.length);
+    for (let i = 0; i < regions.length; i += 1) {
+      starts[i] = Math.floor(segmentSamples * regions[i]);
+    }
+    const lengths = map.map((entry) => {
+      const srcStart = starts[entry.sourceIndex] ?? 0;
+      const srcEnd = starts[entry.sourceIndex + 1] ?? segmentSamples;
+      return Math.max(0, srcEnd - srcStart);
+    });
+    const total = lengths.reduce((sum, value) => sum + value, 0);
+    if (total <= 0) return regions;
+    const next = new Array<number>(lengths.length + 1);
+    next[0] = 0;
+    let acc = 0;
+    for (let i = 0; i < lengths.length; i += 1) {
+      acc += lengths[i];
+      next[i + 1] = i === lengths.length - 1 ? 1 : acc / total;
+    }
+    return next;
   }
+  const lengths = map.map((entry) => {
+    const sourceIndex = entry.sourceIndex;
+    return Math.max(0, (regions[sourceIndex + 1] ?? 1) - (regions[sourceIndex] ?? 0));
+  });
   const total = lengths.reduce((sum, value) => sum + value, 0);
   if (total <= 1e-8) return regions;
   const next = new Array<number>(map.length + 1);

@@ -80,6 +80,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Welcome panel dismissed state is persisted through autosave, saved sessions, and exported/imported project zips.
 - Auto-rearrange (On Loop) updates are treated as transient: they do not create undo history snapshots and skip immediate autosave scheduling to avoid runaway memory/encode pressure during continuous looping.
 - Auto-rearrange playback reload path reuses existing deck audio nodes (source-only restart) to avoid repeated node graph teardown/rebuild churn on every loop.
+- Rearranger custom boundaries are re-derived on a sample-quantized grid to prevent cumulative floating-point drift during repeated rearrange passes.
 - Clip metadata can include per-clip deck settings + automation snapshots to rehydrate FX on load.
 - Save Loop clips always persist FX settings metadata; Clip Rack exposes a per-clip FX badge toggle that controls whether those saved settings are applied when loading the clip into a deck.
 - Save Loop clip audio is always exported from the raw loop slice (unbaked audio); FX settings are stored as metadata and can be selectively applied on clip load via the Clip Rack FX toggle.

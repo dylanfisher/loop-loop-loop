@@ -1476,6 +1476,16 @@ const App = () => {
       try {
         const chaosSeed = Math.random() * 1_000_000_000;
         const loopDuration = loopEnd - loopStart;
+        const sampleRate = deck.buffer.sampleRate;
+        const startSample = Math.max(
+          0,
+          Math.min(deck.buffer.length - 1, Math.round(loopStart * sampleRate))
+        );
+        const endSample = Math.max(
+          startSample + 1,
+          Math.min(deck.buffer.length, Math.round((loopStart + loopDuration) * sampleRate))
+        );
+        const segmentSamples = Math.max(1, endSample - startSample);
         const rearranged = rearrangeBufferSegment(deck.buffer, loopStart, loopDuration, {
           slices: deck.rearrangerSlices,
           offset: deck.rearrangerOffset,
@@ -1489,7 +1499,7 @@ const App = () => {
           chaos: deck.rearrangerChaos,
           reverse: deck.rearrangerReverse,
           regions: deck.rearrangerRegions,
-        }, { chaosSeed });
+        }, { chaosSeed, segmentSamples });
         const nextRegionIds = deriveRearrangedRegionIds(
           {
             slices: deck.rearrangerSlices,
