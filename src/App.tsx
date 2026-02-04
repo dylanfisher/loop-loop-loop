@@ -597,6 +597,7 @@ const App = () => {
         eqLowTrack?.active === true ||
         eqMidTrack?.active === true ||
         eqHighTrack?.active === true;
+      const needsBalance = !approxEqual(balanceValue, 0) || balanceTrack?.active === true;
       const needsGain = !approxEqual(deck.gain, 0.9);
       const needsDelay = delayMix > 0.001;
       const needsFractal = fractalMix > 0.001;

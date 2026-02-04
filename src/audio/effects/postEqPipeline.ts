@@ -11,8 +11,6 @@ export type PostEqEffectParams = {
   delay: Partial<DelayParams>;
 };
 
-const postEqPlugins = [fractalPlugin, delayPlugin] as const;
-
 export const normalizePostEqParams = (
   params: PostEqEffectParams
 ): { fractal: FractalParams; delay: DelayParams } => ({
@@ -27,13 +25,12 @@ export const applyPostEqEffectsOffline = (
   pipeline: EffectPipeline
 ) => {
   const normalized = normalizePostEqParams(params);
-  let chain = input;
-  postEqPlugins.forEach((plugin) => {
-    if (plugin.id === "fractal") {
-      chain = plugin.applyOffline(context, chain, normalized.fractal, pipeline);
-      return;
-    }
-    chain = plugin.applyOffline(context, chain, normalized.delay, pipeline);
-  });
+  const chainWithFractal = fractalPlugin.applyOffline(
+    context,
+    input,
+    normalized.fractal,
+    pipeline
+  );
+  const chain = delayPlugin.applyOffline(context, chainWithFractal, normalized.delay, pipeline);
   return chain;
 };

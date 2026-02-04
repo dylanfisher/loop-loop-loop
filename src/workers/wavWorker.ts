@@ -56,16 +56,23 @@ const encodeWavBuffer = (channels: Float32Array[], sampleRate: number) => {
   return arrayBuffer;
 };
 
-self.onmessage = (event: MessageEvent<WavEncodeRequest>) => {
+type WorkerScope = {
+  onmessage: ((event: MessageEvent<WavEncodeRequest>) => void) | null;
+  postMessage: (message: WavEncodeResponse, transfer?: Transferable[]) => void;
+};
+
+const workerScope = self as unknown as WorkerScope;
+
+workerScope.onmessage = (event: MessageEvent<WavEncodeRequest>) => {
   const { id, sampleRate, channels } = event.data;
   try {
     const channelViews = channels.map((channel) => new Float32Array(channel));
     const wavBuffer = encodeWavBuffer(channelViews, sampleRate);
     const response: WavEncodeResponse = { id, wavBuffer };
-    self.postMessage(response, [wavBuffer]);
+    workerScope.postMessage(response, [wavBuffer]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "WAV encoding failed";
     const response: WavEncodeResponse = { id, error: message };
-    self.postMessage(response);
+    workerScope.postMessage(response);
   }
 };

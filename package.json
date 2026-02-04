@@ -4,12 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:strict": "vite & tsc -b -w",
+    "dev": "vite & tsc -b -w",
+    "typecheck": "tsc -b --pretty false",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "eslint .",
+    "validate": "npm run lint && npm run test && npm run typecheck",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check"
