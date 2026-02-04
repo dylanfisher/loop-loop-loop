@@ -23,6 +23,7 @@ import { createPaulStretchNode, ensurePaulStretchWorklet } from "./audio/paulStr
 import { createLimiter, createSoftClipper } from "./audio/clipper";
 import { applyPostEqEffectsOffline } from "./audio/effects/postEqPipeline";
 import { applyPitchShiftOffline } from "./audio/effects/pitchShift";
+import { applyDjFilterOffline } from "./audio/effects/djFilter";
 import PerfOverlay from "./components/PerfOverlay";
 import {
   AUTO_SESSION_ID,
@@ -320,27 +321,6 @@ const App = () => {
   } = useDecks();
 
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
-
-  const getFilterTargets = useCallback((djFilter: number) => {
-    const min = 60;
-    const max = 20000;
-    const highpassMax = 12000;
-    const normalized = Math.min(Math.max(djFilter, -1), 1);
-    const logMin = Math.log10(min);
-    const logMax = Math.log10(max);
-    const logHighMax = Math.log10(highpassMax);
-    if (normalized < 0) {
-      const t = 1 + normalized;
-      const lowpass = Math.pow(10, logMin + t * (logMax - logMin));
-      return { lowpass, highpass: min };
-    }
-    if (normalized > 0) {
-      const t = normalized;
-      const highpass = Math.pow(10, logMin + t * (logHighMax - logMin));
-      return { lowpass: max, highpass };
-    }
-    return { lowpass: max, highpass: min };
-  }, []);
 
   const shouldAnimatePerf = hasActivePlayback || recording;
 
@@ -719,17 +699,6 @@ const App = () => {
       if (balanceNode) {
         balanceNode.pan.value = balanceValue;
       }
-      const highpass = needsFilter ? offline.createBiquadFilter() : null;
-      const lowpass = needsFilter ? offline.createBiquadFilter() : null;
-      if (highpass && lowpass) {
-        highpass.type = "highpass";
-        lowpass.type = "lowpass";
-        const targets = getFilterTargets(djFilterValue);
-        highpass.frequency.value = targets.highpass;
-        lowpass.frequency.value = targets.lowpass;
-        highpass.Q.value = resonanceValue;
-        lowpass.Q.value = resonanceValue;
-      }
       const eqLow = needsEq
         ? Array.from({ length: eqStageCount }, () => {
             const filter = offline.createBiquadFilter();
@@ -764,29 +733,6 @@ const App = () => {
         gainNode.gain.value = deck.gain;
       }
 
-      if (needsFilter && djFilterTrack?.active && djFilterTrack.durationSec > 0 && lowpass && highpass) {
-        scheduleLoopedSamples(
-          djFilterTrack.samples,
-          djFilterTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            const nextTargets = getFilterTargets(value);
-            lowpass.frequency.setValueAtTime(nextTargets.lowpass, time);
-            highpass.frequency.setValueAtTime(nextTargets.highpass, time);
-          }
-        );
-      }
-      if (needsFilter && resonanceTrack?.active && resonanceTrack.durationSec > 0 && lowpass && highpass) {
-        scheduleLoopedSamples(
-          resonanceTrack.samples,
-          resonanceTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            lowpass.Q.setValueAtTime(value, time);
-            highpass.Q.setValueAtTime(value, time);
-          }
-        );
-      }
       if (needsEq && eqLowTrack?.active && eqLowTrack.durationSec > 0 && eqLow) {
         scheduleLoopedSamples(
           eqLowTrack.samples,
@@ -852,11 +798,25 @@ const App = () => {
             }
           : undefined,
       });
-      if (highpass && lowpass) {
-        chain.connect(highpass);
-        highpass.connect(lowpass);
-        chain = lowpass;
-      }
+      chain = applyDjFilterOffline(offline, chain, {
+        djFilter: djFilterValue,
+        resonance: resonanceValue,
+        renderDuration,
+        djAutomation: djFilterTrack
+          ? {
+              active: djFilterTrack.active,
+              samples: djFilterTrack.samples,
+              durationSec: djFilterTrack.durationSec,
+            }
+          : undefined,
+        resonanceAutomation: resonanceTrack
+          ? {
+              active: resonanceTrack.active,
+              samples: resonanceTrack.samples,
+              durationSec: resonanceTrack.durationSec,
+            }
+          : undefined,
+      });
       if (eqLow && eqMid && eqHigh) {
         chain.connect(eqLow[0]);
         for (let i = 0; i < eqLow.length - 1; i++) {
@@ -926,7 +886,7 @@ const App = () => {
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
         });
     },
-    [addClip, automationState, buildClipSettings, decks, getFilterTargets, scheduleLoopedSamples]
+    [addClip, automationState, buildClipSettings, decks, scheduleLoopedSamples]
   );
 
   const exportMixdown = useCallback(async () => {
@@ -977,10 +937,6 @@ const App = () => {
       const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
 
       const balanceNode = offline.createStereoPanner();
-      const highpass = offline.createBiquadFilter();
-      highpass.type = "highpass";
-      const lowpass = offline.createBiquadFilter();
-      lowpass.type = "lowpass";
       const eqLow = Array.from({ length: eqStageCount }, () => {
         const filter = offline.createBiquadFilter();
         filter.type = "lowshelf";
@@ -1021,40 +977,12 @@ const App = () => {
       const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
       const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
 
-      const targets = getFilterTargets(djFilterValue);
-      highpass.frequency.value = targets.highpass;
-      lowpass.frequency.value = targets.lowpass;
-      highpass.Q.value = resonanceValue;
-      lowpass.Q.value = resonanceValue;
       applyEqGain(eqLow, eqLowValue);
       applyEqGain(eqMid, eqMidValue);
       applyEqGain(eqHigh, eqHighValue);
       gainNode.gain.value = deck.gain;
       balanceNode.pan.value = balanceValue;
 
-      if (djFilterTrack?.active && djFilterTrack.durationSec > 0) {
-        scheduleLoopedSamples(
-          djFilterTrack.samples,
-          djFilterTrack.durationSec,
-          durationSec,
-          (value, time) => {
-            const nextTargets = getFilterTargets(value);
-            lowpass.frequency.setValueAtTime(nextTargets.lowpass, time);
-            highpass.frequency.setValueAtTime(nextTargets.highpass, time);
-          }
-        );
-      }
-      if (resonanceTrack?.active && resonanceTrack.durationSec > 0) {
-        scheduleLoopedSamples(
-          resonanceTrack.samples,
-          resonanceTrack.durationSec,
-          durationSec,
-          (value, time) => {
-            lowpass.Q.setValueAtTime(value, time);
-            highpass.Q.setValueAtTime(value, time);
-          }
-        );
-      }
       if (eqLowTrack?.active && eqLowTrack.durationSec > 0) {
         scheduleLoopedSamples(
           eqLowTrack.samples,
@@ -1116,9 +1044,26 @@ const App = () => {
             }
           : undefined,
       });
-      preEq.connect(highpass);
-      highpass.connect(lowpass);
-      lowpass.connect(eqLow[0]);
+      const postFilter = applyDjFilterOffline(offline, preEq, {
+        djFilter: djFilterValue,
+        resonance: resonanceValue,
+        renderDuration: durationSec,
+        djAutomation: djFilterTrack
+          ? {
+              active: djFilterTrack.active,
+              samples: djFilterTrack.samples,
+              durationSec: djFilterTrack.durationSec,
+            }
+          : undefined,
+        resonanceAutomation: resonanceTrack
+          ? {
+              active: resonanceTrack.active,
+              samples: resonanceTrack.samples,
+              durationSec: resonanceTrack.durationSec,
+            }
+          : undefined,
+      });
+      postFilter.connect(eqLow[0]);
       for (let i = 0; i < eqLow.length - 1; i++) {
         eqLow[i].connect(eqLow[i + 1]);
       }
@@ -1191,7 +1136,6 @@ const App = () => {
     decks,
     exportMinutes,
     exporting,
-    getFilterTargets,
     scheduleLoopedSamples,
   ]);
 
@@ -1399,17 +1343,6 @@ const App = () => {
       if (balanceNode) {
         balanceNode.pan.value = balanceValue;
       }
-      const highpass = needsFilter ? offline.createBiquadFilter() : null;
-      const lowpass = needsFilter ? offline.createBiquadFilter() : null;
-      if (highpass && lowpass) {
-        highpass.type = "highpass";
-        lowpass.type = "lowpass";
-        const targets = getFilterTargets(djFilterValue);
-        highpass.frequency.value = targets.highpass;
-        lowpass.frequency.value = targets.lowpass;
-        highpass.Q.value = resonanceValue;
-        lowpass.Q.value = resonanceValue;
-      }
       const eqLow = needsEq
         ? Array.from({ length: eqStageCount }, () => {
             const filter = offline.createBiquadFilter();
@@ -1448,29 +1381,6 @@ const App = () => {
       const limiter = limiterNeeded ? createLimiter(offline) : null;
 
       const renderDuration = sliceDuration;
-      if (needsFilter && djFilterTrack?.active && djFilterTrack.durationSec > 0 && lowpass && highpass) {
-        scheduleLoopedSamples(
-          djFilterTrack.samples,
-          djFilterTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            const nextTargets = getFilterTargets(value);
-            lowpass.frequency.setValueAtTime(nextTargets.lowpass, time);
-            highpass.frequency.setValueAtTime(nextTargets.highpass, time);
-          }
-        );
-      }
-      if (needsFilter && resonanceTrack?.active && resonanceTrack.durationSec > 0 && lowpass && highpass) {
-        scheduleLoopedSamples(
-          resonanceTrack.samples,
-          resonanceTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            lowpass.Q.setValueAtTime(value, time);
-            highpass.Q.setValueAtTime(value, time);
-          }
-        );
-      }
       if (needsEq && eqLowTrack?.active && eqLowTrack.durationSec > 0 && eqLow) {
         scheduleLoopedSamples(
           eqLowTrack.samples,
@@ -1536,11 +1446,25 @@ const App = () => {
             }
           : undefined,
       });
-      if (highpass && lowpass) {
-        chain.connect(highpass);
-        highpass.connect(lowpass);
-        chain = lowpass;
-      }
+      chain = applyDjFilterOffline(offline, chain, {
+        djFilter: djFilterValue,
+        resonance: resonanceValue,
+        renderDuration,
+        djAutomation: djFilterTrack
+          ? {
+              active: djFilterTrack.active,
+              samples: djFilterTrack.samples,
+              durationSec: djFilterTrack.durationSec,
+            }
+          : undefined,
+        resonanceAutomation: resonanceTrack
+          ? {
+              active: resonanceTrack.active,
+              samples: resonanceTrack.samples,
+              durationSec: resonanceTrack.durationSec,
+            }
+          : undefined,
+      });
       if (eqLow && eqMid && eqHigh) {
         chain.connect(eqLow[0]);
         for (let i = 0; i < eqLow.length - 1; i += 1) {
@@ -1669,7 +1593,6 @@ const App = () => {
     [
       automationState,
       decks,
-      getFilterTargets,
       loadDeckBuffer,
       scheduleLoopedSamples,
       stretchCalibration,
