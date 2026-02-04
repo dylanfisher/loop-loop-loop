@@ -46,6 +46,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Deck FX layout includes a Fractal Resonator unit (6 compact controls) for live modal-resonance sculpting.
+- Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
@@ -69,6 +70,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Session state stored in memory with optional persistence to IndexedDB.
 - Presets for FX chains, deck states, and mappings.
 - Session persistence: save/load session JSON to IndexedDB plus WAV blobs for deck/clip audio.
+- Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.
+- Deck UI state is also mirrored immediately to localStorage (lightweight patch) so quick refreshes restore panel state before the next full autosave.
 - Session WAV encoding (for save/export/autosave) uses a dedicated web worker to reduce main-thread stalls.
 - Clip metadata can include per-clip deck settings + automation snapshots to rehydrate FX on load.
 - Automation lanes support compact preset waveforms and length scaling controls.

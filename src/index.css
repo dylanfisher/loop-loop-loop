@@ -327,6 +327,7 @@ body[data-theme="dark"] .app__header {
   display: grid;
   gap: 10px;
   grid-template-columns: 1fr;
+  align-items: start;
 }
 
 .deck-stack__header {
@@ -346,6 +347,7 @@ body[data-theme="dark"] .app__header {
   background: var(--surface-strong);
   border-radius: 16px;
   box-shadow: 0 10px 22px var(--soft-shadow);
+  align-self: start;
 }
 
 .deck__header {
@@ -720,6 +722,16 @@ input[type="range"]::-moz-focus-outer {
 
 .deck__fx-title {
   color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.deck__fx-title-toggle {
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  padding: 4px 8px;
 }
 
 .deck__fx-row {
@@ -745,6 +757,26 @@ input[type="range"]::-moz-focus-outer {
   gap: 6px;
   border-radius: 10px;
   position: relative;
+}
+
+.deck__fx-unit-toggle {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 88%, black 12%);
+  color: var(--text);
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 8px;
+}
+
+.deck__fx-unit.is-collapsed {
+  gap: 0;
+}
+
+.deck__fx-unit.is-collapsed > :not(.deck__fx-unit-toggle) {
+  display: none;
 }
 
 .deck__fx-unit-title {

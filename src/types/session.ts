@@ -1,3 +1,5 @@
+import type { DeckFxPanelState } from "./deck";
+
 export type AutomationParam =
   | "djFilter"
   | "resonance"
@@ -51,6 +53,7 @@ export type DeckSession = {
   fractalDrift: number;
   fractalDecay: number;
   fractalTone: number;
+  fxPanelOpen?: DeckFxPanelState;
   automation: Record<AutomationParam, AutomationSnapshot>;
 };
 

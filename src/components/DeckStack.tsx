@@ -1,5 +1,5 @@
 import DeckCard from "./DeckCard";
-import type { DeckState } from "../types/deck";
+import type { DeckFxPanel, DeckState } from "../types/deck";
 
 type DeckStackProps = {
   decks: DeckState[];
@@ -48,6 +48,8 @@ type DeckStackProps = {
   onStretchPhaseRandomnessChange: (id: number, value: number) => void;
   onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchScatterChange: (id: number, value: number) => void;
+  onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
+  onFxPanelsToggleAll: (id: number, open: boolean) => void;
   onStretchLoop: (id: number) => void;
   stretchEstimateByDeckId: Record<number, string>;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
@@ -129,6 +131,8 @@ const DeckStack = ({
   onStretchPhaseRandomnessChange,
   onStretchTiltDbChange,
   onStretchScatterChange,
+  onFxPanelToggle,
+  onFxPanelsToggleAll,
   onStretchLoop,
   stretchEstimateByDeckId,
   onSaveLoopClip,
@@ -191,6 +195,8 @@ const DeckStack = ({
             onStretchPhaseRandomnessChange={onStretchPhaseRandomnessChange}
             onStretchTiltDbChange={onStretchTiltDbChange}
             onStretchScatterChange={onStretchScatterChange}
+            onFxPanelToggle={onFxPanelToggle}
+            onFxPanelsToggleAll={onFxPanelsToggleAll}
             onStretchLoop={onStretchLoop}
             stretchEstimate={stretchEstimateByDeckId[deck.id] ?? null}
             onSaveLoopClip={onSaveLoopClip}

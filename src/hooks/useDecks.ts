@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
-import type { DeckState, DeckStatus } from "../types/deck";
+import type { DeckFxPanel, DeckFxPanelState, DeckState, DeckStatus } from "../types/deck";
 import type { AutomationParam, AutomationSnapshot, ClipSettings, DeckSession } from "../types/session";
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -28,6 +28,29 @@ const DEFAULT_FRACTAL_DRIFT = 0.15;
 const DEFAULT_FRACTAL_DECAY = 0.2;
 const DEFAULT_FRACTAL_TONE = 6000;
 const EQ_MAX_DB = 18;
+const FX_ACTIVE_EPSILON = 1e-3;
+const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
+  djFilter: false,
+  resonance: false,
+  eqLow: false,
+  eqMid: false,
+  eqHigh: false,
+  balance: false,
+  pitch: false,
+  delay: false,
+  fractal: false,
+  stretch: false,
+};
+
+const withDefaultFxPanelOpen = (
+  state?: Partial<DeckFxPanelState> | null
+): DeckFxPanelState => ({
+  ...DEFAULT_FX_PANEL_OPEN,
+  ...(state ?? {}),
+});
+
+const approxEqual = (a: number, b: number, epsilon = FX_ACTIVE_EPSILON) =>
+  Math.abs(a - b) <= epsilon;
 
 type AutomationTrack = {
   samples: Float32Array;
@@ -144,6 +167,7 @@ const useDecks = () => {
       fractalDrift: DEFAULT_FRACTAL_DRIFT,
       fractalDecay: DEFAULT_FRACTAL_DECAY,
       fractalTone: DEFAULT_FRACTAL_TONE,
+      fxPanelOpen: withDefaultFxPanelOpen(),
     },
   ], []);
 
@@ -1133,6 +1157,7 @@ const useDecks = () => {
         fractalDrift: DEFAULT_FRACTAL_DRIFT,
         fractalDecay: DEFAULT_FRACTAL_DECAY,
         fractalTone: DEFAULT_FRACTAL_TONE,
+        fxPanelOpen: withDefaultFxPanelOpen(),
       },
     ]);
   };
@@ -1212,6 +1237,37 @@ const useDecks = () => {
     const nextFractalDrift = clipSettings?.fractalDrift ?? DEFAULT_FRACTAL_DRIFT;
     const nextFractalDecay = clipSettings?.fractalDecay ?? DEFAULT_FRACTAL_DECAY;
     const nextFractalTone = clipSettings?.fractalTone ?? DEFAULT_FRACTAL_TONE;
+    const nextFxPanelOpen = (() => {
+      const currentPanels = withDefaultFxPanelOpen(currentDeck?.fxPanelOpen);
+      if (!clipSettings) return currentPanels;
+      const automation = clipSettings.automation;
+      const hasActiveAutomation = (param: AutomationParam) => automation?.[param]?.active === true;
+      const stretchChanged =
+        !approxEqual(nextStretchRatio, DEFAULT_STRETCH_RATIO) ||
+        nextStretchWindowSize !== DEFAULT_STRETCH_WINDOW_SIZE ||
+        !approxEqual(nextStretchStereoWidth, DEFAULT_STRETCH_STEREO_WIDTH) ||
+        !approxEqual(nextStretchPhaseRandomness, DEFAULT_STRETCH_PHASE_RANDOMNESS) ||
+        !approxEqual(nextStretchTiltDb, DEFAULT_STRETCH_TILT_DB) ||
+        !approxEqual(nextStretchScatter, DEFAULT_STRETCH_SCATTER);
+
+      return {
+        ...currentPanels,
+        djFilter: currentPanels.djFilter || !approxEqual(nextDjFilter, 0) || hasActiveAutomation("djFilter"),
+        resonance:
+          currentPanels.resonance ||
+          !approxEqual(nextResonance, 0) ||
+          hasActiveAutomation("resonance"),
+        eqLow: currentPanels.eqLow || !approxEqual(nextEqLow, 0) || hasActiveAutomation("eqLow"),
+        eqMid: currentPanels.eqMid || !approxEqual(nextEqMid, 0) || hasActiveAutomation("eqMid"),
+        eqHigh: currentPanels.eqHigh || !approxEqual(nextEqHigh, 0) || hasActiveAutomation("eqHigh"),
+        balance:
+          currentPanels.balance || !approxEqual(nextBalance, 0) || hasActiveAutomation("balance"),
+        pitch: currentPanels.pitch || !approxEqual(nextPitchShift, 0) || hasActiveAutomation("pitch"),
+        delay: currentPanels.delay || nextDelayMix > FX_ACTIVE_EPSILON,
+        fractal: currentPanels.fractal || nextFractalMix > FX_ACTIVE_EPSILON,
+        stretch: currentPanels.stretch || stretchChanged,
+      };
+    })();
     applyDeckSettingsToEngine(id, {
       gain: nextGain,
       djFilter: nextDjFilter,
@@ -1296,6 +1352,7 @@ const useDecks = () => {
       fractalDrift: nextFractalDrift,
       fractalDecay: nextFractalDecay,
       fractalTone: nextFractalTone,
+      fxPanelOpen: nextFxPanelOpen,
     }, true);
     setDeckPitchShift(id, nextPitchShift);
     setDeckBalance(id, nextBalance);
@@ -1355,6 +1412,7 @@ const useDecks = () => {
         fractalDrift: nextFractalDrift,
         fractalDecay: nextFractalDecay,
         fractalTone: nextFractalTone,
+        fxPanelOpen: nextFxPanelOpen,
       };
       if (wasPlaying) {
         const startedAtMs = performance.now();
@@ -2324,6 +2382,59 @@ const useDecks = () => {
     updateDeck(id, { stretchScatter: clamped }, false);
   };
 
+  const setDeckFxPanelOpen = (id: number, panel: DeckFxPanel, open: boolean) => {
+    setDecksNoHistory((prev) =>
+      prev.map((deck) =>
+        deck.id === id
+          ? { ...deck, fxPanelOpen: { ...withDefaultFxPanelOpen(deck.fxPanelOpen), [panel]: open } }
+          : deck
+      )
+    );
+  };
+
+  const setDeckFxPanelsOpen = (id: number, open: boolean) => {
+    setDecksNoHistory((prev) =>
+      prev.map((deck) =>
+        deck.id === id
+          ? {
+              ...deck,
+              fxPanelOpen: {
+                djFilter: open,
+                resonance: open,
+                eqLow: open,
+                eqMid: open,
+                eqHigh: open,
+                balance: open,
+                pitch: open,
+                delay: open,
+                fractal: open,
+                stretch: open,
+              },
+            }
+          : deck
+      )
+    );
+  };
+
+  const applyDeckFxPanelStatePatch = useCallback(
+    (patch: Record<number, Partial<DeckFxPanelState>>) => {
+      setDecksNoHistory((prev) =>
+        prev.map((deck) => {
+          const nextPatch = patch[deck.id];
+          if (!nextPatch) return deck;
+          return {
+            ...deck,
+            fxPanelOpen: withDefaultFxPanelOpen({
+              ...withDefaultFxPanelOpen(deck.fxPanelOpen),
+              ...nextPatch,
+            }),
+          };
+        })
+      );
+    },
+    [setDecksNoHistory]
+  );
+
   const getDeckPlaybackSnapshotSafe = useCallback(
     (id: number) => {
       const engineSnapshot = _getDeckPlaybackSnapshot(id);
@@ -2419,6 +2530,7 @@ const useDecks = () => {
         fractalDrift: deck.fractalDrift,
         fractalDecay: deck.fractalDecay,
         fractalTone: deck.fractalTone,
+        fxPanelOpen: withDefaultFxPanelOpen(deck.fxPanelOpen),
         automation: {
           djFilter: buildSnapshot(automation?.djFilter, deck.djFilter),
           resonance: buildSnapshot(automation?.resonance, deck.filterResonance),
@@ -2574,6 +2686,7 @@ const useDecks = () => {
           fractalDrift: sessionDeck.fractalDrift ?? DEFAULT_FRACTAL_DRIFT,
           fractalDecay: sessionDeck.fractalDecay ?? DEFAULT_FRACTAL_DECAY,
           fractalTone: sessionDeck.fractalTone ?? DEFAULT_FRACTAL_TONE,
+          fxPanelOpen: withDefaultFxPanelOpen(sessionDeck.fxPanelOpen),
           startedAtMs: undefined,
         };
       });
@@ -2654,6 +2767,9 @@ const useDecks = () => {
     setDeckStretchPhaseRandomness,
     setDeckStretchTiltDb,
     setDeckStretchScatter,
+    setDeckFxPanelOpen,
+    setDeckFxPanelsOpen,
+    applyDeckFxPanelStatePatch,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,

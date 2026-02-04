@@ -1,5 +1,19 @@
 export type DeckStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
+export type DeckFxPanel =
+  | "djFilter"
+  | "resonance"
+  | "eqLow"
+  | "eqMid"
+  | "eqHigh"
+  | "balance"
+  | "pitch"
+  | "delay"
+  | "fractal"
+  | "stretch";
+
+export type DeckFxPanelState = Record<DeckFxPanel, boolean>;
+
 export type DeckState = {
   id: number;
   status: DeckStatus;
@@ -39,4 +53,5 @@ export type DeckState = {
   eqHighGain: number;
   balance: number;
   pitchShift: number;
+  fxPanelOpen: DeckFxPanelState;
 };

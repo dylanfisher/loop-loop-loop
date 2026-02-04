@@ -39,6 +39,11 @@ import {
 import { createZip, readZip } from "./utils/zip";
 import { encodeWavOffThread } from "./utils/wavWorkerClient";
 import {
+  buildFxPanelPatch,
+  loadFxPanelPatch,
+  saveFxPanelPatch,
+} from "./utils/fxPanelState";
+import {
   applyStretchCalibration,
   estimateStretchRenderSeconds,
   formatStretchEstimateLabel,
@@ -292,6 +297,9 @@ const App = () => {
     setDeckStretchPhaseRandomness,
     setDeckStretchTiltDb,
     setDeckStretchScatter,
+    setDeckFxPanelOpen,
+    setDeckFxPanelsOpen,
+    applyDeckFxPanelStatePatch,
     automationState,
     startAutomationRecording,
     stopAutomationRecording,
@@ -1720,18 +1728,26 @@ const App = () => {
 
   useEffect(() => {
     const loadAutosave = async () => {
+      const fxPanelPatch = loadFxPanelPatch();
       const loaded = await loadSessionState(AUTO_SESSION_ID);
       if (!loaded) {
+        applyDeckFxPanelStatePatch(fxPanelPatch);
         autosaveReadyRef.current = true;
         setAutosaveReady(true);
         return;
       }
       await applySessionDataRef.current?.(loaded.session, loaded.blobs);
+      applyDeckFxPanelStatePatch(fxPanelPatch);
       autosaveReadyRef.current = true;
       setAutosaveReady(true);
     };
     void loadAutosave();
-  }, []);
+  }, [applyDeckFxPanelStatePatch]);
+
+  useEffect(() => {
+    if (!autosaveReady) return;
+    saveFxPanelPatch(buildFxPanelPatch(decks));
+  }, [autosaveReady, decks]);
 
   const handleLoadSession = useCallback(async () => {
     if (sessionBusy) return;
@@ -2097,6 +2113,8 @@ const App = () => {
           onStretchPhaseRandomnessChange={setDeckStretchPhaseRandomness}
           onStretchTiltDbChange={setDeckStretchTiltDb}
           onStretchScatterChange={setDeckStretchScatter}
+          onFxPanelToggle={setDeckFxPanelOpen}
+          onFxPanelsToggleAll={setDeckFxPanelsOpen}
           onStretchLoop={handleStretchLoop}
           stretchEstimateByDeckId={stretchEstimateByDeckId}
           automationState={automationState}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DeckState } from "../types/deck";
+import type { DeckFxPanel, DeckState } from "../types/deck";
 import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
 import Waveform from "./Waveform";
@@ -111,6 +111,8 @@ type DeckCardProps = {
   onStretchPhaseRandomnessChange: (id: number, value: number) => void;
   onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchScatterChange: (id: number, value: number) => void;
+  onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
+  onFxPanelsToggleAll: (id: number, open: boolean) => void;
   onStretchLoop: (id: number) => void;
   stretchEstimate?: string | null;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
@@ -126,6 +128,19 @@ type DeckCardProps = {
   } | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
+
+const FX_PANEL_KEYS: DeckFxPanel[] = [
+  "djFilter",
+  "resonance",
+  "eqLow",
+  "eqMid",
+  "eqHigh",
+  "balance",
+  "pitch",
+  "delay",
+  "fractal",
+  "stretch",
+];
 
 const DeckCard = ({
   deck,
@@ -177,6 +192,8 @@ const DeckCard = ({
   onStretchPhaseRandomnessChange,
   onStretchTiltDbChange,
   onStretchScatterChange,
+  onFxPanelToggle,
+  onFxPanelsToggleAll,
   onStretchLoop,
   stretchEstimate,
   onSaveLoopClip,
@@ -353,6 +370,17 @@ const DeckCard = ({
   const [tempoFine, setTempoFine] = useState(false);
   const tempoFineDragRef = useRef<{ startY: number; startValue: number } | null>(null);
   const tempoIgnoreChangeRef = useRef(false);
+  const fxPanelOpen = deck.fxPanelOpen;
+  const toggleFxPanel = useCallback(
+    (panel: DeckFxPanel) => {
+      onFxPanelToggle(deck.id, panel, !fxPanelOpen[panel]);
+    },
+    [deck.id, fxPanelOpen, onFxPanelToggle]
+  );
+  const allFxOpen = FX_PANEL_KEYS.every((key) => fxPanelOpen[key]);
+  const toggleAllFxPanels = useCallback(() => {
+    onFxPanelsToggleAll(deck.id, !allFxOpen);
+  }, [allFxOpen, deck.id, onFxPanelsToggleAll]);
 
   return (
     <div className="deck">
@@ -589,9 +617,24 @@ const DeckCard = ({
         </div>
       </div>
       <div className="deck__fx">
-        <div className="deck__fx-title">Deck FX</div>
+        <div className="deck__fx-title">
+          <span>Deck FX</span>
+          <button type="button" className="deck__action deck__fx-title-toggle" onClick={toggleAllFxPanels}>
+            {allFxOpen ? "Close All" : "Open All"}
+          </button>
+        </div>
         <div className="deck__fx-row">
-          <div className="deck__fx-unit deck__fx-unit--filter">
+          <div
+            className={`deck__fx-unit deck__fx-unit--filter ${fxPanelOpen.djFilter ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.djFilter}
+              onClick={() => toggleFxPanel("djFilter")}
+            >
+              {fxPanelOpen.djFilter ? "DJ Filter -" : "DJ Filter +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="DJ Filter: sweeps between low‑pass and high‑pass to carve the sound. Use it to fade lows/highs during transitions. It runs in real time and affects both playback and rendered stretch output."
@@ -642,7 +685,17 @@ const DeckCard = ({
               }
             />
           </div>
-          <div className="deck__fx-unit deck__fx-unit--filter">
+          <div
+            className={`deck__fx-unit deck__fx-unit--filter ${fxPanelOpen.resonance ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.resonance}
+              onClick={() => toggleFxPanel("resonance")}
+            >
+              {fxPanelOpen.resonance ? "Resonance -" : "Resonance +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="Resonance: boosts the cutoff edge for sharper, more pronounced filter sweeps. Higher values add bite and intensity; it pairs with DJ Filter and is rendered into stretch output."
@@ -700,7 +753,17 @@ const DeckCard = ({
           </div>
         </div>
         <div className="deck__fx-row deck__fx-row--eq">
-          <div className="deck__fx-unit deck__fx-unit--eq">
+          <div
+            className={`deck__fx-unit deck__fx-unit--eq ${fxPanelOpen.eqLow ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.eqLow}
+              onClick={() => toggleFxPanel("eqLow")}
+            >
+              {fxPanelOpen.eqLow ? "Low EQ -" : "Low EQ +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="Low EQ: shapes bass energy. Boost to add weight, cut to clean up muddiness. Affects live playback and stretch renders."
@@ -747,7 +810,17 @@ const DeckCard = ({
               }
             />
           </div>
-          <div className="deck__fx-unit deck__fx-unit--eq">
+          <div
+            className={`deck__fx-unit deck__fx-unit--eq ${fxPanelOpen.eqMid ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.eqMid}
+              onClick={() => toggleFxPanel("eqMid")}
+            >
+              {fxPanelOpen.eqMid ? "Mid EQ -" : "Mid EQ +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="Mid EQ: controls presence and body. Boost for clarity, cut to reduce boxiness. Impacts live playback and stretch renders."
@@ -794,7 +867,17 @@ const DeckCard = ({
               }
             />
           </div>
-          <div className="deck__fx-unit deck__fx-unit--eq">
+          <div
+            className={`deck__fx-unit deck__fx-unit--eq ${fxPanelOpen.eqHigh ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.eqHigh}
+              onClick={() => toggleFxPanel("eqHigh")}
+            >
+              {fxPanelOpen.eqHigh ? "High EQ -" : "High EQ +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="High EQ: adjusts brightness and air. Boost for sparkle, cut for smoothness. Applied during playback and in stretch renders."
@@ -845,7 +928,17 @@ const DeckCard = ({
           </div>
         </div>
         <div className="deck__fx-row deck__fx-row--single">
-          <div className="deck__fx-unit deck__fx-unit--balance">
+          <div
+            className={`deck__fx-unit deck__fx-unit--balance ${fxPanelOpen.balance ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.balance}
+              onClick={() => toggleFxPanel("balance")}
+            >
+              {fxPanelOpen.balance ? "Balance -" : "Balance +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="Balance: pans the deck left/right in the stereo field. Use it to place layers in the mix; it affects playback and rendered output."
@@ -892,7 +985,17 @@ const DeckCard = ({
               }
             />
           </div>
-          <div className="deck__fx-unit deck__fx-unit--pitch">
+          <div
+            className={`deck__fx-unit deck__fx-unit--pitch ${fxPanelOpen.pitch ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.pitch}
+              onClick={() => toggleFxPanel("pitch")}
+            >
+              {fxPanelOpen.pitch ? "Pitch -" : "Pitch +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="Pitch: shifts the deck in semitones. Use for key matching or creative detune. When tempo‑pitch sync is off, it changes pitch independently; included in stretch renders."
@@ -941,12 +1044,21 @@ const DeckCard = ({
               disabled={deck.tempoPitchSync}
             />
           </div>
-          <div className="deck__fx-unit deck__fx-unit--delay deck__fx-unit--span-2">
+          <div
+            className={`deck__fx-unit deck__fx-unit--delay deck__fx-unit--span-2 ${fxPanelOpen.delay ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.delay}
+              onClick={() => toggleFxPanel("delay")}
+            >
+              {fxPanelOpen.delay ? "Delay -" : "Delay +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="Delay: time-based echo with feedback, tone, and mix controls. Ping pong bounces repeats left/right."
             />
-            <div className="deck__fx-unit-title">Delay</div>
             <div className="deck__delay-controls">
               <Knob
                 className="knob--compact"
@@ -1008,12 +1120,21 @@ const DeckCard = ({
               </label>
             </div>
           </div>
-          <div className="deck__fx-unit deck__fx-unit--fractal deck__fx-unit--span-2">
+          <div
+            className={`deck__fx-unit deck__fx-unit--fractal deck__fx-unit--span-2 ${fxPanelOpen.fractal ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.fractal}
+              onClick={() => toggleFxPanel("fractal")}
+            >
+              {fxPanelOpen.fractal ? "Fractal Resonator -" : "Fractal Resonator +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="Fractal Resonator: a recursive modal resonator that smears the deck into evolving, harmonic textures."
             />
-            <div className="deck__fx-unit-title">Fractal Resonator</div>
             <div className="deck__fractal-controls">
               <Knob
                 className="knob--compact"
@@ -1089,12 +1210,21 @@ const DeckCard = ({
               />
             </div>
           </div>
-          <div className="deck__fx-unit deck__fx-unit--stretch deck__fx-unit--span-2">
+          <div
+            className={`deck__fx-unit deck__fx-unit--stretch deck__fx-unit--span-2 ${fxPanelOpen.stretch ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.stretch}
+              onClick={() => toggleFxPanel("stretch")}
+            >
+              {fxPanelOpen.stretch ? "Stretch -" : "Stretch +"}
+            </button>
             <span
               className="deck__fx-hint"
               title="Stretch: offline Paulstretch render of the current loop. Use it to create long ambient textures; settings control scatter (grain spacing), phase randomness, width, and tone. The render replaces the deck buffer."
             />
-            <div className="deck__fx-unit-title">Stretch</div>
             <div className="deck__stretch-grid">
               <Knob
                 label="Amount"
