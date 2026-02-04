@@ -125,6 +125,7 @@ export type SessionState = {
   name: string;
   savedAt: number;
   masterGain?: number;
+  welcomePanelDismissed?: boolean;
   decks: DeckSession[];
   clips: ClipSession[];
 };
@@ -148,6 +149,7 @@ export type SessionFileState = {
   name: string;
   savedAt: number;
   masterGain?: number;
+  welcomePanelDismissed?: boolean;
   decks: SessionFileDeck[];
   clips: SessionFileClip[];
 };

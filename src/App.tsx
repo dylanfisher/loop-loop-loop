@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import DeckStack from "./components/DeckStack";
 import ClipRecorder from "./components/ClipRecorder";
+import WelcomePanel from "./components/WelcomePanel";
 import AsyncActionButton from "./components/AsyncActionButton";
 import Knob from "./components/Knob";
 import useDecks from "./hooks/useDecks";
@@ -193,6 +194,13 @@ const formatEstimateDuration = (seconds: number) => {
   return `~${minutes}m ${remainingSeconds}s`;
 };
 
+const isSessionBrandNew = (session: {
+  decks: Array<{ fileName?: string; wavBlobId?: string; wavFile?: string }>;
+  clips: unknown[];
+}) =>
+  session.clips.length === 0 &&
+  session.decks.every((deck) => !deck.wavBlobId && !deck.wavFile && !deck.fileName);
+
 const App = () => {
   const [clips, setClips] = useState<ClipItem[]>([]);
   const [exportMinutes, setExportMinutes] = useState(10);
@@ -213,6 +221,7 @@ const App = () => {
     return localStorage.getItem("debugPerf") === "true";
   });
   const [sessionName, setSessionName] = useState("");
+  const [welcomePanelDismissed, setWelcomePanelDismissed] = useState(false);
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [stretchEstimateByDeckId, setStretchEstimateByDeckId] = useState<Record<number, string>>(
@@ -347,6 +356,10 @@ const App = () => {
     canRedo,
     loadDeckBuffer,
   } = useDecks();
+  const isCurrentProjectBrandNew =
+    clips.length === 0 &&
+    decks.every((deck) => !deck.buffer && !deck.fileName);
+  const showWelcomePanel = isCurrentProjectBrandNew && !welcomePanelDismissed;
 
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
 
@@ -1644,6 +1657,7 @@ const App = () => {
       name: nextName,
       savedAt: Date.now(),
       masterGain,
+      welcomePanelDismissed,
       decks: sessionDecks.map((deck) => {
         const { wavBlobId: _wavBlobId, ...rest } = deck;
         return {
@@ -1688,7 +1702,7 @@ const App = () => {
     }
 
     return { sessionFile, entries: fileEntries };
-  }, [encodeClipsForSession, encodeDecksForSession, masterGain, sessionName]);
+  }, [encodeClipsForSession, encodeDecksForSession, masterGain, sessionName, welcomePanelDismissed]);
 
   const handleExportSession = useCallback(async () => {
     if (sessionBusy) return;
@@ -1780,6 +1794,12 @@ const App = () => {
       clipNameRef.current = Math.max(1, maxClipId + 1);
       setMasterGainValue(sessionFile.masterGain ?? 0.9);
       setSessionName(sessionFile.name);
+      setWelcomePanelDismissed(
+        sessionFile.welcomePanelDismissed ?? !isSessionBrandNew({
+          decks: sessionDecks,
+          clips: sessionFile.clips,
+        })
+      );
       setSessionStatus(`Imported "${sessionFile.name}".`);
     },
     [decodeFile, loadSessionDecks]
@@ -1800,6 +1820,7 @@ const App = () => {
         name: nextName,
         savedAt: Date.now(),
         masterGain,
+        welcomePanelDismissed,
         decks: sessionDecks,
         clips: clipSessions,
       };
@@ -1821,6 +1842,7 @@ const App = () => {
     masterGain,
     sessionBusy,
     sessionName,
+    welcomePanelDismissed,
   ]);
 
   useEffect(() => {
@@ -1842,6 +1864,7 @@ const App = () => {
           name: sessionName.trim() || "Untitled",
           savedAt: Date.now(),
           masterGain,
+          welcomePanelDismissed,
           decks: sessionDecks,
           clips: clipSessions,
         };
@@ -1863,6 +1886,7 @@ const App = () => {
     encodeDecksForSession,
     masterGain,
     sessionName,
+    welcomePanelDismissed,
   ]);
 
   const decodeSessionDecks = useCallback(
@@ -1920,6 +1944,9 @@ const App = () => {
       clipNameRef.current = Math.max(1, maxClipId + 1);
       setMasterGainValue(session.masterGain ?? 0.9);
       setSessionName(session.name);
+      setWelcomePanelDismissed(
+        session.welcomePanelDismissed ?? !isSessionBrandNew(session)
+      );
     },
     [decodeSessionDecks, loadSessionDecks]
   );
@@ -1988,6 +2015,7 @@ const App = () => {
     clipNameRef.current = 1;
     setMasterGainValue(0.9);
     setSessionName("");
+    setWelcomePanelDismissed(false);
     setSelectedSessionId(null);
     setSessionStatus(null);
   }, [resetDecks]);
@@ -2267,6 +2295,9 @@ const App = () => {
       </header>
 
       <main className="app__main">
+        {showWelcomePanel ? (
+          <WelcomePanel onClose={() => setWelcomePanelDismissed(true)} />
+        ) : null}
         <ClipRecorder
           decks={decks}
           clips={clips}

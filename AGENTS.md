@@ -10,3 +10,4 @@
 - Run `npm run lint` after modifying JS/TS source files, and fix any lint errors.
 - For any new or modified audio effect, keep processing parity across pipelines: live deck playback, Save Loop offline render (baked path), Export Mix offline render, and global master recording output.
 - Prefer extending `src/audio/effects/` and `src/audio/effects/postEqPipeline.ts` so Save Loop and Export Mix share the same plugin chain ordering and behavior.
+- If workflow changes affect onboarding or first-run UX, update the welcome panel copy in `src/components/WelcomePanel.tsx` and reflect the change in `BLUEPRINT.md`.

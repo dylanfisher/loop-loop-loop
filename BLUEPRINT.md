@@ -49,9 +49,11 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
+- Brand-new projects show a dismissible Welcome panel above the clip recorder with first-run guidance.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
 [Header (brand + session controls + performance panel + master gain)]
+[Welcome panel (new project only, dismissible)]
 [Clip Recorder]
 [Deck 1] [Deck 2]
 [Deck 3] [Deck 4]
@@ -73,6 +75,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.
 - Deck UI state is also mirrored immediately to localStorage (lightweight patch) so quick refreshes restore panel state before the next full autosave.
 - Session WAV encoding (for save/export/autosave) uses a dedicated web worker to reduce main-thread stalls.
+- Welcome panel dismissed state is persisted through autosave, saved sessions, and exported/imported project zips.
 - Auto-rearrange (On Loop) updates are treated as transient: they do not create undo history snapshots and skip immediate autosave scheduling to avoid runaway memory/encode pressure during continuous looping.
 - Auto-rearrange playback reload path reuses existing deck audio nodes (source-only restart) to avoid repeated node graph teardown/rebuild churn on every loop.
 - Clip metadata can include per-clip deck settings + automation snapshots to rehydrate FX on load.

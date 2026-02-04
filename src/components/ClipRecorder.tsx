@@ -208,7 +208,12 @@ const ClipRecorder = ({
   return (
     <section className="panel clip-rack">
       <div className="panel__title">
-        <span>Clip Recorder</span>
+        <div className="clip-rack__title">
+          <span>Clip Recorder</span>
+          <span className="clip-rack__meta">
+            {recording ? `Recording ${elapsed.toFixed(1)}s` : "Idle"}
+          </span>
+        </div>
         <div className="panel__actions">
           {recording ? (
             <button type="button" onClick={stopRecording}>
@@ -220,9 +225,6 @@ const ClipRecorder = ({
             </button>
           )}
         </div>
-      </div>
-      <div className="clip-rack__meta">
-        <span>{recording ? `Recording ${elapsed.toFixed(1)}s` : "Idle"}</span>
       </div>
       {error ? <div className="clip-rack__error">{error}</div> : null}
       <div className="clip-rack__list">

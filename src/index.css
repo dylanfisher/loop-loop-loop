@@ -223,6 +223,8 @@ body[data-theme="dark"] .app__header {
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
+  align-content: start;
+  align-items: start;
 }
 
 .panel {
@@ -254,8 +256,51 @@ body[data-theme="dark"] .app__header {
   gap: 8px;
 }
 
+.welcome-panel {
+  gap: 8px;
+}
+
+.welcome-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.welcome-panel__close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  line-height: 1;
+}
+
+.welcome-panel__body {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.welcome-panel__list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
 .clip-rack .panel__actions button {
   font-weight: 400;
+  padding: 2px 8px;
+  font-size: 0.62rem;
+  line-height: 1.1;
+}
+
+.clip-rack .panel__title {
+  align-items: baseline;
+  gap: 8px;
 }
 
 .session-bar__field {
@@ -1182,17 +1227,26 @@ button:active {
 
 .clip-rack {
   background: var(--surface);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
-.clip-rack__meta {
+.clip-rack__title {
   display: flex;
-  gap: 12px;
+  align-items: baseline;
+  gap: 10px;
+  flex: 1;
+}
+
+.clip-rack__meta {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--muted);
+  margin-left: auto;
+  text-align: right;
+  padding-right: 6px;
 }
 
 .clip-rack__error {
