@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
 import type { DeckFxPanel, DeckFxPanelState, DeckState, DeckStatus } from "../types/deck";
 import type { AutomationParam, AutomationSnapshot, ClipSettings, DeckSession } from "../types/session";
+import { normalizeRearrangerRegionIds, normalizeRearrangerRegions } from "../utils/rearranger";
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const AUTOMATION_SAMPLE_RATE = 30;
@@ -27,6 +28,12 @@ const DEFAULT_FRACTAL_DEPTH = 0.35;
 const DEFAULT_FRACTAL_DRIFT = 0.15;
 const DEFAULT_FRACTAL_DECAY = 0.2;
 const DEFAULT_FRACTAL_TONE = 6000;
+const DEFAULT_REARRANGER_SLICES = 0;
+const DEFAULT_REARRANGER_OFFSET = 0;
+const DEFAULT_REARRANGER_CHAOS = 0;
+const DEFAULT_REARRANGER_REVERSE = 0;
+const DEFAULT_REARRANGER_AUTO = false;
+const MAX_REARRANGER_SLICES = 32;
 const EQ_MAX_DB = 18;
 const FX_ACTIVE_EPSILON = 1e-3;
 const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
@@ -39,6 +46,7 @@ const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
   pitch: false,
   delay: false,
   fractal: false,
+  rearranger: false,
   stretch: false,
 };
 
@@ -51,6 +59,32 @@ const withDefaultFxPanelOpen = (
 
 const approxEqual = (a: number, b: number, epsilon = FX_ACTIVE_EPSILON) =>
   Math.abs(a - b) <= epsilon;
+
+const sanitizeRearrangerRegions = (regions: number[] | null | undefined) => {
+  if (!regions || regions.length === 0) return undefined;
+  const points = regions
+    .filter((value) => Number.isFinite(value))
+    .map((value) => Math.max(0, Math.min(1, value)))
+    .sort((a, b) => a - b);
+  if (points.length === 0) return undefined;
+  if (points[0] > 0) points.unshift(0);
+  if (points[points.length - 1] < 1) points.push(1);
+  if (points.length < 3) return undefined;
+  if (points.length > MAX_REARRANGER_SLICES + 1) {
+    return [0, ...points.slice(1, MAX_REARRANGER_SLICES), 1];
+  }
+  return points;
+};
+
+const appendRearrangerBoundary = (regions: number[]) => {
+  if (regions.length < 2) return regions;
+  const prev = regions[regions.length - 2] ?? 0;
+  const next = regions[regions.length - 1] ?? 1;
+  const inserted = prev + (next - prev) * 0.5;
+  const copy = [...regions];
+  copy.splice(copy.length - 1, 0, inserted);
+  return copy;
+};
 
 type AutomationTrack = {
   samples: Float32Array;
@@ -167,6 +201,12 @@ const useDecks = () => {
       fractalDrift: DEFAULT_FRACTAL_DRIFT,
       fractalDecay: DEFAULT_FRACTAL_DECAY,
       fractalTone: DEFAULT_FRACTAL_TONE,
+      rearrangerSlices: DEFAULT_REARRANGER_SLICES,
+      rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
+      rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
+      rearrangerReverse: DEFAULT_REARRANGER_REVERSE,
+      rearrangerAuto: DEFAULT_REARRANGER_AUTO,
+      rearrangerRegionsManual: false,
       fxPanelOpen: withDefaultFxPanelOpen(),
     },
   ], []);
@@ -1157,6 +1197,12 @@ const useDecks = () => {
         fractalDrift: DEFAULT_FRACTAL_DRIFT,
         fractalDecay: DEFAULT_FRACTAL_DECAY,
         fractalTone: DEFAULT_FRACTAL_TONE,
+        rearrangerSlices: DEFAULT_REARRANGER_SLICES,
+        rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
+        rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
+        rearrangerReverse: DEFAULT_REARRANGER_REVERSE,
+        rearrangerAuto: DEFAULT_REARRANGER_AUTO,
+        rearrangerRegionsManual: false,
         fxPanelOpen: withDefaultFxPanelOpen(),
       },
     ]);
@@ -1237,6 +1283,29 @@ const useDecks = () => {
     const nextFractalDrift = clipSettings?.fractalDrift ?? DEFAULT_FRACTAL_DRIFT;
     const nextFractalDecay = clipSettings?.fractalDecay ?? DEFAULT_FRACTAL_DECAY;
     const nextFractalTone = clipSettings?.fractalTone ?? DEFAULT_FRACTAL_TONE;
+    const nextRearrangerSlices = Math.max(
+      0,
+      Math.min(32, Math.round(clipSettings?.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES))
+    );
+    const nextRearrangerOffset = Math.max(
+      -32,
+      Math.min(32, Math.round(clipSettings?.rearrangerOffset ?? DEFAULT_REARRANGER_OFFSET))
+    );
+    const nextRearrangerChaos = Math.max(
+      0,
+      Math.min(1, clipSettings?.rearrangerChaos ?? DEFAULT_REARRANGER_CHAOS)
+    );
+    const nextRearrangerReverse = Math.max(
+      0,
+      Math.min(1, clipSettings?.rearrangerReverse ?? DEFAULT_REARRANGER_REVERSE)
+    );
+    const nextRearrangerAuto = clipSettings?.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO;
+    const nextRearrangerRegions = sanitizeRearrangerRegions(clipSettings?.rearrangerRegions);
+    const nextRearrangerRegionIds = normalizeRearrangerRegionIds(
+      clipSettings?.rearrangerRegionIds,
+      nextRearrangerSlices
+    );
+    const nextRearrangerRegionsManual = clipSettings?.rearrangerRegionsManual ?? false;
     const nextFxPanelOpen = (() => {
       const currentPanels = withDefaultFxPanelOpen(currentDeck?.fxPanelOpen);
       if (!clipSettings) return currentPanels;
@@ -1265,6 +1334,14 @@ const useDecks = () => {
         pitch: currentPanels.pitch || !approxEqual(nextPitchShift, 0) || hasActiveAutomation("pitch"),
         delay: currentPanels.delay || nextDelayMix > FX_ACTIVE_EPSILON,
         fractal: currentPanels.fractal || nextFractalMix > FX_ACTIVE_EPSILON,
+        rearranger:
+          currentPanels.rearranger ||
+          nextRearrangerAuto ||
+          nextRearrangerSlices !== DEFAULT_REARRANGER_SLICES ||
+          !approxEqual(nextRearrangerOffset, DEFAULT_REARRANGER_OFFSET) ||
+          nextRearrangerChaos > FX_ACTIVE_EPSILON ||
+          nextRearrangerReverse > FX_ACTIVE_EPSILON ||
+          (nextRearrangerRegions?.length ?? 0) > 0,
         stretch: currentPanels.stretch || stretchChanged,
       };
     })();
@@ -1352,6 +1429,14 @@ const useDecks = () => {
       fractalDrift: nextFractalDrift,
       fractalDecay: nextFractalDecay,
       fractalTone: nextFractalTone,
+      rearrangerSlices: nextRearrangerSlices,
+      rearrangerOffset: nextRearrangerOffset,
+      rearrangerChaos: nextRearrangerChaos,
+      rearrangerReverse: nextRearrangerReverse,
+      rearrangerAuto: nextRearrangerAuto,
+      rearrangerRegions: nextRearrangerRegions,
+      rearrangerRegionIds: nextRearrangerRegionIds,
+      rearrangerRegionsManual: nextRearrangerRegionsManual,
       fxPanelOpen: nextFxPanelOpen,
     }, true);
     setDeckPitchShift(id, nextPitchShift);
@@ -1412,6 +1497,14 @@ const useDecks = () => {
         fractalDrift: nextFractalDrift,
         fractalDecay: nextFractalDecay,
         fractalTone: nextFractalTone,
+        rearrangerSlices: nextRearrangerSlices,
+        rearrangerOffset: nextRearrangerOffset,
+        rearrangerChaos: nextRearrangerChaos,
+        rearrangerReverse: nextRearrangerReverse,
+        rearrangerAuto: nextRearrangerAuto,
+        rearrangerRegions: nextRearrangerRegions,
+        rearrangerRegionIds: nextRearrangerRegionIds,
+        rearrangerRegionsManual: nextRearrangerRegionsManual,
         fxPanelOpen: nextFxPanelOpen,
       };
       if (wasPlaying) {
@@ -2010,6 +2103,32 @@ const useDecks = () => {
         const minGap = Math.min(0.05, Math.max(0.005, duration * 0.25));
         const nextStart = Math.min(Math.max(0, startSeconds), duration);
         const nextEnd = Math.min(Math.max(nextStart + minGap, endSeconds), duration);
+        const prevLoopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+        const prevLoopEnd =
+          deck.loopEndSeconds && deck.loopEndSeconds > prevLoopStart + 0.01
+            ? Math.min(deck.loopEndSeconds, duration)
+            : duration;
+        const prevLoopDuration = Math.max(0.001, prevLoopEnd - prevLoopStart);
+        const nextLoopDuration = Math.max(0.001, nextEnd - nextStart);
+        const nextRearrangerRegions = (() => {
+          if ((deck.rearrangerSlices ?? 0) <= 1) return deck.rearrangerRegions;
+          const normalized = normalizeRearrangerRegions(deck.rearrangerRegions, deck.rearrangerSlices);
+          const remapped = normalized.map((point, index) => {
+            if (index === 0) return 0;
+            if (index === normalized.length - 1) return 1;
+            const absolute = prevLoopStart + point * prevLoopDuration;
+            return Math.min(Math.max((absolute - nextStart) / nextLoopDuration, 0), 1);
+          });
+          for (let i = 1; i < remapped.length; i += 1) {
+            remapped[i] = Math.max(remapped[i], remapped[i - 1]);
+          }
+          for (let i = remapped.length - 2; i >= 0; i -= 1) {
+            remapped[i] = Math.min(remapped[i], remapped[i + 1]);
+          }
+          remapped[0] = 0;
+          remapped[remapped.length - 1] = 1;
+          return remapped;
+        })();
 
         if (deck.status === "playing" && deck.loopEnabled) {
           const currentPosition = getDeckPosition(deck.id);
@@ -2023,6 +2142,7 @@ const useDecks = () => {
               ...deck,
               loopStartSeconds: nextStart,
               loopEndSeconds: nextEnd,
+              rearrangerRegions: nextRearrangerRegions,
             };
           }
 
@@ -2075,6 +2195,7 @@ const useDecks = () => {
             ...deck,
             loopStartSeconds: nextStart,
             loopEndSeconds: nextEnd,
+            rearrangerRegions: nextRearrangerRegions,
             startedAtMs,
             offsetSeconds: clampedOffset,
           };
@@ -2083,7 +2204,12 @@ const useDecks = () => {
         if (deck.loopEnabled) {
           setDeckLoopParams(deck.id, true, nextStart, nextEnd);
         }
-        return { ...deck, loopStartSeconds: nextStart, loopEndSeconds: nextEnd };
+        return {
+          ...deck,
+          loopStartSeconds: nextStart,
+          loopEndSeconds: nextEnd,
+          rearrangerRegions: nextRearrangerRegions,
+        };
       })
     );
   };
@@ -2162,21 +2288,45 @@ const useDecks = () => {
   };
 
   const loadDeckBuffer = useCallback(
-    (id: number, buffer: AudioBuffer, options?: { name?: string; autoplay?: boolean }) => {
-    const deck = decks.find((item) => item.id === id);
-    if (!deck) return;
-    stop(id);
-    playbackStartRef.current.delete(id);
-    removeDeckNodes(id);
+    (
+      id: number,
+      buffer: AudioBuffer,
+      options?: {
+        name?: string;
+        autoplay?: boolean;
+        recordHistory?: boolean;
+        preserveNodes?: boolean;
+        preserveFxState?: boolean;
+        rearrangerRegions?: number[];
+        rearrangerRegionIds?: number[];
+        rearrangerRegionsManual?: boolean;
+      }
+    ) => {
+      const deck = decks.find((item) => item.id === id);
+      if (!deck) return;
+      stop(id);
+      playbackStartRef.current.delete(id);
+      if (!options?.preserveNodes) {
+        removeDeckNodes(id);
+      }
       const duration = Number.isFinite(buffer.duration)
         ? buffer.duration
         : buffer.length / buffer.sampleRate;
       const name = options?.name ?? deck.fileName ?? "Stretched Loop";
       const autoplay = options?.autoplay ?? true;
-      const nextGain = 0.9;
-      const nextBalance = 0;
-      const nextPitchShift = 0;
-      const nextTempoOffset = 0;
+      const recordHistory = options?.recordHistory ?? true;
+      const preserveFxState = options?.preserveFxState ?? false;
+      const nextGain = preserveFxState ? deck.gain : 0.9;
+      const nextBalance = preserveFxState ? deck.balance : 0;
+      const nextPitchShift = preserveFxState ? deck.pitchShift : 0;
+      const nextTempoOffset = preserveFxState ? deck.tempoOffset : 0;
+      const nextTempoPitchSync = preserveFxState ? deck.tempoPitchSync : false;
+      const nextDjFilter = preserveFxState ? deck.djFilter : 0;
+      const nextResonance = preserveFxState ? deck.filterResonance : 0;
+      const nextEqLow = preserveFxState ? deck.eqLowGain : 0;
+      const nextEqMid = preserveFxState ? deck.eqMidGain : 0;
+      const nextEqHigh = preserveFxState ? deck.eqHighGain : 0;
+      const nextZoom = preserveFxState ? deck.zoom : 1;
       const nextStretchRatio = deck.stretchRatio ?? DEFAULT_STRETCH_RATIO;
       const nextStretchWindowSize = deck.stretchWindowSize ?? DEFAULT_STRETCH_WINDOW_SIZE;
       const nextStretchStereoWidth =
@@ -2197,7 +2347,23 @@ const useDecks = () => {
       const nextFractalDrift = deck.fractalDrift ?? DEFAULT_FRACTAL_DRIFT;
       const nextFractalDecay = deck.fractalDecay ?? DEFAULT_FRACTAL_DECAY;
       const nextFractalTone = deck.fractalTone ?? DEFAULT_FRACTAL_TONE;
-      resetAutomation(id, 0, 0.7, 0, 0, 0, nextBalance, nextPitchShift);
+      const nextRearrangerSlices = deck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES;
+      const nextRearrangerOffset = deck.rearrangerOffset ?? DEFAULT_REARRANGER_OFFSET;
+      const nextRearrangerChaos = deck.rearrangerChaos ?? DEFAULT_REARRANGER_CHAOS;
+      const nextRearrangerReverse = deck.rearrangerReverse ?? DEFAULT_REARRANGER_REVERSE;
+      const nextRearrangerAuto = deck.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO;
+      const nextRearrangerRegions = sanitizeRearrangerRegions(
+        options?.rearrangerRegions ?? deck.rearrangerRegions
+      );
+      const nextRearrangerRegionIds =
+        options?.rearrangerRegionIds ??
+        deck.rearrangerRegionIds ??
+        Array.from({ length: Math.max(0, deck.rearrangerSlices ?? 0) }, (_, index) => index);
+      const nextRearrangerRegionsManual =
+        options?.rearrangerRegionsManual ?? deck.rearrangerRegionsManual ?? false;
+      if (!preserveFxState) {
+        resetAutomation(id, 0, 0.7, 0, 0, 0, nextBalance, nextPitchShift);
+      }
 
       const status: DeckStatus = autoplay ? "playing" : "ready";
       const nextDeck: DeckState = {
@@ -2206,20 +2372,20 @@ const useDecks = () => {
         buffer,
         duration,
         gain: nextGain,
-        djFilter: 0,
-        filterResonance: 0,
-        eqLowGain: 0,
-        eqMidGain: 0,
-        eqHighGain: 0,
+        djFilter: nextDjFilter,
+        filterResonance: nextResonance,
+        eqLowGain: nextEqLow,
+        eqMidGain: nextEqMid,
+        eqHighGain: nextEqHigh,
         balance: nextBalance,
         pitchShift: nextPitchShift,
         offsetSeconds: 0,
-        zoom: 1,
+        zoom: nextZoom,
         loopEnabled: true,
         loopStartSeconds: 0,
         loopEndSeconds: duration,
         tempoOffset: nextTempoOffset,
-        tempoPitchSync: false,
+        tempoPitchSync: nextTempoPitchSync,
         stretchRatio: nextStretchRatio,
         stretchWindowSize: nextStretchWindowSize,
         stretchStereoWidth: nextStretchStereoWidth,
@@ -2237,22 +2403,29 @@ const useDecks = () => {
         fractalDrift: nextFractalDrift,
         fractalDecay: nextFractalDecay,
         fractalTone: nextFractalTone,
+        rearrangerSlices: nextRearrangerSlices,
+        rearrangerOffset: nextRearrangerOffset,
+        rearrangerChaos: nextRearrangerChaos,
+        rearrangerReverse: nextRearrangerReverse,
+        rearrangerAuto: nextRearrangerAuto,
+        rearrangerRegions: nextRearrangerRegions,
+        rearrangerRegionIds: nextRearrangerRegionIds,
+        rearrangerRegionsManual: nextRearrangerRegionsManual,
         status,
         startedAtMs: autoplay ? performance.now() : undefined,
       };
 
-      setDecksWithHistory((prev) =>
-        prev.map((item) => (item.id === id ? nextDeck : item))
-      );
+      const applyDeckUpdate = recordHistory ? setDecksWithHistory : setDecksNoHistory;
+      applyDeckUpdate((prev) => prev.map((item) => (item.id === id ? nextDeck : item)));
 
       setDeckGain(id, nextGain);
-      const filterTargets = getFilterTargets(0);
+      const filterTargets = getFilterTargets(nextDjFilter);
       setDeckFilter(id, filterTargets.lowpass);
       setDeckHighpass(id, filterTargets.highpass);
-      setDeckResonance(id, 0.7);
-      setDeckEqLow(id, 0);
-      setDeckEqMid(id, 0);
-      setDeckEqHigh(id, 0);
+      setDeckResonance(id, nextResonance);
+      setDeckEqLow(id, nextEqLow);
+      setDeckEqMid(id, nextEqMid);
+      setDeckEqHigh(id, nextEqHigh);
       setDeckBalance(id, nextBalance);
       setDeckPitchShift(id, nextPitchShift);
       setDeckDelayTime(id, nextDelayTime);
@@ -2266,7 +2439,8 @@ const useDecks = () => {
       setDeckFractalDrift(id, nextFractalDrift);
       setDeckFractalDecay(id, nextFractalDecay);
       setDeckFractalTone(id, nextFractalTone);
-      setDeckPlaybackRate(id, 1);
+      const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
+      setDeckPlaybackRate(id, tempoRatio);
       setDeckLoopParams(id, true, 0, duration);
 
       if (autoplay) {
@@ -2282,16 +2456,16 @@ const useDecks = () => {
           },
           nextGain,
           0,
-          1,
+          tempoRatio,
           true,
           0,
           duration,
-          20000,
-          60,
-          0.7,
-          0,
-          0,
-          0,
+          filterTargets.lowpass,
+          filterTargets.highpass,
+          nextResonance,
+          nextEqLow,
+          nextEqMid,
+          nextEqHigh,
           nextDelayTime,
           nextDelayFeedback,
           nextDelayMix,
@@ -2337,6 +2511,7 @@ const useDecks = () => {
       setDeckPlaybackRate,
       setDeckResonance,
       setDecksWithHistory,
+      setDecksNoHistory,
       stop,
       updateDeck,
     ]
@@ -2382,6 +2557,132 @@ const useDecks = () => {
     updateDeck(id, { stretchScatter: clamped }, false);
   };
 
+  const setDeckRearrangerSlices = (id: number, value: number) => {
+    const safeValue = Number.isFinite(value) ? Math.round(value) : DEFAULT_REARRANGER_SLICES;
+    const clamped = Math.min(Math.max(safeValue, 0), MAX_REARRANGER_SLICES);
+    setDecksNoHistory((prev) =>
+      prev.map((deck) => {
+        if (deck.id !== id) return deck;
+        const current = Math.min(
+          Math.max(Math.round(deck.rearrangerSlices || DEFAULT_REARRANGER_SLICES), 0),
+          MAX_REARRANGER_SLICES
+        );
+        if (clamped === current) return deck;
+        const hasManualRegions = deck.rearrangerRegionsManual === true;
+        const customRegions = hasManualRegions
+          ? sanitizeRearrangerRegions(deck.rearrangerRegions)
+          : undefined;
+        const currentIds =
+          deck.rearrangerRegionIds ??
+          Array.from({ length: Math.max(0, current) }, (_, index) => index);
+        if (clamped <= 1) {
+          return {
+            ...deck,
+            rearrangerSlices: clamped,
+            rearrangerRegions: undefined,
+            rearrangerRegionIds: currentIds.slice(0, clamped),
+            rearrangerRegionsManual: false,
+          };
+        }
+        if (!customRegions) {
+          const nextIds =
+            clamped > current
+              ? [
+                  ...currentIds,
+                  ...Array.from({ length: clamped - current }, (_, index) => current + index),
+                ]
+              : currentIds.slice(0, clamped);
+          return {
+            ...deck,
+            rearrangerSlices: clamped,
+            rearrangerRegions: undefined,
+            rearrangerRegionIds: nextIds,
+            rearrangerRegionsManual: false,
+          };
+        }
+        let nextRegions = [...customRegions];
+        const nextIds = [...currentIds];
+        if (nextRegions.length === clamped + 1) {
+          return {
+            ...deck,
+            rearrangerSlices: clamped,
+            rearrangerRegions: nextRegions,
+            rearrangerRegionIds: nextIds.slice(0, clamped),
+            rearrangerRegionsManual: true,
+          };
+        }
+        if (clamped > current) {
+          while (nextRegions.length < clamped + 1) {
+            nextRegions = appendRearrangerBoundary(nextRegions);
+            const maxId = nextIds.reduce((max, id) => Math.max(max, id), -1);
+            nextIds.push(maxId + 1);
+          }
+        } else {
+          while (nextRegions.length > clamped + 1 && nextRegions.length > 3) {
+            nextRegions.splice(nextRegions.length - 2, 1);
+            nextIds.splice(nextIds.length - 1, 1);
+          }
+        }
+        return {
+          ...deck,
+          rearrangerSlices: clamped,
+          rearrangerRegions: nextRegions,
+          rearrangerRegionIds: nextIds.slice(0, clamped),
+          rearrangerRegionsManual: true,
+        };
+      })
+    );
+  };
+
+  const setDeckRearrangerOffset = (id: number, value: number) => {
+    const safeValue = Number.isFinite(value) ? Math.round(value) : DEFAULT_REARRANGER_OFFSET;
+    const clamped = Math.min(Math.max(safeValue, -32), 32);
+    updateDeck(id, { rearrangerOffset: clamped }, false);
+  };
+
+  const setDeckRearrangerChaos = (id: number, value: number) => {
+    const safeValue = Number.isFinite(value) ? value : DEFAULT_REARRANGER_CHAOS;
+    const clamped = Math.min(Math.max(safeValue, 0), 1);
+    updateDeck(id, { rearrangerChaos: clamped }, false);
+  };
+
+  const setDeckRearrangerReverse = (id: number, value: number) => {
+    const safeValue = Number.isFinite(value) ? value : DEFAULT_REARRANGER_REVERSE;
+    const clamped = Math.min(Math.max(safeValue, 0), 1);
+    updateDeck(id, { rearrangerReverse: clamped }, false);
+  };
+
+  const setDeckRearrangerAuto = (id: number, value: boolean) => {
+    updateDeck(id, { rearrangerAuto: value }, false);
+  };
+
+  const setDeckRearrangerRegions = (id: number, regions?: number[]) => {
+    const next = sanitizeRearrangerRegions(regions);
+    const nextSlices = next ? Math.max(0, next.length - 1) : undefined;
+    setDecksNoHistory((prev) =>
+      prev.map((deck) => {
+        if (deck.id !== id) return deck;
+        const slices = nextSlices ?? deck.rearrangerSlices;
+        const currentIds =
+          deck.rearrangerRegionIds ??
+          Array.from({ length: Math.max(0, deck.rearrangerSlices) }, (_, index) => index);
+        const nextIds =
+          slices <= currentIds.length
+            ? currentIds.slice(0, slices)
+            : [
+                ...currentIds,
+                ...Array.from({ length: slices - currentIds.length }, (_, index) => currentIds.length + index),
+              ];
+        return {
+          ...deck,
+          rearrangerRegions: next,
+          rearrangerRegionIds: nextIds,
+          rearrangerRegionsManual: true,
+        };
+      })
+    );
+  };
+
   const setDeckFxPanelOpen = (id: number, panel: DeckFxPanel, open: boolean) => {
     setDecksNoHistory((prev) =>
       prev.map((deck) =>
@@ -2408,6 +2709,7 @@ const useDecks = () => {
                 pitch: open,
                 delay: open,
                 fractal: open,
+                rearranger: open,
                 stretch: open,
               },
             }
@@ -2530,6 +2832,14 @@ const useDecks = () => {
         fractalDrift: deck.fractalDrift,
         fractalDecay: deck.fractalDecay,
         fractalTone: deck.fractalTone,
+        rearrangerSlices: deck.rearrangerSlices,
+        rearrangerOffset: deck.rearrangerOffset,
+        rearrangerChaos: deck.rearrangerChaos,
+        rearrangerReverse: deck.rearrangerReverse,
+        rearrangerAuto: deck.rearrangerAuto,
+        rearrangerRegions: sanitizeRearrangerRegions(deck.rearrangerRegions),
+        rearrangerRegionIds: deck.rearrangerRegionIds,
+        rearrangerRegionsManual: deck.rearrangerRegionsManual ?? false,
         fxPanelOpen: withDefaultFxPanelOpen(deck.fxPanelOpen),
         automation: {
           djFilter: buildSnapshot(automation?.djFilter, deck.djFilter),
@@ -2686,6 +2996,24 @@ const useDecks = () => {
           fractalDrift: sessionDeck.fractalDrift ?? DEFAULT_FRACTAL_DRIFT,
           fractalDecay: sessionDeck.fractalDecay ?? DEFAULT_FRACTAL_DECAY,
           fractalTone: sessionDeck.fractalTone ?? DEFAULT_FRACTAL_TONE,
+          rearrangerSlices:
+            sessionDeck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES,
+          rearrangerOffset:
+            sessionDeck.rearrangerOffset ?? DEFAULT_REARRANGER_OFFSET,
+          rearrangerChaos:
+            sessionDeck.rearrangerChaos ?? DEFAULT_REARRANGER_CHAOS,
+          rearrangerReverse:
+            sessionDeck.rearrangerReverse ?? DEFAULT_REARRANGER_REVERSE,
+          rearrangerAuto:
+            sessionDeck.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO,
+          rearrangerRegions: sanitizeRearrangerRegions(sessionDeck.rearrangerRegions),
+          rearrangerRegionIds:
+            sessionDeck.rearrangerRegionIds ??
+            Array.from(
+              { length: Math.max(0, sessionDeck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES) },
+              (_, index) => index
+            ),
+          rearrangerRegionsManual: sessionDeck.rearrangerRegionsManual ?? false,
           fxPanelOpen: withDefaultFxPanelOpen(sessionDeck.fxPanelOpen),
           startedAtMs: undefined,
         };
@@ -2767,6 +3095,12 @@ const useDecks = () => {
     setDeckStretchPhaseRandomness,
     setDeckStretchTiltDb,
     setDeckStretchScatter,
+    setDeckRearrangerSlices,
+    setDeckRearrangerOffset,
+    setDeckRearrangerChaos,
+    setDeckRearrangerReverse,
+    setDeckRearrangerAuto,
+    setDeckRearrangerRegions,
     setDeckFxPanelOpen,
     setDeckFxPanelsOpen,
     applyDeckFxPanelStatePatch,

@@ -1,5 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { setPerfCounter, setPerfTiming } from "../utils/perf";
+import {
+  buildRearrangerMap,
+  normalizeRearrangerRegionIds,
+  normalizeRearrangerRegions,
+} from "../utils/rearranger";
 
 type WaveformProps = {
   buffer?: AudioBuffer;
@@ -33,6 +38,15 @@ type WaveformProps = {
     playing: boolean;
     playbackRate: number;
   } | null;
+  showRearrangerSlices?: boolean;
+  rearrangerSlices?: number;
+  rearrangerOffset?: number;
+  rearrangerChaos?: number;
+  rearrangerReverse?: number;
+  rearrangerRegions?: number[];
+  rearrangerRegionIds?: number[];
+  onRearrangerRegionsChange?: (regions: number[]) => void;
+  onRearrangerSlicesChange?: (value: number) => void;
 };
 
 const buildPeaks = (
@@ -334,6 +348,15 @@ const Waveform = ({
   getCurrentSeconds,
   onEmptyClick,
   getPlaybackSnapshot,
+  showRearrangerSlices = false,
+  rearrangerSlices = 8,
+  rearrangerOffset = 0,
+  rearrangerChaos = 0,
+  rearrangerReverse = 0,
+  rearrangerRegions,
+  rearrangerRegionIds,
+  onRearrangerRegionsChange,
+  onRearrangerSlicesChange,
 }: WaveformProps) => {
   const MAX_BAND_PEAKS_PER_SECOND = 4000;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -355,11 +378,15 @@ const Waveform = ({
   const loopEndHandleRef = useRef<HTMLDivElement | null>(null);
   const loopRegionRef = useRef<HTMLDivElement | null>(null);
   const loopConnectorRef = useRef<HTMLDivElement | null>(null);
+  const sliceHandlesRef = useRef<HTMLDivElement | null>(null);
   const loopStartRef = useRef(loopStartSeconds);
   const loopEndRef = useRef(loopEndSeconds);
   const loopDragOffsetRef = useRef(0);
   const loopDragActiveRef = useRef(false);
   const loopDragWindowStartRef = useRef(0);
+  const rearrangerHandleDragRef = useRef<{ pointerId: number; boundaryIndex: number } | null>(null);
+  const rearrangerHandleMovedRef = useRef(false);
+  const rearrangerHandleStartXRef = useRef(0);
   const hasInitializedWindowRef = useRef(false);
   const prevZoomRef = useRef(zoom);
   const panPointerIdRef = useRef<number | null>(null);
@@ -575,6 +602,22 @@ const Waveform = ({
     getDisplaySecondsRef.current = getDisplaySeconds;
   }, [getDisplaySeconds]);
 
+  const rearrangerHandleRegions = normalizeRearrangerRegions(
+    rearrangerRegions,
+    rearrangerSlices
+  );
+  const rearrangerIds = normalizeRearrangerRegionIds(
+    rearrangerRegionIds,
+    rearrangerSlices
+  );
+  const rearrangerHandleMap = buildRearrangerMap({
+    slices: rearrangerSlices,
+    offset: rearrangerOffset,
+    chaos: rearrangerChaos,
+    reverse: rearrangerReverse,
+    regions: rearrangerHandleRegions,
+  });
+
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
     if (!overlay || !buffer) return;
@@ -626,6 +669,57 @@ const Waveform = ({
       overlayContext.restore();
     }
 
+    if (
+      rearrangerSlices > 1 &&
+      resolvedLoopEnabled &&
+      resolvedLoopEnd > resolvedLoopStart + 0.01
+    ) {
+      const overlayAlpha = showRearrangerSlices ? 1 : 0.45;
+      const loopDuration = resolvedLoopEnd - resolvedLoopStart;
+      const visibleStart = windowStartRef.current;
+      const visibleEnd = visibleStart + visualDuration;
+      const regionStart = Math.max(visibleStart, resolvedLoopStart);
+      const regionEnd = Math.min(visibleEnd, resolvedLoopEnd);
+      if (regionEnd > regionStart) {
+        const map = buildRearrangerMap({
+          slices: rearrangerSlices,
+          offset: rearrangerOffset,
+          chaos: rearrangerChaos,
+          reverse: rearrangerReverse,
+          regions: rearrangerRegions,
+        });
+        const regions = normalizeRearrangerRegions(rearrangerRegions, rearrangerSlices);
+        for (let i = 0; i < map.length; i += 1) {
+          const sliceStart = resolvedLoopStart + loopDuration * regions[i];
+          const sliceEnd = resolvedLoopStart + loopDuration * regions[i + 1];
+          const drawStart = Math.max(sliceStart, regionStart);
+          const drawEnd = Math.min(sliceEnd, regionEnd);
+          if (drawEnd <= drawStart) continue;
+          const x0 = ((drawStart - visibleStart) / visualDuration) * overlay.clientWidth;
+          const x1 = ((drawEnd - visibleStart) / visualDuration) * overlay.clientWidth;
+          const width = Math.max(1, x1 - x0);
+          const id = rearrangerIds[i] ?? i;
+          const hue = ((id % Math.max(1, map.length)) / Math.max(1, map.length)) * 360;
+          overlayContext.fillStyle = `hsla(${hue.toFixed(1)} 82% 58% / ${(0.14 * overlayAlpha).toFixed(3)})`;
+          overlayContext.fillRect(x0, 0, width, overlay.clientHeight);
+          overlayContext.strokeStyle = `hsla(${hue.toFixed(1)} 86% 44% / ${(0.28 * overlayAlpha).toFixed(3)})`;
+          overlayContext.lineWidth = 1;
+          overlayContext.beginPath();
+          overlayContext.moveTo(x0, 0);
+          overlayContext.lineTo(x0, overlay.clientHeight);
+          overlayContext.stroke();
+          if (map[i].reversed) {
+            overlayContext.strokeStyle = `hsla(${hue.toFixed(1)} 92% 36% / ${(0.5 * overlayAlpha).toFixed(3)})`;
+            overlayContext.beginPath();
+            overlayContext.moveTo(x0 + 1, 2);
+            overlayContext.lineTo(Math.max(x0 + 1, x1 - 1), 2);
+            overlayContext.stroke();
+          }
+        }
+      }
+    }
+
+
     const maxX = Math.max(1, overlay.clientWidth - 1);
     const x = Math.min(Math.max(progress * overlay.clientWidth, 1), maxX);
 
@@ -657,6 +751,7 @@ const Waveform = ({
       const loopEndHandle = loopEndHandleRef.current;
       const loopRegion = loopRegionRef.current;
       const loopConnector = loopConnectorRef.current;
+      const sliceHandles = sliceHandlesRef.current;
 
       const overlayWidth = overlay.clientWidth;
       if (overlayWidth > 0) {
@@ -691,6 +786,12 @@ const Waveform = ({
         loopConnector.style.left = `${left * 100}%`;
         loopConnector.style.width = `${width * 100}%`;
       }
+      if (sliceHandles) {
+        const left = Math.min(clampedStart, clampedEnd);
+        const width = Math.max(0, Math.abs(clampedEnd - clampedStart));
+        sliceHandles.style.left = `${left * 100}%`;
+        sliceHandles.style.width = `${width * 100}%`;
+      }
 
       if (resolvedLoopEnabled) {
         const startX = loopStartProgress * overlay.clientWidth;
@@ -720,6 +821,13 @@ const Waveform = ({
     loopStartSeconds,
     waveformGainScale,
     zoom,
+    rearrangerChaos,
+    rearrangerOffset,
+    rearrangerIds,
+    rearrangerReverse,
+    rearrangerRegions,
+    rearrangerSlices,
+    showRearrangerSlices,
   ]);
 
   useEffect(() => {
@@ -1129,6 +1237,10 @@ const Waveform = ({
       className="deck__waveform deck__waveform--interactive"
       ref={wrapperRef}
       onClick={(event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest(".deck__slice-handles, .deck__slice-handle")) {
+          return;
+        }
         if (dragMovedRef.current) {
           dragMovedRef.current = false;
           return;
@@ -1149,6 +1261,7 @@ const Waveform = ({
         if (
           target?.closest(
             ".deck__loop-region, .deck__loop-connector, .deck__loop-handle"
+            + ", .deck__slice-handle"
           )
         ) {
           return;
@@ -1197,6 +1310,7 @@ const Waveform = ({
           activeLoopDragRef.current ||
           (event.target as HTMLElement | null)?.closest(
             ".deck__loop-region, .deck__loop-connector, .deck__loop-handle"
+            + ", .deck__slice-handle"
           )
         ) {
           return;
@@ -1569,6 +1683,135 @@ const Waveform = ({
       )}
       <canvas ref={canvasRef} />
       <canvas ref={overlayRef} className="deck__waveform-overlay" />
+      {showRearrangerSlices && loopEnabled && loopEndSeconds > loopStartSeconds + 0.01 ? (
+        <div
+          ref={sliceHandlesRef}
+          className="deck__slice-handles"
+          aria-hidden="true"
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            event.preventDefault();
+            if (
+              event.target !== event.currentTarget ||
+              !onRearrangerRegionsChange ||
+              !onRearrangerSlicesChange
+            ) {
+              return;
+            }
+            if (rearrangerSlices >= 32) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            if (!rect.width) return;
+            const raw = (event.clientX - rect.left) / rect.width;
+            const minGap = 0.002;
+            const nextPoint = Math.max(0, Math.min(1, raw));
+            let insertAfter = -1;
+            for (let i = 0; i < rearrangerHandleRegions.length - 1; i += 1) {
+              const a = rearrangerHandleRegions[i];
+              const b = rearrangerHandleRegions[i + 1];
+              if (nextPoint >= a && nextPoint <= b) {
+                insertAfter = i;
+                break;
+              }
+            }
+            if (insertAfter < 0) return;
+            const previous = rearrangerHandleRegions[insertAfter] + minGap;
+            const next = rearrangerHandleRegions[insertAfter + 1] - minGap;
+            const clamped = Math.min(Math.max(nextPoint, previous), next);
+            if (clamped <= previous || clamped >= next) return;
+            const nextRegions = [...rearrangerHandleRegions];
+            nextRegions.splice(insertAfter + 1, 0, clamped);
+            onRearrangerRegionsChange(nextRegions);
+            onRearrangerSlicesChange(rearrangerSlices + 1);
+          }}
+        >
+          {rearrangerHandleRegions.slice(1, -1).map((point, localIndex) => {
+            const boundaryIndex = localIndex + 1;
+            const colorIndex = Math.min(
+              boundaryIndex,
+              rearrangerHandleMap.length - 1
+            );
+            const id = rearrangerIds[colorIndex] ?? colorIndex;
+            const hue =
+              ((id % Math.max(1, rearrangerHandleMap.length)) /
+                Math.max(1, rearrangerHandleMap.length)) *
+              360;
+            return (
+              <button
+                key={`slice-handle-${boundaryIndex}`}
+                type="button"
+                className="deck__slice-handle"
+                style={{
+                  left: `${point * 100}%`,
+                  backgroundColor: `hsl(${hue.toFixed(1)} 82% 58%)`,
+                }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  rearrangerHandleDragRef.current = {
+                    pointerId: event.pointerId,
+                    boundaryIndex,
+                  };
+                  rearrangerHandleMovedRef.current = false;
+                  rearrangerHandleStartXRef.current = event.clientX;
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onPointerMove={(event) => {
+                  const drag = rearrangerHandleDragRef.current;
+                  if (
+                    !drag ||
+                    drag.pointerId !== event.pointerId ||
+                    !onRearrangerRegionsChange
+                  ) {
+                    return;
+                  }
+                  event.stopPropagation();
+                  if (Math.abs(event.clientX - rearrangerHandleStartXRef.current) > 2) {
+                    rearrangerHandleMovedRef.current = true;
+                  }
+                  const rect = event.currentTarget.parentElement?.getBoundingClientRect();
+                  if (!rect) return;
+                  if (!rect.width) return;
+                  const raw = (event.clientX - rect.left) / rect.width;
+                  const minGap = 0.002;
+                  const previous = rearrangerHandleRegions[drag.boundaryIndex - 1] + minGap;
+                  const next = rearrangerHandleRegions[drag.boundaryIndex + 1] - minGap;
+                  const clamped = Math.min(Math.max(raw, previous), next);
+                  if (Math.abs(clamped - rearrangerHandleRegions[drag.boundaryIndex]) < 1e-4) {
+                    return;
+                  }
+                  const nextRegions = [...rearrangerHandleRegions];
+                  nextRegions[drag.boundaryIndex] = clamped;
+                  onRearrangerRegionsChange(nextRegions);
+                }}
+                onPointerUp={(event) => {
+                  if (rearrangerHandleDragRef.current?.pointerId === event.pointerId) {
+                    rearrangerHandleDragRef.current = null;
+                  }
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (rearrangerHandleMovedRef.current) {
+                    rearrangerHandleMovedRef.current = false;
+                    return;
+                  }
+                  if (!onRearrangerRegionsChange || !onRearrangerSlicesChange) return;
+                  if (rearrangerSlices <= 1) return;
+                  const nextRegions = [...rearrangerHandleRegions];
+                  nextRegions.splice(boundaryIndex, 1);
+                  onRearrangerRegionsChange(nextRegions);
+                  onRearrangerSlicesChange(rearrangerSlices - 1);
+                }}
+                onPointerLeave={() => {
+                  rearrangerHandleDragRef.current = null;
+                }}
+              />
+            );
+          })}
+        </div>
+      ) : null}
       <div className="deck__waveform-time" aria-hidden="true">
         <span ref={totalTimeLabelRef}>{formatTimeLabel(buffer.duration)}</span>
       </div>

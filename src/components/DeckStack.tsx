@@ -48,11 +48,19 @@ type DeckStackProps = {
   onStretchPhaseRandomnessChange: (id: number, value: number) => void;
   onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchScatterChange: (id: number, value: number) => void;
+  onRearrangerSlicesChange: (id: number, value: number) => void;
+  onRearrangerOffsetChange: (id: number, value: number) => void;
+  onRearrangerChaosChange: (id: number, value: number) => void;
+  onRearrangerReverseChange: (id: number, value: number) => void;
+  onRearrangerAutoChange: (id: number, value: boolean) => void;
+  onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
+  onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
   onFxPanelsToggleAll: (id: number, open: boolean) => void;
   onStretchLoop: (id: number) => void;
   stretchEstimateByDeckId: Record<number, string>;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
+  onCropLoop: (id: number) => void;
   automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", {
     samples: Float32Array;
     previewSamples: Float32Array;
@@ -131,11 +139,19 @@ const DeckStack = ({
   onStretchPhaseRandomnessChange,
   onStretchTiltDbChange,
   onStretchScatterChange,
+  onRearrangerSlicesChange,
+  onRearrangerOffsetChange,
+  onRearrangerChaosChange,
+  onRearrangerReverseChange,
+  onRearrangerAutoChange,
+  onRearrangerRegionsChange,
+  onRearrangeLoop,
   onFxPanelToggle,
   onFxPanelsToggleAll,
   onStretchLoop,
   stretchEstimateByDeckId,
   onSaveLoopClip,
+  onCropLoop,
   automationState,
   onAutomationStart,
   onAutomationStop,
@@ -195,11 +211,19 @@ const DeckStack = ({
             onStretchPhaseRandomnessChange={onStretchPhaseRandomnessChange}
             onStretchTiltDbChange={onStretchTiltDbChange}
             onStretchScatterChange={onStretchScatterChange}
+            onRearrangerSlicesChange={onRearrangerSlicesChange}
+            onRearrangerOffsetChange={onRearrangerOffsetChange}
+            onRearrangerChaosChange={onRearrangerChaosChange}
+            onRearrangerReverseChange={onRearrangerReverseChange}
+            onRearrangerAutoChange={onRearrangerAutoChange}
+            onRearrangerRegionsChange={onRearrangerRegionsChange}
+            onRearrangeLoop={onRearrangeLoop}
             onFxPanelToggle={onFxPanelToggle}
             onFxPanelsToggleAll={onFxPanelsToggleAll}
             onStretchLoop={onStretchLoop}
             stretchEstimate={stretchEstimateByDeckId[deck.id] ?? null}
             onSaveLoopClip={onSaveLoopClip}
+            onCropLoop={onCropLoop}
             automation={automationState.get(deck.id)}
             onAutomationStart={onAutomationStart}
             onAutomationStop={onAutomationStop}

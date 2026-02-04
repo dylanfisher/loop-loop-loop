@@ -10,6 +10,7 @@ export type DeckFxPanel =
   | "pitch"
   | "delay"
   | "fractal"
+  | "rearranger"
   | "stretch";
 
 export type DeckFxPanelState = Record<DeckFxPanel, boolean>;
@@ -46,6 +47,14 @@ export type DeckState = {
   fractalDrift: number;
   fractalDecay: number;
   fractalTone: number;
+  rearrangerSlices: number;
+  rearrangerOffset: number;
+  rearrangerChaos: number;
+  rearrangerReverse: number;
+  rearrangerAuto: boolean;
+  rearrangerRegions?: number[];
+  rearrangerRegionIds?: number[];
+  rearrangerRegionsManual?: boolean;
   djFilter: number;
   filterResonance: number;
   eqLowGain: number;

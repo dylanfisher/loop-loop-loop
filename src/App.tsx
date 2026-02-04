@@ -51,6 +51,11 @@ import {
   saveStretchCalibrationState,
   updateStretchCalibrationState,
 } from "./utils/stretchEstimate";
+import {
+  deriveRearrangedRegionIds,
+  deriveRearrangedRegions,
+  rearrangeBufferSegment,
+} from "./utils/rearranger";
 
 type PerformanceMemory = {
   usedJSHeapSize: number;
@@ -121,9 +126,18 @@ const sliceBufferSegment = (
   durationSeconds: number
 ) => {
   const sampleRate = buffer.sampleRate;
-  const startSample = Math.max(0, Math.floor(startSeconds * sampleRate));
-  const lengthSamples = Math.max(1, Math.floor(durationSeconds * sampleRate));
-  const endSample = Math.min(buffer.length, startSample + lengthSamples);
+  const clampedStartSeconds = Math.max(0, startSeconds);
+  const startSample = Math.max(
+    0,
+    Math.min(buffer.length - 1, Math.round(clampedStartSeconds * sampleRate))
+  );
+  const endSample = Math.max(
+    startSample + 1,
+    Math.min(
+      buffer.length,
+      Math.round((clampedStartSeconds + Math.max(0.001, durationSeconds)) * sampleRate)
+    )
+  );
   const length = Math.max(1, endSample - startSample);
   const sliced = new AudioBuffer({
     length,
@@ -252,6 +266,11 @@ const App = () => {
   const clipsRef = useRef<ClipItem[]>([]);
   const clipBufferCacheRef = useRef<Map<number, { blob: Blob; buffer: AudioBuffer }>>(new Map());
   const autosaveTimeoutRef = useRef<number | null>(null);
+  const rearrangeLoopTrackerRef = useRef<Map<number, { lastPosition: number; lastTriggerMs: number }>>(
+    new Map()
+  );
+  const rearrangeBusyByDeckRef = useRef<Map<number, boolean>>(new Map());
+  const skipNextAutosaveRef = useRef(0);
   const autosaveReadyRef = useRef(false);
   const [autosaveReady, setAutosaveReady] = useState(false);
   const applySessionDataRef = useRef<
@@ -297,6 +316,12 @@ const App = () => {
     setDeckStretchPhaseRandomness,
     setDeckStretchTiltDb,
     setDeckStretchScatter,
+    setDeckRearrangerSlices,
+    setDeckRearrangerOffset,
+    setDeckRearrangerChaos,
+    setDeckRearrangerReverse,
+    setDeckRearrangerAuto,
+    setDeckRearrangerRegions,
     setDeckFxPanelOpen,
     setDeckFxPanelsOpen,
     applyDeckFxPanelStatePatch,
@@ -423,6 +448,14 @@ const App = () => {
         fractalDrift: deck.fractalDrift,
         fractalDecay: deck.fractalDecay,
         fractalTone: deck.fractalTone,
+        rearrangerSlices: deck.rearrangerSlices,
+        rearrangerOffset: deck.rearrangerOffset,
+        rearrangerChaos: deck.rearrangerChaos,
+        rearrangerReverse: deck.rearrangerReverse,
+        rearrangerAuto: deck.rearrangerAuto,
+        rearrangerRegions: deck.rearrangerRegions,
+        rearrangerRegionIds: deck.rearrangerRegionIds,
+        rearrangerRegionsManual: deck.rearrangerRegionsManual ?? false,
         loopEnabled: true,
         loopStartSeconds: 0,
         loopEndSeconds: loopDuration,
@@ -544,17 +577,17 @@ const App = () => {
     });
   }, []);
 
-  const handleSaveLoopClip = useCallback(
+  const renderLoopClip = useCallback(
     async (deckId: number, includeSettings: boolean) => {
       const deck = decks.find((item) => item.id === deckId);
-      if (!deck?.buffer) return;
+      if (!deck?.buffer) return null;
       const duration = deck.duration ?? deck.buffer.duration;
       const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
       const loopEnd =
         deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
           ? Math.min(deck.loopEndSeconds, duration)
           : duration;
-      if (loopEnd <= loopStart + 0.01) return;
+      if (loopEnd <= loopStart + 0.01) return null;
       const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
       const sliceDuration = Math.max(0.01, loopEnd - loopStart);
       const renderDuration = sliceDuration / Math.max(0.01, tempoRatio);
@@ -624,7 +657,7 @@ const App = () => {
         const sliced = sliceBufferSegment(deck.buffer, loopStart, sliceDuration);
         const blob = encodeWav(sliced);
         const settings = buildClipSettings(deck, sliced.duration);
-        addClip({
+        return {
           blob,
           durationSec: sliced.duration,
           buffer: sliced,
@@ -634,14 +667,13 @@ const App = () => {
           tempoOffset: settings.tempoOffset,
           settings,
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
-        });
-        return;
+        };
       }
 
       if (!needsRender) {
         const sliced = sliceBufferSegment(deck.buffer, loopStart, sliceDuration);
         const blob = encodeWav(sliced);
-        addClip({
+        return {
           blob,
           durationSec: sliced.duration,
           buffer: sliced,
@@ -650,8 +682,7 @@ const App = () => {
           pitchShift: 0,
           tempoOffset: 0,
           name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
-        });
-        return;
+        };
       }
 
       const targetSamples = Math.max(1, Math.ceil(renderDuration * sampleRate));
@@ -774,32 +805,57 @@ const App = () => {
       chain.connect(offline.destination);
       source.start(0, loopStart, renderDuration);
       const rendered = await offline.startRendering();
-        const silenceTrimSamples = findLeadingSilenceSamples(
-          rendered,
-          maxSilenceTrimSamples,
-          1e-4
-        );
-        const totalTrim = Math.min(latencySamples + silenceTrimSamples, extraSamples);
-        const trimmed = trimBufferLeadingSamples(
-          offline,
-          rendered,
-          totalTrim,
-          targetSamples
-        );
-        const blob = encodeWav(trimmed);
-        addClip({
-          blob,
-          durationSec: trimmed.duration,
-          buffer: trimmed,
-          gain: 0.9,
-          balance: 0,
-          pitchShift: 0,
-          tempoOffset: 0,
-          settings: undefined,
-          name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
-        });
+      const silenceTrimSamples = findLeadingSilenceSamples(
+        rendered,
+        maxSilenceTrimSamples,
+        1e-4
+      );
+      const totalTrim = Math.min(latencySamples + silenceTrimSamples, extraSamples);
+      const trimmed = trimBufferLeadingSamples(
+        offline,
+        rendered,
+        totalTrim,
+        targetSamples
+      );
+      const blob = encodeWav(trimmed);
+      return {
+        blob,
+        durationSec: trimmed.duration,
+        buffer: trimmed,
+        gain: 0.9,
+        balance: 0,
+        pitchShift: 0,
+        tempoOffset: 0,
+        settings: undefined,
+        name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
+      };
     },
-    [addClip, automationState, buildClipSettings, decks]
+    [automationState, buildClipSettings, decks]
+  );
+
+  const handleSaveLoopClip = useCallback(
+    async (deckId: number, includeSettings: boolean) => {
+      const clip = await renderLoopClip(deckId, includeSettings);
+      if (!clip) return;
+      addClip(clip);
+    },
+    [addClip, renderLoopClip]
+  );
+
+  const handleCropLoop = useCallback(
+    async (deckId: number) => {
+      const deck = decks.find((item) => item.id === deckId);
+      if (!deck) return;
+      const clip = await renderLoopClip(deckId, true);
+      if (!clip) return;
+      const wasPlaying = deck.status === "playing";
+      loadDeckBuffer(deckId, clip.buffer, {
+        name: `${deck.fileName ?? "Loop"} Crop`,
+        autoplay: wasPlaying,
+        preserveFxState: true,
+      });
+    },
+    [decks, loadDeckBuffer, renderLoopClip]
   );
 
   const exportMixdown = useCallback(async () => {
@@ -1379,6 +1435,147 @@ const App = () => {
     ]
   );
 
+  const handleRearrangeLoop = useCallback(
+    (deckId: number, options?: { transient?: boolean }) => {
+      const deck = decks.find((item) => item.id === deckId);
+      if (!deck?.buffer) return;
+      if ((deck.rearrangerSlices ?? 0) <= 1) return;
+      if (rearrangeBusyByDeckRef.current.get(deckId)) return;
+      const duration = deck.duration ?? deck.buffer.duration;
+      const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+      const loopEnd =
+        deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+          ? Math.min(deck.loopEndSeconds, duration)
+          : duration;
+      if (loopEnd <= loopStart + 0.01) return;
+
+      rearrangeBusyByDeckRef.current.set(deckId, true);
+      try {
+        const chaosSeed = Math.random() * 1_000_000_000;
+        const loopDuration = loopEnd - loopStart;
+        const rearranged = rearrangeBufferSegment(deck.buffer, loopStart, loopDuration, {
+          slices: deck.rearrangerSlices,
+          offset: deck.rearrangerOffset,
+          chaos: deck.rearrangerChaos,
+          reverse: deck.rearrangerReverse,
+          regions: deck.rearrangerRegions,
+        }, { chaosSeed });
+        const nextRegions = deriveRearrangedRegions({
+          slices: deck.rearrangerSlices,
+          offset: deck.rearrangerOffset,
+          chaos: deck.rearrangerChaos,
+          reverse: deck.rearrangerReverse,
+          regions: deck.rearrangerRegions,
+        }, { chaosSeed });
+        const nextRegionIds = deriveRearrangedRegionIds(
+          {
+            slices: deck.rearrangerSlices,
+            offset: deck.rearrangerOffset,
+            chaos: deck.rearrangerChaos,
+            reverse: deck.rearrangerReverse,
+            regions: deck.rearrangerRegions,
+          },
+          deck.rearrangerRegionIds,
+          { chaosSeed }
+        );
+        const name = `${deck.fileName ?? "Loop"} Rearranged`;
+        const wasPlaying = deck.status === "playing";
+        if (options?.transient) {
+          skipNextAutosaveRef.current += 1;
+        }
+        loadDeckBuffer(deckId, rearranged, {
+          name,
+          autoplay: wasPlaying,
+          recordHistory: !options?.transient,
+          preserveNodes: options?.transient,
+          preserveFxState: options?.transient,
+          rearrangerRegions: nextRegions,
+          rearrangerRegionIds: nextRegionIds,
+        });
+      } finally {
+        rearrangeBusyByDeckRef.current.set(deckId, false);
+      }
+    },
+    [decks, loadDeckBuffer]
+  );
+
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const now = performance.now();
+      const tracker = rearrangeLoopTrackerRef.current;
+      const busyByDeck = rearrangeBusyByDeckRef.current;
+      const activeDecks = new Set(decks.map((deck) => deck.id));
+      tracker.forEach((_, deckId) => {
+        if (!activeDecks.has(deckId)) {
+          tracker.delete(deckId);
+        }
+      });
+      busyByDeck.forEach((_, deckId) => {
+        if (!activeDecks.has(deckId)) {
+          busyByDeck.delete(deckId);
+        }
+      });
+
+      decks.forEach((deck) => {
+        const snapshot = getDeckPlaybackSnapshot(deck.id);
+        const currentPosition = snapshot?.position ?? deck.offsetSeconds ?? 0;
+        const state = tracker.get(deck.id) ?? {
+          lastPosition: currentPosition,
+          lastTriggerMs: 0,
+        };
+
+        if (
+          !deck.rearrangerAuto ||
+          deck.status !== "playing" ||
+          !snapshot?.playing ||
+          !snapshot.loopEnabled
+        ) {
+          tracker.set(deck.id, {
+            lastPosition: currentPosition,
+            lastTriggerMs: state.lastTriggerMs,
+          });
+          return;
+        }
+
+        const loopLength = Math.max(0, snapshot.loopEnd - snapshot.loopStart);
+        if (loopLength < 0.08) {
+          tracker.set(deck.id, {
+            lastPosition: currentPosition,
+            lastTriggerMs: state.lastTriggerMs,
+          });
+          return;
+        }
+
+        const triggerWindow = Math.min(0.12, loopLength * 0.25);
+        const wrapped =
+          state.lastPosition > currentPosition + 0.03 &&
+          state.lastPosition > snapshot.loopStart + triggerWindow &&
+          currentPosition <= snapshot.loopStart + triggerWindow;
+        const cooldownMs = Math.max(120, Math.min(1000, loopLength * 500));
+
+        if (wrapped && now - state.lastTriggerMs > cooldownMs) {
+          handleRearrangeLoop(deck.id, { transient: true });
+          tracker.set(deck.id, {
+            lastPosition: currentPosition,
+            lastTriggerMs: now,
+          });
+          return;
+        }
+
+        tracker.set(deck.id, {
+          lastPosition: currentPosition,
+          lastTriggerMs: state.lastTriggerMs,
+        });
+      });
+
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [decks, getDeckPlaybackSnapshot, handleRearrangeLoop]);
+
   const encodeDecksForSession = useCallback(async () => {
     const sessionDecks = getSessionDecks();
     const blobs = new Map<string, Blob>();
@@ -1627,9 +1824,13 @@ const App = () => {
   ]);
 
   useEffect(() => {
-    if (!autosaveReady || hasActivePlayback) return;
+    if (!autosaveReady) return;
     if (autosaveTimeoutRef.current) {
       window.clearTimeout(autosaveTimeoutRef.current);
+    }
+    if (skipNextAutosaveRef.current > 0) {
+      skipNextAutosaveRef.current -= 1;
+      return;
     }
     autosaveTimeoutRef.current = window.setTimeout(async () => {
       try {
@@ -1656,7 +1857,6 @@ const App = () => {
     };
   }, [
     autosaveReady,
-    hasActivePlayback,
     clips,
     decks,
     encodeClipsForSession,
@@ -2113,6 +2313,13 @@ const App = () => {
           onStretchPhaseRandomnessChange={setDeckStretchPhaseRandomness}
           onStretchTiltDbChange={setDeckStretchTiltDb}
           onStretchScatterChange={setDeckStretchScatter}
+          onRearrangerSlicesChange={setDeckRearrangerSlices}
+          onRearrangerOffsetChange={setDeckRearrangerOffset}
+          onRearrangerChaosChange={setDeckRearrangerChaos}
+          onRearrangerReverseChange={setDeckRearrangerReverse}
+          onRearrangerAutoChange={setDeckRearrangerAuto}
+          onRearrangerRegionsChange={setDeckRearrangerRegions}
+          onRearrangeLoop={handleRearrangeLoop}
           onFxPanelToggle={setDeckFxPanelOpen}
           onFxPanelsToggleAll={setDeckFxPanelsOpen}
           onStretchLoop={handleStretchLoop}
@@ -2132,6 +2339,7 @@ const App = () => {
           getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}
           setFileInputRef={setFileInputRef}
           onSaveLoopClip={handleSaveLoopClip}
+          onCropLoop={handleCropLoop}
         />
       </main>
     </div>

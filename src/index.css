@@ -525,6 +525,29 @@ body[data-theme="dark"] .app__header {
   opacity: 0.88;
 }
 
+.deck__slice-handles {
+  position: absolute;
+  left: 0;
+  width: 0;
+  bottom: -9px;
+  height: 10px;
+  pointer-events: auto;
+  cursor: copy;
+}
+
+.deck__slice-handle {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+
 .deck__loop-region {
   position: absolute;
   top: 0;
@@ -834,6 +857,14 @@ input[type="range"]::-moz-focus-outer {
 .deck__fractal-controls {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  row-gap: 10px;
+  justify-items: center;
+}
+
+.deck__rearranger-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   row-gap: 10px;
   justify-items: center;

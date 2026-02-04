@@ -111,11 +111,19 @@ type DeckCardProps = {
   onStretchPhaseRandomnessChange: (id: number, value: number) => void;
   onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchScatterChange: (id: number, value: number) => void;
+  onRearrangerSlicesChange: (id: number, value: number) => void;
+  onRearrangerOffsetChange: (id: number, value: number) => void;
+  onRearrangerChaosChange: (id: number, value: number) => void;
+  onRearrangerReverseChange: (id: number, value: number) => void;
+  onRearrangerAutoChange: (id: number, value: boolean) => void;
+  onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
+  onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
   onFxPanelsToggleAll: (id: number, open: boolean) => void;
   onStretchLoop: (id: number) => void;
   stretchEstimate?: string | null;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
+  onCropLoop: (id: number) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
     position: number;
@@ -139,6 +147,7 @@ const FX_PANEL_KEYS: DeckFxPanel[] = [
   "pitch",
   "delay",
   "fractal",
+  "rearranger",
   "stretch",
 ];
 
@@ -192,11 +201,19 @@ const DeckCard = ({
   onStretchPhaseRandomnessChange,
   onStretchTiltDbChange,
   onStretchScatterChange,
+  onRearrangerSlicesChange,
+  onRearrangerOffsetChange,
+  onRearrangerChaosChange,
+  onRearrangerReverseChange,
+  onRearrangerAutoChange,
+  onRearrangerRegionsChange,
+  onRearrangeLoop,
   onFxPanelToggle,
   onFxPanelsToggleAll,
   onStretchLoop,
   stretchEstimate,
   onSaveLoopClip,
+  onCropLoop,
   getDeckPosition,
   getDeckPlaybackSnapshot,
   setFileInputRef,
@@ -345,9 +362,12 @@ const DeckCard = ({
 
   const handleLoopBoundsChange = useCallback(
     (startSeconds: number, endSeconds: number) => {
+      if (deck.rearrangerAuto) {
+        onRearrangerAutoChange(deck.id, false);
+      }
       onLoopBoundsChange(deck.id, startSeconds, endSeconds);
     },
-    [deck.id, onLoopBoundsChange]
+    [deck.id, deck.rearrangerAuto, onLoopBoundsChange, onRearrangerAutoChange]
   );
 
   const handleLoopEnabledChange = useCallback(
@@ -429,6 +449,13 @@ const DeckCard = ({
                 busyLabel="Saving..."
                 onAction={() => onSaveLoopClip(deck.id, saveSettings)}
               />
+              <AsyncActionButton
+                className="deck__action"
+                disabled={!deck.buffer}
+                idleLabel="Crop Loop"
+                busyLabel="Cropping..."
+                onAction={() => onCropLoop(deck.id)}
+              />
               <button type="button" className="deck__action" onClick={() => onLoadClick(deck.id)}>
                 {deck.fileName ? "Replace" : "Load"}
               </button>
@@ -494,6 +521,15 @@ const DeckCard = ({
           getCurrentSeconds={getCurrentSeconds}
           getPlaybackSnapshot={handlePlaybackSnapshot}
           onEmptyClick={handleEmptyClick}
+          showRearrangerSlices={fxPanelOpen.rearranger}
+          rearrangerSlices={deck.rearrangerSlices}
+          rearrangerOffset={deck.rearrangerOffset}
+          rearrangerChaos={deck.rearrangerChaos}
+          rearrangerReverse={deck.rearrangerReverse}
+          rearrangerRegions={deck.rearrangerRegions}
+          rearrangerRegionIds={deck.rearrangerRegionIds}
+          onRearrangerRegionsChange={(regions) => onRearrangerRegionsChange(deck.id, regions)}
+          onRearrangerSlicesChange={(value) => onRearrangerSlicesChange(deck.id, value)}
         />
         <label className="deck__bpm-slider deck__bpm-slider--vertical">
           <span>Tempo</span>
@@ -1062,6 +1098,18 @@ const DeckCard = ({
             <div className="deck__delay-controls">
               <Knob
                 className="knob--compact"
+                label="Mix"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delayMix}
+                defaultValue={0}
+                labelTitle="Wet/dry mix. 0 = dry, 1 = fully delayed."
+                onChange={(next) => onDelayMixChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
                 label="Time"
                 min={0.01}
                 max={1.5}
@@ -1082,18 +1130,6 @@ const DeckCard = ({
                 defaultValue={0.35}
                 labelTitle="Feedback amount. Higher values create more repeats."
                 onChange={(next) => onDelayFeedbackChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Mix"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.delayMix}
-                defaultValue={0}
-                labelTitle="Wet/dry mix. 0 = dry, 1 = fully delayed."
-                onChange={(next) => onDelayMixChange(deck.id, next)}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
@@ -1207,6 +1243,95 @@ const DeckCard = ({
                 labelTitle="Top-end damping for the resonator body."
                 onChange={(next) => onFractalToneChange(deck.id, next)}
                 formatValue={(value, fine) => `${value.toFixed(fine ? 1 : 0)} Hz`}
+              />
+            </div>
+          </div>
+          <div
+            className={`deck__fx-unit deck__fx-unit--rearranger deck__fx-unit--span-2 ${fxPanelOpen.rearranger ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.rearranger}
+              onClick={() => toggleFxPanel("rearranger")}
+            >
+              {fxPanelOpen.rearranger ? "Rearranger -" : "Rearranger +"}
+            </button>
+            <span
+              className="deck__fx-hint"
+              title="Loop Rearranger: chops the loop into slices, rotates and randomizes slice order, and can reverse slices. Drag the colored handles under the waveform to shape slice boundaries."
+            />
+            <div className="deck__rearranger-controls">
+              <Knob
+                className="knob--compact"
+                label="Slices"
+                min={0}
+                max={32}
+                step={1}
+                value={deck.rearrangerSlices}
+                defaultValue={0}
+                labelTitle="Number of slices to chop the current loop into. 0 turns rearranger off."
+                onChange={(next) => onRearrangerSlicesChange(deck.id, next)}
+                formatValue={(value) => {
+                  const rounded = Math.round(value);
+                  return rounded <= 0 ? "Off" : `${rounded}`;
+                }}
+              />
+              <Knob
+                className="knob--compact"
+                label="Offset"
+                min={-32}
+                max={32}
+                step={1}
+                value={deck.rearrangerOffset}
+                defaultValue={0}
+                labelTitle="Rotates slice order by this many steps."
+                onChange={(next) => onRearrangerOffsetChange(deck.id, next)}
+                formatValue={(value) => `${Math.round(value)}`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Chaos"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.rearrangerChaos}
+                defaultValue={0}
+                labelTitle="Randomly swaps slices; higher values produce less predictable order."
+                onChange={(next) => onRearrangerChaosChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Reverse"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.rearrangerReverse}
+                defaultValue={0}
+                labelTitle="Chance each slice is reversed."
+                onChange={(next) => onRearrangerReverseChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <label
+                className="deck__delay-toggle"
+                title="When enabled, the current loop is rearranged again each time playback wraps to the loop start."
+              >
+                <span>On Loop</span>
+                <input
+                  type="checkbox"
+                  checked={deck.rearrangerAuto}
+                  onChange={(event) => onRearrangerAutoChange(deck.id, event.target.checked)}
+                />
+              </label>
+            </div>
+            <div className="deck__fx-actions">
+              <AsyncActionButton
+                className="deck__action"
+                disabled={!deck.buffer}
+                idleLabel="Rearrange Loop"
+                busyLabel="Rearranging..."
+                onAction={() => onRearrangeLoop(deck.id)}
               />
             </div>
           </div>

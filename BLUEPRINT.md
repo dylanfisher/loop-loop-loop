@@ -19,7 +19,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ### DSP Modules
 - Beat/onset detection (WASM or lightweight JS analysis).
-- FX chain: filters, delay (time/feedback/mix/tone + ping-pong), Fractal Resonator (mix/structure/depth/drift/decay/tone), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
+- FX chain: filters, delay (time/feedback/mix/tone + ping-pong), Fractal Resonator (mix/structure/depth/drift/decay/tone), Loop Rearranger (offline loop slicing/reordering with slices/offset/chaos/reverse controls, draggable colored slice-boundary handles in the waveform, click-between-handles to add a slice at pointer position, and slice-knob decrement removing the last custom slice, plus optional auto-rearrange each loop cycle), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
 - Modulation system: LFOs, envelopes, random/stochastic sources.
 
 ## BPM Detection & Control (Planned)
@@ -73,6 +73,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.
 - Deck UI state is also mirrored immediately to localStorage (lightweight patch) so quick refreshes restore panel state before the next full autosave.
 - Session WAV encoding (for save/export/autosave) uses a dedicated web worker to reduce main-thread stalls.
+- Auto-rearrange (On Loop) updates are treated as transient: they do not create undo history snapshots and skip immediate autosave scheduling to avoid runaway memory/encode pressure during continuous looping.
+- Auto-rearrange playback reload path reuses existing deck audio nodes (source-only restart) to avoid repeated node graph teardown/rebuild churn on every loop.
 - Clip metadata can include per-clip deck settings + automation snapshots to rehydrate FX on load.
 - Automation lanes support compact preset waveforms and length scaling controls.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
