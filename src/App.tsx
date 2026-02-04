@@ -24,6 +24,7 @@ import { createLimiter, createSoftClipper } from "./audio/clipper";
 import { applyPostEqEffectsOffline } from "./audio/effects/postEqPipeline";
 import { applyPitchShiftOffline } from "./audio/effects/pitchShift";
 import { applyDjFilterOffline } from "./audio/effects/djFilter";
+import { applyEq3Offline } from "./audio/effects/eq3";
 import PerfOverlay from "./components/PerfOverlay";
 import {
   AUTO_SESSION_ID,
@@ -50,15 +51,7 @@ type PerformanceMemory = {
   totalJSHeapSize: number;
 };
 
-const eqStageCount = 2;
 const CLIP_AUTOMATION_SAMPLE_RATE = 30;
-
-const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
-  const perStageGain = value / eqStageCount;
-  filters.forEach((filter) => {
-    filter.gain.value = perStageGain;
-  });
-};
 
 const trimBufferLeadingSamples = (
   context: BaseAudioContext,
@@ -699,79 +692,11 @@ const App = () => {
       if (balanceNode) {
         balanceNode.pan.value = balanceValue;
       }
-      const eqLow = needsEq
-        ? Array.from({ length: eqStageCount }, () => {
-            const filter = offline.createBiquadFilter();
-            filter.type = "lowshelf";
-            filter.frequency.value = 120;
-            return filter;
-          })
-        : null;
-      const eqMid = needsEq
-        ? Array.from({ length: eqStageCount }, () => {
-            const filter = offline.createBiquadFilter();
-            filter.type = "peaking";
-            filter.frequency.value = 1000;
-            return filter;
-          })
-        : null;
-      const eqHigh = needsEq
-        ? Array.from({ length: eqStageCount }, () => {
-            const filter = offline.createBiquadFilter();
-            filter.type = "highshelf";
-            filter.frequency.value = 8000;
-            return filter;
-          })
-        : null;
-      if (eqLow && eqMid && eqHigh) {
-        applyEqGain(eqLow, eqLowValue);
-        applyEqGain(eqMid, eqMidValue);
-        applyEqGain(eqHigh, eqHighValue);
-      }
       const gainNode = needsGain ? offline.createGain() : null;
       if (gainNode) {
         gainNode.gain.value = deck.gain;
       }
 
-      if (needsEq && eqLowTrack?.active && eqLowTrack.durationSec > 0 && eqLow) {
-        scheduleLoopedSamples(
-          eqLowTrack.samples,
-          eqLowTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            const perStageGain = value / eqStageCount;
-            eqLow.forEach((filter) => {
-              filter.gain.setValueAtTime(perStageGain, time);
-            });
-          }
-        );
-      }
-      if (needsEq && eqMidTrack?.active && eqMidTrack.durationSec > 0 && eqMid) {
-        scheduleLoopedSamples(
-          eqMidTrack.samples,
-          eqMidTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            const perStageGain = value / eqStageCount;
-            eqMid.forEach((filter) => {
-              filter.gain.setValueAtTime(perStageGain, time);
-            });
-          }
-        );
-      }
-      if (needsEq && eqHighTrack?.active && eqHighTrack.durationSec > 0 && eqHigh) {
-        scheduleLoopedSamples(
-          eqHighTrack.samples,
-          eqHighTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            const perStageGain = value / eqStageCount;
-            eqHigh.forEach((filter) => {
-              filter.gain.setValueAtTime(perStageGain, time);
-            });
-          }
-        );
-      }
       if (needsBalance && balanceTrack?.active && balanceTrack.durationSec > 0 && balanceNode) {
         scheduleLoopedSamples(
           balanceTrack.samples,
@@ -817,21 +742,33 @@ const App = () => {
             }
           : undefined,
       });
-      if (eqLow && eqMid && eqHigh) {
-        chain.connect(eqLow[0]);
-        for (let i = 0; i < eqLow.length - 1; i++) {
-          eqLow[i].connect(eqLow[i + 1]);
-        }
-        eqLow[eqLow.length - 1].connect(eqMid[0]);
-        for (let i = 0; i < eqMid.length - 1; i++) {
-          eqMid[i].connect(eqMid[i + 1]);
-        }
-        eqMid[eqMid.length - 1].connect(eqHigh[0]);
-        for (let i = 0; i < eqHigh.length - 1; i++) {
-          eqHigh[i].connect(eqHigh[i + 1]);
-        }
-        chain = eqHigh[eqHigh.length - 1];
-      }
+      chain = applyEq3Offline(offline, chain, {
+        low: eqLowValue,
+        mid: eqMidValue,
+        high: eqHighValue,
+        renderDuration,
+        lowAutomation: eqLowTrack
+          ? {
+              active: eqLowTrack.active,
+              samples: eqLowTrack.samples,
+              durationSec: eqLowTrack.durationSec,
+            }
+          : undefined,
+        midAutomation: eqMidTrack
+          ? {
+              active: eqMidTrack.active,
+              samples: eqMidTrack.samples,
+              durationSec: eqMidTrack.durationSec,
+            }
+          : undefined,
+        highAutomation: eqHighTrack
+          ? {
+              active: eqHighTrack.active,
+              samples: eqHighTrack.samples,
+              durationSec: eqHighTrack.durationSec,
+            }
+          : undefined,
+      });
       chain = applyPostEqEffectsOffline(
         offline,
         chain,
@@ -937,24 +874,6 @@ const App = () => {
       const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
 
       const balanceNode = offline.createStereoPanner();
-      const eqLow = Array.from({ length: eqStageCount }, () => {
-        const filter = offline.createBiquadFilter();
-        filter.type = "lowshelf";
-        filter.frequency.value = 120;
-        return filter;
-      });
-      const eqMid = Array.from({ length: eqStageCount }, () => {
-        const filter = offline.createBiquadFilter();
-        filter.type = "peaking";
-        filter.frequency.value = 1000;
-        return filter;
-      });
-      const eqHigh = Array.from({ length: eqStageCount }, () => {
-        const filter = offline.createBiquadFilter();
-        filter.type = "highshelf";
-        filter.frequency.value = 8000;
-        return filter;
-      });
       const gainNode = offline.createGain();
       const clipper = createSoftClipper(offline);
       const limiter = createLimiter(offline);
@@ -977,51 +896,9 @@ const App = () => {
       const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
       const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
 
-      applyEqGain(eqLow, eqLowValue);
-      applyEqGain(eqMid, eqMidValue);
-      applyEqGain(eqHigh, eqHighValue);
       gainNode.gain.value = deck.gain;
       balanceNode.pan.value = balanceValue;
 
-      if (eqLowTrack?.active && eqLowTrack.durationSec > 0) {
-        scheduleLoopedSamples(
-          eqLowTrack.samples,
-          eqLowTrack.durationSec,
-          durationSec,
-          (value, time) => {
-            const perStageGain = value / eqStageCount;
-            eqLow.forEach((filter) => {
-              filter.gain.setValueAtTime(perStageGain, time);
-            });
-          }
-        );
-      }
-      if (eqMidTrack?.active && eqMidTrack.durationSec > 0) {
-        scheduleLoopedSamples(
-          eqMidTrack.samples,
-          eqMidTrack.durationSec,
-          durationSec,
-          (value, time) => {
-            const perStageGain = value / eqStageCount;
-            eqMid.forEach((filter) => {
-              filter.gain.setValueAtTime(perStageGain, time);
-            });
-          }
-        );
-      }
-      if (eqHighTrack?.active && eqHighTrack.durationSec > 0) {
-        scheduleLoopedSamples(
-          eqHighTrack.samples,
-          eqHighTrack.durationSec,
-          durationSec,
-          (value, time) => {
-            const perStageGain = value / eqStageCount;
-            eqHigh.forEach((filter) => {
-              filter.gain.setValueAtTime(perStageGain, time);
-            });
-          }
-        );
-      }
       if (balanceTrack?.active && balanceTrack.durationSec > 0) {
         scheduleLoopedSamples(
           balanceTrack.samples,
@@ -1063,19 +940,33 @@ const App = () => {
             }
           : undefined,
       });
-      postFilter.connect(eqLow[0]);
-      for (let i = 0; i < eqLow.length - 1; i++) {
-        eqLow[i].connect(eqLow[i + 1]);
-      }
-      eqLow[eqLow.length - 1].connect(eqMid[0]);
-      for (let i = 0; i < eqMid.length - 1; i++) {
-        eqMid[i].connect(eqMid[i + 1]);
-      }
-      eqMid[eqMid.length - 1].connect(eqHigh[0]);
-      for (let i = 0; i < eqHigh.length - 1; i++) {
-        eqHigh[i].connect(eqHigh[i + 1]);
-      }
-      let postEq: AudioNode = eqHigh[eqHigh.length - 1];
+      let postEq: AudioNode = applyEq3Offline(offline, postFilter, {
+        low: eqLowValue,
+        mid: eqMidValue,
+        high: eqHighValue,
+        renderDuration: durationSec,
+        lowAutomation: eqLowTrack
+          ? {
+              active: eqLowTrack.active,
+              samples: eqLowTrack.samples,
+              durationSec: eqLowTrack.durationSec,
+            }
+          : undefined,
+        midAutomation: eqMidTrack
+          ? {
+              active: eqMidTrack.active,
+              samples: eqMidTrack.samples,
+              durationSec: eqMidTrack.durationSec,
+            }
+          : undefined,
+        highAutomation: eqHighTrack
+          ? {
+              active: eqHighTrack.active,
+              samples: eqHighTrack.samples,
+              durationSec: eqHighTrack.durationSec,
+            }
+          : undefined,
+      });
       postEq = applyPostEqEffectsOffline(
         offline,
         postEq,
@@ -1343,35 +1234,6 @@ const App = () => {
       if (balanceNode) {
         balanceNode.pan.value = balanceValue;
       }
-      const eqLow = needsEq
-        ? Array.from({ length: eqStageCount }, () => {
-            const filter = offline.createBiquadFilter();
-            filter.type = "lowshelf";
-            filter.frequency.value = 120;
-            return filter;
-          })
-        : null;
-      const eqMid = needsEq
-        ? Array.from({ length: eqStageCount }, () => {
-            const filter = offline.createBiquadFilter();
-            filter.type = "peaking";
-            filter.frequency.value = 1000;
-            return filter;
-          })
-        : null;
-      const eqHigh = needsEq
-        ? Array.from({ length: eqStageCount }, () => {
-            const filter = offline.createBiquadFilter();
-            filter.type = "highshelf";
-            filter.frequency.value = 8000;
-            return filter;
-          })
-        : null;
-      if (eqLow && eqMid && eqHigh) {
-        applyEqGain(eqLow, eqLowValue);
-        applyEqGain(eqMid, eqMidValue);
-        applyEqGain(eqHigh, eqHighValue);
-      }
       const gainNode = needsGain ? offline.createGain() : null;
       if (gainNode) {
         gainNode.gain.value = deck.gain;
@@ -1381,45 +1243,6 @@ const App = () => {
       const limiter = limiterNeeded ? createLimiter(offline) : null;
 
       const renderDuration = sliceDuration;
-      if (needsEq && eqLowTrack?.active && eqLowTrack.durationSec > 0 && eqLow) {
-        scheduleLoopedSamples(
-          eqLowTrack.samples,
-          eqLowTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            const perStageGain = value / eqStageCount;
-            eqLow.forEach((filter) => {
-              filter.gain.setValueAtTime(perStageGain, time);
-            });
-          }
-        );
-      }
-      if (needsEq && eqMidTrack?.active && eqMidTrack.durationSec > 0 && eqMid) {
-        scheduleLoopedSamples(
-          eqMidTrack.samples,
-          eqMidTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            const perStageGain = value / eqStageCount;
-            eqMid.forEach((filter) => {
-              filter.gain.setValueAtTime(perStageGain, time);
-            });
-          }
-        );
-      }
-      if (needsEq && eqHighTrack?.active && eqHighTrack.durationSec > 0 && eqHigh) {
-        scheduleLoopedSamples(
-          eqHighTrack.samples,
-          eqHighTrack.durationSec,
-          renderDuration,
-          (value, time) => {
-            const perStageGain = value / eqStageCount;
-            eqHigh.forEach((filter) => {
-              filter.gain.setValueAtTime(perStageGain, time);
-            });
-          }
-        );
-      }
       if (needsBalance && balanceTrack?.active && balanceTrack.durationSec > 0 && balanceNode) {
         scheduleLoopedSamples(
           balanceTrack.samples,
@@ -1465,21 +1288,33 @@ const App = () => {
             }
           : undefined,
       });
-      if (eqLow && eqMid && eqHigh) {
-        chain.connect(eqLow[0]);
-        for (let i = 0; i < eqLow.length - 1; i += 1) {
-          eqLow[i].connect(eqLow[i + 1]);
-        }
-        eqLow[eqLow.length - 1].connect(eqMid[0]);
-        for (let i = 0; i < eqMid.length - 1; i += 1) {
-          eqMid[i].connect(eqMid[i + 1]);
-        }
-        eqMid[eqMid.length - 1].connect(eqHigh[0]);
-        for (let i = 0; i < eqHigh.length - 1; i += 1) {
-          eqHigh[i].connect(eqHigh[i + 1]);
-        }
-        chain = eqHigh[eqHigh.length - 1];
-      }
+      chain = applyEq3Offline(offline, chain, {
+        low: eqLowValue,
+        mid: eqMidValue,
+        high: eqHighValue,
+        renderDuration,
+        lowAutomation: eqLowTrack
+          ? {
+              active: eqLowTrack.active,
+              samples: eqLowTrack.samples,
+              durationSec: eqLowTrack.durationSec,
+            }
+          : undefined,
+        midAutomation: eqMidTrack
+          ? {
+              active: eqMidTrack.active,
+              samples: eqMidTrack.samples,
+              durationSec: eqMidTrack.durationSec,
+            }
+          : undefined,
+        highAutomation: eqHighTrack
+          ? {
+              active: eqHighTrack.active,
+              samples: eqHighTrack.samples,
+              durationSec: eqHighTrack.durationSec,
+            }
+          : undefined,
+      });
       if (gainNode) {
         chain.connect(gainNode);
         chain = gainNode;
