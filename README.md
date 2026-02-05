@@ -125,12 +125,6 @@ Storage/export:
 - Each deck can also force width (`Full`/`Half`) via per-deck override.
 - `Restore + Export` opens in a full-width header subpanel.
 
-## WASM Status
-
-Current implementation includes a small WASM-assisted onset gate in Rearranger auto-slice detection, with JS fallback.
-
-This is an incremental step; larger DSP speedups are expected from moving heavier export/analysis kernels to Rust/C-generated WASM modules.
-
 ## Development
 
 ### Requirements
@@ -152,7 +146,6 @@ This is an incremental step; larger DSP speedups are expected from moving heavie
 - `src/hooks/useAudioEngine.ts` Web Audio orchestration
 - `src/audio/effects/` effect implementations
 - `src/utils/rearranger.ts` slice/reorder/detect logic
-- `src/utils/rearrangerWasm.ts` tiny WASM onset kernel + fallback
 - `BLUEPRINT.md` architecture reference and product constraints
 
 ## Notes for Contributors
