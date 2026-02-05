@@ -50,6 +50,7 @@ const DEFAULT_RESONANCE = 0;
 const EQ_MAX_DB = 18;
 const FX_ACTIVE_EPSILON = 1e-3;
 const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
+  gain: false,
   djFilter: false,
   resonance: false,
   eqLow: false,
@@ -127,6 +128,7 @@ type AutomationTrack = {
 };
 
 type AutomationDeck = {
+  gain: AutomationTrack;
   djFilter: AutomationTrack;
   resonance: AutomationTrack;
   eqLow: AutomationTrack;
@@ -295,6 +297,7 @@ const useDecks = () => {
     let automation = automationRef.current.get(deckId);
     if (!automation) {
       automation = {
+        gain: createTrack(deck.gain),
         djFilter: createTrack(deck.djFilter),
         resonance: createTrack(deck.filterResonance),
         eqLow: createTrack(deck.eqLowGain),
@@ -305,6 +308,7 @@ const useDecks = () => {
       };
       automationRef.current.set(deckId, automation);
       automationPlayheadRef.current.set(deckId, {
+        gain: 0,
         djFilter: 0,
         resonance: 0,
         eqLow: 0,
@@ -316,6 +320,7 @@ const useDecks = () => {
       setAutomationState((prev) => {
         const next = new Map(prev);
         next.set(deckId, {
+          gain: toAutomationView(automation!.gain),
           djFilter: toAutomationView(automation!.djFilter),
           resonance: toAutomationView(automation!.resonance),
           eqLow: toAutomationView(automation!.eqLow),
@@ -428,6 +433,7 @@ const useDecks = () => {
     setAutomationState((prev) => {
       const next = new Map(prev);
       next.set(deckId, {
+        gain: toAutomationView(automation.gain),
         djFilter: toAutomationView(automation.djFilter),
         resonance: toAutomationView(automation.resonance),
         eqLow: toAutomationView(automation.eqLow),
@@ -443,6 +449,7 @@ const useDecks = () => {
   const resetAutomation = useCallback(
     (
       deckId: number,
+      gainValue: number,
       djFilterValue: number,
       resonanceValue: number,
       eqLowGain: number,
@@ -452,6 +459,7 @@ const useDecks = () => {
       pitchShift: number
     ) => {
       const automation: AutomationDeck = {
+        gain: createTrack(gainValue),
         djFilter: createTrack(djFilterValue),
         resonance: createTrack(resonanceValue),
         eqLow: createTrack(eqLowGain),
@@ -462,6 +470,7 @@ const useDecks = () => {
       };
       automationRef.current.set(deckId, automation);
       automationPlayheadRef.current.set(deckId, {
+        gain: 0,
         djFilter: 0,
         resonance: 0,
         eqLow: 0,
@@ -481,6 +490,7 @@ const useDecks = () => {
       deckId: number,
       snapshots: Record<AutomationParam, AutomationSnapshot>,
       fallbackValues: {
+        gain: number;
         djFilter: number;
         resonance: number;
         eqLow: number;
@@ -516,6 +526,7 @@ const useDecks = () => {
       };
 
       const automation: AutomationDeck = {
+        gain: buildTrack(snapshots.gain, fallbackValues.gain),
         djFilter: buildTrack(snapshots.djFilter, fallbackValues.djFilter),
         resonance: buildTrack(snapshots.resonance, fallbackValues.resonance),
         eqLow: buildTrack(snapshots.eqLow, fallbackValues.eqLow),
@@ -527,6 +538,7 @@ const useDecks = () => {
 
       automationRef.current.set(deckId, automation);
       automationPlayheadRef.current.set(deckId, {
+        gain: 0,
         djFilter: 0,
         resonance: 0,
         eqLow: 0,
@@ -1089,6 +1101,8 @@ const useDecks = () => {
               const targets = getFilterTargets(value);
               setDeckFilter(deckId, targets.lowpass);
               setDeckHighpass(deckId, targets.highpass);
+            } else if (param === "gain") {
+              setDeckGain(deckId, value);
             } else if (param === "resonance") {
               setDeckResonance(deckId, value);
             } else if (param === "eqLow") {
@@ -1155,6 +1169,7 @@ const useDecks = () => {
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckGain,
     setDeckBalance,
     setDeckPitchShift,
     updateAutomationView,
@@ -1212,7 +1227,7 @@ const useDecks = () => {
   const addDeck = () => {
     const id = nextDeckId.current;
     nextDeckId.current += 1;
-    resetAutomation(id, 0, DEFAULT_RESONANCE, 0, 0, 0, 0, 0);
+    resetAutomation(id, 0.9, 0, DEFAULT_RESONANCE, 0, 0, 0, 0, 0);
     setDecksWithHistory((prev) => [
       ...prev,
       {
@@ -1499,6 +1514,7 @@ const useDecks = () => {
     }
     if (clipSettings?.automation) {
       applyAutomationSnapshots(id, clipSettings.automation, {
+        gain: nextGain,
         djFilter: nextDjFilter,
         resonance: nextResonance,
         eqLow: nextEqLow,
@@ -1510,6 +1526,7 @@ const useDecks = () => {
     } else {
       resetAutomation(
         id,
+        nextGain,
         nextDjFilter,
         nextResonance,
         nextEqLow,
@@ -1883,8 +1900,17 @@ const useDecks = () => {
   };
 
   const setDeckGainValue = (id: number, value: number) => {
-    setDeckGain(id, value);
-    updateDeck(id, { gain: value }, false);
+    const clamped = Math.min(Math.max(value, 0), 1.5);
+    setDeckGain(id, clamped);
+    updateDeck(id, { gain: clamped }, false);
+    const automation = automationRef.current.get(id);
+    const track = automation?.gain;
+    if (track && track.active && !track.recording) {
+      track.active = false;
+      track.playbackStartMs = 0;
+      updateAutomationView(id);
+    }
+    updateAutomationTickEnabled();
   };
 
   const setDeckFilterValue = (id: number, value: number) => {
@@ -2065,7 +2091,9 @@ const useDecks = () => {
     track.recordStartMs = performance.now();
     track.lastSampleMs = track.recordStartMs;
     track.lastPreviewLength = 0;
-    if (param === "djFilter") {
+    if (param === "gain") {
+      track.currentValue = deck.gain;
+    } else if (param === "djFilter") {
       track.currentValue = deck.djFilter;
     } else if (param === "resonance") {
       track.currentValue = deck.filterResonance;
@@ -2115,7 +2143,9 @@ const useDecks = () => {
     if (param === "pitch" && deck?.tempoPitchSync) return;
     const track = automation[param];
     track.currentValue = value;
-    if (param === "djFilter") {
+    if (param === "gain") {
+      setDeckGainValue(id, value);
+    } else if (param === "djFilter") {
       setDeckFilterValue(id, value);
     } else if (param === "resonance") {
       setDeckResonanceValue(id, value);
@@ -2566,7 +2596,7 @@ const useDecks = () => {
         Math.min(duration, options?.loopEndSeconds ?? duration)
       );
       if (!preserveFxState) {
-        resetAutomation(id, 0, DEFAULT_RESONANCE, 0, 0, 0, nextBalance, nextPitchShift);
+        resetAutomation(id, nextGain, 0, DEFAULT_RESONANCE, 0, 0, 0, nextBalance, nextPitchShift);
       }
 
       const status: DeckStatus = autoplay ? "playing" : "ready";
@@ -2926,6 +2956,7 @@ const useDecks = () => {
           ? {
               ...deck,
               fxPanelOpen: {
+                gain: open,
                 djFilter: open,
                 resonance: open,
                 eqLow: open,
@@ -2975,6 +3006,7 @@ const useDecks = () => {
       });
       resetAutomation(
         id,
+        0.9,
         0,
         DEFAULT_RESONANCE,
         0,
@@ -3156,6 +3188,7 @@ const useDecks = () => {
         rearrangerRegionsManual: deck.rearrangerRegionsManual ?? false,
         fxPanelOpen: withDefaultFxPanelOpen(deck.fxPanelOpen),
         automation: {
+          gain: buildSnapshot(automation?.gain, deck.gain),
           djFilter: buildSnapshot(automation?.djFilter, deck.djFilter),
           resonance: buildSnapshot(automation?.resonance, deck.filterResonance),
           eqLow: buildSnapshot(automation?.eqLow, deck.eqLowGain),
@@ -3228,6 +3261,7 @@ const useDecks = () => {
         };
 
         const automation: AutomationDeck = {
+          gain: ensureTrack(sessionDeck.automation.gain, sessionDeck.gain),
           djFilter: ensureTrack(sessionDeck.automation.djFilter, sessionDeck.djFilter),
           resonance: ensureTrack(
             sessionDeck.automation.resonance,
@@ -3248,6 +3282,7 @@ const useDecks = () => {
 
         automationRef.current.set(sessionDeck.id, automation);
         automationPlayheadRef.current.set(sessionDeck.id, {
+          gain: 0,
           djFilter: 0,
           resonance: 0,
           eqLow: 0,
@@ -3257,6 +3292,7 @@ const useDecks = () => {
           pitch: 0,
         });
         nextAutomationState.set(sessionDeck.id, {
+          gain: toAutomationView(automation.gain),
           djFilter: toAutomationView(automation.djFilter),
           resonance: toAutomationView(automation.resonance),
           eqLow: toAutomationView(automation.eqLow),

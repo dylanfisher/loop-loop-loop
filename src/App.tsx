@@ -736,6 +736,7 @@ const App = () => {
         loopStartSeconds: 0,
         loopEndSeconds: loopDuration,
         automation: {
+          gain: toSnapshot(automation?.gain, deck.gain),
           djFilter: toSnapshot(automation?.djFilter, deck.djFilter),
           resonance: toSnapshot(automation?.resonance, deck.filterResonance),
           eqLow: toSnapshot(automation?.eqLow, deck.eqLowGain),

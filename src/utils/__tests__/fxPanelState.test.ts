@@ -23,6 +23,7 @@ const makeDeck = (id: number, open = false): DeckState => ({
   delayMix: 0,
   delayTone: 6000,
   delayPingPong: false,
+  delaySliceSync: false,
   fractalMix: 0,
   fractalStructure: 0.45,
   fractalDepth: 0.35,
@@ -44,6 +45,7 @@ const makeDeck = (id: number, open = false): DeckState => ({
   balance: 0,
   pitchShift: 0,
   fxPanelOpen: {
+    gain: false,
     djFilter: open,
     resonance: false,
     eqLow: false,

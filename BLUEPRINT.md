@@ -50,6 +50,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Deck FX layout includes a Fractal Resonator unit (6 compact controls) for live modal-resonance sculpting.
+- Deck FX now includes a dedicated Gain unit (first slot) with its own collapsible panel and automation lane; waveform sidebar gain control was removed.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
 - Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.

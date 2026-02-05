@@ -1,5 +1,6 @@
 import DeckCard from "./DeckCard";
 import type { DeckFxPanel, DeckState } from "../types/deck";
+import type { AutomationParam } from "../types/session";
 
 type DeckStackProps = {
   decks: DeckState[];
@@ -75,7 +76,7 @@ type DeckStackProps = {
   stretchEstimateByDeckId: Record<number, string>;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
   onCropLoop: (id: number) => void;
-  automationState: Map<number, Record<"djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", {
+  automationState: Map<number, Record<AutomationParam, {
     samples: Float32Array;
     previewSamples: Float32Array;
     durationSec: number;
@@ -84,25 +85,25 @@ type DeckStackProps = {
     currentValue: number;
     amplitudeScale: number;
   }>>;
-  onAutomationStart: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => void;
-  onAutomationStop: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => void;
+  onAutomationStart: (id: number, param: AutomationParam) => void;
+  onAutomationStop: (id: number, param: AutomationParam) => void;
   onAutomationValueChange: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    param: AutomationParam,
     value: number
   ) => void;
-  getAutomationPlayhead: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => number;
+  getAutomationPlayhead: (id: number, param: AutomationParam) => number;
   onAutomationToggle: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    param: AutomationParam,
     active: boolean
   ) => void;
-  onAutomationReset: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch") => void;
-  onAutomationPreset: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", preset: "sine" | "triangle" | "ramp", min: number, max: number) => void;
-  onAutomationLengthScale: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", factor: number) => void;
-  onAutomationAmplitudeScale: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", factor: number, min: number, max: number) => void;
-  onAutomationInvert: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", min: number, max: number) => void;
-  onAutomationDurationChange: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", durationSec: number) => void;
+  onAutomationReset: (id: number, param: AutomationParam) => void;
+  onAutomationPreset: (id: number, param: AutomationParam, preset: "sine" | "triangle" | "ramp", min: number, max: number) => void;
+  onAutomationLengthScale: (id: number, param: AutomationParam, factor: number) => void;
+  onAutomationAmplitudeScale: (id: number, param: AutomationParam, factor: number, min: number, max: number) => void;
+  onAutomationInvert: (id: number, param: AutomationParam, min: number, max: number) => void;
+  onAutomationDurationChange: (id: number, param: AutomationParam, durationSec: number) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
     position: number;

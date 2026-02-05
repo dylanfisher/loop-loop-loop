@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DeckFxPanel, DeckState } from "../types/deck";
+import type { AutomationParam } from "../types/session";
 import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
 import Waveform from "./Waveform";
@@ -39,7 +40,7 @@ type DeckCardProps = {
   onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   automation?: Record<
-    "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    AutomationParam,
     {
       samples: Float32Array;
       previewSamples: Float32Array;
@@ -50,60 +51,48 @@ type DeckCardProps = {
       amplitudeScale: number;
     }
   >;
-  onAutomationStart: (
-    id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch"
-  ) => void;
-  onAutomationStop: (
-    id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch"
-  ) => void;
+  onAutomationStart: (id: number, param: AutomationParam) => void;
+  onAutomationStop: (id: number, param: AutomationParam) => void;
   onAutomationValueChange: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    param: AutomationParam,
     value: number
   ) => void;
-  getAutomationPlayhead: (
-    id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch"
-  ) => number;
+  getAutomationPlayhead: (id: number, param: AutomationParam) => number;
   onAutomationToggle: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    param: AutomationParam,
     active: boolean
   ) => void;
-  onAutomationReset: (
-    id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch"
-  ) => void;
+  onAutomationReset: (id: number, param: AutomationParam) => void;
   onAutomationPreset: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    param: AutomationParam,
     preset: "sine" | "triangle" | "ramp",
     min: number,
     max: number
   ) => void;
   onAutomationLengthScale: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    param: AutomationParam,
     factor: number
   ) => void;
   onAutomationAmplitudeScale: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    param: AutomationParam,
     factor: number,
     min: number,
     max: number
   ) => void;
   onAutomationInvert: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    param: AutomationParam,
     min: number,
     max: number
   ) => void;
   onAutomationDurationChange: (
     id: number,
-    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    param: AutomationParam,
     durationSec: number
   ) => void;
   onSeek: (id: number, progress: number) => void;
@@ -157,6 +146,7 @@ type DeckCardProps = {
 };
 
 const FX_PANEL_KEYS: DeckFxPanel[] = [
+  "gain",
   "djFilter",
   "resonance",
   "eqLow",
@@ -169,6 +159,7 @@ const FX_PANEL_KEYS: DeckFxPanel[] = [
   "rearranger",
   "stretch",
 ];
+const TEMPO_SEMITONE_RATIO = Math.pow(2, 1 / 12);
 
 const DeckCard = ({
   deck,
@@ -251,6 +242,7 @@ const DeckCard = ({
   getDeckPlaybackSnapshot,
   setFileInputRef,
 }: DeckCardProps) => {
+  const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
   const renderCountRef = useRef(0);
   useEffect(() => {
     renderCountRef.current += 1;
@@ -299,6 +291,15 @@ const DeckCard = ({
     previewSamples: Float32Array;
     recording: boolean;
   }) => track.samples.length > 0 || track.previewSamples.length > 0 || track.recording;
+  const gainAutomation = automation?.gain ?? {
+    samples: new Float32Array(0),
+    previewSamples: new Float32Array(0),
+    durationSec: 0,
+    recording: false,
+    active: false,
+    currentValue: deck.gain,
+    amplitudeScale: 1,
+  };
   const djAutomation = automation?.djFilter ?? {
     samples: new Float32Array(0),
     previewSamples: new Float32Array(0),
@@ -362,6 +363,7 @@ const DeckCard = ({
     currentValue: deck.pitchShift,
     amplitudeScale: 1,
   };
+  const gainValue = gainAutomation.active ? gainAutomation.currentValue : deck.gain;
   const djFilterValue = djAutomation.active ? djAutomation.currentValue : djFilter;
   const resonanceDisplayValue = resonanceAutomation.active
     ? resonanceAutomation.currentValue
@@ -431,9 +433,13 @@ const DeckCard = ({
 
   const [saveSettings, setSaveSettings] = useState(true);
   const [tempoFine, setTempoFine] = useState(false);
+  const [tempoEditing, setTempoEditing] = useState(false);
+  const [tempoInput, setTempoInput] = useState(deck.tempoOffset.toFixed(2));
   const [showQuietDeletePreview, setShowQuietDeletePreview] = useState(false);
   const tempoFineDragRef = useRef<{ startY: number; startValue: number } | null>(null);
   const tempoIgnoreChangeRef = useRef(false);
+  const tempoInputRef = useRef<HTMLInputElement | null>(null);
+  const tempoClickTimerRef = useRef<number | null>(null);
   const deckDragDepthRef = useRef(0);
   const [isFileDragOver, setIsFileDragOver] = useState(false);
   const isFileDrag = useCallback((dataTransfer: DataTransfer | null) => {
@@ -447,7 +453,47 @@ const DeckCard = ({
     if (!files.length) return null;
     return files.find((file) => file.type.startsWith("audio/")) ?? files[0] ?? null;
   }, []);
+  useEffect(() => {
+    return () => {
+      if (tempoClickTimerRef.current !== null) {
+        window.clearTimeout(tempoClickTimerRef.current);
+      }
+    };
+  }, []);
   const fxPanelOpen = deck.fxPanelOpen;
+  useEffect(() => {
+    if (!tempoEditing) return;
+    tempoInputRef.current?.focus();
+    tempoInputRef.current?.select();
+  }, [tempoEditing]);
+
+  const commitTempoInput = useCallback(() => {
+    const normalized = tempoInput.replace("%", "").trim();
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) {
+      onTempoOffsetChange(deck.id, parsed, { disableSnap: true });
+    }
+    setTempoEditing(false);
+  }, [deck.id, onTempoOffsetChange, tempoInput]);
+
+  const resetTempoOffset = useCallback(() => {
+    onTempoOffsetChange(deck.id, 0, { disableSnap: true });
+    setTempoInput("0.00");
+    setTempoEditing(false);
+  }, [deck.id, onTempoOffsetChange]);
+
+  const nudgeTempoBySemitone = useCallback(
+    (direction: -1 | 1) => {
+      const currentRate = clampPlaybackRate(1 + deck.tempoOffset / 100);
+      const nextRate = clampPlaybackRate(
+        currentRate * (direction > 0 ? TEMPO_SEMITONE_RATIO : 1 / TEMPO_SEMITONE_RATIO)
+      );
+      const nextOffset = (nextRate - 1) * 100;
+      onTempoOffsetChange(deck.id, nextOffset, { disableSnap: true });
+    },
+    [deck.id, deck.tempoOffset, onTempoOffsetChange]
+  );
+
   const quietDeletePreviewRanges = useMemo(() => {
     if (!showQuietDeletePreview || !deck.buffer || !deck.loopEnabled) return [];
     const duration = deck.duration ?? deck.buffer.duration;
@@ -540,6 +586,10 @@ const DeckCard = ({
     onFxPanelsToggleAll(deck.id, !allFxOpen);
   }, [allFxOpen, deck.id, onFxPanelsToggleAll]);
   const fxIndicators: Record<DeckFxPanel, { automation: boolean; modified: boolean }> = {
+    gain: {
+      automation: hasAutomationData(gainAutomation),
+      modified: isDifferent(deck.gain, 0.9),
+    },
     djFilter: {
       automation: hasAutomationData(djAutomation),
       modified: isDifferent(deck.djFilter, 0),
@@ -618,6 +668,7 @@ const DeckCard = ({
     },
   };
   const fxHints: Record<DeckFxPanel, string> = {
+    gain: "Gain: controls deck output level before the FX chain.",
     djFilter: "DJ Filter: sweeps between low-pass and high-pass for transitions and tone shaping.",
     resonance: "Resonance: boosts filter edge intensity for sharper sweeps.",
     eqLow: "Low EQ: shape bass energy; boost for weight, cut for cleanup.",
@@ -841,7 +892,69 @@ const DeckCard = ({
                   />
                   Sync Pitch
                 </label>
-                <span>Tempo {formatTempo(deck.tempoOffset)}</span>
+                {tempoEditing ? (
+                  <span className="deck__tempo-inline">
+                    <span>Tempo</span>
+                    <input
+                      ref={tempoInputRef}
+                      className="deck__tempo-input"
+                      value={tempoInput}
+                      onChange={(event) => setTempoInput(event.target.value)}
+                      onBlur={commitTempoInput}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          commitTempoInput();
+                        } else if (event.key === "Escape") {
+                          event.preventDefault();
+                          setTempoInput(deck.tempoOffset.toFixed(2));
+                          setTempoEditing(false);
+                        }
+                      }}
+                      aria-label="Tempo offset percent"
+                    />
+                    <span>%</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="deck__tempo-trigger"
+                    onClick={(event) => {
+                      if (event.shiftKey) {
+                        if (tempoClickTimerRef.current !== null) {
+                          window.clearTimeout(tempoClickTimerRef.current);
+                          tempoClickTimerRef.current = null;
+                        }
+                        resetTempoOffset();
+                        return;
+                      }
+                      if (tempoClickTimerRef.current !== null) {
+                        window.clearTimeout(tempoClickTimerRef.current);
+                      }
+                      tempoClickTimerRef.current = window.setTimeout(() => {
+                        setTempoInput(deck.tempoOffset.toFixed(2));
+                        setTempoEditing(true);
+                        tempoClickTimerRef.current = null;
+                      }, 220);
+                    }}
+                    onDoubleClick={() => {
+                      if (tempoClickTimerRef.current !== null) {
+                        window.clearTimeout(tempoClickTimerRef.current);
+                        tempoClickTimerRef.current = null;
+                      }
+                      resetTempoOffset();
+                    }}
+                    onBlur={() => {
+                      if (tempoClickTimerRef.current !== null) {
+                        window.clearTimeout(tempoClickTimerRef.current);
+                        tempoClickTimerRef.current = null;
+                      }
+                    }}
+                    title="Click to manually enter tempo offset %. Use +/- for semitone-ratio tempo steps (~5.95% each), which keeps tempo moves aligned to musical pitch relationships."
+                  >
+                    Tempo {formatTempo(deck.tempoOffset)}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -883,7 +996,14 @@ const DeckCard = ({
           onRearrangerSlicesChange={(value) => onRearrangerSlicesChange(deck.id, value)}
         />
         <label className="deck__bpm-slider deck__bpm-slider--vertical">
-          <span>Tempo</span>
+          <button
+            type="button"
+            className="deck__tempo-step"
+            onClick={() => nudgeTempoBySemitone(1)}
+            title="Increase tempo by one semitone ratio (~5.95%). 12 clicks = one octave."
+          >
+            +
+          </button>
           <input
             type="range"
             min="-100"
@@ -957,6 +1077,14 @@ const DeckCard = ({
             }}
             onBlur={() => setTempoFine(false)}
           />
+          <button
+            type="button"
+            className="deck__tempo-step"
+            onClick={() => nudgeTempoBySemitone(-1)}
+            title="Decrease tempo by one semitone ratio (~5.95%). 12 clicks = one octave."
+          >
+            -
+          </button>
         </label>
         <div className="deck__waveform-side">
           <div className="deck__zoom">
@@ -989,18 +1117,6 @@ const DeckCard = ({
               </button>
             </div>
           </div>
-          <div className="deck__gain-knob">
-            <Knob
-              label="Gain"
-              min={0}
-              max={1.5}
-              step={0.01}
-              value={deck.gain}
-              defaultValue={0.9}
-              labelTitle="Controls deck output level before the FX chain."
-              onChange={(next) => onGainChange(deck.id, next)}
-            />
-          </div>
         </div>
       </div>
       <div className="deck__fx">
@@ -1019,7 +1135,60 @@ const DeckCard = ({
             </button>
           </div>
         </div>
-        <div className="deck__fx-row">
+        <div className="deck__fx-row deck__fx-row--core">
+          <div
+            className={`deck__fx-unit deck__fx-unit--gain ${fxPanelOpen.gain ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.gain}
+              onClick={() => toggleFxPanel("gain")}
+            >
+              {renderFxToggleLabel("gain", "Gain")}
+            </button>
+            <Knob
+              label="Gain"
+              min={0}
+              max={1.5}
+              step={0.01}
+              value={gainValue}
+              defaultValue={0.9}
+              labelTitle="Controls deck output level before the FX chain."
+              onChange={(next) => onGainChange(deck.id, next)}
+              formatValue={(value, fine) => value.toFixed(fine ? 3 : 2)}
+              isAutomated={gainAutomation.active}
+            />
+            <AutomationLane
+              label="Automation"
+              min={0}
+              max={1.5}
+              value={gainValue}
+              samples={gainAutomation.samples}
+              previewSamples={gainAutomation.previewSamples}
+              durationSec={gainAutomation.durationSec}
+              recording={gainAutomation.recording}
+              active={gainAutomation.active}
+              amplitudeScale={gainAutomation.amplitudeScale}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "gain")}
+              onDrawStart={() => onAutomationStart(deck.id, "gain")}
+              onDrawEnd={() => onAutomationStop(deck.id, "gain")}
+              onReset={() => onAutomationReset(deck.id, "gain")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "gain", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "gain", value)
+              }
+              onPreset={(preset) => onAutomationPreset(deck.id, "gain", preset, 0, 1.5)}
+              onInvert={() => onAutomationInvert(deck.id, "gain", 0, 1.5)}
+              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "gain", factor)}
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(deck.id, "gain", factor, 0, 1.5)
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "gain", durationSec)
+              }
+            />
+          </div>
           <div
             className={`deck__fx-unit deck__fx-unit--filter ${fxPanelOpen.djFilter ? "" : "is-collapsed"}`.trim()}
           >

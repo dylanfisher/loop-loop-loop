@@ -1,6 +1,7 @@
 import type { DeckFxPanelState } from "./deck";
 
 export type AutomationParam =
+  | "gain"
   | "djFilter"
   | "resonance"
   | "eqLow"

@@ -1,6 +1,7 @@
 export type DeckStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
 export type DeckFxPanel =
+  | "gain"
   | "djFilter"
   | "resonance"
   | "eqLow"
