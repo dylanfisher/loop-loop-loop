@@ -11,6 +11,8 @@ export type RearrangerSliceMap = {
   reversed: boolean;
 };
 
+export const MAX_REARRANGER_SLICES = 128;
+
 type RearrangerBuildOptions = {
   chaosSeed?: number;
   segmentSamples?: number;
@@ -32,7 +34,7 @@ const buildEqualRegions = (sliceCount: number) => {
 };
 
 export const normalizeRearrangerRegions = (regions: number[] | null | undefined, slices: number) => {
-  const safeSliceCount = Math.max(0, Math.min(32, Math.round(slices)));
+  const safeSliceCount = Math.max(0, Math.min(MAX_REARRANGER_SLICES, Math.round(slices)));
   if (safeSliceCount <= 1) return [0, 1];
   const fallback = buildEqualRegions(safeSliceCount);
   if (!regions || regions.length === 0) return fallback;
@@ -48,7 +50,7 @@ export const normalizeRearrangerRegions = (regions: number[] | null | undefined,
 };
 
 export const normalizeRearrangerParams = (params: RearrangerParams): RearrangerParams => ({
-  slices: Math.max(0, Math.min(32, Math.round(params.slices))),
+  slices: Math.max(0, Math.min(MAX_REARRANGER_SLICES, Math.round(params.slices))),
   offset: Math.max(-32, Math.min(32, Math.round(params.offset))),
   chaos: Math.max(0, Math.min(1, params.chaos)),
   reverse: Math.max(0, Math.min(1, params.reverse)),
@@ -59,7 +61,7 @@ export const normalizeRearrangerRegionIds = (
   ids: number[] | null | undefined,
   slices: number
 ) => {
-  const safeSliceCount = Math.max(0, Math.min(32, Math.round(slices)));
+  const safeSliceCount = Math.max(0, Math.min(MAX_REARRANGER_SLICES, Math.round(slices)));
   const fallback = Array.from({ length: safeSliceCount }, (_, index) => index);
   if (!ids || ids.length !== safeSliceCount) return fallback;
   return ids.map((id, index) => (Number.isFinite(id) ? id : index));

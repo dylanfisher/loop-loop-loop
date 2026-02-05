@@ -1521,7 +1521,8 @@ const App = () => {
           autoplay: wasPlaying,
           recordHistory: !options?.transient,
           preserveNodes: options?.transient,
-          preserveFxState: options?.transient,
+          // Manual rearrange should keep current deck FX, matching auto-loop rearrange behavior.
+          preserveFxState: true,
           rearrangerRegions: nextRegions,
           rearrangerRegionIds: nextRegionIds,
         });

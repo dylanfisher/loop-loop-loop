@@ -1,7 +1,8 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { setPerfCounter, setPerfTiming } from "../utils/perf";
 import {
   buildRearrangerMap,
+  MAX_REARRANGER_SLICES,
   normalizeRearrangerRegionIds,
   normalizeRearrangerRegions,
 } from "../utils/rearranger";
@@ -356,7 +357,7 @@ const Waveform = ({
   rearrangerRegions,
   rearrangerRegionIds,
   onRearrangerRegionsChange,
-  onRearrangerSlicesChange,
+  onRearrangerSlicesChange: _onRearrangerSlicesChange,
 }: WaveformProps) => {
   const MAX_BAND_PEAKS_PER_SECOND = 4000;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -387,6 +388,9 @@ const Waveform = ({
   const rearrangerHandleDragRef = useRef<{ pointerId: number; boundaryIndex: number } | null>(null);
   const rearrangerHandleMovedRef = useRef(false);
   const rearrangerHandleStartXRef = useRef(0);
+  const rearrangerInsertPreviewRef = useRef<number | null>(null);
+  const [rearrangerInsertPreview, setRearrangerInsertPreview] = useState<number | null>(null);
+  const [optimisticRearrangerRegions, setOptimisticRearrangerRegions] = useState<number[] | null>(null);
   const hasInitializedWindowRef = useRef(false);
   const prevZoomRef = useRef(zoom);
   const panPointerIdRef = useRef<number | null>(null);
@@ -602,10 +606,22 @@ const Waveform = ({
     getDisplaySecondsRef.current = getDisplaySeconds;
   }, [getDisplaySeconds]);
 
-  const rearrangerHandleRegions = normalizeRearrangerRegions(
+  const normalizedRearrangerRegions = normalizeRearrangerRegions(
     rearrangerRegions,
     rearrangerSlices
   );
+  const rearrangerHandleRegions = (() => {
+    if (!optimisticRearrangerRegions) return normalizedRearrangerRegions;
+    if (optimisticRearrangerRegions.length !== normalizedRearrangerRegions.length) {
+      return optimisticRearrangerRegions;
+    }
+    for (let i = 0; i < optimisticRearrangerRegions.length; i += 1) {
+      if (Math.abs(optimisticRearrangerRegions[i] - normalizedRearrangerRegions[i]) > 1e-4) {
+        return optimisticRearrangerRegions;
+      }
+    }
+    return normalizedRearrangerRegions;
+  })();
   const rearrangerIds = normalizeRearrangerRegionIds(
     rearrangerRegionIds,
     rearrangerSlices
@@ -617,6 +633,24 @@ const Waveform = ({
     reverse: rearrangerReverse,
     regions: rearrangerHandleRegions,
   });
+
+  useEffect(() => {
+    if (!showRearrangerSlices) return;
+    console.log("[rearranger-debug] props/derived update", {
+      propSlices: rearrangerSlices,
+      propRegionsLength: rearrangerRegions?.length ?? 0,
+      normalizedRegionsLength: normalizedRearrangerRegions.length,
+      optimisticRegionsLength: optimisticRearrangerRegions?.length ?? 0,
+      renderedRegionsLength: rearrangerHandleRegions.length,
+    });
+  }, [
+    normalizedRearrangerRegions.length,
+    optimisticRearrangerRegions?.length,
+    rearrangerHandleRegions.length,
+    rearrangerRegions?.length,
+    rearrangerSlices,
+    showRearrangerSlices,
+  ]);
 
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
@@ -718,7 +752,6 @@ const Waveform = ({
         }
       }
     }
-
 
     const maxX = Math.max(1, overlay.clientWidth - 1);
     const x = Math.min(Math.max(progress * overlay.clientWidth, 1), maxX);
@@ -830,7 +863,7 @@ const Waveform = ({
     showRearrangerSlices,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     renderOverlayRef.current = renderOverlay;
   }, [renderOverlay]);
 
@@ -842,9 +875,14 @@ const Waveform = ({
     if (overlayRafRef.current !== null) return;
     overlayRafRef.current = requestAnimationFrame(() => {
       overlayRafRef.current = null;
-      renderOverlay();
+      renderOverlayRef.current();
     });
-  }, [renderOverlay]);
+  }, []);
+
+  useEffect(() => {
+    if (!showRearrangerSlices) return;
+    scheduleRenderOverlay();
+  }, [rearrangerRegions, rearrangerSlices, scheduleRenderOverlay, showRearrangerSlices]);
 
   useEffect(() => {
     return () => {
@@ -1683,6 +1721,16 @@ const Waveform = ({
       )}
       <canvas ref={canvasRef} />
       <canvas ref={overlayRef} className="deck__waveform-overlay" />
+      {showRearrangerSlices &&
+      loopEnabled &&
+      loopEndSeconds > loopStartSeconds + 0.01 &&
+      rearrangerInsertPreview !== null ? (
+        <div
+          className="deck__slice-preview-line"
+          aria-hidden="true"
+          style={{ left: `${rearrangerInsertPreview * 100}%` }}
+        />
+      ) : null}
       {showRearrangerSlices && loopEnabled && loopEndSeconds > loopStartSeconds + 0.01 ? (
         <div
           ref={sliceHandlesRef}
@@ -1690,20 +1738,28 @@ const Waveform = ({
           aria-hidden="true"
           onClick={(event) => {
             event.stopPropagation();
-          }}
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            event.preventDefault();
             if (
               event.target !== event.currentTarget ||
-              !onRearrangerRegionsChange ||
-              !onRearrangerSlicesChange
+              !onRearrangerRegionsChange
             ) {
+              rearrangerInsertPreviewRef.current = null;
+              setRearrangerInsertPreview(null);
+              scheduleRenderOverlay();
               return;
             }
-            if (rearrangerSlices >= 32) return;
+            if (rearrangerSlices >= MAX_REARRANGER_SLICES) {
+              rearrangerInsertPreviewRef.current = null;
+              setRearrangerInsertPreview(null);
+              scheduleRenderOverlay();
+              return;
+            }
             const rect = event.currentTarget.getBoundingClientRect();
-            if (!rect.width) return;
+            if (!rect.width) {
+              rearrangerInsertPreviewRef.current = null;
+              setRearrangerInsertPreview(null);
+              scheduleRenderOverlay();
+              return;
+            }
             const raw = (event.clientX - rect.left) / rect.width;
             const minGap = 0.002;
             const nextPoint = Math.max(0, Math.min(1, raw));
@@ -1716,15 +1772,102 @@ const Waveform = ({
                 break;
               }
             }
-            if (insertAfter < 0) return;
+            if (insertAfter < 0) {
+              rearrangerInsertPreviewRef.current = null;
+              setRearrangerInsertPreview(null);
+              scheduleRenderOverlay();
+              return;
+            }
             const previous = rearrangerHandleRegions[insertAfter] + minGap;
             const next = rearrangerHandleRegions[insertAfter + 1] - minGap;
             const clamped = Math.min(Math.max(nextPoint, previous), next);
-            if (clamped <= previous || clamped >= next) return;
+            if (clamped <= previous || clamped >= next) {
+              rearrangerInsertPreviewRef.current = null;
+              setRearrangerInsertPreview(null);
+              scheduleRenderOverlay();
+              return;
+            }
             const nextRegions = [...rearrangerHandleRegions];
             nextRegions.splice(insertAfter + 1, 0, clamped);
+            console.log("[rearranger-debug] add slice click", {
+              beforeSlices: rearrangerSlices,
+              beforeRegionsLength: rearrangerHandleRegions.length,
+              nextRegionsLength: nextRegions.length,
+              insertAfter,
+              clamped,
+            });
+            setOptimisticRearrangerRegions(nextRegions);
             onRearrangerRegionsChange(nextRegions);
-            onRearrangerSlicesChange(rearrangerSlices + 1);
+            rearrangerInsertPreviewRef.current = null;
+            setRearrangerInsertPreview(null);
+            scheduleRenderOverlay();
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+          onPointerMove={(event) => {
+            if (
+              event.target !== event.currentTarget ||
+              !onRearrangerRegionsChange ||
+              rearrangerSlices >= MAX_REARRANGER_SLICES
+            ) {
+              if (rearrangerInsertPreviewRef.current !== null) {
+                rearrangerInsertPreviewRef.current = null;
+                setRearrangerInsertPreview(null);
+                scheduleRenderOverlay();
+              }
+              return;
+            }
+            const rect = event.currentTarget.getBoundingClientRect();
+            if (!rect.width) {
+              if (rearrangerInsertPreviewRef.current !== null) {
+                rearrangerInsertPreviewRef.current = null;
+                setRearrangerInsertPreview(null);
+                scheduleRenderOverlay();
+              }
+              return;
+            }
+            const raw = (event.clientX - rect.left) / rect.width;
+            const minGap = 0.002;
+            const nextPoint = Math.max(0, Math.min(1, raw));
+            let insertAfter = -1;
+            for (let i = 0; i < rearrangerHandleRegions.length - 1; i += 1) {
+              const a = rearrangerHandleRegions[i];
+              const b = rearrangerHandleRegions[i + 1];
+              if (nextPoint >= a && nextPoint <= b) {
+                insertAfter = i;
+                break;
+              }
+            }
+            if (insertAfter < 0) {
+              if (rearrangerInsertPreviewRef.current !== null) {
+                rearrangerInsertPreviewRef.current = null;
+                setRearrangerInsertPreview(null);
+                scheduleRenderOverlay();
+              }
+              return;
+            }
+            const previous = rearrangerHandleRegions[insertAfter] + minGap;
+            const next = rearrangerHandleRegions[insertAfter + 1] - minGap;
+            const clamped = Math.min(Math.max(nextPoint, previous), next);
+            const preview =
+              clamped <= previous || clamped >= next ? null : clamped;
+            if (
+              (preview === null && rearrangerInsertPreviewRef.current !== null) ||
+              (preview !== null &&
+                Math.abs((rearrangerInsertPreviewRef.current ?? -1) - preview) > 1e-4)
+            ) {
+              rearrangerInsertPreviewRef.current = preview;
+              setRearrangerInsertPreview(preview);
+              scheduleRenderOverlay();
+            }
+          }}
+          onPointerLeave={() => {
+            if (rearrangerInsertPreviewRef.current !== null) {
+              rearrangerInsertPreviewRef.current = null;
+              setRearrangerInsertPreview(null);
+              scheduleRenderOverlay();
+            }
           }}
         >
           {rearrangerHandleRegions.slice(1, -1).map((point, localIndex) => {
@@ -1783,6 +1926,7 @@ const Waveform = ({
                   }
                   const nextRegions = [...rearrangerHandleRegions];
                   nextRegions[drag.boundaryIndex] = clamped;
+                  setOptimisticRearrangerRegions(nextRegions);
                   onRearrangerRegionsChange(nextRegions);
                 }}
                 onPointerUp={(event) => {
@@ -1797,12 +1941,18 @@ const Waveform = ({
                     rearrangerHandleMovedRef.current = false;
                     return;
                   }
-                  if (!onRearrangerRegionsChange || !onRearrangerSlicesChange) return;
+                  if (!onRearrangerRegionsChange) return;
                   if (rearrangerSlices <= 1) return;
                   const nextRegions = [...rearrangerHandleRegions];
                   nextRegions.splice(boundaryIndex, 1);
+                  console.log("[rearranger-debug] remove slice click", {
+                    beforeSlices: rearrangerSlices,
+                    beforeRegionsLength: rearrangerHandleRegions.length,
+                    nextRegionsLength: nextRegions.length,
+                    boundaryIndex,
+                  });
+                  setOptimisticRearrangerRegions(nextRegions);
                   onRearrangerRegionsChange(nextRegions);
-                  onRearrangerSlicesChange(rearrangerSlices - 1);
                 }}
                 onPointerLeave={() => {
                   rearrangerHandleDragRef.current = null;

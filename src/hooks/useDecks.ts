@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
 import type { DeckFxPanel, DeckFxPanelState, DeckState, DeckStatus } from "../types/deck";
 import type { AutomationParam, AutomationSnapshot, ClipSettings, DeckSession } from "../types/session";
-import { normalizeRearrangerRegionIds, normalizeRearrangerRegions } from "../utils/rearranger";
+import {
+  MAX_REARRANGER_SLICES,
+  normalizeRearrangerRegionIds,
+  normalizeRearrangerRegions,
+} from "../utils/rearranger";
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const AUTOMATION_SAMPLE_RATE = 30;
@@ -33,7 +37,6 @@ const DEFAULT_REARRANGER_OFFSET = 0;
 const DEFAULT_REARRANGER_CHAOS = 0;
 const DEFAULT_REARRANGER_REVERSE = 0;
 const DEFAULT_REARRANGER_AUTO = false;
-const MAX_REARRANGER_SLICES = 32;
 const DEFAULT_RESONANCE = 0;
 const EQ_MAX_DB = 18;
 const FX_ACTIVE_EPSILON = 1e-3;
@@ -1286,7 +1289,7 @@ const useDecks = () => {
     const nextFractalTone = clipSettings?.fractalTone ?? DEFAULT_FRACTAL_TONE;
     const nextRearrangerSlices = Math.max(
       0,
-      Math.min(32, Math.round(clipSettings?.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES))
+      Math.min(MAX_REARRANGER_SLICES, Math.round(clipSettings?.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES))
     );
     const nextRearrangerOffset = Math.max(
       -32,
@@ -2676,6 +2679,7 @@ const useDecks = () => {
               ];
         return {
           ...deck,
+          rearrangerSlices: slices,
           rearrangerRegions: next,
           rearrangerRegionIds: nextIds,
           rearrangerRegionsManual: true,
