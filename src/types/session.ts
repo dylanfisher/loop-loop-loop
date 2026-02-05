@@ -50,12 +50,6 @@ export type DeckSession = {
   delayTone: number;
   delayPingPong: boolean;
   delaySliceSync?: boolean;
-  fractalMix: number;
-  fractalStructure: number;
-  fractalDepth: number;
-  fractalDrift: number;
-  fractalDecay: number;
-  fractalTone: number;
   rearrangerSlices?: number;
   rearrangerOffset?: number;
   rearrangerChaos?: number;
@@ -106,12 +100,6 @@ export type ClipSettings = {
   delayTone: number;
   delayPingPong: boolean;
   delaySliceSync?: boolean;
-  fractalMix: number;
-  fractalStructure: number;
-  fractalDepth: number;
-  fractalDrift: number;
-  fractalDecay: number;
-  fractalTone: number;
   rearrangerSlices?: number;
   rearrangerOffset?: number;
   rearrangerChaos?: number;

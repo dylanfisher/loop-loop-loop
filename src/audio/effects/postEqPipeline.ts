@@ -1,20 +1,13 @@
 import type { EffectPipeline } from "./plugin";
 import { delayPlugin, type DelayParams, normalizeDelayParams } from "./delay";
-import {
-  fractalPlugin,
-  type FractalParams,
-  normalizeFractalParams,
-} from "./fractalResonator";
 
 export type PostEqEffectParams = {
-  fractal: Partial<FractalParams>;
   delay: Partial<DelayParams>;
 };
 
 export const normalizePostEqParams = (
   params: PostEqEffectParams
-): { fractal: FractalParams; delay: DelayParams } => ({
-  fractal: normalizeFractalParams(params.fractal),
+): { delay: DelayParams } => ({
   delay: normalizeDelayParams(params.delay),
 });
 
@@ -25,12 +18,6 @@ export const applyPostEqEffectsOffline = (
   pipeline: EffectPipeline
 ) => {
   const normalized = normalizePostEqParams(params);
-  const chainWithFractal = fractalPlugin.applyOffline(
-    context,
-    input,
-    normalized.fractal,
-    pipeline
-  );
-  const chain = delayPlugin.applyOffline(context, chainWithFractal, normalized.delay, pipeline);
+  const chain = delayPlugin.applyOffline(context, input, normalized.delay, pipeline);
   return chain;
 };

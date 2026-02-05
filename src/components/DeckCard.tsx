@@ -31,12 +31,6 @@ type DeckCardProps = {
   onDelayToneChange: (id: number, value: number) => void;
   onDelayPingPongChange: (id: number, value: boolean) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
-  onFractalMixChange: (id: number, value: number) => void;
-  onFractalStructureChange: (id: number, value: number) => void;
-  onFractalDepthChange: (id: number, value: number) => void;
-  onFractalDriftChange: (id: number, value: number) => void;
-  onFractalDecayChange: (id: number, value: number) => void;
-  onFractalToneChange: (id: number, value: number) => void;
   onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   automation?: Record<
@@ -155,7 +149,6 @@ const FX_PANEL_KEYS: DeckFxPanel[] = [
   "balance",
   "pitch",
   "delay",
-  "fractal",
   "rearranger",
   "stretch",
 ];
@@ -185,12 +178,6 @@ const DeckCard = ({
   onDelayToneChange,
   onDelayPingPongChange,
   onDelaySliceSyncChange,
-  onFractalMixChange,
-  onFractalStructureChange,
-  onFractalDepthChange,
-  onFractalDriftChange,
-  onFractalDecayChange,
-  onFractalToneChange,
   onBalanceChange,
   onPitchShiftChange,
   automation,
@@ -631,19 +618,6 @@ const DeckCard = ({
           deck.delaySliceSync
         ),
     },
-    fractal: {
-      automation: false,
-      modified:
-        deck.fractalMix > 1e-3 &&
-        (
-          isDifferent(deck.fractalMix, 0) ||
-          isDifferent(deck.fractalStructure, 0.45) ||
-          isDifferent(deck.fractalDepth, 0.35) ||
-          isDifferent(deck.fractalDrift, 0.15) ||
-          isDifferent(deck.fractalDecay, 0.2) ||
-          isDifferent(deck.fractalTone, 6000, 1)
-        ),
-    },
     rearranger: {
       automation: false,
       modified:
@@ -677,7 +651,6 @@ const DeckCard = ({
     balance: "Balance: pan the deck left/right in stereo.",
     pitch: "Pitch: semitone shift for key matching or creative detune.",
     delay: "Delay: time, feedback, tone, mix, and ping-pong echo.",
-    fractal: "Fractal Resonator: recursive modal texture generator.",
     rearranger:
       "Rearranger: Auto Slice detects transient boundaries. Delete Quiet removes low-energy spans in the loop. You can also click waveform between boundaries to add slices; hold Shift and click a slice to destructively remove that slice audio.",
     stretch: "Stretch: offline Paulstretch render with phase/width/tilt/scatter controls.",
@@ -1679,92 +1652,6 @@ const DeckCard = ({
                   }
                 />
               </label>
-            </div>
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--fractal deck__fx-unit--span-2 ${fxPanelOpen.fractal ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.fractal}
-              onClick={() => toggleFxPanel("fractal")}
-            >
-              {renderFxToggleLabel("fractal", "Fractal Resonator")}
-            </button>
-            <div className="deck__fractal-controls">
-              <Knob
-                className="knob--compact"
-                label="Mix"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.fractalMix}
-                defaultValue={0}
-                labelTitle="Wet/dry blend for the resonator."
-                onChange={(next) => onFractalMixChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Structure"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.fractalStructure}
-                defaultValue={0.45}
-                labelTitle="Shapes modal spacing from clustered to spread."
-                onChange={(next) => onFractalStructureChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Depth"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.fractalDepth}
-                defaultValue={0.35}
-                labelTitle="Controls resonance density and emphasis."
-                onChange={(next) => onFractalDepthChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Drift"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.fractalDrift}
-                defaultValue={0.15}
-                labelTitle="Detunes resonant modes for motion and shimmer."
-                onChange={(next) => onFractalDriftChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Decay"
-                min={0}
-                max={0.96}
-                step={0.01}
-                value={deck.fractalDecay}
-                defaultValue={0.2}
-                labelTitle="Feedback amount inside the resonator."
-                onChange={(next) => onFractalDecayChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Tone"
-                min={300}
-                max={14000}
-                step={100}
-                value={deck.fractalTone}
-                defaultValue={6000}
-                labelTitle="Top-end damping for the resonator body."
-                onChange={(next) => onFractalToneChange(deck.id, next)}
-                formatValue={(value, fine) => `${value.toFixed(fine ? 1 : 0)} Hz`}
-              />
             </div>
           </div>
           <div

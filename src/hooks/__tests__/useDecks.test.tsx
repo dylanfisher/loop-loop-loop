@@ -354,12 +354,6 @@ describe("useDecks", () => {
         delayMix: 0,
         delayTone: 6000,
         delayPingPong: false,
-        fractalMix: 0,
-        fractalStructure: 0.45,
-        fractalDepth: 0.35,
-        fractalDrift: 0.15,
-        fractalDecay: 0.2,
-        fractalTone: 6000,
         automation: {
           djFilter: {
             samples: [0, 0.5],

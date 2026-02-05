@@ -716,12 +716,6 @@ const App = () => {
         delayTone: deck.delayTone,
         delayPingPong: deck.delayPingPong,
         delaySliceSync: deck.delaySliceSync,
-        fractalMix: deck.fractalMix,
-        fractalStructure: deck.fractalStructure,
-        fractalDepth: deck.fractalDepth,
-        fractalDrift: deck.fractalDrift,
-        fractalDecay: deck.fractalDecay,
-        fractalTone: deck.fractalTone,
         rearrangerSlices: deck.rearrangerSlices,
         rearrangerOffset: deck.rearrangerOffset,
         rearrangerChaos: deck.rearrangerChaos,
@@ -904,12 +898,6 @@ const App = () => {
       const balanceTrack = settings.automation?.balance;
       const pitchActive =
         Math.abs(settings.pitchShift) >= 0.001 || pitchTrack?.active === true;
-      const fractalMix = Math.min(Math.max(settings.fractalMix ?? 0, 0), 1);
-      const fractalStructure = Math.min(Math.max(settings.fractalStructure ?? 0.45, 0), 1);
-      const fractalDepth = Math.min(Math.max(settings.fractalDepth ?? 0.35, 0), 1);
-      const fractalDrift = Math.min(Math.max(settings.fractalDrift ?? 0.15, 0), 1);
-      const fractalDecay = Math.min(Math.max(settings.fractalDecay ?? 0.2, 0), 0.985);
-      const fractalTone = Math.min(Math.max(settings.fractalTone ?? 6000, 300), 14000);
       const delayTime = Math.min(Math.max(settings.delayTime ?? 0.35, 0.01), 1.5);
       const delayFeedback = Math.min(Math.max(settings.delayFeedback ?? 0.35, 0), 0.95);
       const delayMix = Math.min(Math.max(settings.delayMix ?? 0, 0), 1);
@@ -932,7 +920,6 @@ const App = () => {
       const needsBalance = !approxEqual(settings.balance, 0) || balanceTrack?.active === true;
       const needsGain = !approxEqual(settings.gain, 0.9);
       const needsDelay = delayMix > 0.001;
-      const needsFractal = fractalMix > 0.001;
       const needsRender =
         !approxEqual(tempoRatio, 1) ||
         needsPitch ||
@@ -940,8 +927,7 @@ const App = () => {
         needsEq ||
         needsBalance ||
         needsGain ||
-        needsDelay ||
-        needsFractal;
+        needsDelay;
       if (!needsRender) return buffer;
 
       const toAutomation = (track?: ClipSettings["automation"][keyof ClipSettings["automation"]]) =>
@@ -1009,14 +995,6 @@ const App = () => {
         offline,
         chain,
         {
-          fractal: {
-            mix: fractalMix,
-            structure: fractalStructure,
-            depth: fractalDepth,
-            drift: fractalDrift,
-            decay: fractalDecay,
-            tone: fractalTone,
-          },
           delay: {
             time: delayTime,
             feedback: delayFeedback,
@@ -1164,12 +1142,6 @@ const App = () => {
       const delayMix = Math.min(Math.max(deck.delayMix ?? 0, 0), 1);
       const delayTone = Math.min(Math.max(deck.delayTone ?? 6000, 400), 12000);
       const delayPingPong = deck.delayPingPong ?? false;
-      const fractalMix = Math.min(Math.max(deck.fractalMix ?? 0, 0), 1);
-      const fractalStructure = Math.min(Math.max(deck.fractalStructure ?? 0.45, 0), 1);
-      const fractalDepth = Math.min(Math.max(deck.fractalDepth ?? 0.35, 0), 1);
-      const fractalDrift = Math.min(Math.max(deck.fractalDrift ?? 0.15, 0), 1);
-      const fractalDecay = Math.min(Math.max(deck.fractalDecay ?? 0.2, 0), 0.985);
-      const fractalTone = Math.min(Math.max(deck.fractalTone ?? 6000, 300), 14000);
 
 
       const automation = automationState.get(deck.id);
@@ -1262,14 +1234,6 @@ const App = () => {
         offline,
         postEq,
         {
-          fractal: {
-            mix: fractalMix,
-            structure: fractalStructure,
-            depth: fractalDepth,
-            drift: fractalDrift,
-            decay: fractalDecay,
-            tone: fractalTone,
-          },
           delay: {
             time: delayTime,
             feedback: delayFeedback,

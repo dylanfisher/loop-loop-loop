@@ -1282,23 +1282,6 @@ input[type="range"]::-moz-focus-outer {
   justify-items: center;
 }
 
-.deck__fractal-controls {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
-  row-gap: 10px;
-  justify-items: center;
-}
-
-.deck__fx-unit--fractal {
-  grid-template-rows: auto 1fr;
-}
-
-.deck__fx-unit--fractal .deck__fractal-controls {
-  align-self: center;
-  align-content: center;
-}
-
 .deck__rearranger-controls {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1926,10 +1909,6 @@ button:active {
 
   .deck__stretch-grid {
     grid-template-columns: 1fr;
-  }
-
-  .deck__fractal-controls {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .app__header {

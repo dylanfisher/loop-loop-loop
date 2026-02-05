@@ -10,7 +10,6 @@ export type DeckFxPanel =
   | "balance"
   | "pitch"
   | "delay"
-  | "fractal"
   | "rearranger"
   | "stretch";
 
@@ -44,12 +43,6 @@ export type DeckState = {
   delayTone: number;
   delayPingPong: boolean;
   delaySliceSync: boolean;
-  fractalMix: number;
-  fractalStructure: number;
-  fractalDepth: number;
-  fractalDrift: number;
-  fractalDecay: number;
-  fractalTone: number;
   rearrangerSlices: number;
   rearrangerOffset: number;
   rearrangerChaos: number;

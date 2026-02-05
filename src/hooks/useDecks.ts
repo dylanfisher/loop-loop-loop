@@ -33,12 +33,6 @@ const DEFAULT_DELAY_MIX = 0;
 const DEFAULT_DELAY_TONE = 6000;
 const DEFAULT_DELAY_PINGPONG = false;
 const DEFAULT_DELAY_SLICE_SYNC = false;
-const DEFAULT_FRACTAL_MIX = 0;
-const DEFAULT_FRACTAL_STRUCTURE = 0.45;
-const DEFAULT_FRACTAL_DEPTH = 0.35;
-const DEFAULT_FRACTAL_DRIFT = 0.15;
-const DEFAULT_FRACTAL_DECAY = 0.2;
-const DEFAULT_FRACTAL_TONE = 6000;
 const DEFAULT_REARRANGER_SLICES = 0;
 const DEFAULT_REARRANGER_OFFSET = 0;
 const DEFAULT_REARRANGER_CHAOS = 0;
@@ -59,7 +53,6 @@ const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
   balance: false,
   pitch: false,
   delay: false,
-  fractal: false,
   rearranger: false,
   stretch: false,
 };
@@ -221,12 +214,6 @@ const useDecks = () => {
       delayTone: DEFAULT_DELAY_TONE,
       delayPingPong: DEFAULT_DELAY_PINGPONG,
       delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
-      fractalMix: DEFAULT_FRACTAL_MIX,
-      fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
-      fractalDepth: DEFAULT_FRACTAL_DEPTH,
-      fractalDrift: DEFAULT_FRACTAL_DRIFT,
-      fractalDecay: DEFAULT_FRACTAL_DECAY,
-      fractalTone: DEFAULT_FRACTAL_TONE,
       rearrangerSlices: DEFAULT_REARRANGER_SLICES,
       rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
       rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -257,12 +244,6 @@ const useDecks = () => {
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
-    setDeckFractalMix,
-    setDeckFractalStructure,
-    setDeckFractalDepth,
-    setDeckFractalDrift,
-    setDeckFractalDecay,
-    setDeckFractalTone,
     setDeckPitchShift,
     removeDeck: removeDeckNodes,
     getDeckPosition,
@@ -370,12 +351,6 @@ const useDecks = () => {
         delayTone: number;
         delayPingPong: boolean;
         delaySliceSync?: boolean;
-        fractalMix: number;
-        fractalStructure: number;
-        fractalDepth: number;
-        fractalDrift: number;
-        fractalDecay: number;
-        fractalTone: number;
       }
     ) => {
       const targets = getFilterTargets(settings.djFilter);
@@ -393,12 +368,6 @@ const useDecks = () => {
       setDeckDelayMix(deckId, settings.delayMix);
       setDeckDelayTone(deckId, settings.delayTone);
       setDeckDelayPingPong(deckId, settings.delayPingPong);
-      setDeckFractalMix(deckId, settings.fractalMix);
-      setDeckFractalStructure(deckId, settings.fractalStructure);
-      setDeckFractalDepth(deckId, settings.fractalDepth);
-      setDeckFractalDrift(deckId, settings.fractalDrift);
-      setDeckFractalDecay(deckId, settings.fractalDecay);
-      setDeckFractalTone(deckId, settings.fractalTone);
       setDeckPlaybackRate(deckId, clampPlaybackRate(1 + settings.tempoOffset / 100));
     },
     [
@@ -409,12 +378,6 @@ const useDecks = () => {
       setDeckDelayPingPong,
       setDeckDelayTime,
       setDeckDelayTone,
-      setDeckFractalDecay,
-      setDeckFractalDepth,
-      setDeckFractalDrift,
-      setDeckFractalMix,
-      setDeckFractalStructure,
-      setDeckFractalTone,
       setDeckEqHigh,
       setDeckEqLow,
       setDeckEqMid,
@@ -900,12 +863,6 @@ const useDecks = () => {
         setDeckDelayMix(deck.id, deck.delayMix);
         setDeckDelayTone(deck.id, deck.delayTone);
         setDeckDelayPingPong(deck.id, deck.delayPingPong);
-        setDeckFractalMix(deck.id, deck.fractalMix);
-        setDeckFractalStructure(deck.id, deck.fractalStructure);
-        setDeckFractalDepth(deck.id, deck.fractalDepth);
-        setDeckFractalDrift(deck.id, deck.fractalDrift);
-        setDeckFractalDecay(deck.id, deck.fractalDecay);
-        setDeckFractalTone(deck.id, deck.fractalTone);
         setDeckPitchShift(deck.id, deck.pitchShift);
         setDeckPlaybackRate(deck.id, clampPlaybackRate(1 + deck.tempoOffset / 100));
         setDeckLoopParams(
@@ -962,13 +919,7 @@ const useDecks = () => {
           deck.delayTone,
           deck.delayPingPong,
           deck.balance,
-          deck.pitchShift,
-          deck.fractalMix,
-          deck.fractalStructure,
-          deck.fractalDepth,
-          deck.fractalDrift,
-          deck.fractalDecay,
-          deck.fractalTone
+          deck.pitchShift
         ).catch((error) => {
           console.warn("Undo playback failed", error);
           playbackStartRef.current.delete(deck.id);
@@ -996,12 +947,6 @@ const useDecks = () => {
       setDeckDelayMix,
       setDeckDelayTone,
       setDeckDelayPingPong,
-      setDeckFractalDecay,
-      setDeckFractalDepth,
-      setDeckFractalDrift,
-      setDeckFractalMix,
-      setDeckFractalStructure,
-      setDeckFractalTone,
       setDeckPitchShift,
       setDeckPlaybackRate,
       setDeckResonance,
@@ -1261,12 +1206,6 @@ const useDecks = () => {
         delayTone: DEFAULT_DELAY_TONE,
         delayPingPong: DEFAULT_DELAY_PINGPONG,
         delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
-        fractalMix: DEFAULT_FRACTAL_MIX,
-        fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
-        fractalDepth: DEFAULT_FRACTAL_DEPTH,
-        fractalDrift: DEFAULT_FRACTAL_DRIFT,
-        fractalDecay: DEFAULT_FRACTAL_DECAY,
-        fractalTone: DEFAULT_FRACTAL_TONE,
         rearrangerSlices: DEFAULT_REARRANGER_SLICES,
         rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
         rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -1325,12 +1264,6 @@ const useDecks = () => {
             delayTone: DEFAULT_DELAY_TONE,
             delayPingPong: DEFAULT_DELAY_PINGPONG,
             delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
-            fractalMix: DEFAULT_FRACTAL_MIX,
-            fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
-            fractalDepth: DEFAULT_FRACTAL_DEPTH,
-            fractalDrift: DEFAULT_FRACTAL_DRIFT,
-            fractalDecay: DEFAULT_FRACTAL_DECAY,
-            fractalTone: DEFAULT_FRACTAL_TONE,
             rearrangerSlices: DEFAULT_REARRANGER_SLICES,
             rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
             rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -1398,12 +1331,6 @@ const useDecks = () => {
     const nextDelayTone = clipSettings?.delayTone ?? DEFAULT_DELAY_TONE;
     const nextDelayPingPong = clipSettings?.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
     const nextDelaySliceSync = clipSettings?.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC;
-    const nextFractalMix = clipSettings?.fractalMix ?? DEFAULT_FRACTAL_MIX;
-    const nextFractalStructure = clipSettings?.fractalStructure ?? DEFAULT_FRACTAL_STRUCTURE;
-    const nextFractalDepth = clipSettings?.fractalDepth ?? DEFAULT_FRACTAL_DEPTH;
-    const nextFractalDrift = clipSettings?.fractalDrift ?? DEFAULT_FRACTAL_DRIFT;
-    const nextFractalDecay = clipSettings?.fractalDecay ?? DEFAULT_FRACTAL_DECAY;
-    const nextFractalTone = clipSettings?.fractalTone ?? DEFAULT_FRACTAL_TONE;
     const nextRearrangerSlices = Math.max(
       0,
       Math.min(MAX_REARRANGER_SLICES, Math.round(clipSettings?.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES))
@@ -1468,7 +1395,6 @@ const useDecks = () => {
           currentPanels.delay ||
           nextDelayMix > FX_ACTIVE_EPSILON ||
           nextDelaySliceSync,
-        fractal: currentPanels.fractal || nextFractalMix > FX_ACTIVE_EPSILON,
         rearranger:
           currentPanels.rearranger ||
           nextRearrangerAuto ||
@@ -1501,12 +1427,6 @@ const useDecks = () => {
       delayTone: nextDelayTone,
       delayPingPong: nextDelayPingPong,
       delaySliceSync: nextDelaySliceSync,
-      fractalMix: nextFractalMix,
-      fractalStructure: nextFractalStructure,
-      fractalDepth: nextFractalDepth,
-      fractalDrift: nextFractalDrift,
-      fractalDecay: nextFractalDecay,
-      fractalTone: nextFractalTone,
     });
     if (wasPlaying) {
       stop(id);
@@ -1567,12 +1487,6 @@ const useDecks = () => {
       delayTone: nextDelayTone,
       delayPingPong: nextDelayPingPong,
       delaySliceSync: nextDelaySliceSync,
-      fractalMix: nextFractalMix,
-      fractalStructure: nextFractalStructure,
-      fractalDepth: nextFractalDepth,
-      fractalDrift: nextFractalDrift,
-      fractalDecay: nextFractalDecay,
-      fractalTone: nextFractalTone,
       rearrangerSlices: nextRearrangerSlices,
       rearrangerOffset: nextRearrangerOffset,
       rearrangerChaos: nextRearrangerChaos,
@@ -1592,12 +1506,6 @@ const useDecks = () => {
     setDeckDelayMix(id, nextDelayMix);
     setDeckDelayTone(id, nextDelayTone);
     setDeckDelayPingPong(id, nextDelayPingPong);
-    setDeckFractalMix(id, nextFractalMix);
-    setDeckFractalStructure(id, nextFractalStructure);
-    setDeckFractalDepth(id, nextFractalDepth);
-    setDeckFractalDrift(id, nextFractalDrift);
-    setDeckFractalDecay(id, nextFractalDecay);
-    setDeckFractalTone(id, nextFractalTone);
     try {
       const buffer = await decodeFile(file);
       if (loadRequestRef.current.get(id) !== requestId) return;
@@ -1638,12 +1546,6 @@ const useDecks = () => {
         delayTone: nextDelayTone,
         delayPingPong: nextDelayPingPong,
         delaySliceSync: nextDelaySliceSync,
-        fractalMix: nextFractalMix,
-        fractalStructure: nextFractalStructure,
-        fractalDepth: nextFractalDepth,
-        fractalDrift: nextFractalDrift,
-        fractalDecay: nextFractalDecay,
-        fractalTone: nextFractalTone,
         rearrangerSlices: nextRearrangerSlices,
         rearrangerOffset: nextRearrangerOffset,
         rearrangerChaos: nextRearrangerChaos,
@@ -1693,13 +1595,7 @@ const useDecks = () => {
           nextDelayTone,
           nextDelayPingPong,
           nextBalance,
-          nextPitchShift,
-          nextFractalMix,
-          nextFractalStructure,
-          nextFractalDepth,
-          nextFractalDrift,
-          nextFractalDecay,
-          nextFractalTone
+          nextPitchShift
         );
       } else {
         updateDeck(id, {
@@ -1760,13 +1656,7 @@ const useDecks = () => {
       deck.delayTone,
       deck.delayPingPong,
       deck.balance,
-      deck.pitchShift,
-      deck.fractalMix,
-      deck.fractalStructure,
-      deck.fractalDepth,
-      deck.fractalDrift,
-      deck.fractalDecay,
-      deck.fractalTone
+      deck.pitchShift
     );
     if (deck.status === "paused") {
       resumeAutomationDeck(deck.id);
@@ -1884,13 +1774,7 @@ const useDecks = () => {
         deck.delayTone,
         deck.delayPingPong,
         deck.balance,
-        deck.pitchShift,
-        deck.fractalMix,
-        deck.fractalStructure,
-        deck.fractalDepth,
-        deck.fractalDrift,
-        deck.fractalDecay,
-        deck.fractalTone
+        deck.pitchShift
       );
       return;
     }
@@ -2035,42 +1919,6 @@ const useDecks = () => {
   const setDeckDelayTimeTransient = (id: number, value: number) => {
     const clamped = Math.min(Math.max(value, 0.01), 1.5);
     setDeckDelayTime(id, clamped);
-  };
-
-  const setDeckFractalMixValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckFractalMix(id, clamped);
-    updateDeck(id, { fractalMix: clamped }, false);
-  };
-
-  const setDeckFractalStructureValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckFractalStructure(id, clamped);
-    updateDeck(id, { fractalStructure: clamped }, false);
-  };
-
-  const setDeckFractalDepthValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckFractalDepth(id, clamped);
-    updateDeck(id, { fractalDepth: clamped }, false);
-  };
-
-  const setDeckFractalDriftValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckFractalDrift(id, clamped);
-    updateDeck(id, { fractalDrift: clamped }, false);
-  };
-
-  const setDeckFractalDecayValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 0.96);
-    setDeckFractalDecay(id, clamped);
-    updateDeck(id, { fractalDecay: clamped }, false);
-  };
-
-  const setDeckFractalToneValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 300), 14000);
-    setDeckFractalTone(id, clamped);
-    updateDeck(id, { fractalTone: clamped }, false);
   };
 
 
@@ -2261,13 +2109,7 @@ const useDecks = () => {
           deck.delayTone,
           deck.delayPingPong,
           deck.balance,
-          deck.pitchShift,
-          deck.fractalMix,
-          deck.fractalStructure,
-          deck.fractalDepth,
-          deck.fractalDrift,
-          deck.fractalDecay,
-          deck.fractalTone
+          deck.pitchShift
         );
 
         const startedAtMs = performance.now();
@@ -2379,13 +2221,7 @@ const useDecks = () => {
             deck.delayTone,
             deck.delayPingPong,
             deck.balance,
-            deck.pitchShift,
-            deck.fractalMix,
-            deck.fractalStructure,
-            deck.fractalDepth,
-            deck.fractalDrift,
-            deck.fractalDecay,
-            deck.fractalTone
+            deck.pitchShift
           );
           const startedAtMs = performance.now();
           playbackStartRef.current.set(id, startedAtMs);
@@ -2561,13 +2397,6 @@ const useDecks = () => {
       const nextDelayTone = deck.delayTone ?? DEFAULT_DELAY_TONE;
       const nextDelayPingPong = deck.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
       const nextDelaySliceSync = deck.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC;
-      const nextFractalMix = deck.fractalMix ?? DEFAULT_FRACTAL_MIX;
-      const nextFractalStructure =
-        deck.fractalStructure ?? DEFAULT_FRACTAL_STRUCTURE;
-      const nextFractalDepth = deck.fractalDepth ?? DEFAULT_FRACTAL_DEPTH;
-      const nextFractalDrift = deck.fractalDrift ?? DEFAULT_FRACTAL_DRIFT;
-      const nextFractalDecay = deck.fractalDecay ?? DEFAULT_FRACTAL_DECAY;
-      const nextFractalTone = deck.fractalTone ?? DEFAULT_FRACTAL_TONE;
       const nextRearrangerSlices =
         options?.rearrangerSlices ?? deck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES;
       const nextRearrangerOffset = deck.rearrangerOffset ?? DEFAULT_REARRANGER_OFFSET;
@@ -2632,12 +2461,6 @@ const useDecks = () => {
         delayTone: nextDelayTone,
         delayPingPong: nextDelayPingPong,
         delaySliceSync: nextDelaySliceSync,
-        fractalMix: nextFractalMix,
-        fractalStructure: nextFractalStructure,
-        fractalDepth: nextFractalDepth,
-        fractalDrift: nextFractalDrift,
-        fractalDecay: nextFractalDecay,
-        fractalTone: nextFractalTone,
         rearrangerSlices: nextRearrangerSlices,
         rearrangerOffset: nextRearrangerOffset,
         rearrangerChaos: nextRearrangerChaos,
@@ -2670,12 +2493,6 @@ const useDecks = () => {
       setDeckDelayMix(id, nextDelayMix);
       setDeckDelayTone(id, nextDelayTone);
       setDeckDelayPingPong(id, nextDelayPingPong);
-      setDeckFractalMix(id, nextFractalMix);
-      setDeckFractalStructure(id, nextFractalStructure);
-      setDeckFractalDepth(id, nextFractalDepth);
-      setDeckFractalDrift(id, nextFractalDrift);
-      setDeckFractalDecay(id, nextFractalDecay);
-      setDeckFractalTone(id, nextFractalTone);
       const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
       setDeckPlaybackRate(id, tempoRatio);
       setDeckLoopParams(id, true, nextLoopStartSeconds, nextLoopEndSeconds);
@@ -2709,13 +2526,7 @@ const useDecks = () => {
           nextDelayTone,
           nextDelayPingPong,
           nextBalance,
-          nextPitchShift,
-          nextDeck.fractalMix,
-          nextDeck.fractalStructure,
-          nextDeck.fractalDepth,
-          nextDeck.fractalDrift,
-          nextDeck.fractalDecay,
-          nextDeck.fractalTone
+          nextPitchShift
         );
       }
     },
@@ -2735,12 +2546,6 @@ const useDecks = () => {
       setDeckEqLow,
       setDeckEqMid,
       setDeckFilter,
-      setDeckFractalDecay,
-      setDeckFractalDepth,
-      setDeckFractalDrift,
-      setDeckFractalMix,
-      setDeckFractalStructure,
-      setDeckFractalTone,
       setDeckGain,
       setDeckHighpass,
       setDeckLoopParams,
@@ -2965,7 +2770,6 @@ const useDecks = () => {
                 balance: open,
                 pitch: open,
                 delay: open,
-                fractal: open,
                 rearranger: open,
                 stretch: open,
               },
@@ -2997,12 +2801,6 @@ const useDecks = () => {
         delayMix: DEFAULT_DELAY_MIX,
         delayTone: DEFAULT_DELAY_TONE,
         delayPingPong: DEFAULT_DELAY_PINGPONG,
-        fractalMix: DEFAULT_FRACTAL_MIX,
-        fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
-        fractalDepth: DEFAULT_FRACTAL_DEPTH,
-        fractalDrift: DEFAULT_FRACTAL_DRIFT,
-        fractalDecay: DEFAULT_FRACTAL_DECAY,
-        fractalTone: DEFAULT_FRACTAL_TONE,
       });
       resetAutomation(
         id,
@@ -3037,12 +2835,6 @@ const useDecks = () => {
           delayTone: DEFAULT_DELAY_TONE,
           delayPingPong: DEFAULT_DELAY_PINGPONG,
           delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
-          fractalMix: DEFAULT_FRACTAL_MIX,
-          fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
-          fractalDepth: DEFAULT_FRACTAL_DEPTH,
-          fractalDrift: DEFAULT_FRACTAL_DRIFT,
-          fractalDecay: DEFAULT_FRACTAL_DECAY,
-          fractalTone: DEFAULT_FRACTAL_TONE,
           rearrangerSlices: DEFAULT_REARRANGER_SLICES,
           rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
           rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -3170,12 +2962,6 @@ const useDecks = () => {
         delayTone: deck.delayTone,
         delayPingPong: deck.delayPingPong,
         delaySliceSync: deck.delaySliceSync,
-        fractalMix: deck.fractalMix,
-        fractalStructure: deck.fractalStructure,
-        fractalDepth: deck.fractalDepth,
-        fractalDrift: deck.fractalDrift,
-        fractalDecay: deck.fractalDecay,
-        fractalTone: deck.fractalTone,
         rearrangerSlices: deck.rearrangerSlices,
         rearrangerOffset: deck.rearrangerOffset,
         rearrangerChaos: deck.rearrangerChaos,
@@ -3341,13 +3127,6 @@ const useDecks = () => {
           delayTone: sessionDeck.delayTone ?? DEFAULT_DELAY_TONE,
           delayPingPong: sessionDeck.delayPingPong ?? DEFAULT_DELAY_PINGPONG,
           delaySliceSync: sessionDeck.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC,
-          fractalMix: sessionDeck.fractalMix ?? DEFAULT_FRACTAL_MIX,
-          fractalStructure:
-            sessionDeck.fractalStructure ?? DEFAULT_FRACTAL_STRUCTURE,
-          fractalDepth: sessionDeck.fractalDepth ?? DEFAULT_FRACTAL_DEPTH,
-          fractalDrift: sessionDeck.fractalDrift ?? DEFAULT_FRACTAL_DRIFT,
-          fractalDecay: sessionDeck.fractalDecay ?? DEFAULT_FRACTAL_DECAY,
-          fractalTone: sessionDeck.fractalTone ?? DEFAULT_FRACTAL_TONE,
           rearrangerSlices:
             sessionDeck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES,
           rearrangerOffset:
@@ -3436,12 +3215,6 @@ const useDecks = () => {
     setDeckDelayPingPong: setDeckDelayPingPongValue,
     setDeckDelaySliceSync: setDeckDelaySliceSyncValue,
     setDeckDelayTimeTransient,
-    setDeckFractalMix: setDeckFractalMixValue,
-    setDeckFractalStructure: setDeckFractalStructureValue,
-    setDeckFractalDepth: setDeckFractalDepthValue,
-    setDeckFractalDrift: setDeckFractalDriftValue,
-    setDeckFractalDecay: setDeckFractalDecayValue,
-    setDeckFractalTone: setDeckFractalToneValue,
     setDeckPitchShift: setDeckPitchShiftValue,
     seekDeck,
     setDeckZoom: setDeckZoomValue,
