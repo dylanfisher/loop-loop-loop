@@ -1515,6 +1515,11 @@ button:active {
   flex: 1;
 }
 
+.clip-rack__record-source {
+  display: inline-flex;
+  gap: 6px;
+}
+
 .clip-rack__meta {
   font-size: 0.68rem;
   text-transform: uppercase;

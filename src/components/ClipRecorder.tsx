@@ -14,6 +14,8 @@ type ClipRecorderProps = {
   onRemoveClip: (id: number) => void;
 };
 
+type RecordingSource = "master" | "input";
+
 const ClipRecorder = ({
   decks,
   onLoadClip,
@@ -25,9 +27,11 @@ const ClipRecorder = ({
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [recordingSource, setRecordingSource] = useState<RecordingSource>("master");
   const { decodeFile, getMasterStream } = useAudioEngine();
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const inputStreamActiveRef = useRef(false);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
@@ -39,6 +43,9 @@ const ClipRecorder = ({
     return () => {
       if (timerRef.current) {
         window.clearInterval(timerRef.current);
+      }
+      if (inputStreamActiveRef.current && streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
@@ -140,12 +147,22 @@ const ClipRecorder = ({
     setElapsed(0);
 
     try {
-      const stream = getMasterStream();
+      const stream =
+        recordingSource === "input"
+          ? await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+              },
+            })
+          : getMasterStream();
       if (!stream) {
         setError("Audio engine not ready.");
         return;
       }
       streamRef.current = stream;
+      inputStreamActiveRef.current = recordingSource === "input";
       const recorder = new MediaRecorder(stream);
       recorderRef.current = recorder;
       chunksRef.current = [];
@@ -174,6 +191,11 @@ const ClipRecorder = ({
         });
         chunksRef.current = [];
         recorderRef.current = null;
+        if (inputStreamActiveRef.current && streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+        }
+        streamRef.current = null;
+        inputStreamActiveRef.current = false;
         setRecording(false);
         setElapsed(0);
         startTimeRef.current = null;
@@ -189,7 +211,16 @@ const ClipRecorder = ({
       }, 100);
     } catch (err) {
       console.error("Failed to start clip recording", err);
-      setError("Failed to record app audio.");
+      setError(
+        recordingSource === "input"
+          ? "Failed to record input device audio."
+          : "Failed to record app audio."
+      );
+      if (inputStreamActiveRef.current && streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      streamRef.current = null;
+      inputStreamActiveRef.current = false;
       setRecording(false);
       setElapsed(0);
     }
@@ -205,12 +236,40 @@ const ClipRecorder = ({
           </span>
         </div>
         <div className="panel__actions">
+          <div className="clip-rack__record-source" role="group" aria-label="Recording source">
+            <button
+              type="button"
+              className={recordingSource === "master" ? "is-active" : undefined}
+              onClick={() => setRecordingSource("master")}
+              disabled={recording}
+              title="Record app output (master bus)"
+            >
+              App
+            </button>
+            <button
+              type="button"
+              className={recordingSource === "input" ? "is-active" : undefined}
+              onClick={() => setRecordingSource("input")}
+              disabled={recording}
+              title="Record from input device (microphone/interface)"
+            >
+              Input
+            </button>
+          </div>
           {recording ? (
             <button type="button" onClick={stopRecording}>
               Stop
             </button>
           ) : (
-            <button type="button" onClick={startRecording}>
+            <button
+              type="button"
+              onClick={startRecording}
+              title={
+                recordingSource === "input"
+                  ? "Start recording from input device"
+                  : "Start recording app output"
+              }
+            >
               Record
             </button>
           )}

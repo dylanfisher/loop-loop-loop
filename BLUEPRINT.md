@@ -45,6 +45,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Canvas/WebGL for waveform, spectrum, and experimental visual feedback.
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
 - Deck cards support drag-and-drop audio file loading in addition to the file picker.
+- Clip Recorder supports source-select recording: app master output or user input device (microphone/interface).
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Deck FX layout includes a Fractal Resonator unit (6 compact controls) for live modal-resonance sculpting.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
