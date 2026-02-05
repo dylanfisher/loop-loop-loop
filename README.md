@@ -4,6 +4,8 @@ Loop Loop Loop is a browser-native live looping and mutation instrument.
 
 It is designed for rapid experimentation: load audio, define a loop, transform it with FX, capture clips, and stack multiple decks. You do not need DJ workflow knowledge or music theory to use it.
 
+*This project is fully vibe coded.*
+
 ## Who This Is For
 
 - First-time users with no musical training
