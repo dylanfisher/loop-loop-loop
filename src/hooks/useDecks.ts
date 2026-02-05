@@ -63,6 +63,15 @@ const withDefaultFxPanelOpen = (
 
 const approxEqual = (a: number, b: number, epsilon = FX_ACTIVE_EPSILON) =>
   Math.abs(a - b) <= epsilon;
+const regionsEqual = (a: number[] | undefined, b: number[] | undefined, epsilon = 1e-6) => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (Math.abs((a[i] ?? 0) - (b[i] ?? 0)) > epsilon) return false;
+  }
+  return true;
+};
 
 const sanitizeRearrangerRegions = (regions: number[] | null | undefined) => {
   if (!regions || regions.length === 0) return undefined;
@@ -672,6 +681,25 @@ const useDecks = () => {
     [updateAutomationTickEnabled, updateAutomationView]
   );
 
+  const invertAutomation = useCallback(
+    (deckId: number, param: AutomationParam, min: number, max: number) => {
+      const automation = automationRef.current.get(deckId);
+      if (!automation) return;
+      const track = automation[param];
+      if (!track.samples.length) return;
+      const mid = (min + max) / 2;
+      const nextSamples = new Float32Array(track.samples.length);
+      for (let i = 0; i < track.samples.length; i += 1) {
+        nextSamples[i] = clamp(mid - (track.samples[i] - mid), min, max);
+      }
+      track.samples = nextSamples;
+      track.currentValue = nextSamples[0] ?? track.currentValue;
+      updateAutomationView(deckId);
+      updateAutomationTickEnabled();
+    },
+    [updateAutomationTickEnabled, updateAutomationView]
+  );
+
   const getDeckPlaybackRate = useCallback(
     (deck: DeckState) => clampPlaybackRate(1 + deck.tempoOffset / 100),
     []
@@ -687,6 +715,7 @@ const useDecks = () => {
     past: [],
     future: [],
   });
+  const loopBoundsHistorySnapshotRef = useRef<Map<number, DeckState[]>>(new Map());
   const historyDisabledRef = useRef(false);
   const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
   const historyLimit = 100;
@@ -745,6 +774,10 @@ const useDecks = () => {
     },
     [setDecksNoHistory, setDecksWithHistory]
   );
+
+  useEffect(() => () => {
+    loopBoundsHistorySnapshotRef.current.clear();
+  }, []);
 
   const applyDeckSnapshot = useCallback(
     (snapshot: DeckState[]) => {
@@ -957,6 +990,7 @@ const useDecks = () => {
   const undo = useCallback(() => {
     const past = historyRef.current.past;
     if (past.length === 0) return;
+    loopBoundsHistorySnapshotRef.current.clear();
     const current = snapshotDecks(decks);
     const previous = past.pop();
     if (!previous) return;
@@ -968,6 +1002,7 @@ const useDecks = () => {
   const redo = useCallback(() => {
     const future = historyRef.current.future;
     if (future.length === 0) return;
+    loopBoundsHistorySnapshotRef.current.clear();
     const current = snapshotDecks(decks);
     const next = future.pop();
     if (!next) return;
@@ -2133,6 +2168,16 @@ const useDecks = () => {
           remapped[remapped.length - 1] = 1;
           return remapped;
         })();
+        if (
+          approxEqual(nextStart, deck.loopStartSeconds ?? 0) &&
+          approxEqual(nextEnd, deck.loopEndSeconds ?? duration) &&
+          regionsEqual(nextRearrangerRegions, deck.rearrangerRegions)
+        ) {
+          return deck;
+        }
+        if (!loopBoundsHistorySnapshotRef.current.has(id)) {
+          loopBoundsHistorySnapshotRef.current.set(id, snapshotDecks(prev));
+        }
 
         if (deck.status === "playing" && deck.loopEnabled) {
           const currentPosition = getDeckPosition(deck.id);
@@ -2218,6 +2263,25 @@ const useDecks = () => {
     );
   };
 
+  const commitDeckLoopBoundsHistory = useCallback(
+    (id: number) => {
+      const tryCommit = (attempt: number) => {
+        if (historyDisabledRef.current) return;
+        const snapshot = loopBoundsHistorySnapshotRef.current.get(id);
+        if (!snapshot) {
+          if (attempt === 0) {
+            window.setTimeout(() => tryCommit(1), 0);
+          }
+          return;
+        }
+        loopBoundsHistorySnapshotRef.current.delete(id);
+        recordHistory(snapshot);
+      };
+      tryCommit(0);
+    },
+    [recordHistory]
+  );
+
   const setDeckTempoOffset = (
     id: number,
     value: number,
@@ -2301,6 +2365,9 @@ const useDecks = () => {
         recordHistory?: boolean;
         preserveNodes?: boolean;
         preserveFxState?: boolean;
+        loopStartSeconds?: number;
+        loopEndSeconds?: number;
+        rearrangerSlices?: number;
         rearrangerRegions?: number[];
         rearrangerRegionIds?: number[];
         rearrangerRegionsManual?: boolean;
@@ -2351,7 +2418,8 @@ const useDecks = () => {
       const nextFractalDrift = deck.fractalDrift ?? DEFAULT_FRACTAL_DRIFT;
       const nextFractalDecay = deck.fractalDecay ?? DEFAULT_FRACTAL_DECAY;
       const nextFractalTone = deck.fractalTone ?? DEFAULT_FRACTAL_TONE;
-      const nextRearrangerSlices = deck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES;
+      const nextRearrangerSlices =
+        options?.rearrangerSlices ?? deck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES;
       const nextRearrangerOffset = deck.rearrangerOffset ?? DEFAULT_REARRANGER_OFFSET;
       const nextRearrangerChaos = deck.rearrangerChaos ?? DEFAULT_REARRANGER_CHAOS;
       const nextRearrangerReverse = deck.rearrangerReverse ?? DEFAULT_REARRANGER_REVERSE;
@@ -2365,6 +2433,14 @@ const useDecks = () => {
         Array.from({ length: Math.max(0, deck.rearrangerSlices ?? 0) }, (_, index) => index);
       const nextRearrangerRegionsManual =
         options?.rearrangerRegionsManual ?? deck.rearrangerRegionsManual ?? false;
+      const nextLoopStartSeconds = Math.max(
+        0,
+        Math.min(duration, options?.loopStartSeconds ?? 0)
+      );
+      const nextLoopEndSeconds = Math.max(
+        nextLoopStartSeconds + 0.01,
+        Math.min(duration, options?.loopEndSeconds ?? duration)
+      );
       if (!preserveFxState) {
         resetAutomation(id, 0, DEFAULT_RESONANCE, 0, 0, 0, nextBalance, nextPitchShift);
       }
@@ -2386,8 +2462,8 @@ const useDecks = () => {
         offsetSeconds: 0,
         zoom: nextZoom,
         loopEnabled: true,
-        loopStartSeconds: 0,
-        loopEndSeconds: duration,
+        loopStartSeconds: nextLoopStartSeconds,
+        loopEndSeconds: nextLoopEndSeconds,
         tempoOffset: nextTempoOffset,
         tempoPitchSync: nextTempoPitchSync,
         stretchRatio: nextStretchRatio,
@@ -2445,7 +2521,7 @@ const useDecks = () => {
       setDeckFractalTone(id, nextFractalTone);
       const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
       setDeckPlaybackRate(id, tempoRatio);
-      setDeckLoopParams(id, true, 0, duration);
+      setDeckLoopParams(id, true, nextLoopStartSeconds, nextLoopEndSeconds);
 
       if (autoplay) {
         const startedAtMs = nextDeck.startedAtMs ?? performance.now();
@@ -3173,6 +3249,7 @@ const useDecks = () => {
     setDeckZoom: setDeckZoomValue,
     setDeckLoop: setDeckLoopValue,
     setDeckLoopBounds,
+    commitDeckLoopBoundsHistory,
     setDeckTempoOffset,
     setDeckTempoPitchSync,
     setDeckStretchRatio,
@@ -3201,6 +3278,7 @@ const useDecks = () => {
     applyAutomationPreset,
     adjustAutomationLength,
     adjustAutomationAmplitude,
+    invertAutomation,
     setAutomationDuration,
     getDeckPosition,
     getDeckPlaybackSnapshot: getDeckPlaybackSnapshotSafe,

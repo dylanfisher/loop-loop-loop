@@ -55,6 +55,8 @@ import {
 import {
   deriveRearrangedRegionIds,
   deriveRearrangedRegions,
+  normalizeRearrangerRegionIds,
+  normalizeRearrangerRegions,
   rearrangeBufferSegment,
 } from "./utils/rearranger";
 
@@ -117,6 +119,30 @@ const findLeadingSilenceSamples = (
     }
   }
   return limit;
+};
+
+const removeBufferSegment = (
+  buffer: AudioBuffer,
+  startSample: number,
+  endSample: number
+) => {
+  const safeStart = Math.max(0, Math.min(buffer.length, startSample));
+  const safeEnd = Math.max(safeStart, Math.min(buffer.length, endSample));
+  const removedLength = safeEnd - safeStart;
+  if (removedLength <= 0) return null;
+  const nextLength = Math.max(1, buffer.length - removedLength);
+  const nextBuffer = new AudioBuffer({
+    length: nextLength,
+    numberOfChannels: buffer.numberOfChannels,
+    sampleRate: buffer.sampleRate,
+  });
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const source = buffer.getChannelData(channel);
+    const target = nextBuffer.getChannelData(channel);
+    target.set(source.subarray(0, safeStart), 0);
+    target.set(source.subarray(safeEnd), safeStart);
+  }
+  return { buffer: nextBuffer, removedLength };
 };
 
 const findTrailingNonSilenceSample = (buffer: AudioBuffer, threshold: number) => {
@@ -331,6 +357,7 @@ const App = () => {
     setDeckZoom,
     setDeckLoop,
     setDeckLoopBounds,
+    commitDeckLoopBoundsHistory,
     setDeckTempoOffset,
     setDeckTempoPitchSync,
     setDeckStretchRatio,
@@ -359,6 +386,7 @@ const App = () => {
     applyAutomationPreset,
     adjustAutomationLength,
     adjustAutomationAmplitude,
+    invertAutomation,
     setAutomationDuration,
     getDeckPosition,
     getDeckPlaybackSnapshot,
@@ -1533,6 +1561,85 @@ const App = () => {
     [decks, loadDeckBuffer]
   );
 
+  const handleDeleteRearrangerSlice = useCallback(
+    (deckId: number, sliceIndex: number) => {
+      const deck = decks.find((item) => item.id === deckId);
+      if (!deck?.buffer) return;
+      const sliceCount = Math.max(0, Math.round(deck.rearrangerSlices ?? 0));
+      if (sliceCount <= 1) return;
+      const clampedIndex = Math.max(0, Math.min(sliceCount - 1, Math.round(sliceIndex)));
+
+      const duration = deck.duration ?? deck.buffer.duration;
+      const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+      const loopEnd =
+        deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+          ? Math.min(deck.loopEndSeconds, duration)
+          : duration;
+      const loopDuration = loopEnd - loopStart;
+      if (loopDuration <= 0.01) return;
+
+      const regions = normalizeRearrangerRegions(deck.rearrangerRegions, sliceCount);
+      if (regions.length !== sliceCount + 1) return;
+      const sliceStartSeconds = loopStart + loopDuration * regions[clampedIndex];
+      const sliceEndSeconds = loopStart + loopDuration * regions[clampedIndex + 1];
+      const sampleRate = deck.buffer.sampleRate;
+      const startSample = Math.max(
+        0,
+        Math.min(deck.buffer.length - 1, Math.round(sliceStartSeconds * sampleRate))
+      );
+      const endSample = Math.max(
+        startSample + 1,
+        Math.min(deck.buffer.length, Math.round(sliceEndSeconds * sampleRate))
+      );
+      const removed = removeBufferSegment(deck.buffer, startSample, endSample);
+      if (!removed) return;
+
+      const removedDuration = removed.removedLength / sampleRate;
+      const nextLoopStart = Math.min(loopStart, removed.buffer.duration);
+      const nextLoopEnd = Math.min(
+        removed.buffer.duration,
+        Math.max(nextLoopStart + 0.01, loopEnd - removedDuration)
+      );
+      const nextLoopDuration = Math.max(0.01, nextLoopEnd - nextLoopStart);
+
+      const absoluteBounds = regions.map((value) => loopStart + value * loopDuration);
+      const nextAbsoluteBounds = absoluteBounds
+        .filter((_, boundaryIndex) => boundaryIndex !== clampedIndex + 1)
+        .map((seconds, boundaryIndex) => {
+          if (boundaryIndex > clampedIndex) {
+            return seconds - removedDuration;
+          }
+          return seconds;
+        });
+      const nextRegions =
+        nextAbsoluteBounds.length > 2
+          ? nextAbsoluteBounds.map((seconds, boundaryIndex, array) => {
+              if (boundaryIndex === 0) return 0;
+              if (boundaryIndex === array.length - 1) return 1;
+              return Math.min(Math.max((seconds - nextLoopStart) / nextLoopDuration, 0), 1);
+            })
+          : undefined;
+      const nextSlices = Math.max(0, sliceCount - 1);
+      const currentIds = normalizeRearrangerRegionIds(deck.rearrangerRegionIds, sliceCount);
+      const nextIds = [...currentIds];
+      nextIds.splice(clampedIndex, 1);
+      const wasPlaying = deck.status === "playing";
+
+      loadDeckBuffer(deckId, removed.buffer, {
+        name: `${deck.fileName ?? "Loop"} Edited`,
+        autoplay: wasPlaying,
+        preserveFxState: true,
+        loopStartSeconds: nextLoopStart,
+        loopEndSeconds: nextLoopEnd,
+        rearrangerSlices: nextSlices,
+        rearrangerRegions: nextRegions,
+        rearrangerRegionIds: nextIds.slice(0, nextSlices),
+        rearrangerRegionsManual: Boolean(nextRegions),
+      });
+    },
+    [decks, loadDeckBuffer]
+  );
+
   useEffect(() => {
     let raf = 0;
     const tick = () => {
@@ -2122,7 +2229,8 @@ const App = () => {
     if (!deck || !deck.buffer) return;
     const duration = deck.duration ?? deck.buffer.duration;
     setDeckLoopBounds(deck.id, 0, duration);
-  }, [getActiveDeck, setDeckLoopBounds]);
+    commitDeckLoopBoundsHistory(deck.id);
+  }, [commitDeckLoopBoundsHistory, getActiveDeck, setDeckLoopBounds]);
 
   const handleFocusedDeckZoom = useCallback(
     (direction: "in" | "out") => {
@@ -2503,6 +2611,7 @@ const App = () => {
           onZoomChange={setDeckZoom}
           onLoopChange={setDeckLoop}
           onLoopBoundsChange={setDeckLoopBounds}
+          onLoopBoundsChangeComplete={commitDeckLoopBoundsHistory}
           onTempoOffsetChange={setDeckTempoOffset}
           onTempoPitchSyncChange={setDeckTempoPitchSync}
           onStretchRatioChange={setDeckStretchRatio}
@@ -2517,6 +2626,7 @@ const App = () => {
           onRearrangerReverseChange={setDeckRearrangerReverse}
           onRearrangerAutoChange={setDeckRearrangerAuto}
           onRearrangerRegionsChange={setDeckRearrangerRegions}
+          onRearrangerSliceDelete={handleDeleteRearrangerSlice}
           onRearrangeLoop={handleRearrangeLoop}
           onFxPanelToggle={setDeckFxPanelOpen}
           onFxPanelsToggleAll={setDeckFxPanelsOpen}
@@ -2533,6 +2643,7 @@ const App = () => {
           onAutomationPreset={applyAutomationPreset}
           onAutomationLengthScale={adjustAutomationLength}
           onAutomationAmplitudeScale={adjustAutomationAmplitude}
+          onAutomationInvert={invertAutomation}
           onAutomationDurationChange={setAutomationDuration}
           getDeckPosition={getDeckPosition}
           getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}

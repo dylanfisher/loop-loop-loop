@@ -38,6 +38,7 @@ type DeckStackProps = {
   onZoomChange: (id: number, value: number) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
+  onLoopBoundsChangeComplete: (id: number) => void;
   onTempoOffsetChange: (
     id: number,
     value: number,
@@ -56,6 +57,7 @@ type DeckStackProps = {
   onRearrangerReverseChange: (id: number, value: number) => void;
   onRearrangerAutoChange: (id: number, value: boolean) => void;
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
+  onRearrangerSliceDelete: (id: number, sliceIndex: number) => void;
   onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
   onFxPanelsToggleAll: (id: number, open: boolean) => void;
@@ -90,6 +92,7 @@ type DeckStackProps = {
   onAutomationPreset: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", preset: "sine" | "triangle" | "ramp", min: number, max: number) => void;
   onAutomationLengthScale: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", factor: number) => void;
   onAutomationAmplitudeScale: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", factor: number, min: number, max: number) => void;
+  onAutomationInvert: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", min: number, max: number) => void;
   onAutomationDurationChange: (id: number, param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch", durationSec: number) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
@@ -136,6 +139,7 @@ const DeckStack = ({
   onZoomChange,
   onLoopChange,
   onLoopBoundsChange,
+  onLoopBoundsChangeComplete,
   onTempoOffsetChange,
   onTempoPitchSyncChange,
   onStretchRatioChange,
@@ -150,6 +154,7 @@ const DeckStack = ({
   onRearrangerReverseChange,
   onRearrangerAutoChange,
   onRearrangerRegionsChange,
+  onRearrangerSliceDelete,
   onRearrangeLoop,
   onFxPanelToggle,
   onFxPanelsToggleAll,
@@ -168,6 +173,7 @@ const DeckStack = ({
   onAutomationPreset,
   onAutomationLengthScale,
   onAutomationAmplitudeScale,
+  onAutomationInvert,
   onAutomationDurationChange,
   getDeckPosition,
   getDeckPlaybackSnapshot,
@@ -211,6 +217,7 @@ const DeckStack = ({
             onZoomChange={onZoomChange}
             onLoopChange={onLoopChange}
             onLoopBoundsChange={onLoopBoundsChange}
+            onLoopBoundsChangeComplete={onLoopBoundsChangeComplete}
             onTempoOffsetChange={onTempoOffsetChange}
             onTempoPitchSyncChange={onTempoPitchSyncChange}
             onStretchRatioChange={onStretchRatioChange}
@@ -225,6 +232,7 @@ const DeckStack = ({
             onRearrangerReverseChange={onRearrangerReverseChange}
             onRearrangerAutoChange={onRearrangerAutoChange}
             onRearrangerRegionsChange={onRearrangerRegionsChange}
+            onRearrangerSliceDelete={onRearrangerSliceDelete}
             onRearrangeLoop={onRearrangeLoop}
             onFxPanelToggle={onFxPanelToggle}
             onFxPanelsToggleAll={onFxPanelsToggleAll}
@@ -243,6 +251,7 @@ const DeckStack = ({
             onAutomationPreset={onAutomationPreset}
             onAutomationLengthScale={onAutomationLengthScale}
             onAutomationAmplitudeScale={onAutomationAmplitudeScale}
+            onAutomationInvert={onAutomationInvert}
             onAutomationDurationChange={onAutomationDurationChange}
             getDeckPosition={getDeckPosition}
             getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}

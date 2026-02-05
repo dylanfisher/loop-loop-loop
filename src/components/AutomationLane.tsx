@@ -19,6 +19,7 @@ type AutomationLaneProps = {
   onToggleActive: (active: boolean) => void;
   onDrawValueChange: (value: number) => void;
   onPreset: (preset: "sine" | "triangle" | "ramp") => void;
+  onInvert: () => void;
   onLengthScale: (factor: number) => void;
   onAmplitudeScale: (factor: number) => void;
   onDurationChange: (durationSec: number) => void;
@@ -45,6 +46,7 @@ const AutomationLane = ({
   onToggleActive,
   onDrawValueChange,
   onPreset,
+  onInvert,
   onLengthScale,
   onAmplitudeScale,
   onDurationChange,
@@ -248,6 +250,15 @@ const AutomationLane = ({
             disabled={disabled}
           >
             Reset
+          </button>
+          <button
+            type="button"
+            className="automation-lane__reset button--small"
+            onClick={onInvert}
+            disabled={disabled}
+            title="Invert automation around center"
+          >
+            Inv
           </button>
         </div>
       </div>

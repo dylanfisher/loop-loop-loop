@@ -92,6 +92,12 @@ type DeckCardProps = {
     min: number,
     max: number
   ) => void;
+  onAutomationInvert: (
+    id: number,
+    param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+    min: number,
+    max: number
+  ) => void;
   onAutomationDurationChange: (
     id: number,
     param: "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
@@ -101,6 +107,7 @@ type DeckCardProps = {
   onZoomChange: (id: number, value: number) => void;
   onLoopChange: (id: number, value: boolean) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
+  onLoopBoundsChangeComplete: (id: number) => void;
   onTempoOffsetChange: (
     id: number,
     value: number,
@@ -119,6 +126,7 @@ type DeckCardProps = {
   onRearrangerReverseChange: (id: number, value: number) => void;
   onRearrangerAutoChange: (id: number, value: boolean) => void;
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
+  onRearrangerSliceDelete: (id: number, sliceIndex: number) => void;
   onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
   onFxPanelsToggleAll: (id: number, open: boolean) => void;
@@ -193,11 +201,13 @@ const DeckCard = ({
   onAutomationPreset,
   onAutomationLengthScale,
   onAutomationAmplitudeScale,
+  onAutomationInvert,
   onAutomationDurationChange,
   onSeek,
   onZoomChange,
   onLoopChange,
   onLoopBoundsChange,
+  onLoopBoundsChangeComplete,
   onTempoOffsetChange,
   onTempoPitchSyncChange,
   onStretchRatioChange,
@@ -212,6 +222,7 @@ const DeckCard = ({
   onRearrangerReverseChange,
   onRearrangerAutoChange,
   onRearrangerRegionsChange,
+  onRearrangerSliceDelete,
   onRearrangeLoop,
   onFxPanelToggle,
   onFxPanelsToggleAll,
@@ -382,6 +393,9 @@ const DeckCard = ({
     },
     [deck.id, deck.rearrangerAuto, onLoopBoundsChange, onRearrangerAutoChange]
   );
+  const handleLoopBoundsChangeComplete = useCallback(() => {
+    onLoopBoundsChangeComplete(deck.id);
+  }, [deck.id, onLoopBoundsChangeComplete]);
 
   const handleLoopEnabledChange = useCallback(
     (enabled: boolean) => {
@@ -499,7 +513,8 @@ const DeckCard = ({
     pitch: "Pitch: semitone shift for key matching or creative detune.",
     delay: "Delay: time, feedback, tone, mix, and ping-pong echo.",
     fractal: "Fractal Resonator: recursive modal texture generator.",
-    rearranger: "Rearranger: slice, rotate, randomize, and reverse loop segments.",
+    rearranger:
+      "Rearranger: click waveform between boundaries to add slices; hold Shift and click a slice to destructively remove that slice audio.",
     stretch: "Stretch: offline Paulstretch render with phase/width/tilt/scatter controls.",
   };
   const renderFxToggleLabel = (panel: DeckFxPanel, label: string) => {
@@ -650,6 +665,7 @@ const DeckCard = ({
           loopEndSeconds={deck.loopEndSeconds}
           onSeek={handleSeek}
           onLoopBoundsChange={handleLoopBoundsChange}
+          onLoopBoundsChangeComplete={handleLoopBoundsChangeComplete}
           onLoopEnabledChange={handleLoopEnabledChange}
           getCurrentSeconds={getCurrentSeconds}
           getPlaybackSnapshot={handlePlaybackSnapshot}
@@ -662,6 +678,7 @@ const DeckCard = ({
           rearrangerRegions={deck.rearrangerRegions}
           rearrangerRegionIds={deck.rearrangerRegionIds}
           onRearrangerRegionsChange={(regions) => onRearrangerRegionsChange(deck.id, regions)}
+          onRearrangerSliceDelete={(sliceIndex) => onRearrangerSliceDelete(deck.id, sliceIndex)}
           onRearrangerSlicesChange={(value) => onRearrangerSlicesChange(deck.id, value)}
         />
         <label className="deck__bpm-slider deck__bpm-slider--vertical">
@@ -848,6 +865,7 @@ const DeckCard = ({
               onPreset={(preset) =>
                 onAutomationPreset(deck.id, "djFilter", preset, -1, 1)
               }
+              onInvert={() => onAutomationInvert(deck.id, "djFilter", -1, 1)}
               onLengthScale={(factor) =>
                 onAutomationLengthScale(deck.id, "djFilter", factor)
               }
@@ -903,6 +921,9 @@ const DeckCard = ({
               }
               onPreset={(preset) =>
                 onAutomationPreset(deck.id, "resonance", preset, resonanceMin, resonanceMax)
+              }
+              onInvert={() =>
+                onAutomationInvert(deck.id, "resonance", resonanceMin, resonanceMax)
               }
               onLengthScale={(factor) =>
                 onAutomationLengthScale(deck.id, "resonance", factor)
@@ -967,6 +988,7 @@ const DeckCard = ({
                 onAutomationValueChange(deck.id, "eqLow", value)
               }
               onPreset={(preset) => onAutomationPreset(deck.id, "eqLow", preset, -18, 18)}
+              onInvert={() => onAutomationInvert(deck.id, "eqLow", -18, 18)}
               onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqLow", factor)}
               onAmplitudeScale={(factor) =>
                 onAutomationAmplitudeScale(deck.id, "eqLow", factor, -18, 18)
@@ -1020,6 +1042,7 @@ const DeckCard = ({
                 onAutomationValueChange(deck.id, "eqMid", value)
               }
               onPreset={(preset) => onAutomationPreset(deck.id, "eqMid", preset, -18, 18)}
+              onInvert={() => onAutomationInvert(deck.id, "eqMid", -18, 18)}
               onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqMid", factor)}
               onAmplitudeScale={(factor) =>
                 onAutomationAmplitudeScale(deck.id, "eqMid", factor, -18, 18)
@@ -1073,6 +1096,7 @@ const DeckCard = ({
                 onAutomationValueChange(deck.id, "eqHigh", value)
               }
               onPreset={(preset) => onAutomationPreset(deck.id, "eqHigh", preset, -18, 18)}
+              onInvert={() => onAutomationInvert(deck.id, "eqHigh", -18, 18)}
               onLengthScale={(factor) =>
                 onAutomationLengthScale(deck.id, "eqHigh", factor)
               }
@@ -1130,6 +1154,7 @@ const DeckCard = ({
                 onAutomationValueChange(deck.id, "balance", value)
               }
               onPreset={(preset) => onAutomationPreset(deck.id, "balance", preset, -1, 1)}
+              onInvert={() => onAutomationInvert(deck.id, "balance", -1, 1)}
               onLengthScale={(factor) => onAutomationLengthScale(deck.id, "balance", factor)}
               onAmplitudeScale={(factor) =>
                 onAutomationAmplitudeScale(deck.id, "balance", factor, -1, 1)
@@ -1184,6 +1209,7 @@ const DeckCard = ({
                 onAutomationValueChange(deck.id, "pitch", value)
               }
               onPreset={(preset) => onAutomationPreset(deck.id, "pitch", preset, -24, 24)}
+              onInvert={() => onAutomationInvert(deck.id, "pitch", -24, 24)}
               onLengthScale={(factor) => onAutomationLengthScale(deck.id, "pitch", factor)}
               onAmplitudeScale={(factor) =>
                 onAutomationAmplitudeScale(deck.id, "pitch", factor, -24, 24)
@@ -1372,7 +1398,7 @@ const DeckCard = ({
                 step={1}
                 value={deck.rearrangerSlices}
                 defaultValue={0}
-                labelTitle="Number of slices to chop the current loop into. 0 turns rearranger off."
+                labelTitle="Number of slices. You can also click between waveform boundaries to add slices, or hold Shift and click a slice region to destructively remove it."
                 onChange={(next) => onRearrangerSlicesChange(deck.id, next)}
                 formatValue={(value) => {
                   const rounded = Math.round(value);

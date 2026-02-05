@@ -19,7 +19,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ### DSP Modules
 - Beat/onset detection (WASM or lightweight JS analysis).
-- FX chain: filters, delay (time/feedback/mix/tone + ping-pong), Fractal Resonator (mix/structure/depth/drift/decay/tone), Loop Rearranger (offline loop slicing/reordering with slices/offset/chaos/reverse controls, draggable colored slice-boundary handles in the waveform, click-between-handles to add a slice at pointer position, and slice-knob decrement removing the last custom slice, plus optional auto-rearrange each loop cycle), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
+- FX chain: filters, delay (time/feedback/mix/tone + ping-pong), Fractal Resonator (mix/structure/depth/drift/decay/tone), Loop Rearranger (offline loop slicing/reordering with slices/offset/chaos/reverse controls, draggable colored slice-boundary handles in the waveform, click-between-handles to add a slice at pointer position, Shift+click in the slice zone to destructively remove the clicked slice audio from the deck buffer and shorten duration, and slice-handle click to remove only a divider while preserving audio, plus optional auto-rearrange each loop cycle), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
 - Modulation system: LFOs, envelopes, random/stochastic sources.
 
 ## BPM Detection & Control (Planned)
@@ -51,7 +51,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
-- Brand-new projects show a dismissible Welcome panel above the clip recorder with first-run guidance.
+- Brand-new projects show a dismissible Welcome panel above the clip recorder with selectable first-run guidance, quickstart steps, and concise interaction hints for non-musicians.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
 [Header (brand + session controls + performance panel + master gain)]

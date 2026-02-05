@@ -27,6 +27,7 @@ type WaveformProps = {
     startSeconds: number,
     endSeconds: number,
   ) => void;
+  onLoopBoundsChangeComplete?: () => void;
   onLoopEnabledChange?: (enabled: boolean) => void;
   getCurrentSeconds?: () => number | null;
   onEmptyClick?: () => void;
@@ -47,6 +48,7 @@ type WaveformProps = {
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];
   onRearrangerRegionsChange?: (regions: number[]) => void;
+  onRearrangerSliceDelete?: (sliceIndex: number) => void;
   onRearrangerSlicesChange?: (value: number) => void;
 };
 
@@ -345,6 +347,7 @@ const Waveform = ({
   loopEndSeconds = 0,
   onSeek,
   onLoopBoundsChange,
+  onLoopBoundsChangeComplete,
   onLoopEnabledChange,
   getCurrentSeconds,
   onEmptyClick,
@@ -357,6 +360,7 @@ const Waveform = ({
   rearrangerRegions,
   rearrangerRegionIds,
   onRearrangerRegionsChange,
+  onRearrangerSliceDelete,
   onRearrangerSlicesChange: _onRearrangerSlicesChange,
 }: WaveformProps) => {
   const MAX_BAND_PEAKS_PER_SECOND = 4000;
@@ -391,6 +395,7 @@ const Waveform = ({
   const rearrangerInsertPreviewRef = useRef<number | null>(null);
   const [rearrangerInsertPreview, setRearrangerInsertPreview] = useState<number | null>(null);
   const [optimisticRearrangerRegions, setOptimisticRearrangerRegions] = useState<number[] | null>(null);
+  const [optimisticSourceKey, setOptimisticSourceKey] = useState<string | null>(null);
   const hasInitializedWindowRef = useRef(false);
   const prevZoomRef = useRef(zoom);
   const panPointerIdRef = useRef<number | null>(null);
@@ -401,6 +406,9 @@ const Waveform = ({
   const lastDisplaySecondsRef = useRef(0);
   const localStartMsRef = useRef<number | null>(null);
   const shiftDragRef = useRef(false);
+  const shiftDragPendingRef = useRef(false);
+  const shiftPointerStartXRef = useRef(0);
+  const shiftPointerStartSecondsRef = useRef(0);
   const shiftStartRef = useRef(0);
   const [themeToken, setThemeToken] = useState(0);
   const renderCountRef = useRef(0);
@@ -411,11 +419,31 @@ const Waveform = ({
   const getResolvedDurationRef = useRef<() => number>(() => 0);
   const getDisplaySecondsRef = useRef<() => number>(() => 0);
   const renderOverlayRef = useRef<() => void>(() => {});
+  const [rearrangerDeleteSliceIndex, setRearrangerDeleteSliceIndex] = useState<number | null>(null);
+  const [isSliceZoneHovered, setIsSliceZoneHovered] = useState(false);
+  const [isShiftPressed, setIsShiftPressed] = useState(false);
+  const rearrangerDeleteMode = isSliceZoneHovered && isShiftPressed && rearrangerSlices > 1;
+  const effectiveDeleteSliceIndex = rearrangerDeleteMode ? rearrangerDeleteSliceIndex : null;
 
   useEffect(() => {
     renderCountRef.current += 1;
     setPerfCounter("waveformRenders", renderCountRef.current);
   });
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setIsShiftPressed(true);
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setIsShiftPressed(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
 
   const waveformGainScale = useMemo(() => {
     const safeGain = Number.isFinite(gain) ? gain : 1;
@@ -423,6 +451,20 @@ const Waveform = ({
   }, [gain]);
 
   const getPlayback = useCallback(() => getPlaybackSnapshot?.() ?? null, [getPlaybackSnapshot]);
+  const rearrangerRegionsKey =
+    rearrangerRegions?.map((value) => value.toFixed(6)).join("|") ?? "";
+  const rearrangerSourceKey = [
+    buffer?.length ?? 0,
+    rearrangerSlices,
+    loopStartSeconds.toFixed(4),
+    loopEndSeconds.toFixed(4),
+    rearrangerRegionsKey,
+  ].join(":");
+  const applyOptimisticRearrangerRegions = useCallback((regions: number[] | null) => {
+    setOptimisticSourceKey(regions ? rearrangerSourceKey : null);
+    setOptimisticRearrangerRegions(regions);
+  }, [rearrangerSourceKey]);
+  const optimisticRegionsPending = optimisticSourceKey === rearrangerSourceKey;
   const getResolvedDuration = useCallback(() => {
     const snapshot = getPlayback();
     const fallbackDuration = duration ?? buffer?.duration ?? 0;
@@ -542,10 +584,10 @@ const Waveform = ({
   const getDisplaySeconds = useCallback(() => {
     const snapshot = getPlayback();
     const resolvedDuration = getResolvedDuration();
-    const resolvedLoopEnabled = snapshot?.loopEnabled ?? loopEnabled;
-    const resolvedLoopStart = snapshot?.loopStart ?? loopStartSeconds;
+    const resolvedLoopEnabled = loopEnabled;
+    const resolvedLoopStart = loopStartSeconds;
     const resolvedLoopEnd =
-      snapshot?.loopEnd ?? (loopEndSeconds > resolvedLoopStart ? loopEndSeconds : resolvedDuration);
+      loopEndSeconds > resolvedLoopStart ? loopEndSeconds : resolvedDuration;
     const playbackRate = snapshot?.playbackRate ?? 1;
 
     if (snapshot) {
@@ -613,11 +655,15 @@ const Waveform = ({
   const rearrangerHandleRegions = (() => {
     if (!optimisticRearrangerRegions) return normalizedRearrangerRegions;
     if (optimisticRearrangerRegions.length !== normalizedRearrangerRegions.length) {
-      return optimisticRearrangerRegions;
+      return optimisticRegionsPending
+        ? optimisticRearrangerRegions
+        : normalizedRearrangerRegions;
     }
     for (let i = 0; i < optimisticRearrangerRegions.length; i += 1) {
       if (Math.abs(optimisticRearrangerRegions[i] - normalizedRearrangerRegions[i]) > 1e-4) {
-        return optimisticRearrangerRegions;
+        return optimisticRegionsPending
+          ? optimisticRearrangerRegions
+          : normalizedRearrangerRegions;
       }
     }
     return normalizedRearrangerRegions;
@@ -634,28 +680,9 @@ const Waveform = ({
     regions: rearrangerHandleRegions,
   });
 
-  useEffect(() => {
-    if (!showRearrangerSlices) return;
-    console.log("[rearranger-debug] props/derived update", {
-      propSlices: rearrangerSlices,
-      propRegionsLength: rearrangerRegions?.length ?? 0,
-      normalizedRegionsLength: normalizedRearrangerRegions.length,
-      optimisticRegionsLength: optimisticRearrangerRegions?.length ?? 0,
-      renderedRegionsLength: rearrangerHandleRegions.length,
-    });
-  }, [
-    normalizedRearrangerRegions.length,
-    optimisticRearrangerRegions?.length,
-    rearrangerHandleRegions.length,
-    rearrangerRegions?.length,
-    rearrangerSlices,
-    showRearrangerSlices,
-  ]);
-
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
     if (!overlay || !buffer) return;
-    const snapshot = getPlayback();
     const resolvedDuration = getResolvedDuration();
     if (!resolvedDuration) return;
 
@@ -667,10 +694,10 @@ const Waveform = ({
 
     const visualDuration = resolvedDuration / Math.max(1, zoom);
     let currentSeconds = getDisplaySeconds();
-    const resolvedLoopEnabled = snapshot?.loopEnabled ?? loopEnabled;
-    const resolvedLoopStart = snapshot?.loopStart ?? loopStartSeconds;
+    const resolvedLoopEnabled = loopEnabled;
+    const resolvedLoopStart = loopStartSeconds;
     const resolvedLoopEnd =
-      snapshot?.loopEnd ?? (loopEndSeconds > resolvedLoopStart ? loopEndSeconds : resolvedDuration);
+      loopEndSeconds > resolvedLoopStart ? loopEndSeconds : resolvedDuration;
     if (
       activeLoopDragRef.current &&
       resolvedLoopEnabled &&
@@ -748,6 +775,34 @@ const Waveform = ({
             overlayContext.moveTo(x0 + 1, 2);
             overlayContext.lineTo(Math.max(x0 + 1, x1 - 1), 2);
             overlayContext.stroke();
+          }
+        }
+        if (
+          effectiveDeleteSliceIndex !== null &&
+          rearrangerDeleteMode &&
+          effectiveDeleteSliceIndex >= 0 &&
+          effectiveDeleteSliceIndex < regions.length - 1
+        ) {
+          const sliceStart = resolvedLoopStart + loopDuration * regions[effectiveDeleteSliceIndex];
+          const sliceEnd = resolvedLoopStart + loopDuration * regions[effectiveDeleteSliceIndex + 1];
+          const drawStart = Math.max(sliceStart, regionStart);
+          const drawEnd = Math.min(sliceEnd, regionEnd);
+          if (drawEnd > drawStart) {
+            const x0 = ((drawStart - visibleStart) / visualDuration) * overlay.clientWidth;
+            const x1 = ((drawEnd - visibleStart) / visualDuration) * overlay.clientWidth;
+            const width = Math.max(2, x1 - x0);
+            overlayContext.save();
+            overlayContext.fillStyle = "rgba(0, 0, 0, 0.22)";
+            overlayContext.fillRect(x0, 0, width, overlay.clientHeight);
+            overlayContext.strokeStyle = "rgba(0, 0, 0, 0.58)";
+            overlayContext.lineWidth = 2;
+            overlayContext.beginPath();
+            overlayContext.moveTo(x0, 0);
+            overlayContext.lineTo(x0, overlay.clientHeight);
+            overlayContext.moveTo(x1, 0);
+            overlayContext.lineTo(x1, overlay.clientHeight);
+            overlayContext.stroke();
+            overlayContext.restore();
           }
         }
       }
@@ -847,7 +902,6 @@ const Waveform = ({
   }, [
     buffer,
     getDisplaySeconds,
-    getPlayback,
     getResolvedDuration,
     loopEnabled,
     loopEndSeconds,
@@ -860,6 +914,8 @@ const Waveform = ({
     rearrangerReverse,
     rearrangerRegions,
     rearrangerSlices,
+    rearrangerDeleteMode,
+    effectiveDeleteSliceIndex,
     showRearrangerSlices,
   ]);
 
@@ -1299,7 +1355,7 @@ const Waveform = ({
         if (
           target?.closest(
             ".deck__loop-region, .deck__loop-connector, .deck__loop-handle"
-            + ", .deck__slice-handle"
+            + ", .deck__slice-handles, .deck__slice-handle"
           )
         ) {
           return;
@@ -1314,22 +1370,19 @@ const Waveform = ({
           inertiaRef.current = null;
         }
         if (event.shiftKey && onLoopBoundsChange) {
-          shiftDragRef.current = true;
-          isDraggingRef.current = true;
-          dragMovedRef.current = true;
+          shiftDragPendingRef.current = true;
+          shiftDragRef.current = false;
+          isDraggingRef.current = false;
+          dragMovedRef.current = false;
+          shiftPointerStartXRef.current = event.clientX;
           const resolvedDuration = getResolvedDuration();
           if (resolvedDuration) {
             const rect = event.currentTarget.getBoundingClientRect();
             const visualDuration = resolvedDuration / Math.max(1, zoom);
             const progress = (event.clientX - rect.left) / rect.width;
             loopDragWindowStartRef.current = windowStartRef.current;
-            shiftStartRef.current =
+            shiftPointerStartSecondsRef.current =
               windowStartRef.current + progress * visualDuration;
-            loopStartRef.current = shiftStartRef.current;
-            loopEndRef.current = shiftStartRef.current;
-            scheduleLoopBoundsChange(shiftStartRef.current, shiftStartRef.current);
-            onLoopEnabledChange?.(true);
-            scheduleRenderOverlay();
           }
           event.currentTarget.setPointerCapture(event.pointerId);
           return;
@@ -1360,6 +1413,26 @@ const Waveform = ({
           !buffer ||
           !duration
         ) {
+          if (
+            shiftDragPendingRef.current &&
+            pointerDownRef.current &&
+            panPointerIdRef.current === event.pointerId &&
+            buffer &&
+            duration
+          ) {
+            if (Math.abs(event.clientX - shiftPointerStartXRef.current) > 2) {
+              shiftDragPendingRef.current = false;
+              shiftDragRef.current = true;
+              isDraggingRef.current = true;
+              dragMovedRef.current = true;
+              shiftStartRef.current = shiftPointerStartSecondsRef.current;
+              loopStartRef.current = shiftStartRef.current;
+              loopEndRef.current = shiftStartRef.current;
+              scheduleLoopBoundsChange(shiftStartRef.current, shiftStartRef.current);
+              onLoopEnabledChange?.(true);
+              updateShiftLoopFromPointer(event.clientX);
+            }
+          }
           return;
         }
         if (shiftDragRef.current) {
@@ -1404,14 +1477,26 @@ const Waveform = ({
         }
       }}
       onPointerUp={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        if (shiftDragPendingRef.current) {
+          shiftDragPendingRef.current = false;
+          shiftDragRef.current = false;
+          pointerDownRef.current = false;
+          if (panPointerIdRef.current === event.pointerId) {
+            panPointerIdRef.current = null;
+          }
+          return;
+        }
         if (!isDraggingRef.current) return;
         isDraggingRef.current = false;
-        event.currentTarget.releasePointerCapture(event.pointerId);
         activeLoopDragRef.current = null;
         if (shiftDragRef.current) {
           shiftDragRef.current = false;
           pointerDownRef.current = false;
           flushLoopBoundsChange();
+          onLoopBoundsChangeComplete?.();
           return;
         }
         pointerDownRef.current = false;
@@ -1471,13 +1556,18 @@ const Waveform = ({
         }
       }}
       onPointerLeave={() => {
+        const wasLoopAdjusting = activeLoopDragRef.current !== null || shiftDragRef.current;
         isDraggingRef.current = false;
         activeLoopDragRef.current = null;
         shiftDragRef.current = false;
+        shiftDragPendingRef.current = false;
         pointerDownRef.current = false;
         loopDragActiveRef.current = false;
         panPointerIdRef.current = null;
         flushLoopBoundsChange();
+        if (wasLoopAdjusting) {
+          onLoopBoundsChangeComplete?.();
+        }
       }}
     >
       {buffer && (
@@ -1553,6 +1643,7 @@ const Waveform = ({
               }
               pointerDownRef.current = false;
               flushLoopBoundsChange();
+              onLoopBoundsChangeComplete?.();
               loopDragActiveRef.current = false;
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
@@ -1628,6 +1719,7 @@ const Waveform = ({
                 }
                 pointerDownRef.current = false;
                 flushLoopBoundsChange();
+                onLoopBoundsChangeComplete?.();
                 loopDragActiveRef.current = false;
                 event.currentTarget.releasePointerCapture(event.pointerId);
               }}
@@ -1669,6 +1761,7 @@ const Waveform = ({
               }
               pointerDownRef.current = false;
               flushLoopBoundsChange();
+              onLoopBoundsChangeComplete?.();
               loopDragActiveRef.current = false;
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
@@ -1711,6 +1804,7 @@ const Waveform = ({
               }
               pointerDownRef.current = false;
               flushLoopBoundsChange();
+              onLoopBoundsChangeComplete?.();
               loopDragActiveRef.current = false;
               event.currentTarget.releasePointerCapture(event.pointerId);
             }}
@@ -1734,7 +1828,7 @@ const Waveform = ({
       {showRearrangerSlices && loopEnabled && loopEndSeconds > loopStartSeconds + 0.01 ? (
         <div
           ref={sliceHandlesRef}
-          className="deck__slice-handles"
+          className={`deck__slice-handles ${rearrangerDeleteMode ? "is-delete-mode" : ""}`.trim()}
           aria-hidden="true"
           onClick={(event) => {
             event.stopPropagation();
@@ -1744,12 +1838,7 @@ const Waveform = ({
             ) {
               rearrangerInsertPreviewRef.current = null;
               setRearrangerInsertPreview(null);
-              scheduleRenderOverlay();
-              return;
-            }
-            if (rearrangerSlices >= MAX_REARRANGER_SLICES) {
-              rearrangerInsertPreviewRef.current = null;
-              setRearrangerInsertPreview(null);
+              setRearrangerDeleteSliceIndex(null);
               scheduleRenderOverlay();
               return;
             }
@@ -1757,6 +1846,7 @@ const Waveform = ({
             if (!rect.width) {
               rearrangerInsertPreviewRef.current = null;
               setRearrangerInsertPreview(null);
+              setRearrangerDeleteSliceIndex(null);
               scheduleRenderOverlay();
               return;
             }
@@ -1775,6 +1865,25 @@ const Waveform = ({
             if (insertAfter < 0) {
               rearrangerInsertPreviewRef.current = null;
               setRearrangerInsertPreview(null);
+              setRearrangerDeleteSliceIndex(null);
+              scheduleRenderOverlay();
+              return;
+            }
+            if (event.shiftKey && rearrangerSlices > 1) {
+              if (onRearrangerSliceDelete) {
+                applyOptimisticRearrangerRegions(null);
+                onRearrangerSliceDelete(insertAfter);
+              }
+              rearrangerInsertPreviewRef.current = null;
+              setRearrangerInsertPreview(null);
+              setRearrangerDeleteSliceIndex(null);
+              scheduleRenderOverlay();
+              return;
+            }
+            if (rearrangerSlices >= MAX_REARRANGER_SLICES) {
+              rearrangerInsertPreviewRef.current = null;
+              setRearrangerInsertPreview(null);
+              setRearrangerDeleteSliceIndex(null);
               scheduleRenderOverlay();
               return;
             }
@@ -1784,37 +1893,37 @@ const Waveform = ({
             if (clamped <= previous || clamped >= next) {
               rearrangerInsertPreviewRef.current = null;
               setRearrangerInsertPreview(null);
+              setRearrangerDeleteSliceIndex(null);
               scheduleRenderOverlay();
               return;
             }
             const nextRegions = [...rearrangerHandleRegions];
             nextRegions.splice(insertAfter + 1, 0, clamped);
-            console.log("[rearranger-debug] add slice click", {
-              beforeSlices: rearrangerSlices,
-              beforeRegionsLength: rearrangerHandleRegions.length,
-              nextRegionsLength: nextRegions.length,
-              insertAfter,
-              clamped,
-            });
-            setOptimisticRearrangerRegions(nextRegions);
+            applyOptimisticRearrangerRegions(nextRegions);
             onRearrangerRegionsChange(nextRegions);
             rearrangerInsertPreviewRef.current = null;
             setRearrangerInsertPreview(null);
+            setRearrangerDeleteSliceIndex(null);
             scheduleRenderOverlay();
           }}
           onPointerDown={(event) => {
             event.stopPropagation();
           }}
+          onPointerEnter={() => {
+            setIsSliceZoneHovered(true);
+          }}
           onPointerMove={(event) => {
             if (
               event.target !== event.currentTarget ||
-              !onRearrangerRegionsChange ||
-              rearrangerSlices >= MAX_REARRANGER_SLICES
+              !onRearrangerRegionsChange
             ) {
               if (rearrangerInsertPreviewRef.current !== null) {
                 rearrangerInsertPreviewRef.current = null;
                 setRearrangerInsertPreview(null);
                 scheduleRenderOverlay();
+              }
+              if (rearrangerDeleteSliceIndex !== null) {
+                setRearrangerDeleteSliceIndex(null);
               }
               return;
             }
@@ -1824,6 +1933,9 @@ const Waveform = ({
                 rearrangerInsertPreviewRef.current = null;
                 setRearrangerInsertPreview(null);
                 scheduleRenderOverlay();
+              }
+              if (rearrangerDeleteSliceIndex !== null) {
+                setRearrangerDeleteSliceIndex(null);
               }
               return;
             }
@@ -1840,6 +1952,31 @@ const Waveform = ({
               }
             }
             if (insertAfter < 0) {
+              if (rearrangerInsertPreviewRef.current !== null) {
+                rearrangerInsertPreviewRef.current = null;
+                setRearrangerInsertPreview(null);
+                scheduleRenderOverlay();
+              }
+              if (rearrangerDeleteSliceIndex !== null) {
+                setRearrangerDeleteSliceIndex(null);
+              }
+              return;
+            }
+            if (event.shiftKey && rearrangerSlices > 1) {
+              if (insertAfter !== rearrangerDeleteSliceIndex) {
+                setRearrangerDeleteSliceIndex(insertAfter);
+              }
+              if (rearrangerInsertPreviewRef.current !== null) {
+                rearrangerInsertPreviewRef.current = null;
+                setRearrangerInsertPreview(null);
+                scheduleRenderOverlay();
+              }
+              return;
+            }
+            if (rearrangerDeleteSliceIndex !== null) {
+              setRearrangerDeleteSliceIndex(null);
+            }
+            if (rearrangerSlices >= MAX_REARRANGER_SLICES) {
               if (rearrangerInsertPreviewRef.current !== null) {
                 rearrangerInsertPreviewRef.current = null;
                 setRearrangerInsertPreview(null);
@@ -1868,6 +2005,8 @@ const Waveform = ({
               setRearrangerInsertPreview(null);
               scheduleRenderOverlay();
             }
+            setRearrangerDeleteSliceIndex(null);
+            setIsSliceZoneHovered(false);
           }}
         >
           {rearrangerHandleRegions.slice(1, -1).map((point, localIndex) => {
@@ -1926,7 +2065,7 @@ const Waveform = ({
                   }
                   const nextRegions = [...rearrangerHandleRegions];
                   nextRegions[drag.boundaryIndex] = clamped;
-                  setOptimisticRearrangerRegions(nextRegions);
+                  applyOptimisticRearrangerRegions(nextRegions);
                   onRearrangerRegionsChange(nextRegions);
                 }}
                 onPointerUp={(event) => {
@@ -1945,13 +2084,7 @@ const Waveform = ({
                   if (rearrangerSlices <= 1) return;
                   const nextRegions = [...rearrangerHandleRegions];
                   nextRegions.splice(boundaryIndex, 1);
-                  console.log("[rearranger-debug] remove slice click", {
-                    beforeSlices: rearrangerSlices,
-                    beforeRegionsLength: rearrangerHandleRegions.length,
-                    nextRegionsLength: nextRegions.length,
-                    boundaryIndex,
-                  });
-                  setOptimisticRearrangerRegions(nextRegions);
+                  applyOptimisticRearrangerRegions(nextRegions);
                   onRearrangerRegionsChange(nextRegions);
                 }}
                 onPointerLeave={() => {
