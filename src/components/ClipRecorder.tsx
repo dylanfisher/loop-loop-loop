@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { DragEvent as ReactDragEvent } from "react";
 import type { DeckState } from "../types/deck";
 import type { ClipItem } from "../types/clip";
 import useAudioEngine from "../hooks/useAudioEngine";
@@ -27,6 +28,7 @@ const ClipRecorder = ({
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [recordingSource, setRecordingSource] = useState<RecordingSource>("master");
   const { decodeFile, getMasterStream } = useAudioEngine();
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -36,14 +38,20 @@ const ClipRecorder = ({
   const timerRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement | null>>(new Map());
+  const previewAudioByClipRef = useRef<Map<number, HTMLAudioElement>>(new Map());
   const decodePendingRef = useRef<Set<number>>(new Set());
+  const dragDepthRef = useRef(0);
+  const [previewingClipId, setPreviewingClipId] = useState<number | null>(null);
   const [themeToken, setThemeToken] = useState(0);
 
   useEffect(() => {
+    const previewAudios = previewAudioByClipRef.current;
     return () => {
       if (timerRef.current) {
         window.clearInterval(timerRef.current);
       }
+      previewAudios.forEach((audio) => audio.pause());
+      previewAudios.clear();
       if (inputStreamActiveRef.current && streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -115,6 +123,19 @@ const ClipRecorder = ({
   };
 
   useEffect(() => {
+    const clipIds = new Set(clips.map((clip) => clip.id));
+    previewAudioByClipRef.current.forEach((audio, id) => {
+      if (!clipIds.has(id)) {
+        audio.pause();
+        previewAudioByClipRef.current.delete(id);
+        if (previewingClipId === id) {
+          setPreviewingClipId(null);
+        }
+      }
+    });
+  }, [clips, previewingClipId]);
+
+  useEffect(() => {
     clips.forEach((clip) => {
       if (!clip.buffer) return;
       const canvas = canvasRefs.current.get(clip.id);
@@ -139,6 +160,51 @@ const ClipRecorder = ({
     if (recorder && recorder.state !== "inactive") {
       recorder.stop();
     }
+  };
+
+  const stopPreview = () => {
+    if (previewingClipId === null) return;
+    const activeAudio = previewAudioByClipRef.current.get(previewingClipId);
+    if (activeAudio) {
+      activeAudio.pause();
+    }
+    setPreviewingClipId(null);
+  };
+
+  const toggleClipPreview = (clip: ClipItem) => {
+    const activeId = previewingClipId;
+    const existing = previewAudioByClipRef.current.get(clip.id);
+    if (activeId === clip.id && existing && !existing.paused) {
+      existing.pause();
+      setPreviewingClipId(null);
+      return;
+    }
+    if (activeId !== null) {
+      const activeAudio = previewAudioByClipRef.current.get(activeId);
+      if (activeAudio) {
+        activeAudio.pause();
+        activeAudio.currentTime = 0;
+      }
+    }
+    const audio = existing ?? new Audio(clip.url);
+    if (!existing) {
+      audio.preload = "metadata";
+      audio.addEventListener("ended", () => {
+        setPreviewingClipId((current) => (current === clip.id ? null : current));
+      });
+      previewAudioByClipRef.current.set(clip.id, audio);
+    }
+    if (activeId !== clip.id) {
+      audio.currentTime = 0;
+    }
+    void audio
+      .play()
+      .then(() => setPreviewingClipId(clip.id))
+      .catch((err) => {
+        console.error("Failed to play clip preview", err);
+        setError("Failed to play clip preview.");
+        setPreviewingClipId(null);
+      });
   };
 
   const startRecording = async () => {
@@ -182,6 +248,7 @@ const ClipRecorder = ({
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: mimeType });
         onAddClip({
+          name: recordingSource === "input" ? "(input)" : undefined,
           blob,
           durationSec,
           gain: 0.9,
@@ -226,8 +293,80 @@ const ClipRecorder = ({
     }
   };
 
+  const isAudioFile = (file: File) => {
+    if (file.type.startsWith("audio/")) return true;
+    return /\.(wav|mp3|flac|ogg|m4a|aac|aif|aiff|webm)$/i.test(file.name);
+  };
+
+  const onDropAudio = async (event: ReactDragEvent<HTMLElement>) => {
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDragOver(false);
+    setError(null);
+    const files = Array.from(event.dataTransfer.files ?? []).filter(isAudioFile);
+    if (files.length === 0) {
+      setError("Drop one or more audio files.");
+      return;
+    }
+    const failed: string[] = [];
+    for (const file of files) {
+      try {
+        const buffer = await decodeFile(file);
+        onAddClip({
+          name: file.name.replace(/\.[^.]+$/, ""),
+          blob: file,
+          buffer,
+          durationSec: buffer.duration,
+          gain: 0.9,
+          balance: 0,
+          pitchShift: 0,
+          tempoOffset: 0,
+        });
+      } catch {
+        failed.push(file.name);
+      }
+    }
+    if (failed.length > 0) {
+      setError(`Failed to import: ${failed.join(", ")}`);
+    }
+  };
+
+  const onDragEnter = (event: ReactDragEvent<HTMLElement>) => {
+    const hasFiles = event.dataTransfer.types.includes("Files");
+    if (!hasFiles) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDragOver(true);
+  };
+
+  const onDragOver = (event: ReactDragEvent<HTMLElement>) => {
+    const hasFiles = event.dataTransfer.types.includes("Files");
+    if (!hasFiles) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (!isDragOver) {
+      setIsDragOver(true);
+    }
+  };
+
+  const onDragLeave = (event: ReactDragEvent<HTMLElement>) => {
+    const hasFiles = event.dataTransfer.types.includes("Files");
+    if (!hasFiles) return;
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setIsDragOver(false);
+    }
+  };
+
   return (
-    <section className="panel clip-rack">
+    <section
+      className={`panel clip-rack ${isDragOver ? "clip-rack--drop-target" : ""}`.trim()}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={(event) => void onDropAudio(event)}
+    >
       <div className="panel__title">
         <div className="clip-rack__title">
           <span>Clip Recorder</span>
@@ -283,7 +422,15 @@ const ClipRecorder = ({
           clips.map((clip) => (
             <div key={clip.id} className="clip-rack__clip">
               <div className="clip-rack__clip-info">
-                <span>{clip.name}</span>
+                <span className="clip-rack__clip-name">
+                  <span
+                    className={`clip-rack__clip-preview-icon ${previewingClipId === clip.id ? "is-active" : ""}`}
+                    aria-hidden="true"
+                  >
+                    ▶
+                  </span>
+                  <span>{clip.name}</span>
+                </span>
                 <div className="clip-rack__clip-meta">
                   {clip.settings ? (
                     <button
@@ -307,21 +454,49 @@ const ClipRecorder = ({
                 </div>
               </div>
               <div className="clip-rack__clip-waveform">
-                <canvas ref={(node) => setCanvasRef(clip.id, node)} />
+                <div
+                  className={`clip-rack__clip-waveform-hit ${previewingClipId === clip.id ? "is-active" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  title={
+                    previewingClipId === clip.id
+                      ? "Pause clip preview"
+                      : "Play clip preview"
+                  }
+                  onClick={() => toggleClipPreview(clip)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      toggleClipPreview(clip);
+                    }
+                  }}
+                >
+                  <canvas ref={(node) => setCanvasRef(clip.id, node)} />
+                </div>
               </div>
               <div className="clip-rack__clip-actions">
                 <div className="clip-rack__clip-loads">
+                  <span className="clip-rack__clip-loads-title">Load Deck</span>
                   {decks.map((deck, index) => (
                     <button
                       key={deck.id}
                       type="button"
                       onClick={() => void onLoadClip(deck.id, clip)}
+                      title={`Load clip into deck ${index + 1}`}
                     >
-                      Load Deck {index + 1}
+                      {index + 1}
                     </button>
                   ))}
                 </div>
-                <button type="button" onClick={() => onRemoveClip(clip.id)}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (previewingClipId === clip.id) {
+                      stopPreview();
+                    }
+                    onRemoveClip(clip.id);
+                  }}
+                >
                   Delete
                 </button>
               </div>

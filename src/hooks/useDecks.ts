@@ -357,6 +357,7 @@ const useDecks = () => {
         delayMix: number;
         delayTone: number;
         delayPingPong: boolean;
+        delaySliceSync?: boolean;
         fractalMix: number;
         fractalStructure: number;
         fractalDepth: number;

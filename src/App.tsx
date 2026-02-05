@@ -370,6 +370,34 @@ const formatEstimateDuration = (seconds: number) => {
   return `~${minutes}m ${remainingSeconds}s`;
 };
 
+const APPENDED_DECK_NAME_SUFFIXES = [
+  / Rearranged$/,
+  / Edited$/,
+  / Trimmed$/,
+  / Crop$/,
+  / Stretch \d+(?:\.\d+)?x$/,
+];
+
+const stripAppendedDeckSuffixes = (name: string) => {
+  let next = name.trim();
+  let updated = true;
+  while (updated && next) {
+    updated = false;
+    for (const pattern of APPENDED_DECK_NAME_SUFFIXES) {
+      if (pattern.test(next)) {
+        next = next.replace(pattern, "").trim();
+        updated = true;
+      }
+    }
+  }
+  return next;
+};
+
+const buildDerivedDeckName = (fileName: string | undefined, suffix: string) => {
+  const base = stripAppendedDeckSuffixes(fileName ?? "Loop") || "Loop";
+  return `${base} ${suffix}`;
+};
+
 const isSessionBrandNew = (session: {
   decks: Array<{ fileName?: string; wavBlobId?: string; wavFile?: string }>;
   clips: unknown[];
@@ -740,7 +768,11 @@ const App = () => {
     (clip: Omit<ClipItem, "id" | "url" | "name"> & { name?: string }) => {
       const id = clipIdRef.current;
       clipIdRef.current += 1;
-      const name = clip.name ?? `Clip ${clipNameRef.current}`;
+      const generatedName = `Clip ${clipNameRef.current}`;
+      const name =
+        clip.name === "(input)"
+          ? `${generatedName} (input)`
+          : clip.name ?? generatedName;
       clipNameRef.current += 1;
       const url = URL.createObjectURL(clip.blob);
       if (clip.buffer) {
@@ -820,7 +852,7 @@ const App = () => {
         tempoOffset: 0,
         settings,
         applyFxSettings: includeSettings,
-        name: `${deck.fileName ? `${deck.fileName} ` : ""}Loop`,
+        name: buildDerivedDeckName(deck.fileName, "Loop"),
       };
     },
     [buildClipSettings, decks]
@@ -1052,7 +1084,7 @@ const App = () => {
       if (!clip) return;
       const wasPlaying = deck.status === "playing";
       loadDeckBuffer(deckId, clip.buffer, {
-        name: `${deck.fileName ?? "Loop"} Crop`,
+        name: buildDerivedDeckName(deck.fileName, "Crop"),
         autoplay: wasPlaying,
         preserveFxState: true,
       });
@@ -1610,7 +1642,7 @@ const App = () => {
         const gain = Math.min(4, Math.max(0.25, sourceRms / stretchedRms));
         applyBufferGain(trimmed, gain);
       }
-        const name = `${deck.fileName ?? "Loop"} Stretch ${ratio.toFixed(1)}x`;
+        const name = buildDerivedDeckName(deck.fileName, `Stretch ${ratio.toFixed(1)}x`);
         const wasPlaying = deck.status === "playing";
         loadDeckBuffer(deckId, trimmed, { name, autoplay: wasPlaying });
         renderCompleted = true;
@@ -1690,7 +1722,7 @@ const App = () => {
           deck.rearrangerRegionIds,
           { chaosSeed }
         );
-        const name = `${deck.fileName ?? "Loop"} Rearranged`;
+        const name = buildDerivedDeckName(deck.fileName, "Rearranged");
         const wasPlaying = deck.status === "playing";
         if (options?.transient) {
           skipNextAutosaveRef.current += 1;
@@ -1777,7 +1809,7 @@ const App = () => {
       const wasPlaying = deck.status === "playing";
 
       loadDeckBuffer(deckId, removed.buffer, {
-        name: `${deck.fileName ?? "Loop"} Edited`,
+        name: buildDerivedDeckName(deck.fileName, "Edited"),
         autoplay: wasPlaying,
         preserveFxState: true,
         loopStartSeconds: nextLoopStart,
@@ -1858,7 +1890,7 @@ const App = () => {
       );
       const wasPlaying = deck.status === "playing";
       loadDeckBuffer(deckId, removed.buffer, {
-        name: `${deck.fileName ?? "Loop"} Trimmed`,
+        name: buildDerivedDeckName(deck.fileName, "Trimmed"),
         autoplay: wasPlaying,
         preserveFxState: true,
         loopStartSeconds: nextLoopStart,

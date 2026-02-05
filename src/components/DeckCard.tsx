@@ -425,7 +425,7 @@ const DeckCard = ({
     onLoadClick(deck.id);
   }, [deck.id, onLoadClick]);
 
-  const [saveSettings, setSaveSettings] = useState(false);
+  const [saveSettings, setSaveSettings] = useState(true);
   const [tempoFine, setTempoFine] = useState(false);
   const [showQuietDeletePreview, setShowQuietDeletePreview] = useState(false);
   const tempoFineDragRef = useRef<{ startY: number; startValue: number } | null>(null);
