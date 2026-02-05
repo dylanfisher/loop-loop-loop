@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
-import type { DeckFxPanel, DeckFxPanelState, DeckState, DeckStatus } from "../types/deck";
+import type {
+  DeckFxPanel,
+  DeckFxPanelState,
+  DeckState,
+  DeckStatus,
+  DeckWidthOverride,
+} from "../types/deck";
 import type { AutomationParam, AutomationSnapshot, ClipSettings, DeckSession } from "../types/session";
 import {
   MAX_REARRANGER_SLICES,
@@ -193,6 +199,7 @@ const useDecks = () => {
       eqHighGain: 0,
       balance: 0,
       pitchShift: 0,
+      deckWidthOverride: undefined,
       offsetSeconds: 0,
       zoom: 1,
       loopEnabled: true,
@@ -1219,6 +1226,7 @@ const useDecks = () => {
         eqHighGain: 0,
         balance: 0,
         pitchShift: 0,
+        deckWidthOverride: undefined,
         offsetSeconds: 0,
         zoom: 1,
         loopEnabled: true,
@@ -1282,6 +1290,7 @@ const useDecks = () => {
             eqHighGain: 0,
             balance: 0,
             pitchShift: 0,
+            deckWidthOverride: undefined,
             offsetSeconds: 0,
             zoom: 1,
             loopEnabled: true,
@@ -2755,6 +2764,10 @@ const useDecks = () => {
     updateDeck(id, { stretchScatter: clamped }, false);
   };
 
+  const setDeckWidthOverride = (id: number, value?: DeckWidthOverride) => {
+    updateDeck(id, { deckWidthOverride: value }, false);
+  };
+
   const setDeckRearrangerSlices = (id: number, value: number) => {
     const safeValue = Number.isFinite(value) ? Math.round(value) : DEFAULT_REARRANGER_SLICES;
     const clamped = Math.min(Math.max(safeValue, 0), MAX_REARRANGER_SLICES);
@@ -3105,6 +3118,7 @@ const useDecks = () => {
         eqHighGain: deck.eqHighGain,
         balance: deck.balance,
         pitchShift: deck.pitchShift,
+        deckWidthOverride: deck.deckWidthOverride,
         offsetSeconds: deck.offsetSeconds ?? 0,
         zoom: deck.zoom,
         loopEnabled: deck.loopEnabled,
@@ -3269,6 +3283,7 @@ const useDecks = () => {
           eqHighGain: sessionDeck.eqHighGain,
           balance: sessionDeck.balance ?? 0,
           pitchShift: sessionDeck.pitchShift ?? 0,
+          deckWidthOverride: sessionDeck.deckWidthOverride,
           offsetSeconds,
           zoom: sessionDeck.zoom,
           loopEnabled: sessionDeck.loopEnabled,
@@ -3399,6 +3414,7 @@ const useDecks = () => {
     commitDeckLoopBoundsHistory,
     setDeckTempoOffset,
     setDeckTempoPitchSync,
+    setDeckWidthOverride,
     setDeckStretchRatio,
     setDeckStretchWindowSize,
     setDeckStretchStereoWidth,

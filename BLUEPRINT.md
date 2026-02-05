@@ -47,11 +47,13 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck cards support drag-and-drop audio file loading in addition to the file picker.
 - Clip Recorder supports drag-and-drop audio import, with drop-target highlighting while files are dragged over it.
 - Clip Recorder supports source-select recording: app master output or user input device (microphone/interface).
+- Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Deck FX layout includes a Fractal Resonator unit (6 compact controls) for live modal-resonance sculpting.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
 - Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.
+- Deck cards include a per-deck width override control (force full-width or half-width) next to the deck label.
 - Header `Restore + Export` controls open as a full-width inner panel in a dedicated second header row (collapsible toggle in primary row).
 - Rearranger includes an `Auto Slice` action plus sensitivity control; detection favors transient energy rises and silence-to-sound attacks inside the active loop (adaptive threshold + minimum spacing), then writes boundaries as manual slice regions.
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.

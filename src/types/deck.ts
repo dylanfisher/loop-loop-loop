@@ -14,6 +14,7 @@ export type DeckFxPanel =
   | "stretch";
 
 export type DeckFxPanelState = Record<DeckFxPanel, boolean>;
+export type DeckWidthOverride = "full" | "half";
 
 export type DeckState = {
   id: number;
@@ -65,5 +66,6 @@ export type DeckState = {
   eqHighGain: number;
   balance: number;
   pitchShift: number;
+  deckWidthOverride?: DeckWidthOverride;
   fxPanelOpen: DeckFxPanelState;
 };

@@ -29,6 +29,7 @@ export type DeckSession = {
   eqHighGain: number;
   balance: number;
   pitchShift: number;
+  deckWidthOverride?: "full" | "half";
   offsetSeconds: number;
   zoom: number;
   loopEnabled: boolean;

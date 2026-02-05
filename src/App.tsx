@@ -370,6 +370,33 @@ const formatEstimateDuration = (seconds: number) => {
   return `~${minutes}m ${remainingSeconds}s`;
 };
 
+const toProjectSlug = (name: string) => {
+  const normalized = name
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^A-Za-z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || "Untitled";
+};
+
+const buildTimestampedAudioFilename = (
+  prefix: "loop-loop-loop-recording" | "loop-loop-loop-export",
+  projectName: string,
+  extension: "wav" | "webm"
+) => {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const year = now.getFullYear();
+  const hours = now.getHours();
+  const hour12 = hours % 12 || 12;
+  const minute = now.getMinutes();
+  const second = now.getSeconds();
+  const amPm = hours >= 12 ? "PM" : "AM";
+  return `${prefix}_${toProjectSlug(projectName)}-${month}-${day}-${year}-${hour12}-${minute}-${second}-${amPm}.${extension}`;
+};
+
 const APPENDED_DECK_NAME_SUFFIXES = [
   / Rearranged$/,
   / Edited$/,
@@ -447,9 +474,10 @@ const App = () => {
   });
   const [activeDeckId, setActiveDeckId] = useState<number | null>(null);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
-  const [deckLayoutMode, setDeckLayoutMode] = useState<"single" | "two">("single");
+  const [deckLayoutMode, setDeckLayoutMode] = useState<"single" | "two">("two");
   const [showSessionPanel, setShowSessionPanel] = useState(false);
   const [showWelcomePanelOverride, setShowWelcomePanelOverride] = useState(false);
+  const [zipDragOver, setZipDragOver] = useState(false);
   const statusTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -484,6 +512,8 @@ const App = () => {
   const clipsRef = useRef<ClipItem[]>([]);
   const clipBufferCacheRef = useRef<Map<number, { blob: Blob; buffer: AudioBuffer }>>(new Map());
   const autosaveTimeoutRef = useRef<number | null>(null);
+  const skipInitialAutosaveHydrationRef = useRef(false);
+  const zipDragDepthRef = useRef(0);
   const rearrangeLoopTrackerRef = useRef<Map<number, { lastPosition: number; lastTriggerMs: number }>>(
     new Map()
   );
@@ -533,6 +563,7 @@ const App = () => {
     commitDeckLoopBoundsHistory,
     setDeckTempoOffset,
     setDeckTempoPitchSync,
+    setDeckWidthOverride,
     setDeckStretchRatio,
     setDeckStretchWindowSize,
     setDeckStretchStereoWidth,
@@ -1271,7 +1302,7 @@ const App = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `loop-loop-loop-export-${Date.now()}.wav`;
+      link.download = buildTimestampedAudioFilename("loop-loop-loop-export", sessionName, "wav");
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -1285,6 +1316,7 @@ const App = () => {
     decks,
     exportMinutes,
     exporting,
+    sessionName,
   ]);
 
   const handleExportMinutesChange = useCallback((value: number) => {
@@ -1326,7 +1358,11 @@ const App = () => {
           const url = URL.createObjectURL(wavBlob);
           const link = document.createElement("a");
           link.href = url;
-          link.download = `loop-loop-loop-recording-${Date.now()}.wav`;
+          link.download = buildTimestampedAudioFilename(
+            "loop-loop-loop-recording",
+            sessionName,
+            "wav"
+          );
           document.body.appendChild(link);
           link.click();
           link.remove();
@@ -1337,7 +1373,11 @@ const App = () => {
           const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = url;
-          link.download = `loop-loop-loop-recording-${Date.now()}.webm`;
+          link.download = buildTimestampedAudioFilename(
+            "loop-loop-loop-recording",
+            sessionName,
+            "webm"
+          );
           document.body.appendChild(link);
           link.click();
           link.remove();
@@ -1349,7 +1389,7 @@ const App = () => {
     };
     recorder.start(250);
     setRecording(true);
-  }, [decodeFile, getMasterStream, recording]);
+  }, [decodeFile, getMasterStream, recording, sessionName]);
 
   const handleStretchLoop = useCallback(
     async (deckId: number) => {
@@ -2408,7 +2448,19 @@ const App = () => {
     const loadAutosave = async () => {
       const fxPanelPatch = loadFxPanelPatch();
       const loaded = await loadSessionState(AUTO_SESSION_ID);
+      if (skipInitialAutosaveHydrationRef.current) {
+        applyDeckFxPanelStatePatch(fxPanelPatch);
+        autosaveReadyRef.current = true;
+        setAutosaveReady(true);
+        return;
+      }
       if (!loaded) {
+        applyDeckFxPanelStatePatch(fxPanelPatch);
+        autosaveReadyRef.current = true;
+        setAutosaveReady(true);
+        return;
+      }
+      if (skipInitialAutosaveHydrationRef.current) {
         applyDeckFxPanelStatePatch(fxPanelPatch);
         autosaveReadyRef.current = true;
         setAutosaveReady(true);
@@ -2433,6 +2485,7 @@ const App = () => {
       setSessionStatus("Select a session to load.");
       return;
     }
+    skipInitialAutosaveHydrationRef.current = true;
     setSessionBusy(true);
     setSessionStatus(null);
     try {
@@ -2459,6 +2512,7 @@ const App = () => {
     if (!window.confirm("Start a new session? This will clear the current session.")) {
       return;
     }
+    skipInitialAutosaveHydrationRef.current = true;
     resetDecks();
     clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
     setClips([]);
@@ -2475,12 +2529,10 @@ const App = () => {
     importInputRef.current?.click();
   }, []);
 
-  const handleImportChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (!file) return;
+  const importSessionFromFile = useCallback(
+    async (file: File) => {
       if (sessionBusy) return;
+      skipInitialAutosaveHydrationRef.current = true;
       setSessionBusy(true);
       setSessionStatus(null);
       try {
@@ -2493,6 +2545,84 @@ const App = () => {
       }
     },
     [importSessionFiles, sessionBusy]
+  );
+
+  const handleImportChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      await importSessionFromFile(file);
+    },
+    [importSessionFromFile]
+  );
+
+  const hasFileDrag = useCallback(
+    (dataTransfer: DataTransfer) => Array.from(dataTransfer.types).includes("Files"),
+    []
+  );
+
+  const findZipFile = useCallback((files: File[] | FileList | null | undefined) => {
+    if (!files) return null;
+    for (const file of Array.from(files)) {
+      const lowerName = file.name.toLowerCase();
+      if (lowerName.endsWith(".zip") || file.type === "application/zip") {
+        return file;
+      }
+    }
+    return null;
+  }, []);
+
+  const hasLikelyZipDrag = useCallback((dataTransfer: DataTransfer) => {
+    if (!hasFileDrag(dataTransfer)) return false;
+    if (findZipFile(dataTransfer.files)) return true;
+    for (const item of Array.from(dataTransfer.items)) {
+      if (item.kind !== "file") continue;
+      if (item.type === "application/zip" || item.type === "application/x-zip-compressed") {
+        return true;
+      }
+    }
+    return false;
+  }, [findZipFile, hasFileDrag]);
+
+  const handleAppDragEnter = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    zipDragDepthRef.current += 1;
+    if (hasLikelyZipDrag(event.dataTransfer)) {
+      setZipDragOver(true);
+    }
+  }, [hasFileDrag, hasLikelyZipDrag]);
+
+  const handleAppDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (!zipDragOver && hasLikelyZipDrag(event.dataTransfer)) {
+      setZipDragOver(true);
+    }
+  }, [hasFileDrag, hasLikelyZipDrag, zipDragOver]);
+
+  const handleAppDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    zipDragDepthRef.current = Math.max(0, zipDragDepthRef.current - 1);
+    if (zipDragDepthRef.current === 0) {
+      setZipDragOver(false);
+    }
+  }, [hasFileDrag]);
+
+  const handleAppDrop = useCallback(
+    async (event: React.DragEvent<HTMLDivElement>) => {
+      if (!hasFileDrag(event.dataTransfer)) return;
+      event.preventDefault();
+      zipDragDepthRef.current = 0;
+      setZipDragOver(false);
+      const file = findZipFile(event.dataTransfer.files);
+      if (!file) return;
+      await importSessionFromFile(file);
+    },
+    [findZipFile, hasFileDrag, importSessionFromFile]
   );
 
   const handleDeckActivate = useCallback((deckId: number) => {
@@ -2686,7 +2816,18 @@ const App = () => {
   }, []);
 
   return (
-    <div className="app">
+    <div
+      className={`app ${zipDragOver ? "app--zip-drop-target" : ""}`.trim()}
+      onDragEnter={handleAppDragEnter}
+      onDragOver={handleAppDragOver}
+      onDragLeave={handleAppDragLeave}
+      onDrop={(event) => void handleAppDrop(event)}
+    >
+      {zipDragOver ? (
+        <div className="app__zip-drop-hint" aria-hidden="true">
+          Drop session zip to import
+        </div>
+      ) : null}
       {import.meta.env.DEV && debugPerf ? <PerfOverlay /> : null}
       <header className="app__header">
         <div className="app__header-row app__header-row--primary">
@@ -2881,6 +3022,16 @@ const App = () => {
                   </div>
                 </div>
                 <div className="session-bar__section">
+                  <div className="session-bar__group session-bar__group--export">
+                    <button type="button" onClick={handleExportSession} disabled={sessionBusy}>
+                      Export Zip
+                    </button>
+                    <button type="button" onClick={handleImportClick} disabled={sessionBusy}>
+                      Import Zip
+                    </button>
+                  </div>
+                </div>
+                <div className="session-bar__section">
                   <div className="session-bar__group session-bar__group--mix">
                     <div className="transport__export">
                       <label>
@@ -2909,16 +3060,6 @@ const App = () => {
                     </div>
                   </div>
                 </div>
-                <div className="session-bar__section">
-                  <div className="session-bar__group session-bar__group--export">
-                    <button type="button" onClick={handleExportSession} disabled={sessionBusy}>
-                      Export Zip
-                    </button>
-                    <button type="button" onClick={handleImportClick} disabled={sessionBusy}>
-                      Import Zip
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -2936,6 +3077,7 @@ const App = () => {
         ) : null}
         <ClipRecorder
           decks={decks}
+          zipDragActive={zipDragOver}
           clips={clips}
           onLoadClip={handleLoadClipToDeck}
           onAddClip={addClip}
@@ -2945,6 +3087,7 @@ const App = () => {
         <DeckStack
           decks={decks}
           layoutMode={deckLayoutMode}
+          zipDragActive={zipDragOver}
           activeDeckId={activeDeckId}
           onDeckActivate={handleDeckActivate}
           onRemoveDeck={removeDeck}
@@ -2980,6 +3123,7 @@ const App = () => {
           onLoopBoundsChangeComplete={commitDeckLoopBoundsHistory}
           onTempoOffsetChange={setDeckTempoOffset}
           onTempoPitchSyncChange={setDeckTempoPitchSync}
+          onDeckWidthOverrideChange={setDeckWidthOverride}
           onStretchRatioChange={setDeckStretchRatio}
           onStretchWindowSizeChange={setDeckStretchWindowSize}
           onStretchStereoWidthChange={setDeckStretchStereoWidth}

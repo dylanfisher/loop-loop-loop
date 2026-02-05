@@ -10,6 +10,7 @@ type DeckCardProps = {
   deck: DeckState;
   label: string;
   isActive: boolean;
+  zipDragActive?: boolean;
   onActivate: (id: number) => void;
   onRemove: (id: number) => void;
   onLoadClick: (id: number) => void;
@@ -116,6 +117,7 @@ type DeckCardProps = {
     options?: { disableSnap?: boolean }
   ) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
+  onDeckWidthOverrideChange: (id: number, value?: "full" | "half") => void;
   onStretchRatioChange: (id: number, value: number) => void;
   onStretchWindowSizeChange: (id: number, value: number) => void;
   onStretchStereoWidthChange: (id: number, value: number) => void;
@@ -172,6 +174,7 @@ const DeckCard = ({
   deck,
   label,
   isActive,
+  zipDragActive = false,
   onActivate,
   onRemove,
   onLoadClick,
@@ -218,6 +221,7 @@ const DeckCard = ({
   onLoopBoundsChangeComplete,
   onTempoOffsetChange,
   onTempoPitchSyncChange,
+  onDeckWidthOverrideChange,
   onStretchRatioChange,
   onStretchWindowSizeChange,
   onStretchStereoWidthChange,
@@ -658,10 +662,11 @@ const DeckCard = ({
 
   return (
     <div
-      className={`deck ${isActive ? "deck--active" : ""} ${isFileDragOver ? "deck--drop-target" : ""}`.trim()}
+      className={`deck ${deck.deckWidthOverride ? `deck--width-${deck.deckWidthOverride}` : ""} ${isActive ? "deck--active" : ""} ${isFileDragOver && !zipDragActive ? "deck--drop-target" : ""}`.trim()}
       onPointerDownCapture={() => onActivate(deck.id)}
       onFocusCapture={() => onActivate(deck.id)}
       onDragEnter={(event) => {
+        if (zipDragActive) return;
         if (!isFileDrag(event.dataTransfer)) return;
         event.preventDefault();
         deckDragDepthRef.current += 1;
@@ -669,6 +674,7 @@ const DeckCard = ({
         setIsFileDragOver(true);
       }}
       onDragOver={(event) => {
+        if (zipDragActive) return;
         if (!isFileDrag(event.dataTransfer)) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "copy";
@@ -678,6 +684,7 @@ const DeckCard = ({
         }
       }}
       onDragLeave={(event) => {
+        if (zipDragActive) return;
         if (!isFileDrag(event.dataTransfer)) return;
         event.preventDefault();
         deckDragDepthRef.current = Math.max(0, deckDragDepthRef.current - 1);
@@ -686,6 +693,7 @@ const DeckCard = ({
         }
       }}
       onDrop={(event) => {
+        if (zipDragActive) return;
         const file = getDroppedAudioFile(event.dataTransfer);
         if (!file) return;
         event.preventDefault();
@@ -699,7 +707,23 @@ const DeckCard = ({
         <div className="deck__label-row">
           <span className="deck__label">
             <span className="deck__label-text">{label}</span>
-            <span className="deck__title">{deck.fileName ?? "No file loaded"}</span>
+            <button
+              type="button"
+              className="deck__width-toggle"
+              onClick={() =>
+                onDeckWidthOverrideChange(
+                  deck.id,
+                  deck.deckWidthOverride === "full" ? "half" : "full"
+                )
+              }
+              title={
+                deck.deckWidthOverride === "full"
+                  ? "Deck width override: Full. Click to force half width."
+                  : "Deck width override: Half. Click to force full width."
+              }
+            >
+              {deck.deckWidthOverride === "full" ? "Full" : "Half"}
+            </button>
           </span>
           <div className="deck__actions">
             <div className="deck__actions-left">
@@ -788,32 +812,37 @@ const DeckCard = ({
             </div>
           </div>
         </div>
-        <div className="deck__meta">
-          <div className="deck__bpm-summary">
+        <div className="deck__subrow">
+          <div className="deck__title-row">
             <span className={`deck__status deck__status--${deck.status}`}>
               {deck.status}
             </span>
-            <div className="deck__meta-actions">
-              <label
-                className="deck__pitch-sync"
-                title="When enabled, Save Loop stores the current deck FX/automation/settings (filters, EQ, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
-              >
-                <input
-                  type="checkbox"
-                  checked={saveSettings}
-                  onChange={(event) => setSaveSettings(event.target.checked)}
-                />
-                Save FX Settings
-              </label>
-              <label className="deck__pitch-sync">
-                <input
-                  type="checkbox"
-                  checked={deck.tempoPitchSync}
-                  onChange={(event) => onTempoPitchSyncChange(deck.id, event.target.checked)}
-                />
-                Sync Pitch
-              </label>
-              <span>Tempo {formatTempo(deck.tempoOffset)}</span>
+            <div className="deck__title">{deck.fileName ?? "No file loaded"}</div>
+          </div>
+          <div className="deck__meta">
+            <div className="deck__bpm-summary">
+              <div className="deck__meta-actions">
+                <label
+                  className="deck__pitch-sync"
+                  title="When enabled, Save Loop stores the current deck FX/automation/settings (filters, EQ, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
+                >
+                  <input
+                    type="checkbox"
+                    checked={saveSettings}
+                    onChange={(event) => setSaveSettings(event.target.checked)}
+                  />
+                  Save FX Settings
+                </label>
+                <label className="deck__pitch-sync">
+                  <input
+                    type="checkbox"
+                    checked={deck.tempoPitchSync}
+                    onChange={(event) => onTempoPitchSyncChange(deck.id, event.target.checked)}
+                  />
+                  Sync Pitch
+                </label>
+                <span>Tempo {formatTempo(deck.tempoOffset)}</span>
+              </div>
             </div>
           </div>
         </div>

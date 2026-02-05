@@ -6,6 +6,7 @@ import useAudioEngine from "../hooks/useAudioEngine";
 
 type ClipRecorderProps = {
   decks: DeckState[];
+  zipDragActive?: boolean;
   onLoadClip: (deckId: number, clip: ClipItem) => void | Promise<void>;
   clips: ClipItem[];
   onAddClip: (
@@ -19,6 +20,7 @@ type RecordingSource = "master" | "input";
 
 const ClipRecorder = ({
   decks,
+  zipDragActive = false,
   onLoadClip,
   clips,
   onAddClip,
@@ -303,7 +305,16 @@ const ClipRecorder = ({
     dragDepthRef.current = 0;
     setIsDragOver(false);
     setError(null);
-    const files = Array.from(event.dataTransfer.files ?? []).filter(isAudioFile);
+    const droppedFiles = Array.from(event.dataTransfer.files ?? []);
+    const hasZip = droppedFiles.some((file) => {
+      const lower = file.name.toLowerCase();
+      return lower.endsWith(".zip") || file.type === "application/zip";
+    });
+    if (hasZip) {
+      // Let app-level zip import handle this drop target without surfacing audio-drop errors.
+      return;
+    }
+    const files = droppedFiles.filter(isAudioFile);
     if (files.length === 0) {
       setError("Drop one or more audio files.");
       return;
@@ -332,6 +343,7 @@ const ClipRecorder = ({
   };
 
   const onDragEnter = (event: ReactDragEvent<HTMLElement>) => {
+    if (zipDragActive) return;
     const hasFiles = event.dataTransfer.types.includes("Files");
     if (!hasFiles) return;
     event.preventDefault();
@@ -340,6 +352,7 @@ const ClipRecorder = ({
   };
 
   const onDragOver = (event: ReactDragEvent<HTMLElement>) => {
+    if (zipDragActive) return;
     const hasFiles = event.dataTransfer.types.includes("Files");
     if (!hasFiles) return;
     event.preventDefault();
@@ -350,6 +363,7 @@ const ClipRecorder = ({
   };
 
   const onDragLeave = (event: ReactDragEvent<HTMLElement>) => {
+    if (zipDragActive) return;
     const hasFiles = event.dataTransfer.types.includes("Files");
     if (!hasFiles) return;
     event.preventDefault();
@@ -361,7 +375,7 @@ const ClipRecorder = ({
 
   return (
     <section
-      className={`panel clip-rack ${isDragOver ? "clip-rack--drop-target" : ""}`.trim()}
+      className={`panel clip-rack ${isDragOver && !zipDragActive ? "clip-rack--drop-target" : ""}`.trim()}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}

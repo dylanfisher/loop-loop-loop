@@ -4,6 +4,7 @@ import type { DeckFxPanel, DeckState } from "../types/deck";
 type DeckStackProps = {
   decks: DeckState[];
   layoutMode: "single" | "two";
+  zipDragActive?: boolean;
   activeDeckId: number | null;
   onDeckActivate: (id: number) => void;
   onRemoveDeck: (id: number) => void;
@@ -48,6 +49,7 @@ type DeckStackProps = {
     options?: { disableSnap?: boolean }
   ) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
+  onDeckWidthOverrideChange: (id: number, value?: "full" | "half") => void;
   onStretchRatioChange: (id: number, value: number) => void;
   onStretchWindowSizeChange: (id: number, value: number) => void;
   onStretchStereoWidthChange: (id: number, value: number) => void;
@@ -117,6 +119,7 @@ type DeckStackProps = {
 const DeckStack = ({
   decks,
   layoutMode,
+  zipDragActive = false,
   activeDeckId,
   onDeckActivate,
   onRemoveDeck,
@@ -152,6 +155,7 @@ const DeckStack = ({
   onLoopBoundsChangeComplete,
   onTempoOffsetChange,
   onTempoPitchSyncChange,
+  onDeckWidthOverrideChange,
   onStretchRatioChange,
   onStretchWindowSizeChange,
   onStretchStereoWidthChange,
@@ -208,6 +212,7 @@ const DeckStack = ({
             deck={deck}
             label={`Deck ${index + 1}`}
             isActive={activeDeckId === deck.id}
+            zipDragActive={zipDragActive}
             onActivate={onDeckActivate}
             onRemove={onRemoveDeck}
             onLoadClick={onLoadClick}
@@ -242,6 +247,7 @@ const DeckStack = ({
             onLoopBoundsChangeComplete={onLoopBoundsChangeComplete}
             onTempoOffsetChange={onTempoOffsetChange}
             onTempoPitchSyncChange={onTempoPitchSyncChange}
+            onDeckWidthOverrideChange={onDeckWidthOverrideChange}
             onStretchRatioChange={onStretchRatioChange}
             onStretchWindowSizeChange={onStretchWindowSizeChange}
             onStretchStereoWidthChange={onStretchStereoWidthChange}
