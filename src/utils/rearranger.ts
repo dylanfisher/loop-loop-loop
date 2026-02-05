@@ -18,6 +18,14 @@ type RearrangerBuildOptions = {
   segmentSamples?: number;
 };
 
+type RearrangerDetectOptions = {
+  maxSlices?: number;
+  minSliceDurationMs?: number;
+  frameDurationMs?: number;
+  thresholdStdDev?: number;
+  sensitivity?: number;
+};
+
 const seedRand = (seed: number) => {
   const value = Math.sin(seed * 12.9898) * 43758.5453;
   return value - Math.floor(value);
@@ -32,6 +40,8 @@ const buildEqualRegions = (sliceCount: number) => {
   const safeSliceCount = Math.max(1, sliceCount);
   return Array.from({ length: safeSliceCount + 1 }, (_, index) => index / safeSliceCount);
 };
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
 export const normalizeRearrangerRegions = (regions: number[] | null | undefined, slices: number) => {
   const safeSliceCount = Math.max(0, Math.min(MAX_REARRANGER_SLICES, Math.round(slices)));
@@ -288,4 +298,161 @@ export const deriveRearrangedRegionIds = (
   const map = buildRearrangerMap(normalized, options);
   const ids = normalizeRearrangerRegionIds(currentIds, normalized.slices);
   return map.map((entry, index) => ids[entry.sourceIndex] ?? ids[index] ?? index);
+};
+
+export const detectRearrangerRegionsFromBufferSegment = (
+  source: AudioBuffer,
+  startSeconds: number,
+  durationSeconds: number,
+  options?: RearrangerDetectOptions
+) => {
+  const sensitivity = clamp01(options?.sensitivity ?? 0.6);
+  const shapedSensitivity = Math.pow(sensitivity, 0.7);
+  const sampleRate = source.sampleRate;
+  const clampedStartSeconds = Math.max(0, startSeconds);
+  const startSample = Math.max(
+    0,
+    Math.min(source.length - 1, Math.round(clampedStartSeconds * sampleRate))
+  );
+  const endSample = Math.max(
+    startSample + 1,
+    Math.min(
+      source.length,
+      Math.round((clampedStartSeconds + Math.max(0.001, durationSeconds)) * sampleRate)
+    )
+  );
+  const segmentLength = Math.max(1, endSample - startSample);
+
+  const maxSlices = Math.max(
+    1,
+    Math.min(MAX_REARRANGER_SLICES, Math.round(options?.maxSlices ?? 16))
+  );
+  const maxInternalBoundaries = Math.max(0, maxSlices - 1);
+  if (maxInternalBoundaries <= 0) return [0, 1];
+
+  const frameDurationMs = Math.min(50, Math.max(4, options?.frameDurationMs ?? 10));
+  const frameSize = Math.max(
+    16,
+    Math.min(segmentLength, Math.round(sampleRate * (frameDurationMs / 1000)))
+  );
+  const hopSize = Math.max(8, Math.floor(frameSize / 2));
+  const frameCount = Math.max(1, Math.floor((segmentLength - frameSize) / hopSize) + 1);
+  if (frameCount <= 2) return [0, 1];
+
+  const envelope = new Array<number>(frameCount);
+  for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+    const frameStart = startSample + frameIndex * hopSize;
+    let sum = 0;
+    for (let channel = 0; channel < source.numberOfChannels; channel += 1) {
+      const data = source.getChannelData(channel);
+      for (let sampleOffset = 0; sampleOffset < frameSize; sampleOffset += 1) {
+        const sample = data[frameStart + sampleOffset] ?? 0;
+        sum += sample * sample;
+      }
+    }
+    const count = frameSize * source.numberOfChannels;
+    envelope[frameIndex] = count > 0 ? Math.sqrt(sum / count) : 0;
+  }
+
+  const deltas = new Array<number>(frameCount);
+  deltas[0] = 0;
+  for (let frameIndex = 1; frameIndex < frameCount; frameIndex += 1) {
+    const delta = envelope[frameIndex] - envelope[frameIndex - 1];
+    deltas[frameIndex] = delta > 0 ? delta : 0;
+  }
+
+  const positive = deltas.filter((delta) => delta > 0);
+  if (positive.length === 0) return [0, 1];
+  const mean = positive.reduce((sum, value) => sum + value, 0) / positive.length;
+  const maxDelta = positive.reduce((max, value) => Math.max(max, value), 0);
+  const variance =
+    positive.reduce((sum, value) => {
+      const diff = value - mean;
+      return sum + diff * diff;
+    }, 0) / positive.length;
+  const stdDev = Math.sqrt(Math.max(0, variance));
+  const thresholdK =
+    options?.thresholdStdDev ?? (2.3 - 2.05 * shapedSensitivity);
+  const thresholdFromStd = mean + thresholdK * stdDev;
+  const peakClamp = 0.9 - 0.72 * shapedSensitivity;
+  const threshold = Math.max(1e-4, Math.min(thresholdFromStd, maxDelta * peakClamp));
+  const envelopeSorted = [...envelope].sort((a, b) => a - b);
+  const floorIndex = Math.min(
+    envelopeSorted.length - 1,
+    Math.max(0, Math.floor((envelopeSorted.length - 1) * 0.15))
+  );
+  const silenceFloor = envelopeSorted[floorIndex] ?? 0;
+  const minSliceDurationMs = Math.max(
+    20,
+    options?.minSliceDurationMs ?? (220 - 175 * shapedSensitivity)
+  );
+  const minGapFromMs = Math.max(1, Math.round(sampleRate * (minSliceDurationMs / 1000)));
+  const expectedGapSamples = Math.max(1, Math.floor(segmentLength / Math.max(1, maxSlices)));
+  const minGapFromDistribution = Math.max(
+    1,
+    Math.floor(expectedGapSamples * (0.95 - 0.45 * shapedSensitivity))
+  );
+  const minGapSamples = Math.max(minGapFromMs, minGapFromDistribution);
+
+  const candidates: Array<{ frameIndex: number; sample: number; score: number }> = [];
+  for (let frameIndex = 1; frameIndex < frameCount - 1; frameIndex += 1) {
+    const prev = envelope[frameIndex - 1] ?? 0;
+    const curr = envelope[frameIndex] ?? 0;
+    const delta = deltas[frameIndex];
+    const riseRatio = curr / Math.max(1e-6, prev, silenceFloor + 1e-6);
+    const silenceAttack =
+      prev <= silenceFloor * 1.3 &&
+      curr >= silenceFloor * (2.2 - 1.2 * shapedSensitivity) &&
+      riseRatio >= (2.5 - 1.8 * shapedSensitivity);
+    if (delta < threshold && !silenceAttack) continue;
+    const score =
+      delta +
+      (silenceAttack
+        ? Math.max(0, curr - silenceFloor) * (0.35 + 1.45 * shapedSensitivity)
+        : 0);
+    if (
+      !silenceAttack &&
+      (score < (deltas[frameIndex - 1] ?? 0) || score < (deltas[frameIndex + 1] ?? 0))
+    ) {
+      continue;
+    }
+    const sample = Math.min(
+      segmentLength - 1,
+      Math.max(1, frameIndex * hopSize + Math.floor(frameSize / 2))
+    );
+    candidates.push({ frameIndex, sample, score });
+  }
+
+  if (candidates.length === 0) return [0, 1];
+
+  // Prevent dense regions from monopolizing boundaries: keep strongest onset per local bucket.
+  const bucketSize = Math.max(
+    1,
+    Math.floor(expectedGapSamples * (1.2 - 0.55 * shapedSensitivity))
+  );
+  const bestCandidateByBucket = new Map<number, { frameIndex: number; sample: number; score: number }>();
+  for (const candidate of candidates) {
+    const bucket = Math.floor(candidate.sample / bucketSize);
+    const existing = bestCandidateByBucket.get(bucket);
+    if (!existing || candidate.score > existing.score) {
+      bestCandidateByBucket.set(bucket, candidate);
+    }
+  }
+  const dedupedCandidates = Array.from(bestCandidateByBucket.values());
+
+  dedupedCandidates.sort((a, b) => b.score - a.score || a.sample - b.sample);
+  const selectedSamples: number[] = [];
+  for (const candidate of dedupedCandidates) {
+    if (selectedSamples.length >= maxInternalBoundaries) break;
+    const isFarEnough = selectedSamples.every(
+      (sample) => Math.abs(sample - candidate.sample) >= minGapSamples
+    );
+    if (!isFarEnough) continue;
+    selectedSamples.push(candidate.sample);
+  }
+
+  if (selectedSamples.length === 0) return [0, 1];
+  selectedSamples.sort((a, b) => a - b);
+  const regions = [0, ...selectedSamples.map((sample) => clamp01(sample / segmentLength)), 1];
+  return regions;
 };

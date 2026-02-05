@@ -53,6 +53,7 @@ import {
   updateStretchCalibrationState,
 } from "./utils/stretchEstimate";
 import {
+  detectRearrangerRegionsFromBufferSegment,
   deriveRearrangedRegionIds,
   deriveRearrangedRegions,
   normalizeRearrangerRegionIds,
@@ -143,6 +144,143 @@ const removeBufferSegment = (
     target.set(source.subarray(safeEnd), safeStart);
   }
   return { buffer: nextBuffer, removedLength };
+};
+
+const removeBufferRanges = (
+  buffer: AudioBuffer,
+  ranges: Array<{ startSample: number; endSample: number }>
+) => {
+  if (ranges.length === 0) return null;
+  const normalized: Array<{ startSample: number; endSample: number }> = [];
+  const sorted = [...ranges]
+    .map((range) => ({
+      startSample: Math.max(0, Math.min(buffer.length, Math.round(range.startSample))),
+      endSample: Math.max(0, Math.min(buffer.length, Math.round(range.endSample))),
+    }))
+    .filter((range) => range.endSample > range.startSample)
+    .sort((a, b) => a.startSample - b.startSample);
+  for (const range of sorted) {
+    const last = normalized[normalized.length - 1];
+    if (!last || range.startSample > last.endSample) {
+      normalized.push(range);
+      continue;
+    }
+    last.endSample = Math.max(last.endSample, range.endSample);
+  }
+  if (normalized.length === 0) return null;
+  const removedLength = normalized.reduce(
+    (sum, range) => sum + (range.endSample - range.startSample),
+    0
+  );
+  if (removedLength <= 0 || removedLength >= buffer.length) return null;
+  const nextLength = Math.max(1, buffer.length - removedLength);
+  const nextBuffer = new AudioBuffer({
+    length: nextLength,
+    numberOfChannels: buffer.numberOfChannels,
+    sampleRate: buffer.sampleRate,
+  });
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const source = buffer.getChannelData(channel);
+    const target = nextBuffer.getChannelData(channel);
+    let writeHead = 0;
+    let readHead = 0;
+    for (const range of normalized) {
+      if (range.startSample > readHead) {
+        target.set(source.subarray(readHead, range.startSample), writeHead);
+        writeHead += range.startSample - readHead;
+      }
+      readHead = range.endSample;
+    }
+    if (readHead < buffer.length) {
+      target.set(source.subarray(readHead), writeHead);
+    }
+  }
+  return { buffer: nextBuffer, removedLength, ranges: normalized };
+};
+
+const detectQuietRangesInSegment = (
+  buffer: AudioBuffer,
+  startSample: number,
+  endSample: number,
+  quietThresholdControl = 0.3
+) => {
+  const segmentStart = Math.max(0, Math.min(buffer.length - 1, Math.round(startSample)));
+  const segmentEnd = Math.max(segmentStart + 1, Math.min(buffer.length, Math.round(endSample)));
+  const segmentLength = segmentEnd - segmentStart;
+  if (segmentLength < 128) return [];
+  const sampleRate = buffer.sampleRate;
+  const frameSize = Math.max(32, Math.round(sampleRate * 0.012));
+  const hopSize = Math.max(16, Math.floor(frameSize / 2));
+  if (segmentLength <= frameSize + hopSize) return [];
+  const frameCount = Math.floor((segmentLength - frameSize) / hopSize) + 1;
+  const envelope = new Array<number>(frameCount);
+  for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+    const frameStart = segmentStart + frameIndex * hopSize;
+    let sum = 0;
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      const data = buffer.getChannelData(channel);
+      for (let offset = 0; offset < frameSize; offset += 1) {
+        const sample = data[frameStart + offset] ?? 0;
+        sum += sample * sample;
+      }
+    }
+    const count = frameSize * buffer.numberOfChannels;
+    envelope[frameIndex] = count > 0 ? Math.sqrt(sum / count) : 0;
+  }
+  const sorted = [...envelope].sort((a, b) => a - b);
+  const p20 = sorted[Math.floor((sorted.length - 1) * 0.2)] ?? 0;
+  const p80 = sorted[Math.floor((sorted.length - 1) * 0.8)] ?? 0;
+  const dynamic = Math.max(0, p80 - p20);
+  const control = Math.min(Math.max(quietThresholdControl, 0), 1);
+  const quietFactor = 0.03 + control * 0.17;
+  const quietThreshold = p20 + dynamic * quietFactor;
+  const minQuietSamples = Math.max(1, Math.round(sampleRate * 0.09));
+  const keepGuardSamples = Math.max(1, Math.round(sampleRate * 0.01));
+  const ranges: Array<{ startSample: number; endSample: number }> = [];
+  let runStart = -1;
+  for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+    const isQuiet = envelope[frameIndex] <= quietThreshold;
+    if (isQuiet) {
+      if (runStart < 0) runStart = frameIndex;
+      continue;
+    }
+    if (runStart >= 0) {
+      const start = segmentStart + runStart * hopSize + keepGuardSamples;
+      const end = segmentStart + frameIndex * hopSize + frameSize - keepGuardSamples;
+      if (end - start >= minQuietSamples) {
+        ranges.push({ startSample: start, endSample: end });
+      }
+      runStart = -1;
+    }
+  }
+  if (runStart >= 0) {
+    const start = segmentStart + runStart * hopSize + keepGuardSamples;
+    const end = segmentEnd - keepGuardSamples;
+    if (end - start >= minQuietSamples) {
+      ranges.push({ startSample: start, endSample: end });
+    }
+  }
+  const maxRemovalSamples = Math.floor(segmentLength * 0.7);
+  let removed = 0;
+  const capped: Array<{ startSample: number; endSample: number }> = [];
+  for (const range of ranges) {
+    const len = range.endSample - range.startSample;
+    if (len <= 0) continue;
+    if (removed + len <= maxRemovalSamples) {
+      capped.push(range);
+      removed += len;
+      continue;
+    }
+    const remaining = maxRemovalSamples - removed;
+    if (remaining >= minQuietSamples) {
+      capped.push({
+        startSample: range.startSample,
+        endSample: range.startSample + remaining,
+      });
+    }
+    break;
+  }
+  return capped;
 };
 
 const findTrailingNonSilenceSample = (buffer: AudioBuffer, threshold: number) => {
@@ -333,6 +471,7 @@ const App = () => {
     handleFileSelected,
     playDeck,
     pauseDeck,
+    stopDeck,
     setFileInputRef,
     setDeckGain,
     setDeckFilter,
@@ -370,6 +509,8 @@ const App = () => {
     setDeckRearrangerOffset,
     setDeckRearrangerChaos,
     setDeckRearrangerReverse,
+    setDeckRearrangerSensitivity,
+    setDeckRearrangerQuietThreshold,
     setDeckRearrangerAuto,
     setDeckRearrangerRegions,
     setDeckFxPanelOpen,
@@ -518,6 +659,8 @@ const App = () => {
         rearrangerOffset: deck.rearrangerOffset,
         rearrangerChaos: deck.rearrangerChaos,
         rearrangerReverse: deck.rearrangerReverse,
+        rearrangerSensitivity: deck.rearrangerSensitivity,
+        rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
         rearrangerAuto: deck.rearrangerAuto,
         rearrangerRegions: deck.rearrangerRegions,
         rearrangerRegionIds: deck.rearrangerRegionIds,
@@ -1640,6 +1783,86 @@ const App = () => {
     [decks, loadDeckBuffer]
   );
 
+  const handleAutoSliceRearranger = useCallback(
+    (deckId: number) => {
+      const deck = decks.find((item) => item.id === deckId);
+      if (!deck?.buffer) return;
+      const duration = deck.duration ?? deck.buffer.duration;
+      const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+      const loopEnd =
+        deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+          ? Math.min(deck.loopEndSeconds, duration)
+          : duration;
+      const loopDuration = loopEnd - loopStart;
+      if (loopDuration <= 0.01) return;
+      const currentSlices = Math.max(0, Math.round(deck.rearrangerSlices ?? 0));
+      const maxSlices = currentSlices > 1 ? currentSlices : 16;
+      const nextRegions = detectRearrangerRegionsFromBufferSegment(
+        deck.buffer,
+        loopStart,
+        loopDuration,
+        {
+          maxSlices,
+          frameDurationMs: 10,
+          sensitivity: deck.rearrangerSensitivity,
+        }
+      );
+      setDeckRearrangerRegions(deckId, nextRegions);
+    },
+    [decks, setDeckRearrangerRegions]
+  );
+
+  const handleTrimQuietRearranger = useCallback(
+    (deckId: number) => {
+      const deck = decks.find((item) => item.id === deckId);
+      if (!deck?.buffer) return;
+      const duration = deck.duration ?? deck.buffer.duration;
+      const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+      const loopEnd =
+        deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+          ? Math.min(deck.loopEndSeconds, duration)
+          : duration;
+      const loopDuration = loopEnd - loopStart;
+      if (loopDuration <= 0.01) return;
+      const sampleRate = deck.buffer.sampleRate;
+      const loopStartSample = Math.max(
+        0,
+        Math.min(deck.buffer.length - 1, Math.round(loopStart * sampleRate))
+      );
+      const loopEndSample = Math.max(
+        loopStartSample + 1,
+        Math.min(deck.buffer.length, Math.round(loopEnd * sampleRate))
+      );
+      const quietRanges = detectQuietRangesInSegment(
+        deck.buffer,
+        loopStartSample,
+        loopEndSample,
+        deck.rearrangerQuietThreshold
+      );
+      if (quietRanges.length === 0) return;
+      const removed = removeBufferRanges(deck.buffer, quietRanges);
+      if (!removed) return;
+      const removedDuration = removed.removedLength / sampleRate;
+      const nextLoopStart = Math.min(loopStart, removed.buffer.duration);
+      const nextLoopEnd = Math.min(
+        removed.buffer.duration,
+        Math.max(nextLoopStart + 0.01, loopEnd - removedDuration)
+      );
+      const wasPlaying = deck.status === "playing";
+      loadDeckBuffer(deckId, removed.buffer, {
+        name: `${deck.fileName ?? "Loop"} Trimmed`,
+        autoplay: wasPlaying,
+        preserveFxState: true,
+        loopStartSeconds: nextLoopStart,
+        loopEndSeconds: nextLoopEnd,
+        rearrangerRegions: undefined,
+        rearrangerRegionIds: undefined,
+        rearrangerRegionsManual: false,
+      });
+    },
+    [decks, loadDeckBuffer]
+  );
+
   useEffect(() => {
     let raf = 0;
     const tick = () => {
@@ -2588,6 +2811,7 @@ const App = () => {
           onFileSelected={handleFileSelected}
           onPlay={playDeck}
           onPause={pauseDeck}
+          onStop={stopDeck}
           onGainChange={setDeckGain}
           onFilterChange={setDeckFilter}
           onResonanceChange={setDeckResonance}
@@ -2624,9 +2848,13 @@ const App = () => {
           onRearrangerOffsetChange={setDeckRearrangerOffset}
           onRearrangerChaosChange={setDeckRearrangerChaos}
           onRearrangerReverseChange={setDeckRearrangerReverse}
+          onRearrangerSensitivityChange={setDeckRearrangerSensitivity}
+          onRearrangerQuietThresholdChange={setDeckRearrangerQuietThreshold}
           onRearrangerAutoChange={setDeckRearrangerAuto}
           onRearrangerRegionsChange={setDeckRearrangerRegions}
           onRearrangerSliceDelete={handleDeleteRearrangerSlice}
+          onRearrangerAutoSlice={handleAutoSliceRearranger}
+          onRearrangerTrimQuiet={handleTrimQuietRearranger}
           onRearrangeLoop={handleRearrangeLoop}
           onFxPanelToggle={setDeckFxPanelOpen}
           onFxPanelsToggleAll={setDeckFxPanelsOpen}

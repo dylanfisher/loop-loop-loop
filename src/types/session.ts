@@ -57,6 +57,8 @@ export type DeckSession = {
   rearrangerOffset?: number;
   rearrangerChaos?: number;
   rearrangerReverse?: number;
+  rearrangerSensitivity?: number;
+  rearrangerQuietThreshold?: number;
   rearrangerAuto?: boolean;
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];
@@ -110,6 +112,8 @@ export type ClipSettings = {
   rearrangerOffset?: number;
   rearrangerChaos?: number;
   rearrangerReverse?: number;
+  rearrangerSensitivity?: number;
+  rearrangerQuietThreshold?: number;
   rearrangerAuto?: boolean;
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];

@@ -51,6 +51,8 @@ export type DeckState = {
   rearrangerOffset: number;
   rearrangerChaos: number;
   rearrangerReverse: number;
+  rearrangerSensitivity: number;
+  rearrangerQuietThreshold: number;
   rearrangerAuto: boolean;
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];

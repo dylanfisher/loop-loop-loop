@@ -140,15 +140,19 @@ describe("useDecks", () => {
     vi.restoreAllMocks();
   });
 
-  it("starts with one deck and keeps at least one", () => {
+  it("recreates a fresh deck when removing the last deck", () => {
     const { result } = renderHook(() => useDecks());
     expect(result.current.decks).toHaveLength(1);
     expect(result.current.decks[0].tempoOffset).toBe(0);
+    const firstDeckId = result.current.decks[0].id;
 
-    act(() => result.current.removeDeck(result.current.decks[0].id));
+    act(() => result.current.removeDeck(firstDeckId));
     expect(result.current.decks).toHaveLength(1);
-    expect(removeDeck).not.toHaveBeenCalled();
-    expect(stop).not.toHaveBeenCalled();
+    expect(result.current.decks[0].id).toBe(firstDeckId);
+    expect(result.current.decks[0].status).toBe("idle");
+    expect(result.current.decks[0].fileName).toBeUndefined();
+    expect(removeDeck).toHaveBeenCalledWith(firstDeckId);
+    expect(stop).toHaveBeenCalledWith(firstDeckId);
   });
 
   it("adds and removes decks by id", () => {

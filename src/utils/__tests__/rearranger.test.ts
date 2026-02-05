@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   buildRearrangerMap,
+  detectRearrangerRegionsFromBufferSegment,
   deriveRearrangedRegionIds,
   deriveRearrangedRegions,
   normalizeRearrangerRegions,
@@ -177,5 +178,50 @@ describe("rearranger", () => {
       [10, 20, 30]
     );
     expect(nextIds).toEqual([20, 30, 10]);
+  });
+
+  it("detects transient-based slice boundaries from a segment", () => {
+    const sampleRate = 1000;
+    const buffer = new MockAudioBuffer({ length: 5000, numberOfChannels: 1, sampleRate });
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < channel.length; i += 1) {
+      channel[i] = 0.01;
+    }
+    for (let pulse = 600; pulse <= 3600; pulse += 1000) {
+      for (let i = 0; i < 20; i += 1) {
+        channel[pulse + i] = 1;
+      }
+    }
+
+    const regions = detectRearrangerRegionsFromBufferSegment(
+      buffer as unknown as AudioBuffer,
+      0,
+      5,
+      { maxSlices: 8, minSliceDurationMs: 120, frameDurationMs: 10 }
+    );
+
+    expect(regions[0]).toBe(0);
+    expect(regions[regions.length - 1]).toBe(1);
+    expect(regions.length).toBeGreaterThan(2);
+    expect(regions.length).toBeLessThanOrEqual(8 + 1);
+    for (let i = 1; i < regions.length; i += 1) {
+      expect(regions[i]).toBeGreaterThan(regions[i - 1]);
+    }
+  });
+
+  it("returns [0,1] when no clear transients are present", () => {
+    const buffer = new MockAudioBuffer({ length: 4000, numberOfChannels: 1, sampleRate: 1000 });
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < channel.length; i += 1) {
+      channel[i] = 0.2;
+    }
+
+    const regions = detectRearrangerRegionsFromBufferSegment(
+      buffer as unknown as AudioBuffer,
+      0,
+      4,
+      { maxSlices: 12 }
+    );
+    expect(regions).toEqual([0, 1]);
   });
 });

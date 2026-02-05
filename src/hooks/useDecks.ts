@@ -36,6 +36,8 @@ const DEFAULT_REARRANGER_SLICES = 0;
 const DEFAULT_REARRANGER_OFFSET = 0;
 const DEFAULT_REARRANGER_CHAOS = 0;
 const DEFAULT_REARRANGER_REVERSE = 0;
+const DEFAULT_REARRANGER_SENSITIVITY = 0.6;
+const DEFAULT_REARRANGER_QUIET_THRESHOLD = 0.3;
 const DEFAULT_REARRANGER_AUTO = false;
 const DEFAULT_RESONANCE = 0;
 const EQ_MAX_DB = 18;
@@ -218,6 +220,8 @@ const useDecks = () => {
       rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
       rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
       rearrangerReverse: DEFAULT_REARRANGER_REVERSE,
+      rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
+      rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
       rearrangerAuto: DEFAULT_REARRANGER_AUTO,
       rearrangerRegionsManual: false,
       fxPanelOpen: withDefaultFxPanelOpen(),
@@ -1240,6 +1244,8 @@ const useDecks = () => {
         rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
         rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
         rearrangerReverse: DEFAULT_REARRANGER_REVERSE,
+        rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
+        rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
         rearrangerAuto: DEFAULT_REARRANGER_AUTO,
         rearrangerRegionsManual: false,
         fxPanelOpen: withDefaultFxPanelOpen(),
@@ -1249,9 +1255,6 @@ const useDecks = () => {
 
   const removeDeck = (id: number) => {
     setDecksWithHistory((prev) => {
-      if (prev.length <= 1) {
-        return prev;
-      }
       stop(id);
       removeDeckNodes(id);
       playbackStartRef.current.delete(id);
@@ -1262,6 +1265,55 @@ const useDecks = () => {
         next.delete(id);
         return next;
       });
+      if (prev.length <= 1) {
+        return [
+          {
+            id,
+            status: "idle",
+            gain: 0.9,
+            djFilter: 0,
+            filterResonance: 0,
+            eqLowGain: 0,
+            eqMidGain: 0,
+            eqHighGain: 0,
+            balance: 0,
+            pitchShift: 0,
+            offsetSeconds: 0,
+            zoom: 1,
+            loopEnabled: true,
+            loopStartSeconds: 0,
+            loopEndSeconds: 0,
+            tempoOffset: 0,
+            tempoPitchSync: false,
+            stretchRatio: DEFAULT_STRETCH_RATIO,
+            stretchWindowSize: DEFAULT_STRETCH_WINDOW_SIZE,
+            stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
+            stretchPhaseRandomness: DEFAULT_STRETCH_PHASE_RANDOMNESS,
+            stretchTiltDb: DEFAULT_STRETCH_TILT_DB,
+            stretchScatter: DEFAULT_STRETCH_SCATTER,
+            delayTime: DEFAULT_DELAY_TIME,
+            delayFeedback: DEFAULT_DELAY_FEEDBACK,
+            delayMix: DEFAULT_DELAY_MIX,
+            delayTone: DEFAULT_DELAY_TONE,
+            delayPingPong: DEFAULT_DELAY_PINGPONG,
+            fractalMix: DEFAULT_FRACTAL_MIX,
+            fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
+            fractalDepth: DEFAULT_FRACTAL_DEPTH,
+            fractalDrift: DEFAULT_FRACTAL_DRIFT,
+            fractalDecay: DEFAULT_FRACTAL_DECAY,
+            fractalTone: DEFAULT_FRACTAL_TONE,
+            rearrangerSlices: DEFAULT_REARRANGER_SLICES,
+            rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
+            rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
+            rearrangerReverse: DEFAULT_REARRANGER_REVERSE,
+            rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
+            rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
+            rearrangerAuto: DEFAULT_REARRANGER_AUTO,
+            rearrangerRegionsManual: false,
+            fxPanelOpen: withDefaultFxPanelOpen(),
+          },
+        ];
+      }
       return prev.filter((deck) => deck.id !== id);
     });
   };
@@ -1338,6 +1390,17 @@ const useDecks = () => {
       0,
       Math.min(1, clipSettings?.rearrangerReverse ?? DEFAULT_REARRANGER_REVERSE)
     );
+    const nextRearrangerSensitivity = Math.max(
+      0,
+      Math.min(1, clipSettings?.rearrangerSensitivity ?? DEFAULT_REARRANGER_SENSITIVITY)
+    );
+    const nextRearrangerQuietThreshold = Math.max(
+      0,
+      Math.min(
+        1,
+        clipSettings?.rearrangerQuietThreshold ?? DEFAULT_REARRANGER_QUIET_THRESHOLD
+      )
+    );
     const nextRearrangerAuto = clipSettings?.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO;
     const nextRearrangerRegions = sanitizeRearrangerRegions(clipSettings?.rearrangerRegions);
     const nextRearrangerRegionIds = normalizeRearrangerRegionIds(
@@ -1380,6 +1443,11 @@ const useDecks = () => {
           !approxEqual(nextRearrangerOffset, DEFAULT_REARRANGER_OFFSET) ||
           nextRearrangerChaos > FX_ACTIVE_EPSILON ||
           nextRearrangerReverse > FX_ACTIVE_EPSILON ||
+          !approxEqual(nextRearrangerSensitivity, DEFAULT_REARRANGER_SENSITIVITY) ||
+          !approxEqual(
+            nextRearrangerQuietThreshold,
+            DEFAULT_REARRANGER_QUIET_THRESHOLD
+          ) ||
           (nextRearrangerRegions?.length ?? 0) > 0,
         stretch: currentPanels.stretch || stretchChanged,
       };
@@ -1472,6 +1540,8 @@ const useDecks = () => {
       rearrangerOffset: nextRearrangerOffset,
       rearrangerChaos: nextRearrangerChaos,
       rearrangerReverse: nextRearrangerReverse,
+      rearrangerSensitivity: nextRearrangerSensitivity,
+      rearrangerQuietThreshold: nextRearrangerQuietThreshold,
       rearrangerAuto: nextRearrangerAuto,
       rearrangerRegions: nextRearrangerRegions,
       rearrangerRegionIds: nextRearrangerRegionIds,
@@ -1540,6 +1610,8 @@ const useDecks = () => {
         rearrangerOffset: nextRearrangerOffset,
         rearrangerChaos: nextRearrangerChaos,
         rearrangerReverse: nextRearrangerReverse,
+        rearrangerSensitivity: nextRearrangerSensitivity,
+        rearrangerQuietThreshold: nextRearrangerQuietThreshold,
         rearrangerAuto: nextRearrangerAuto,
         rearrangerRegions: nextRearrangerRegions,
         rearrangerRegionIds: nextRearrangerRegionIds,
@@ -1718,6 +1790,23 @@ const useDecks = () => {
       startedAtMs: undefined,
       offsetSeconds,
     }, false);
+  };
+
+  const stopDeck = (deck: DeckState) => {
+    stop(deck.id);
+    playbackStartRef.current.delete(deck.id);
+    pauseAutomationDeck(deck.id);
+    const nextStatus: DeckStatus = deck.buffer ? "ready" : "idle";
+    updateDeck(
+      deck.id,
+      {
+        status: nextStatus,
+        startedAtMs: undefined,
+        offsetSeconds: 0,
+      },
+      false
+    );
+    setDeckPlaybackOffset(deck.id, 0);
   };
 
   const seekDeck = (id: number, progress: number) => {
@@ -2423,6 +2512,10 @@ const useDecks = () => {
       const nextRearrangerOffset = deck.rearrangerOffset ?? DEFAULT_REARRANGER_OFFSET;
       const nextRearrangerChaos = deck.rearrangerChaos ?? DEFAULT_REARRANGER_CHAOS;
       const nextRearrangerReverse = deck.rearrangerReverse ?? DEFAULT_REARRANGER_REVERSE;
+      const nextRearrangerSensitivity =
+        deck.rearrangerSensitivity ?? DEFAULT_REARRANGER_SENSITIVITY;
+      const nextRearrangerQuietThreshold =
+        deck.rearrangerQuietThreshold ?? DEFAULT_REARRANGER_QUIET_THRESHOLD;
       const nextRearrangerAuto = deck.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO;
       const nextRearrangerRegions = sanitizeRearrangerRegions(
         options?.rearrangerRegions ?? deck.rearrangerRegions
@@ -2487,6 +2580,8 @@ const useDecks = () => {
         rearrangerOffset: nextRearrangerOffset,
         rearrangerChaos: nextRearrangerChaos,
         rearrangerReverse: nextRearrangerReverse,
+        rearrangerSensitivity: nextRearrangerSensitivity,
+        rearrangerQuietThreshold: nextRearrangerQuietThreshold,
         rearrangerAuto: nextRearrangerAuto,
         rearrangerRegions: nextRearrangerRegions,
         rearrangerRegionIds: nextRearrangerRegionIds,
@@ -2732,6 +2827,20 @@ const useDecks = () => {
     updateDeck(id, { rearrangerReverse: clamped }, false);
   };
 
+  const setDeckRearrangerSensitivity = (id: number, value: number) => {
+    const safeValue = Number.isFinite(value) ? value : DEFAULT_REARRANGER_SENSITIVITY;
+    const clamped = Math.min(Math.max(safeValue, 0), 1);
+    updateDeck(id, { rearrangerSensitivity: clamped }, false);
+  };
+
+  const setDeckRearrangerQuietThreshold = (id: number, value: number) => {
+    const safeValue = Number.isFinite(value)
+      ? value
+      : DEFAULT_REARRANGER_QUIET_THRESHOLD;
+    const clamped = Math.min(Math.max(safeValue, 0), 1);
+    updateDeck(id, { rearrangerQuietThreshold: clamped }, false);
+  };
+
   const setDeckRearrangerAuto = (id: number, value: boolean) => {
     updateDeck(id, { rearrangerAuto: value }, false);
   };
@@ -2869,6 +2978,8 @@ const useDecks = () => {
           rearrangerOffset: DEFAULT_REARRANGER_OFFSET,
           rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
           rearrangerReverse: DEFAULT_REARRANGER_REVERSE,
+          rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
+          rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
           rearrangerAuto: DEFAULT_REARRANGER_AUTO,
           rearrangerRegions: undefined,
           rearrangerRegionIds: undefined,
@@ -2998,6 +3109,8 @@ const useDecks = () => {
         rearrangerOffset: deck.rearrangerOffset,
         rearrangerChaos: deck.rearrangerChaos,
         rearrangerReverse: deck.rearrangerReverse,
+        rearrangerSensitivity: deck.rearrangerSensitivity,
+        rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
         rearrangerAuto: deck.rearrangerAuto,
         rearrangerRegions: sanitizeRearrangerRegions(deck.rearrangerRegions),
         rearrangerRegionIds: deck.rearrangerRegionIds,
@@ -3166,6 +3279,11 @@ const useDecks = () => {
             sessionDeck.rearrangerChaos ?? DEFAULT_REARRANGER_CHAOS,
           rearrangerReverse:
             sessionDeck.rearrangerReverse ?? DEFAULT_REARRANGER_REVERSE,
+          rearrangerSensitivity:
+            sessionDeck.rearrangerSensitivity ?? DEFAULT_REARRANGER_SENSITIVITY,
+          rearrangerQuietThreshold:
+            sessionDeck.rearrangerQuietThreshold ??
+            DEFAULT_REARRANGER_QUIET_THRESHOLD,
           rearrangerAuto:
             sessionDeck.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO,
           rearrangerRegions: sanitizeRearrangerRegions(sessionDeck.rearrangerRegions),
@@ -3226,6 +3344,7 @@ const useDecks = () => {
     handleFileSelected,
     playDeck,
     pauseDeck,
+    stopDeck,
     setDeckGain: setDeckGainValue,
     setDeckFilter: setDeckFilterValue,
     setDeckResonance: setDeckResonanceValue,
@@ -3262,6 +3381,8 @@ const useDecks = () => {
     setDeckRearrangerOffset,
     setDeckRearrangerChaos,
     setDeckRearrangerReverse,
+    setDeckRearrangerSensitivity,
+    setDeckRearrangerQuietThreshold,
     setDeckRearrangerAuto,
     setDeckRearrangerRegions,
     setDeckFxPanelOpen,

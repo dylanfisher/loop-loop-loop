@@ -15,6 +15,7 @@ type DeckStackProps = {
   }) => void;
   onPlay: (deck: DeckState) => void;
   onPause: (deck: DeckState) => void;
+  onStop: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
   onFilterChange: (id: number, value: number) => void;
   onResonanceChange: (id: number, value: number) => void;
@@ -55,9 +56,13 @@ type DeckStackProps = {
   onRearrangerOffsetChange: (id: number, value: number) => void;
   onRearrangerChaosChange: (id: number, value: number) => void;
   onRearrangerReverseChange: (id: number, value: number) => void;
+  onRearrangerSensitivityChange: (id: number, value: number) => void;
+  onRearrangerQuietThresholdChange: (id: number, value: number) => void;
   onRearrangerAutoChange: (id: number, value: boolean) => void;
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
   onRearrangerSliceDelete: (id: number, sliceIndex: number) => void;
+  onRearrangerAutoSlice: (id: number) => void;
+  onRearrangerTrimQuiet: (id: number) => void;
   onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
   onFxPanelsToggleAll: (id: number, open: boolean) => void;
@@ -116,6 +121,7 @@ const DeckStack = ({
   onFileSelected,
   onPlay,
   onPause,
+  onStop,
   onGainChange,
   onFilterChange,
   onResonanceChange,
@@ -152,9 +158,13 @@ const DeckStack = ({
   onRearrangerOffsetChange,
   onRearrangerChaosChange,
   onRearrangerReverseChange,
+  onRearrangerSensitivityChange,
+  onRearrangerQuietThresholdChange,
   onRearrangerAutoChange,
   onRearrangerRegionsChange,
   onRearrangerSliceDelete,
+  onRearrangerAutoSlice,
+  onRearrangerTrimQuiet,
   onRearrangeLoop,
   onFxPanelToggle,
   onFxPanelsToggleAll,
@@ -194,6 +204,7 @@ const DeckStack = ({
             onFileSelected={onFileSelected}
             onPlay={onPlay}
             onPause={onPause}
+            onStop={onStop}
             onGainChange={onGainChange}
             onFilterChange={onFilterChange}
             onResonanceChange={onResonanceChange}
@@ -230,9 +241,13 @@ const DeckStack = ({
             onRearrangerOffsetChange={onRearrangerOffsetChange}
             onRearrangerChaosChange={onRearrangerChaosChange}
             onRearrangerReverseChange={onRearrangerReverseChange}
+            onRearrangerSensitivityChange={onRearrangerSensitivityChange}
+            onRearrangerQuietThresholdChange={onRearrangerQuietThresholdChange}
             onRearrangerAutoChange={onRearrangerAutoChange}
             onRearrangerRegionsChange={onRearrangerRegionsChange}
             onRearrangerSliceDelete={onRearrangerSliceDelete}
+            onRearrangerAutoSlice={onRearrangerAutoSlice}
+            onRearrangerTrimQuiet={onRearrangerTrimQuiet}
             onRearrangeLoop={onRearrangeLoop}
             onFxPanelToggle={onFxPanelToggle}
             onFxPanelsToggleAll={onFxPanelsToggleAll}

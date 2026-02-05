@@ -49,6 +49,9 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX layout includes a Fractal Resonator unit (6 compact controls) for live modal-resonance sculpting.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
+- Rearranger includes an `Auto Slice` action plus sensitivity control; detection favors transient energy rises and silence-to-sound attacks inside the active loop (adaptive threshold + minimum spacing), then writes boundaries as manual slice regions.
+- Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.
+- `Delete Quiet` exposes a per-deck quiet-threshold control to tune how aggressively low-energy spans are classified for removal.
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.

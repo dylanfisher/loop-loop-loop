@@ -667,6 +667,10 @@ body[data-theme="dark"] .welcome-panel__card {
   color: #0b5d4a;
 }
 
+body[data-theme="dark"] .deck__status--playing {
+  color: #b6bcc6;
+}
+
 .deck__status--error {
   color: #9c1f1f;
 }

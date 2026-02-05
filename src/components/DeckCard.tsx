@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DeckFxPanel, DeckState } from "../types/deck";
 import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
@@ -16,6 +16,7 @@ type DeckCardProps = {
   onFileSelected: (id: number, file: File | null, options?: { gain?: number }) => void;
   onPlay: (deck: DeckState) => void;
   onPause: (deck: DeckState) => void;
+  onStop: (deck: DeckState) => void;
   onGainChange: (id: number, value: number) => void;
   onFilterChange: (id: number, value: number) => void;
   onResonanceChange: (id: number, value: number) => void;
@@ -124,9 +125,13 @@ type DeckCardProps = {
   onRearrangerOffsetChange: (id: number, value: number) => void;
   onRearrangerChaosChange: (id: number, value: number) => void;
   onRearrangerReverseChange: (id: number, value: number) => void;
+  onRearrangerSensitivityChange: (id: number, value: number) => void;
+  onRearrangerQuietThresholdChange: (id: number, value: number) => void;
   onRearrangerAutoChange: (id: number, value: boolean) => void;
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
   onRearrangerSliceDelete: (id: number, sliceIndex: number) => void;
+  onRearrangerAutoSlice: (id: number) => void;
+  onRearrangerTrimQuiet: (id: number) => void;
   onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
   onFxPanelsToggleAll: (id: number, open: boolean) => void;
@@ -172,6 +177,7 @@ const DeckCard = ({
   onFileSelected,
   onPlay,
   onPause,
+  onStop,
   onGainChange,
   onFilterChange,
   onResonanceChange,
@@ -220,9 +226,13 @@ const DeckCard = ({
   onRearrangerOffsetChange,
   onRearrangerChaosChange,
   onRearrangerReverseChange,
+  onRearrangerSensitivityChange,
+  onRearrangerQuietThresholdChange,
   onRearrangerAutoChange,
   onRearrangerRegionsChange,
   onRearrangerSliceDelete,
+  onRearrangerAutoSlice,
+  onRearrangerTrimQuiet,
   onRearrangeLoop,
   onFxPanelToggle,
   onFxPanelsToggleAll,
@@ -415,6 +425,7 @@ const DeckCard = ({
 
   const [saveSettings, setSaveSettings] = useState(false);
   const [tempoFine, setTempoFine] = useState(false);
+  const [showQuietDeletePreview, setShowQuietDeletePreview] = useState(false);
   const tempoFineDragRef = useRef<{ startY: number; startValue: number } | null>(null);
   const tempoIgnoreChangeRef = useRef(false);
   const deckDragDepthRef = useRef(0);
@@ -431,6 +442,87 @@ const DeckCard = ({
     return files.find((file) => file.type.startsWith("audio/")) ?? files[0] ?? null;
   }, []);
   const fxPanelOpen = deck.fxPanelOpen;
+  const quietDeletePreviewRanges = useMemo(() => {
+    if (!showQuietDeletePreview || !deck.buffer || !deck.loopEnabled) return [];
+    const duration = deck.duration ?? deck.buffer.duration;
+    const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+    const loopEnd =
+      deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+        ? Math.min(deck.loopEndSeconds, duration)
+        : duration;
+    const loopDuration = loopEnd - loopStart;
+    if (loopDuration <= 0.01) return [];
+    const sampleRate = deck.buffer.sampleRate;
+    const startSample = Math.max(0, Math.min(deck.buffer.length - 1, Math.round(loopStart * sampleRate)));
+    const endSample = Math.max(startSample + 1, Math.min(deck.buffer.length, Math.round(loopEnd * sampleRate)));
+    const segmentLength = endSample - startSample;
+    if (segmentLength < 128) return [];
+    const frameSize = Math.max(32, Math.round(sampleRate * 0.012));
+    const hopSize = Math.max(16, Math.floor(frameSize / 2));
+    if (segmentLength <= frameSize + hopSize) return [];
+    const frameCount = Math.floor((segmentLength - frameSize) / hopSize) + 1;
+    const envelope = new Array<number>(frameCount);
+    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+      const frameStart = startSample + frameIndex * hopSize;
+      let sum = 0;
+      for (let channel = 0; channel < deck.buffer.numberOfChannels; channel += 1) {
+        const data = deck.buffer.getChannelData(channel);
+        for (let offset = 0; offset < frameSize; offset += 1) {
+          const sample = data[frameStart + offset] ?? 0;
+          sum += sample * sample;
+        }
+      }
+      const count = frameSize * deck.buffer.numberOfChannels;
+      envelope[frameIndex] = count > 0 ? Math.sqrt(sum / count) : 0;
+    }
+    const sorted = [...envelope].sort((a, b) => a - b);
+    const p20 = sorted[Math.floor((sorted.length - 1) * 0.2)] ?? 0;
+    const p80 = sorted[Math.floor((sorted.length - 1) * 0.8)] ?? 0;
+    const dynamic = Math.max(0, p80 - p20);
+    const quietFactor = 0.03 + deck.rearrangerQuietThreshold * 0.17;
+    const quietThreshold = p20 + dynamic * quietFactor;
+    const minQuietSamples = Math.max(1, Math.round(sampleRate * 0.09));
+    const keepGuardSamples = Math.max(1, Math.round(sampleRate * 0.01));
+    const ranges: Array<{ start: number; end: number }> = [];
+    let runStart = -1;
+    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+      const isQuiet = envelope[frameIndex] <= quietThreshold;
+      if (isQuiet) {
+        if (runStart < 0) runStart = frameIndex;
+        continue;
+      }
+      if (runStart >= 0) {
+        const absStart = startSample + runStart * hopSize + keepGuardSamples;
+        const absEnd = startSample + frameIndex * hopSize + frameSize - keepGuardSamples;
+        if (absEnd - absStart >= minQuietSamples) {
+          ranges.push({
+            start: Math.max(0, Math.min(1, (absStart - startSample) / segmentLength)),
+            end: Math.max(0, Math.min(1, (absEnd - startSample) / segmentLength)),
+          });
+        }
+        runStart = -1;
+      }
+    }
+    if (runStart >= 0) {
+      const absStart = startSample + runStart * hopSize + keepGuardSamples;
+      const absEnd = endSample - keepGuardSamples;
+      if (absEnd - absStart >= minQuietSamples) {
+        ranges.push({
+          start: Math.max(0, Math.min(1, (absStart - startSample) / segmentLength)),
+          end: Math.max(0, Math.min(1, (absEnd - startSample) / segmentLength)),
+        });
+      }
+    }
+    return ranges.filter((range) => range.end > range.start);
+  }, [
+    deck.buffer,
+    deck.duration,
+    deck.loopEnabled,
+    deck.loopEndSeconds,
+    deck.rearrangerQuietThreshold,
+    deck.loopStartSeconds,
+    showQuietDeletePreview,
+  ]);
   const toggleFxPanel = useCallback(
     (panel: DeckFxPanel) => {
       onFxPanelToggle(deck.id, panel, !fxPanelOpen[panel]);
@@ -502,6 +594,8 @@ const DeckCard = ({
         Math.round(deck.rearrangerOffset) !== 0 ||
         isDifferent(deck.rearrangerChaos, 0) ||
         isDifferent(deck.rearrangerReverse, 0) ||
+        isDifferent(deck.rearrangerSensitivity, 0.6) ||
+        isDifferent(deck.rearrangerQuietThreshold, 0.3) ||
         deck.rearrangerAuto ||
         (deck.rearrangerRegions?.length ?? 0) > 0,
     },
@@ -527,7 +621,7 @@ const DeckCard = ({
     delay: "Delay: time, feedback, tone, mix, and ping-pong echo.",
     fractal: "Fractal Resonator: recursive modal texture generator.",
     rearranger:
-      "Rearranger: click waveform between boundaries to add slices; hold Shift and click a slice to destructively remove that slice audio.",
+      "Rearranger: Auto Slice detects transient boundaries. Delete Quiet removes low-energy spans in the loop. You can also click waveform between boundaries to add slices; hold Shift and click a slice to destructively remove that slice audio.",
     stretch: "Stretch: offline Paulstretch render with phase/width/tilt/scatter controls.",
   };
   const renderFxToggleLabel = (panel: DeckFxPanel, label: string) => {
@@ -615,8 +709,22 @@ const DeckCard = ({
               />
             </div>
             <div className="deck__actions-right">
+              <button
+                type="button"
+                className="deck__action"
+                disabled={!deck.buffer || deck.status === "loading"}
+                onClick={() => onStop(deck)}
+                title="Stop playback and return the playhead to the start."
+              >
+                Stop
+              </button>
               {deck.status === "playing" ? (
-                <button type="button" className="deck__action" onClick={() => onPause(deck)}>
+                <button
+                  type="button"
+                  className="deck__action"
+                  onClick={() => onPause(deck)}
+                  title="Pause playback at the current playhead position."
+                >
                   Pause
                 </button>
               ) : (
@@ -625,6 +733,11 @@ const DeckCard = ({
                   className="deck__action"
                   disabled={!deck.buffer || deck.status === "loading"}
                   onClick={() => onPlay(deck)}
+                  title={
+                    deck.status === "paused"
+                      ? "Resume playback from the current playhead position."
+                      : "Start playback."
+                  }
                 >
                   {deck.status === "paused" ? "Resume" : "Play"}
                 </button>
@@ -633,6 +746,7 @@ const DeckCard = ({
                 type="button"
                 className={`deck__action ${deck.loopEnabled ? "is-active" : ""}`}
                 onClick={() => onLoopChange(deck.id, !deck.loopEnabled)}
+                title="Toggle loop playback for this deck."
               >
                 {deck.loopEnabled ? "Looping" : "Loop"}
               </button>
@@ -642,6 +756,7 @@ const DeckCard = ({
                 idleLabel="Save Loop"
                 busyLabel="Saving..."
                 onAction={() => onSaveLoopClip(deck.id, saveSettings)}
+                title="Save the current loop as a clip."
               />
               <AsyncActionButton
                 className="deck__action"
@@ -649,14 +764,21 @@ const DeckCard = ({
                 idleLabel="Crop Loop"
                 busyLabel="Cropping..."
                 onAction={() => onCropLoop(deck.id)}
+                title="Destructively crop the deck audio to the current loop bounds."
               />
-              <button type="button" className="deck__action" onClick={() => onLoadClick(deck.id)}>
+              <button
+                type="button"
+                className="deck__action"
+                onClick={() => onLoadClick(deck.id)}
+                title={deck.fileName ? "Replace the loaded audio file." : "Load an audio file."}
+              >
                 {deck.fileName ? "Replace" : "Load"}
               </button>
               <button
                 type="button"
                 className="deck__action deck__remove"
                 onClick={() => onRemove(deck.id)}
+                title="Remove this deck. If this is the last deck, a new empty deck is created."
               >
                 Remove
               </button>
@@ -723,6 +845,7 @@ const DeckCard = ({
           rearrangerReverse={deck.rearrangerReverse}
           rearrangerRegions={deck.rearrangerRegions}
           rearrangerRegionIds={deck.rearrangerRegionIds}
+          rearrangerDeletePreviewRanges={quietDeletePreviewRanges}
           onRearrangerRegionsChange={(regions) => onRearrangerRegionsChange(deck.id, regions)}
           onRearrangerSliceDelete={(sliceIndex) => onRearrangerSliceDelete(deck.id, sliceIndex)}
           onRearrangerSlicesChange={(value) => onRearrangerSlicesChange(deck.id, value)}
@@ -1440,7 +1563,7 @@ const DeckCard = ({
                 className="knob--compact"
                 label="Slices"
                 min={0}
-                max={Math.max(32, Math.round(deck.rearrangerSlices || 0))}
+                max={Math.max(64, Math.round(deck.rearrangerSlices || 0))}
                 step={1}
                 value={deck.rearrangerSlices}
                 defaultValue={0}
@@ -1487,6 +1610,30 @@ const DeckCard = ({
                 onChange={(next) => onRearrangerReverseChange(deck.id, next)}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
+              <Knob
+                className="knob--compact"
+                label="Sensitivity"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.rearrangerSensitivity}
+                defaultValue={0.6}
+                labelTitle="Auto Slice sensitivity. Higher values detect quieter/smaller onset changes and create more slices."
+                onChange={(next) => onRearrangerSensitivityChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Quiet Thresh"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.rearrangerQuietThreshold}
+                defaultValue={0.3}
+                labelTitle="Delete Quiet threshold. Higher values classify more of the loop as quiet."
+                onChange={(next) => onRearrangerQuietThresholdChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
               <label
                 className="deck__delay-toggle"
                 title="When enabled, the current loop is rearranged again each time playback wraps to the loop start."
@@ -1500,6 +1647,28 @@ const DeckCard = ({
               </label>
             </div>
             <div className="deck__fx-actions">
+              <button
+                type="button"
+                className="deck__action"
+                disabled={!deck.buffer}
+                onClick={() => onRearrangerAutoSlice(deck.id)}
+                title="Detect slice boundaries from loop transients."
+              >
+                Auto Slice
+              </button>
+              <button
+                type="button"
+                className="deck__action"
+                disabled={!deck.buffer}
+                onClick={() => onRearrangerTrimQuiet(deck.id)}
+                onPointerEnter={() => setShowQuietDeletePreview(true)}
+                onPointerLeave={() => setShowQuietDeletePreview(false)}
+                onFocus={() => setShowQuietDeletePreview(true)}
+                onBlur={() => setShowQuietDeletePreview(false)}
+                title="Detect quiet sections in the loop and destructively remove them."
+              >
+                Delete Quiet
+              </button>
               <AsyncActionButton
                 className="deck__action"
                 disabled={!deck.buffer}

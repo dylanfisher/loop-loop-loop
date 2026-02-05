@@ -7,6 +7,7 @@ type AsyncActionButtonProps = {
   disabled?: boolean;
   className?: string;
   busy?: boolean;
+  title?: string;
 };
 
 const AsyncActionButton = ({
@@ -16,6 +17,7 @@ const AsyncActionButton = ({
   disabled = false,
   className,
   busy,
+  title,
 }: AsyncActionButtonProps) => {
   const [internalBusy, setInternalBusy] = useState(false);
   const isBusy = busy ?? internalBusy;
@@ -33,7 +35,13 @@ const AsyncActionButton = ({
   };
 
   return (
-    <button type="button" className={className} onClick={handleClick} disabled={disabled || isBusy}>
+    <button
+      type="button"
+      className={className}
+      onClick={handleClick}
+      disabled={disabled || isBusy}
+      title={title}
+    >
       {isBusy ? busyLabel : idleLabel}
     </button>
   );

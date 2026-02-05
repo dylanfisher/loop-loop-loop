@@ -33,6 +33,8 @@ const makeDeck = (id: number, open = false): DeckState => ({
   rearrangerOffset: 0,
   rearrangerChaos: 0,
   rearrangerReverse: 0,
+  rearrangerSensitivity: 0.6,
+  rearrangerQuietThreshold: 0.3,
   rearrangerAuto: false,
   djFilter: 0,
   filterResonance: 0,

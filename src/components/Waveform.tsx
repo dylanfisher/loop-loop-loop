@@ -47,6 +47,7 @@ type WaveformProps = {
   rearrangerReverse?: number;
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];
+  rearrangerDeletePreviewRanges?: Array<{ start: number; end: number }>;
   onRearrangerRegionsChange?: (regions: number[]) => void;
   onRearrangerSliceDelete?: (sliceIndex: number) => void;
   onRearrangerSlicesChange?: (value: number) => void;
@@ -359,6 +360,7 @@ const Waveform = ({
   rearrangerReverse = 0,
   rearrangerRegions,
   rearrangerRegionIds,
+  rearrangerDeletePreviewRanges,
   onRearrangerRegionsChange,
   onRearrangerSliceDelete,
   onRearrangerSlicesChange: _onRearrangerSlicesChange,
@@ -731,7 +733,6 @@ const Waveform = ({
     }
 
     if (
-      rearrangerSlices > 1 &&
       resolvedLoopEnabled &&
       resolvedLoopEnd > resolvedLoopStart + 0.01
     ) {
@@ -742,52 +743,81 @@ const Waveform = ({
       const regionStart = Math.max(visibleStart, resolvedLoopStart);
       const regionEnd = Math.min(visibleEnd, resolvedLoopEnd);
       if (regionEnd > regionStart) {
-        const map = buildRearrangerMap({
-          slices: rearrangerSlices,
-          offset: rearrangerOffset,
-          chaos: rearrangerChaos,
-          reverse: rearrangerReverse,
-          regions: rearrangerRegions,
-        });
         const regions = normalizeRearrangerRegions(rearrangerRegions, rearrangerSlices);
-        for (let i = 0; i < map.length; i += 1) {
-          const sliceStart = resolvedLoopStart + loopDuration * regions[i];
-          const sliceEnd = resolvedLoopStart + loopDuration * regions[i + 1];
-          const drawStart = Math.max(sliceStart, regionStart);
-          const drawEnd = Math.min(sliceEnd, regionEnd);
-          if (drawEnd <= drawStart) continue;
-          const x0 = ((drawStart - visibleStart) / visualDuration) * overlay.clientWidth;
-          const x1 = ((drawEnd - visibleStart) / visualDuration) * overlay.clientWidth;
-          const width = Math.max(1, x1 - x0);
-          const id = rearrangerIds[i] ?? i;
-          const hue = ((id % Math.max(1, map.length)) / Math.max(1, map.length)) * 360;
-          overlayContext.fillStyle = `hsla(${hue.toFixed(1)} 82% 58% / ${(0.14 * overlayAlpha).toFixed(3)})`;
-          overlayContext.fillRect(x0, 0, width, overlay.clientHeight);
-          overlayContext.strokeStyle = `hsla(${hue.toFixed(1)} 86% 44% / ${(0.28 * overlayAlpha).toFixed(3)})`;
-          overlayContext.lineWidth = 1;
-          overlayContext.beginPath();
-          overlayContext.moveTo(x0, 0);
-          overlayContext.lineTo(x0, overlay.clientHeight);
-          overlayContext.stroke();
-          if (map[i].reversed) {
-            overlayContext.strokeStyle = `hsla(${hue.toFixed(1)} 92% 36% / ${(0.5 * overlayAlpha).toFixed(3)})`;
+        if (rearrangerSlices > 1) {
+          const map = buildRearrangerMap({
+            slices: rearrangerSlices,
+            offset: rearrangerOffset,
+            chaos: rearrangerChaos,
+            reverse: rearrangerReverse,
+            regions: rearrangerRegions,
+          });
+          for (let i = 0; i < map.length; i += 1) {
+            const sliceStart = resolvedLoopStart + loopDuration * regions[i];
+            const sliceEnd = resolvedLoopStart + loopDuration * regions[i + 1];
+            const drawStart = Math.max(sliceStart, regionStart);
+            const drawEnd = Math.min(sliceEnd, regionEnd);
+            if (drawEnd <= drawStart) continue;
+            const x0 = ((drawStart - visibleStart) / visualDuration) * overlay.clientWidth;
+            const x1 = ((drawEnd - visibleStart) / visualDuration) * overlay.clientWidth;
+            const width = Math.max(1, x1 - x0);
+            const id = rearrangerIds[i] ?? i;
+            const hue = ((id % Math.max(1, map.length)) / Math.max(1, map.length)) * 360;
+            overlayContext.fillStyle = `hsla(${hue.toFixed(1)} 82% 58% / ${(0.14 * overlayAlpha).toFixed(3)})`;
+            overlayContext.fillRect(x0, 0, width, overlay.clientHeight);
+            overlayContext.strokeStyle = `hsla(${hue.toFixed(1)} 86% 44% / ${(0.28 * overlayAlpha).toFixed(3)})`;
+            overlayContext.lineWidth = 1;
             overlayContext.beginPath();
-            overlayContext.moveTo(x0 + 1, 2);
-            overlayContext.lineTo(Math.max(x0 + 1, x1 - 1), 2);
+            overlayContext.moveTo(x0, 0);
+            overlayContext.lineTo(x0, overlay.clientHeight);
             overlayContext.stroke();
+            if (map[i].reversed) {
+              overlayContext.strokeStyle = `hsla(${hue.toFixed(1)} 92% 36% / ${(0.5 * overlayAlpha).toFixed(3)})`;
+              overlayContext.beginPath();
+              overlayContext.moveTo(x0 + 1, 2);
+              overlayContext.lineTo(Math.max(x0 + 1, x1 - 1), 2);
+              overlayContext.stroke();
+            }
+          }
+          if (
+            effectiveDeleteSliceIndex !== null &&
+            rearrangerDeleteMode &&
+            effectiveDeleteSliceIndex >= 0 &&
+            effectiveDeleteSliceIndex < regions.length - 1
+          ) {
+            const sliceStart = resolvedLoopStart + loopDuration * regions[effectiveDeleteSliceIndex];
+            const sliceEnd = resolvedLoopStart + loopDuration * regions[effectiveDeleteSliceIndex + 1];
+            const drawStart = Math.max(sliceStart, regionStart);
+            const drawEnd = Math.min(sliceEnd, regionEnd);
+            if (drawEnd > drawStart) {
+              const x0 = ((drawStart - visibleStart) / visualDuration) * overlay.clientWidth;
+              const x1 = ((drawEnd - visibleStart) / visualDuration) * overlay.clientWidth;
+              const width = Math.max(2, x1 - x0);
+              overlayContext.save();
+              overlayContext.fillStyle = "rgba(0, 0, 0, 0.22)";
+              overlayContext.fillRect(x0, 0, width, overlay.clientHeight);
+              overlayContext.strokeStyle = "rgba(0, 0, 0, 0.58)";
+              overlayContext.lineWidth = 2;
+              overlayContext.beginPath();
+              overlayContext.moveTo(x0, 0);
+              overlayContext.lineTo(x0, overlay.clientHeight);
+              overlayContext.moveTo(x1, 0);
+              overlayContext.lineTo(x1, overlay.clientHeight);
+              overlayContext.stroke();
+              overlayContext.restore();
+            }
           }
         }
-        if (
-          effectiveDeleteSliceIndex !== null &&
-          rearrangerDeleteMode &&
-          effectiveDeleteSliceIndex >= 0 &&
-          effectiveDeleteSliceIndex < regions.length - 1
-        ) {
-          const sliceStart = resolvedLoopStart + loopDuration * regions[effectiveDeleteSliceIndex];
-          const sliceEnd = resolvedLoopStart + loopDuration * regions[effectiveDeleteSliceIndex + 1];
-          const drawStart = Math.max(sliceStart, regionStart);
-          const drawEnd = Math.min(sliceEnd, regionEnd);
-          if (drawEnd > drawStart) {
+        if (rearrangerDeletePreviewRanges && rearrangerDeletePreviewRanges.length > 0) {
+          for (const range of rearrangerDeletePreviewRanges) {
+            const startNorm = Math.max(0, Math.min(1, range.start));
+            const endNorm = Math.max(startNorm, Math.min(1, range.end));
+            if (endNorm <= startNorm) continue;
+            const sliceStart = resolvedLoopStart + loopDuration * startNorm;
+            const sliceEnd = resolvedLoopStart + loopDuration * endNorm;
+            const drawStart = Math.max(sliceStart, regionStart);
+            const drawEnd = Math.min(sliceEnd, regionEnd);
+            if (drawEnd <= drawStart) continue;
             const x0 = ((drawStart - visibleStart) / visualDuration) * overlay.clientWidth;
             const x1 = ((drawEnd - visibleStart) / visualDuration) * overlay.clientWidth;
             const width = Math.max(2, x1 - x0);
@@ -914,6 +944,7 @@ const Waveform = ({
     rearrangerReverse,
     rearrangerRegions,
     rearrangerSlices,
+    rearrangerDeletePreviewRanges,
     rearrangerDeleteMode,
     effectiveDeleteSliceIndex,
     showRearrangerSlices,
