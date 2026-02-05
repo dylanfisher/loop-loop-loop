@@ -77,6 +77,7 @@ type AudioEngine = {
   setDeckPlaybackOffset: (deckId: number, offsetSeconds: number) => void;
   getMasterStream: () => MediaStream | null;
   getDeckPlaybackSnapshot: (deckId: number) => import("./deck").DeckPlaybackSnapshot | null;
+  getAudioContextState: () => AudioContextState | "uninitialized";
   suspendContext: () => Promise<void>;
   resumeContext: () => Promise<void>;
 };
@@ -328,6 +329,11 @@ const getMasterStream = () => {
   return masterStreamDest?.stream ?? null;
 };
 
+const getAudioContextState = (): AudioContextState | "uninitialized" => {
+  if (!audioContext) return "uninitialized";
+  return audioContext.state;
+};
+
 export const getAudioEngine = (): AudioEngine => {
   return {
     decodeFile,
@@ -356,6 +362,7 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckPlaybackOffset: updateDeckPlaybackOffset,
     getMasterStream,
     getDeckPlaybackSnapshot: getDeckSnapshot,
+    getAudioContextState,
     suspendContext,
     resumeContext,
   };

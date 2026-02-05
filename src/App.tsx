@@ -502,8 +502,14 @@ const App = () => {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
-  const { getMasterStream, decodeFile, resumeContext, suspendContext, setMasterGain } =
-    useAudioEngine();
+  const {
+    getMasterStream,
+    decodeFile,
+    resumeContext,
+    suspendContext,
+    setMasterGain,
+    getAudioContextState,
+  } = useAudioEngine();
   useEffect(() => {
     setMasterGain(masterGain);
   }, [masterGain, setMasterGain]);
@@ -618,12 +624,39 @@ const App = () => {
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
 
   const shouldAnimatePerf = hasActivePlayback || recording;
+  const [audioContextState, setAudioContextState] = useState<
+    AudioContextState | "uninitialized"
+  >(() => getAudioContextState());
+  const [audioUnlockError, setAudioUnlockError] = useState<string | null>(null);
+  const [audioUnlocked, setAudioUnlocked] = useState(audioContextState === "running");
+
+  const refreshAudioState = useCallback(() => {
+    const nextState = getAudioContextState();
+    setAudioContextState(nextState);
+    if (nextState === "running") {
+      setAudioUnlocked(true);
+      setAudioUnlockError(null);
+    }
+  }, [getAudioContextState]);
+
+  const handleEnableAudio = useCallback(async () => {
+    try {
+      await resumeContext();
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("Audio resume failed", error);
+      }
+      setAudioUnlockError("Audio blocked by browser. Tap again or press any key.");
+    }
+    refreshAudioState();
+  }, [refreshAudioState, resumeContext]);
 
   useEffect(() => {
     let disposed = false;
     const handleGesture = () => {
       if (disposed) return;
-      void resumeContext();
+      if (getAudioContextState() === "running") return;
+      void handleEnableAudio();
     };
     const options = { passive: true } as AddEventListenerOptions;
     window.addEventListener("pointerdown", handleGesture, options);
@@ -633,7 +666,7 @@ const App = () => {
       window.removeEventListener("pointerdown", handleGesture, options);
       window.removeEventListener("keydown", handleGesture, options);
     };
-  }, [resumeContext]);
+  }, [getAudioContextState, handleEnableAudio]);
 
   useEffect(() => {
     if (!shouldAnimatePerf) {
@@ -675,12 +708,13 @@ const App = () => {
   }, [shouldAnimatePerf]);
 
   useEffect(() => {
+    if (!audioUnlocked) return;
     if (hasActivePlayback || recording) {
       void resumeContext();
       return;
     }
     void suspendContext();
-  }, [hasActivePlayback, recording, resumeContext, suspendContext]);
+  }, [audioUnlocked, hasActivePlayback, recording, resumeContext, suspendContext]);
 
   const buildClipSettings = useCallback(
     (deck: DeckState, loopDuration: number): ClipSettings => {
@@ -3181,6 +3215,25 @@ const App = () => {
               <li><kbd>Cmd/Ctrl</kbd> + <kbd>O</kbd> Open session</li>
               <li><kbd>?</kbd> Toggle this panel</li>
             </ul>
+          </div>
+        </div>
+      ) : null}
+      {audioContextState !== "running" && !import.meta.env.DEV ? (
+        <div className="audio-unlock" role="dialog" aria-modal="true" aria-label="Enable audio">
+          <div className="audio-unlock__card">
+            <div className="audio-unlock__glow" aria-hidden="true" />
+            <div className="audio-unlock__badge">Audio Gate</div>
+            <h2>Enable Audio Engine</h2>
+            <p>
+              Your browser requires a user gesture before audio can play. Tap below
+              to unlock live playback, recording, and exports.
+            </p>
+            <button type="button" className="audio-unlock__action" onClick={handleEnableAudio}>
+              Enable Audio
+            </button>
+            <div className="audio-unlock__hint">
+              {audioUnlockError ?? "Tip: Spacebar works too."}
+            </div>
           </div>
         </div>
       ) : null}
