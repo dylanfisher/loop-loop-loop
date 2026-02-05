@@ -421,6 +421,7 @@ const App = () => {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [deckLayoutMode, setDeckLayoutMode] = useState<"single" | "two">("single");
   const [showSessionPanel, setShowSessionPanel] = useState(false);
+  const [showWelcomePanelOverride, setShowWelcomePanelOverride] = useState(false);
   const statusTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -558,7 +559,8 @@ const App = () => {
   const isCurrentProjectBrandNew =
     clips.length === 0 &&
     decks.every((deck) => !deck.buffer && !deck.fileName);
-  const showWelcomePanel = isCurrentProjectBrandNew && !welcomePanelDismissed;
+  const showWelcomePanel =
+    (isCurrentProjectBrandNew && !welcomePanelDismissed) || showWelcomePanelOverride;
 
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
 
@@ -2753,7 +2755,10 @@ const App = () => {
             <button
               type="button"
               className="icon-button"
-              onClick={() => setShowKeyboardShortcuts((prev) => !prev)}
+              onClick={() => {
+                setShowKeyboardShortcuts(true);
+                setShowWelcomePanelOverride(true);
+              }}
               title="Keyboard shortcuts (?)"
               aria-label="Toggle keyboard shortcuts"
               aria-pressed={showKeyboardShortcuts}
@@ -2890,7 +2895,12 @@ const App = () => {
 
       <main className="app__main">
         {showWelcomePanel ? (
-          <WelcomePanel onClose={() => setWelcomePanelDismissed(true)} />
+          <WelcomePanel
+            onClose={() => {
+              setWelcomePanelDismissed(true);
+              setShowWelcomePanelOverride(false);
+            }}
+          />
         ) : null}
         <ClipRecorder
           decks={decks}
