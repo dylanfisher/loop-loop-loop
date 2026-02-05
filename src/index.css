@@ -406,6 +406,25 @@ body[data-theme="dark"] .welcome-panel {
   max-width: none;
 }
 
+.welcome-panel__demo {
+  display: grid;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.welcome-panel__demo-title {
+  margin: 0;
+}
+
+.welcome-panel__demo-note {
+  margin: 0;
+}
+
+.welcome-panel__demo-button {
+  justify-self: start;
+}
+
 .welcome-panel__columns {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -64,6 +64,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
 - Brand-new projects show a dismissible Welcome panel above the clip recorder with selectable first-run guidance, quickstart steps, and concise interaction hints for non-musicians.
+- Welcome panel includes an `Open a Demo Loop` action that imports `public/example.zip` for immediate first-run exploration.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
 [Header row 1: brand + project + transport/session toggles + layout/theme/master]
@@ -91,6 +92,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck UI state is also mirrored immediately to localStorage (lightweight patch) so quick refreshes restore panel state before the next full autosave.
 - Session WAV encoding (for save/export/autosave) uses a dedicated web worker to reduce main-thread stalls.
 - Welcome panel dismissed state is persisted through autosave, saved sessions, and exported/imported project zips.
+- After the welcome panel is dismissed, it remains hidden across New Session/reset flows and is reopened explicitly from the header `?` shortcut/help control.
 - Auto-rearrange (On Loop) updates are treated as transient: they do not create undo history snapshots and skip immediate autosave scheduling to avoid runaway memory/encode pressure during continuous looping.
 - Auto-rearrange playback reload path reuses existing deck audio nodes (source-only restart) to avoid repeated node graph teardown/rebuild churn on every loop.
 - Rearranger custom boundaries are re-derived on a sample-quantized grid to prevent cumulative floating-point drift during repeated rearrange passes.

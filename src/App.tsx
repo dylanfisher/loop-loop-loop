@@ -2521,7 +2521,6 @@ const App = () => {
     clipNameRef.current = 1;
     setMasterGainValue(0.9);
     setSessionName("");
-    setWelcomePanelDismissed(false);
     setSelectedSessionId(null);
     setSessionStatus(null);
   }, [resetDecks]);
@@ -2557,6 +2556,23 @@ const App = () => {
     },
     [importSessionFromFile]
   );
+
+  const handleOpenDemoLoop = useCallback(async () => {
+    try {
+      const response = await fetch("/example.zip");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch demo zip: ${response.status}`);
+      }
+      const blob = await response.blob();
+      const file = new File([blob], "example.zip", {
+        type: blob.type || "application/zip",
+      });
+      await importSessionFromFile(file);
+    } catch (error) {
+      console.error("Failed to open demo loop", error);
+      setSessionStatus("Failed to open demo loop.");
+    }
+  }, [importSessionFromFile]);
 
   const hasFileDrag = useCallback(
     (dataTransfer: DataTransfer) => Array.from(dataTransfer.types).includes("Files"),
@@ -3074,6 +3090,7 @@ const App = () => {
               setWelcomePanelDismissed(true);
               setShowWelcomePanelOverride(false);
             }}
+            onOpenDemoLoop={handleOpenDemoLoop}
           />
         ) : null}
         <ClipRecorder
