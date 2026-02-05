@@ -417,6 +417,19 @@ const DeckCard = ({
   const [tempoFine, setTempoFine] = useState(false);
   const tempoFineDragRef = useRef<{ startY: number; startValue: number } | null>(null);
   const tempoIgnoreChangeRef = useRef(false);
+  const deckDragDepthRef = useRef(0);
+  const [isFileDragOver, setIsFileDragOver] = useState(false);
+  const isFileDrag = useCallback((dataTransfer: DataTransfer | null) => {
+    if (!dataTransfer) return false;
+    const types = Array.from(dataTransfer.types ?? []);
+    return types.includes("Files");
+  }, []);
+  const getDroppedAudioFile = useCallback((dataTransfer: DataTransfer | null) => {
+    if (!dataTransfer) return null;
+    const files = Array.from(dataTransfer.files ?? []);
+    if (!files.length) return null;
+    return files.find((file) => file.type.startsWith("audio/")) ?? files[0] ?? null;
+  }, []);
   const fxPanelOpen = deck.fxPanelOpen;
   const toggleFxPanel = useCallback(
     (panel: DeckFxPanel) => {
@@ -548,9 +561,42 @@ const DeckCard = ({
 
   return (
     <div
-      className={`deck ${isActive ? "deck--active" : ""}`.trim()}
+      className={`deck ${isActive ? "deck--active" : ""} ${isFileDragOver ? "deck--drop-target" : ""}`.trim()}
       onPointerDownCapture={() => onActivate(deck.id)}
       onFocusCapture={() => onActivate(deck.id)}
+      onDragEnter={(event) => {
+        if (!isFileDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        deckDragDepthRef.current += 1;
+        onActivate(deck.id);
+        setIsFileDragOver(true);
+      }}
+      onDragOver={(event) => {
+        if (!isFileDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        if (!isFileDragOver) {
+          onActivate(deck.id);
+          setIsFileDragOver(true);
+        }
+      }}
+      onDragLeave={(event) => {
+        if (!isFileDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        deckDragDepthRef.current = Math.max(0, deckDragDepthRef.current - 1);
+        if (deckDragDepthRef.current === 0) {
+          setIsFileDragOver(false);
+        }
+      }}
+      onDrop={(event) => {
+        const file = getDroppedAudioFile(event.dataTransfer);
+        if (!file) return;
+        event.preventDefault();
+        deckDragDepthRef.current = 0;
+        setIsFileDragOver(false);
+        onActivate(deck.id);
+        onFileSelected(deck.id, file);
+      }}
     >
       <div className="deck__header">
         <div className="deck__label-row">
