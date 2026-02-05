@@ -419,6 +419,8 @@ const App = () => {
   });
   const [activeDeckId, setActiveDeckId] = useState<number | null>(null);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [deckLayoutMode, setDeckLayoutMode] = useState<"single" | "two">("single");
+  const [showSessionPanel, setShowSessionPanel] = useState(false);
   const statusTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -456,6 +458,7 @@ const App = () => {
   const rearrangeLoopTrackerRef = useRef<Map<number, { lastPosition: number; lastTriggerMs: number }>>(
     new Map()
   );
+  const delaySliceSyncTrackerRef = useRef<Map<number, number>>(new Map());
   const rearrangeBusyByDeckRef = useRef<Map<number, boolean>>(new Map());
   const skipNextAutosaveRef = useRef(0);
   const autosaveReadyRef = useRef(false);
@@ -485,6 +488,8 @@ const App = () => {
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
+    setDeckDelaySliceSync,
+    setDeckDelayTimeTransient,
     setDeckFractalMix,
     setDeckFractalStructure,
     setDeckFractalDepth,
@@ -649,6 +654,7 @@ const App = () => {
         delayMix: deck.delayMix,
         delayTone: deck.delayTone,
         delayPingPong: deck.delayPingPong,
+        delaySliceSync: deck.delaySliceSync,
         fractalMix: deck.fractalMix,
         fractalStructure: deck.fractalStructure,
         fractalDepth: deck.fractalDepth,
@@ -1868,6 +1874,7 @@ const App = () => {
     const tick = () => {
       const now = performance.now();
       const tracker = rearrangeLoopTrackerRef.current;
+      const delaySyncTracker = delaySliceSyncTrackerRef.current;
       const busyByDeck = rearrangeBusyByDeckRef.current;
       const activeDecks = new Set(decks.map((deck) => deck.id));
       tracker.forEach((_, deckId) => {
@@ -1880,10 +1887,66 @@ const App = () => {
           busyByDeck.delete(deckId);
         }
       });
+      delaySyncTracker.forEach((_, deckId) => {
+        if (!activeDecks.has(deckId)) {
+          delaySyncTracker.delete(deckId);
+        }
+      });
 
       decks.forEach((deck) => {
         const snapshot = getDeckPlaybackSnapshot(deck.id);
         const currentPosition = snapshot?.position ?? deck.offsetSeconds ?? 0;
+        const lastSyncedSlice = delaySyncTracker.get(deck.id) ?? -1;
+        const restoreManualDelayTime = () => {
+          if (lastSyncedSlice !== -1) {
+            setDeckDelayTimeTransient(deck.id, deck.delayTime);
+            delaySyncTracker.set(deck.id, -1);
+          }
+        };
+        if (
+          !deck.delaySliceSync ||
+          deck.status !== "playing" ||
+          !snapshot?.playing ||
+          !snapshot.loopEnabled ||
+          (deck.rearrangerSlices ?? 0) <= 1
+        ) {
+          restoreManualDelayTime();
+        } else {
+          const loopLength = Math.max(0, snapshot.loopEnd - snapshot.loopStart);
+          if (loopLength <= 0.001) {
+            restoreManualDelayTime();
+          } else {
+            const regions = normalizeRearrangerRegions(deck.rearrangerRegions, deck.rearrangerSlices);
+            const sliceCount = Math.max(0, regions.length - 1);
+            if (sliceCount <= 1) {
+              restoreManualDelayTime();
+            } else {
+              const clampedPosition = Math.min(
+                snapshot.loopEnd - 1e-6,
+                Math.max(snapshot.loopStart, currentPosition)
+              );
+              const progress = Math.min(
+                1 - 1e-6,
+                Math.max(0, (clampedPosition - snapshot.loopStart) / loopLength)
+              );
+              let sliceIndex = sliceCount - 1;
+              for (let i = 0; i < sliceCount; i += 1) {
+                if (progress >= regions[i] && progress < regions[i + 1]) {
+                  sliceIndex = i;
+                  break;
+                }
+              }
+              if (sliceIndex !== lastSyncedSlice) {
+                const sliceDuration =
+                  loopLength * Math.max(0, (regions[sliceIndex + 1] ?? 1) - (regions[sliceIndex] ?? 0));
+                if (sliceDuration > 0.001) {
+                  setDeckDelayTimeTransient(deck.id, Math.min(1.5, Math.max(0.01, sliceDuration)));
+                }
+                delaySyncTracker.set(deck.id, sliceIndex);
+              }
+            }
+          }
+        }
         const state = tracker.get(deck.id) ?? {
           lastPosition: currentPosition,
           lastTriggerMs: 0,
@@ -1938,7 +2001,7 @@ const App = () => {
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [decks, getDeckPlaybackSnapshot, handleRearrangeLoop]);
+  }, [decks, getDeckPlaybackSnapshot, handleRearrangeLoop, setDeckDelayTimeTransient]);
 
   const encodeDecksForSession = useCallback(async () => {
     const sessionDecks = getSessionDecks();
@@ -2651,135 +2714,78 @@ const App = () => {
               />
             </button>
           </div>
-          <details className="session-bar__details">
-            <summary>Restore + Export</summary>
-            <div className="session-bar__details-body">
-              <div className="app__header-hint">
-                Sessions save inside this browser. Export creates a shareable zip.
-              </div>
-              <label className="session-bar__field">
-                <span>Session Name</span>
-                <input
-                  type="text"
-                  value={sessionName}
-                  onChange={(event) => setSessionName(event.target.value)}
-                  placeholder="Name this session"
-                />
-              </label>
-              <div className="session-bar__group session-bar__group--save">
-                <button type="button" onClick={handleSaveSession} disabled={sessionBusy}>
-                  Save Session
-                </button>
-              </div>
-              <label className="session-bar__field">
-                <span>Load Saved Session</span>
-                <select
-                  value={selectedSessionId ?? ""}
-                  onChange={(event) => setSelectedSessionId(event.target.value || null)}
-                  disabled={sessions.length === 0}
-                >
-                  <option value="">Select a session</option>
-                  {sessions.map((session) => (
-                    <option key={session.id} value={session.id}>
-                      {session.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="session-bar__group session-bar__group--restore">
-                <button
-                  type="button"
-                  onClick={handleLoadSession}
-                  disabled={sessionBusy || sessions.length === 0}
-                >
-                  Load Session
-                </button>
-              </div>
-              <div className="session-bar__group session-bar__group--mix">
-                <div className="transport__export">
-                  <label>
-                    Minutes
-                    <input
-                      type="number"
-                      min="1"
-                      max="60"
-                      step="1"
-                      value={exportMinutes}
-                      onChange={(event) =>
-                        handleExportMinutesChange(Number(event.target.value))
-                      }
-                    />
-                  </label>
-                  <AsyncActionButton
-                    onAction={exportMixdown}
-                    disabled={exporting}
-                    busy={exporting}
-                    idleLabel="Export Mix"
-                    busyLabel="Exporting..."
-                  />
-                  {exportEstimateLabel ? (
-                    <span className="transport__estimate">{exportEstimateLabel}</span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="session-bar__group session-bar__group--export">
-                <button type="button" onClick={handleExportSession} disabled={sessionBusy}>
-                  Export Zip
-                </button>
-                <button type="button" onClick={handleImportClick} disabled={sessionBusy}>
-                  Import Zip
-                </button>
-              </div>
+          <div className="app__header-right">
+            <button
+              type="button"
+              className={showSessionPanel ? "is-active" : undefined}
+              onClick={() => setShowSessionPanel((prev) => !prev)}
+              aria-expanded={showSessionPanel}
+              title="Show session restore and export controls"
+            >
+              Restore + Export
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setDeckLayoutMode((prev) => (prev === "single" ? "two" : "single"))
+              }
+              title={
+                deckLayoutMode === "single"
+                  ? "Switch deck layout to 2 columns."
+                  : "Switch deck layout to full single column."
+              }
+            >
+              {deckLayoutMode === "single" ? "2 Col" : "1 Col"}
+            </button>
+            <div className="app__header-master" title="Master Gain">
+              <Knob
+                label="Master"
+                min={0}
+                max={1.5}
+                step={0.01}
+                value={masterGain}
+                defaultValue={0.9}
+                className="knob--compact knob--tiny knob--icon-only app__header-knob"
+                labelTitle="Controls global output level after all decks. Affects monitoring and recording."
+                onChange={setMasterGainValue}
+              />
             </div>
-          </details>
-          <div className="app__header-master" title="Master Gain">
-            <Knob
-              label="Master"
-              min={0}
-              max={1.5}
-              step={0.01}
-              value={masterGain}
-              defaultValue={0.9}
-              className="knob--compact knob--tiny knob--icon-only app__header-knob"
-              labelTitle="Controls global output level after all decks. Affects monitoring and recording."
-              onChange={setMasterGainValue}
-            />
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setShowKeyboardShortcuts((prev) => !prev)}
+              title="Keyboard shortcuts (?)"
+              aria-label="Toggle keyboard shortcuts"
+              aria-pressed={showKeyboardShortcuts}
+            >
+              ?
+            </button>
+            <button
+              type="button"
+              className="icon-button app__theme-toggle"
+              onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {theme === "dark" ? (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4.5" />
+                  <line x1="12" y1="2" x2="12" y2="5" />
+                  <line x1="12" y1="19" x2="12" y2="22" />
+                  <line x1="2" y1="12" x2="5" y2="12" />
+                  <line x1="19" y1="12" x2="22" y2="12" />
+                  <line x1="4.2" y1="4.2" x2="6.4" y2="6.4" />
+                  <line x1="17.6" y1="17.6" x2="19.8" y2="19.8" />
+                  <line x1="17.6" y1="6.4" x2="19.8" y2="4.2" />
+                  <line x1="4.2" y1="19.8" x2="6.4" y2="17.6" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z" />
+                </svg>
+              )}
+            </button>
           </div>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setShowKeyboardShortcuts((prev) => !prev)}
-            title="Keyboard shortcuts (?)"
-            aria-label="Toggle keyboard shortcuts"
-            aria-pressed={showKeyboardShortcuts}
-          >
-            ?
-          </button>
-          <button
-            type="button"
-            className="icon-button app__theme-toggle"
-            onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? (
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="4.5" />
-                <line x1="12" y1="2" x2="12" y2="5" />
-                <line x1="12" y1="19" x2="12" y2="22" />
-                <line x1="2" y1="12" x2="5" y2="12" />
-                <line x1="19" y1="12" x2="22" y2="12" />
-                <line x1="4.2" y1="4.2" x2="6.4" y2="6.4" />
-                <line x1="17.6" y1="17.6" x2="19.8" y2="19.8" />
-                <line x1="17.6" y1="6.4" x2="19.8" y2="4.2" />
-                <line x1="4.2" y1="19.8" x2="6.4" y2="17.6" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z" />
-              </svg>
-            )}
-          </button>
           <input
             ref={importInputRef}
             type="file"
@@ -2788,6 +2794,98 @@ const App = () => {
             className="session-bar__input"
           />
         </div>
+        {showSessionPanel ? (
+          <div className="app__header-row app__header-row--session">
+            <div className="session-bar__panel">
+              <div className="session-bar__details-body">
+                <div className="session-bar__section">
+                  <div className="app__header-hint">
+                    Sessions save inside this browser. Export creates a shareable zip.
+                  </div>
+                  <label className="session-bar__field">
+                    <span>Session Name</span>
+                    <input
+                      type="text"
+                      value={sessionName}
+                      onChange={(event) => setSessionName(event.target.value)}
+                      placeholder="Name this session"
+                    />
+                  </label>
+                  <div className="session-bar__group session-bar__group--save">
+                    <button type="button" onClick={handleSaveSession} disabled={sessionBusy}>
+                      Save Session
+                    </button>
+                  </div>
+                </div>
+                <div className="session-bar__section">
+                  <label className="session-bar__field">
+                    <span>Load Saved Session</span>
+                    <select
+                      value={selectedSessionId ?? ""}
+                      onChange={(event) => setSelectedSessionId(event.target.value || null)}
+                      disabled={sessions.length === 0}
+                    >
+                      <option value="">Select a session</option>
+                      {sessions.map((session) => (
+                        <option key={session.id} value={session.id}>
+                          {session.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="session-bar__group session-bar__group--restore">
+                    <button
+                      type="button"
+                      onClick={handleLoadSession}
+                      disabled={sessionBusy || sessions.length === 0}
+                    >
+                      Load Session
+                    </button>
+                  </div>
+                </div>
+                <div className="session-bar__section">
+                  <div className="session-bar__group session-bar__group--mix">
+                    <div className="transport__export">
+                      <label>
+                        Minutes
+                        <input
+                          type="number"
+                          min="1"
+                          max="60"
+                          step="1"
+                          value={exportMinutes}
+                          onChange={(event) =>
+                            handleExportMinutesChange(Number(event.target.value))
+                          }
+                        />
+                      </label>
+                      <AsyncActionButton
+                        onAction={exportMixdown}
+                        disabled={exporting}
+                        busy={exporting}
+                        idleLabel="Export Mix"
+                        busyLabel="Exporting..."
+                      />
+                      {exportEstimateLabel ? (
+                        <span className="transport__estimate">{exportEstimateLabel}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                <div className="session-bar__section">
+                  <div className="session-bar__group session-bar__group--export">
+                    <button type="button" onClick={handleExportSession} disabled={sessionBusy}>
+                      Export Zip
+                    </button>
+                    <button type="button" onClick={handleImportClick} disabled={sessionBusy}>
+                      Import Zip
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </header>
 
       <main className="app__main">
@@ -2804,6 +2902,7 @@ const App = () => {
         />
         <DeckStack
           decks={decks}
+          layoutMode={deckLayoutMode}
           activeDeckId={activeDeckId}
           onDeckActivate={handleDeckActivate}
           onRemoveDeck={removeDeck}
@@ -2823,6 +2922,7 @@ const App = () => {
           onDelayMixChange={setDeckDelayMix}
           onDelayToneChange={setDeckDelayTone}
           onDelayPingPongChange={setDeckDelayPingPong}
+          onDelaySliceSyncChange={setDeckDelaySliceSync}
           onFractalMixChange={setDeckFractalMix}
           onFractalStructureChange={setDeckFractalStructure}
           onFractalDepthChange={setDeckFractalDepth}

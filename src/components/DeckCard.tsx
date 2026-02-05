@@ -28,6 +28,7 @@ type DeckCardProps = {
   onDelayMixChange: (id: number, value: number) => void;
   onDelayToneChange: (id: number, value: number) => void;
   onDelayPingPongChange: (id: number, value: boolean) => void;
+  onDelaySliceSyncChange: (id: number, value: boolean) => void;
   onFractalMixChange: (id: number, value: number) => void;
   onFractalStructureChange: (id: number, value: number) => void;
   onFractalDepthChange: (id: number, value: number) => void;
@@ -189,6 +190,7 @@ const DeckCard = ({
   onDelayMixChange,
   onDelayToneChange,
   onDelayPingPongChange,
+  onDelaySliceSyncChange,
   onFractalMixChange,
   onFractalStructureChange,
   onFractalDepthChange,
@@ -571,7 +573,8 @@ const DeckCard = ({
           isDifferent(deck.delayTime, 0.35) ||
           isDifferent(deck.delayFeedback, 0.35) ||
           isDifferent(deck.delayTone, 6000, 1) ||
-          deck.delayPingPong
+          deck.delayPingPong ||
+          deck.delaySliceSync
         ),
     },
     fractal: {
@@ -1424,6 +1427,7 @@ const DeckCard = ({
                 labelTitle="Delay time in seconds. Longer values create wider gaps between repeats."
                 onChange={(next) => onDelayTimeChange(deck.id, next)}
                 formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}s`}
+                disabled={deck.delaySliceSync}
               />
               <Knob
                 className="knob--compact"
@@ -1449,13 +1453,31 @@ const DeckCard = ({
                 onChange={(next) => onDelayToneChange(deck.id, next)}
                 formatValue={(value, fine) => `${value.toFixed(fine ? 1 : 0)} Hz`}
               />
-              <label className="deck__delay-toggle">
+            </div>
+            <div className="deck__delay-options">
+              <label
+                className="deck__delay-toggle"
+                title="Cross-feed delay repeats between left and right channels."
+              >
                 <span>Ping Pong</span>
                 <input
                   type="checkbox"
                   checked={deck.delayPingPong}
                   onChange={(event) =>
                     onDelayPingPongChange(deck.id, event.target.checked)
+                  }
+                />
+              </label>
+              <label
+                className="deck__delay-toggle"
+                title="Match delay time to the currently playing rearranger slice length. When enabled, the Time knob is disabled."
+              >
+                <span>Slice Sync</span>
+                <input
+                  type="checkbox"
+                  checked={deck.delaySliceSync}
+                  onChange={(event) =>
+                    onDelaySliceSyncChange(deck.id, event.target.checked)
                   }
                 />
               </label>

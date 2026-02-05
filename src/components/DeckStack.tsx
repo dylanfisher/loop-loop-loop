@@ -3,6 +3,7 @@ import type { DeckFxPanel, DeckState } from "../types/deck";
 
 type DeckStackProps = {
   decks: DeckState[];
+  layoutMode: "single" | "two";
   activeDeckId: number | null;
   onDeckActivate: (id: number) => void;
   onRemoveDeck: (id: number) => void;
@@ -27,6 +28,7 @@ type DeckStackProps = {
   onDelayMixChange: (id: number, value: number) => void;
   onDelayToneChange: (id: number, value: number) => void;
   onDelayPingPongChange: (id: number, value: boolean) => void;
+  onDelaySliceSyncChange: (id: number, value: boolean) => void;
   onFractalMixChange: (id: number, value: number) => void;
   onFractalStructureChange: (id: number, value: number) => void;
   onFractalDepthChange: (id: number, value: number) => void;
@@ -114,6 +116,7 @@ type DeckStackProps = {
 
 const DeckStack = ({
   decks,
+  layoutMode,
   activeDeckId,
   onDeckActivate,
   onRemoveDeck,
@@ -133,6 +136,7 @@ const DeckStack = ({
   onDelayMixChange,
   onDelayToneChange,
   onDelayPingPongChange,
+  onDelaySliceSyncChange,
   onFractalMixChange,
   onFractalStructureChange,
   onFractalDepthChange,
@@ -189,9 +193,15 @@ const DeckStack = ({
   getDeckPlaybackSnapshot,
   setFileInputRef,
 }: DeckStackProps) => {
+  const layoutClass =
+    layoutMode === "two"
+      ? "deck-stack__list--two-column"
+      : "deck-stack__list--single-column";
   return (
     <section className="deck-stack">
-      <div className={`deck-stack__list ${decks.length === 1 ? "deck-stack__list--single" : ""}`.trim()}>
+      <div
+        className={`deck-stack__list ${layoutClass} ${decks.length === 1 ? "deck-stack__list--single" : ""}`.trim()}
+      >
         {decks.map((deck, index) => (
           <DeckCard
             key={deck.id}
@@ -216,6 +226,7 @@ const DeckStack = ({
             onDelayMixChange={onDelayMixChange}
             onDelayToneChange={onDelayToneChange}
             onDelayPingPongChange={onDelayPingPongChange}
+            onDelaySliceSyncChange={onDelaySliceSyncChange}
             onFractalMixChange={onFractalMixChange}
             onFractalStructureChange={onFractalStructureChange}
             onFractalDepthChange={onFractalDepthChange}

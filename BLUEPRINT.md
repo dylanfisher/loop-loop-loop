@@ -49,16 +49,20 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX layout includes a Fractal Resonator unit (6 compact controls) for live modal-resonance sculpting.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
+- Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.
+- Header `Restore + Export` controls open as a full-width inner panel in a dedicated second header row (collapsible toggle in primary row).
 - Rearranger includes an `Auto Slice` action plus sensitivity control; detection favors transient energy rises and silence-to-sound attacks inside the active loop (adaptive threshold + minimum spacing), then writes boundaries as manual slice regions.
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.
 - `Delete Quiet` exposes a per-deck quiet-threshold control to tune how aggressively low-energy spans are classified for removal.
+- Delay includes a phase-1 live-only `Slice Sync` mode that retimes delay-time per active rearranger slice boundary during loop playback.
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
 - Brand-new projects show a dismissible Welcome panel above the clip recorder with selectable first-run guidance, quickstart steps, and concise interaction hints for non-musicians.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
-[Header (brand + session controls + performance panel + master gain)]
+[Header row 1: brand + project + transport/session toggles + layout/theme/master]
+[Header row 2 (collapsible): full-width Restore + Export panel]
 [Welcome panel (new project only, dismissible)]
 [Clip Recorder]
 [Deck 1] [Deck 2]

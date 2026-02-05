@@ -26,6 +26,7 @@ const DEFAULT_DELAY_FEEDBACK = 0.35;
 const DEFAULT_DELAY_MIX = 0;
 const DEFAULT_DELAY_TONE = 6000;
 const DEFAULT_DELAY_PINGPONG = false;
+const DEFAULT_DELAY_SLICE_SYNC = false;
 const DEFAULT_FRACTAL_MIX = 0;
 const DEFAULT_FRACTAL_STRUCTURE = 0.45;
 const DEFAULT_FRACTAL_DEPTH = 0.35;
@@ -210,6 +211,7 @@ const useDecks = () => {
       delayMix: DEFAULT_DELAY_MIX,
       delayTone: DEFAULT_DELAY_TONE,
       delayPingPong: DEFAULT_DELAY_PINGPONG,
+      delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
       fractalMix: DEFAULT_FRACTAL_MIX,
       fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
       fractalDepth: DEFAULT_FRACTAL_DEPTH,
@@ -1234,6 +1236,7 @@ const useDecks = () => {
         delayMix: DEFAULT_DELAY_MIX,
         delayTone: DEFAULT_DELAY_TONE,
         delayPingPong: DEFAULT_DELAY_PINGPONG,
+        delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
         fractalMix: DEFAULT_FRACTAL_MIX,
         fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
         fractalDepth: DEFAULT_FRACTAL_DEPTH,
@@ -1296,6 +1299,7 @@ const useDecks = () => {
             delayMix: DEFAULT_DELAY_MIX,
             delayTone: DEFAULT_DELAY_TONE,
             delayPingPong: DEFAULT_DELAY_PINGPONG,
+            delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
             fractalMix: DEFAULT_FRACTAL_MIX,
             fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
             fractalDepth: DEFAULT_FRACTAL_DEPTH,
@@ -1368,6 +1372,7 @@ const useDecks = () => {
     const nextDelayMix = clipSettings?.delayMix ?? DEFAULT_DELAY_MIX;
     const nextDelayTone = clipSettings?.delayTone ?? DEFAULT_DELAY_TONE;
     const nextDelayPingPong = clipSettings?.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
+    const nextDelaySliceSync = clipSettings?.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC;
     const nextFractalMix = clipSettings?.fractalMix ?? DEFAULT_FRACTAL_MIX;
     const nextFractalStructure = clipSettings?.fractalStructure ?? DEFAULT_FRACTAL_STRUCTURE;
     const nextFractalDepth = clipSettings?.fractalDepth ?? DEFAULT_FRACTAL_DEPTH;
@@ -1434,7 +1439,10 @@ const useDecks = () => {
         balance:
           currentPanels.balance || !approxEqual(nextBalance, 0) || hasActiveAutomation("balance"),
         pitch: currentPanels.pitch || !approxEqual(nextPitchShift, 0) || hasActiveAutomation("pitch"),
-        delay: currentPanels.delay || nextDelayMix > FX_ACTIVE_EPSILON,
+        delay:
+          currentPanels.delay ||
+          nextDelayMix > FX_ACTIVE_EPSILON ||
+          nextDelaySliceSync,
         fractal: currentPanels.fractal || nextFractalMix > FX_ACTIVE_EPSILON,
         rearranger:
           currentPanels.rearranger ||
@@ -1467,6 +1475,7 @@ const useDecks = () => {
       delayMix: nextDelayMix,
       delayTone: nextDelayTone,
       delayPingPong: nextDelayPingPong,
+      delaySliceSync: nextDelaySliceSync,
       fractalMix: nextFractalMix,
       fractalStructure: nextFractalStructure,
       fractalDepth: nextFractalDepth,
@@ -1530,6 +1539,7 @@ const useDecks = () => {
       delayMix: nextDelayMix,
       delayTone: nextDelayTone,
       delayPingPong: nextDelayPingPong,
+      delaySliceSync: nextDelaySliceSync,
       fractalMix: nextFractalMix,
       fractalStructure: nextFractalStructure,
       fractalDepth: nextFractalDepth,
@@ -1600,6 +1610,7 @@ const useDecks = () => {
         delayMix: nextDelayMix,
         delayTone: nextDelayTone,
         delayPingPong: nextDelayPingPong,
+        delaySliceSync: nextDelaySliceSync,
         fractalMix: nextFractalMix,
         fractalStructure: nextFractalStructure,
         fractalDepth: nextFractalDepth,
@@ -1979,6 +1990,15 @@ const useDecks = () => {
   const setDeckDelayPingPongValue = (id: number, value: boolean) => {
     setDeckDelayPingPong(id, value);
     updateDeck(id, { delayPingPong: value }, false);
+  };
+
+  const setDeckDelaySliceSyncValue = (id: number, value: boolean) => {
+    updateDeck(id, { delaySliceSync: value }, false);
+  };
+
+  const setDeckDelayTimeTransient = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0.01), 1.5);
+    setDeckDelayTime(id, clamped);
   };
 
   const setDeckFractalMixValue = (id: number, value: number) => {
@@ -2500,6 +2520,7 @@ const useDecks = () => {
       const nextDelayMix = deck.delayMix ?? DEFAULT_DELAY_MIX;
       const nextDelayTone = deck.delayTone ?? DEFAULT_DELAY_TONE;
       const nextDelayPingPong = deck.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
+      const nextDelaySliceSync = deck.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC;
       const nextFractalMix = deck.fractalMix ?? DEFAULT_FRACTAL_MIX;
       const nextFractalStructure =
         deck.fractalStructure ?? DEFAULT_FRACTAL_STRUCTURE;
@@ -2570,6 +2591,7 @@ const useDecks = () => {
         delayMix: nextDelayMix,
         delayTone: nextDelayTone,
         delayPingPong: nextDelayPingPong,
+        delaySliceSync: nextDelaySliceSync,
         fractalMix: nextFractalMix,
         fractalStructure: nextFractalStructure,
         fractalDepth: nextFractalDepth,
@@ -2968,6 +2990,7 @@ const useDecks = () => {
           delayMix: DEFAULT_DELAY_MIX,
           delayTone: DEFAULT_DELAY_TONE,
           delayPingPong: DEFAULT_DELAY_PINGPONG,
+          delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
           fractalMix: DEFAULT_FRACTAL_MIX,
           fractalStructure: DEFAULT_FRACTAL_STRUCTURE,
           fractalDepth: DEFAULT_FRACTAL_DEPTH,
@@ -3099,6 +3122,7 @@ const useDecks = () => {
         delayMix: deck.delayMix,
         delayTone: deck.delayTone,
         delayPingPong: deck.delayPingPong,
+        delaySliceSync: deck.delaySliceSync,
         fractalMix: deck.fractalMix,
         fractalStructure: deck.fractalStructure,
         fractalDepth: deck.fractalDepth,
@@ -3264,6 +3288,7 @@ const useDecks = () => {
           delayMix: sessionDeck.delayMix ?? DEFAULT_DELAY_MIX,
           delayTone: sessionDeck.delayTone ?? DEFAULT_DELAY_TONE,
           delayPingPong: sessionDeck.delayPingPong ?? DEFAULT_DELAY_PINGPONG,
+          delaySliceSync: sessionDeck.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC,
           fractalMix: sessionDeck.fractalMix ?? DEFAULT_FRACTAL_MIX,
           fractalStructure:
             sessionDeck.fractalStructure ?? DEFAULT_FRACTAL_STRUCTURE,
@@ -3357,6 +3382,8 @@ const useDecks = () => {
     setDeckDelayMix: setDeckDelayMixValue,
     setDeckDelayTone: setDeckDelayToneValue,
     setDeckDelayPingPong: setDeckDelayPingPongValue,
+    setDeckDelaySliceSync: setDeckDelaySliceSyncValue,
+    setDeckDelayTimeTransient,
     setDeckFractalMix: setDeckFractalMixValue,
     setDeckFractalStructure: setDeckFractalStructureValue,
     setDeckFractalDepth: setDeckFractalDepthValue,

@@ -47,6 +47,7 @@ export type DeckSession = {
   delayMix: number;
   delayTone: number;
   delayPingPong: boolean;
+  delaySliceSync?: boolean;
   fractalMix: number;
   fractalStructure: number;
   fractalDepth: number;
@@ -102,6 +103,7 @@ export type ClipSettings = {
   delayMix: number;
   delayTone: number;
   delayPingPong: boolean;
+  delaySliceSync?: boolean;
   fractalMix: number;
   fractalStructure: number;
   fractalDepth: number;
