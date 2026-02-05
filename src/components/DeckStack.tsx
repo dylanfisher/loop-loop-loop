@@ -31,12 +31,6 @@ type DeckStackProps = {
   onDelayToneChange: (id: number, value: number) => void;
   onDelayPingPongChange: (id: number, value: boolean) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
-  onFractalMixChange: (id: number, value: number) => void;
-  onFractalStructureChange: (id: number, value: number) => void;
-  onFractalDepthChange: (id: number, value: number) => void;
-  onFractalDriftChange: (id: number, value: number) => void;
-  onFractalDecayChange: (id: number, value: number) => void;
-  onFractalToneChange: (id: number, value: number) => void;
   onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
@@ -141,12 +135,6 @@ const DeckStack = ({
   onDelayToneChange,
   onDelayPingPongChange,
   onDelaySliceSyncChange,
-  onFractalMixChange,
-  onFractalStructureChange,
-  onFractalDepthChange,
-  onFractalDriftChange,
-  onFractalDecayChange,
-  onFractalToneChange,
   onBalanceChange,
   onPitchShiftChange,
   onSeek,
@@ -233,12 +221,6 @@ const DeckStack = ({
             onDelayToneChange={onDelayToneChange}
             onDelayPingPongChange={onDelayPingPongChange}
             onDelaySliceSyncChange={onDelaySliceSyncChange}
-            onFractalMixChange={onFractalMixChange}
-            onFractalStructureChange={onFractalStructureChange}
-            onFractalDepthChange={onFractalDepthChange}
-            onFractalDriftChange={onFractalDriftChange}
-            onFractalDecayChange={onFractalDecayChange}
-            onFractalToneChange={onFractalToneChange}
             onBalanceChange={onBalanceChange}
             onPitchShiftChange={onPitchShiftChange}
             onSeek={onSeek}

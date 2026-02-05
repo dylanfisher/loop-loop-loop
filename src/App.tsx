@@ -549,12 +549,6 @@ const App = () => {
     setDeckDelayPingPong,
     setDeckDelaySliceSync,
     setDeckDelayTimeTransient,
-    setDeckFractalMix,
-    setDeckFractalStructure,
-    setDeckFractalDepth,
-    setDeckFractalDrift,
-    setDeckFractalDecay,
-    setDeckFractalTone,
     setDeckPitchShift,
     seekDeck,
     setDeckZoom,
@@ -624,6 +618,22 @@ const App = () => {
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
 
   const shouldAnimatePerf = hasActivePlayback || recording;
+
+  useEffect(() => {
+    let disposed = false;
+    const handleGesture = () => {
+      if (disposed) return;
+      void resumeContext();
+    };
+    const options = { passive: true } as AddEventListenerOptions;
+    window.addEventListener("pointerdown", handleGesture, options);
+    window.addEventListener("keydown", handleGesture, options);
+    return () => {
+      disposed = true;
+      window.removeEventListener("pointerdown", handleGesture, options);
+      window.removeEventListener("keydown", handleGesture, options);
+    };
+  }, [resumeContext]);
 
   useEffect(() => {
     if (!shouldAnimatePerf) {
@@ -3090,12 +3100,6 @@ const App = () => {
           onDelayToneChange={setDeckDelayTone}
           onDelayPingPongChange={setDeckDelayPingPong}
           onDelaySliceSyncChange={setDeckDelaySliceSync}
-          onFractalMixChange={setDeckFractalMix}
-          onFractalStructureChange={setDeckFractalStructure}
-          onFractalDepthChange={setDeckFractalDepth}
-          onFractalDriftChange={setDeckFractalDrift}
-          onFractalDecayChange={setDeckFractalDecay}
-          onFractalToneChange={setDeckFractalTone}
           onBalanceChange={setDeckBalance}
           onPitchShiftChange={setDeckPitchShift}
           onSeek={seekDeck}
