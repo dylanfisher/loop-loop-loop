@@ -1,205 +1,162 @@
 # Loop Loop Loop
 
-Loop Loop Loop is a browser-based experimental DJ and loop instrument.
+Loop Loop Loop is a browser-native live looping and mutation instrument.
 
-It is designed for discovery, not perfection. You load sounds, carve loops, and mutate them with unusual effects. The app is intentionally "instrument-like": fast interaction, lots of happy accidents, and nonlinear workflow.
+It is designed for rapid experimentation: load audio, define a loop, transform it with FX, capture clips, and stack multiple decks. You do not need DJ workflow knowledge or music theory to use it.
 
-If you have no musical training, that is completely fine. This README is written for you.
+## Who This Is For
 
-## What This App Is (In Plain Language)
+- First-time users with no musical training
+- Sound designers who want fast loop mutation
+- Performers who want multi-deck live experimentation in-browser
 
-Think of each deck as a tiny audio workbench:
-- you load a sound file,
-- pick a segment to repeat (a loop),
-- reshape that loop with FX,
-- capture interesting moments,
-- and layer multiple decks together.
+## What It Does (Current)
 
-This is not a traditional DJ library manager. There is no crate digging or BPM-first workflow required. It is closer to live collage and sound design.
+- Multi-deck playback with per-deck loop ranges, tempo offset, pitch, gain, and full FX chain
+- Per-deck FX rack with collapsible units and reset/open-all controls
+- Automation lanes for: gain, DJ filter, resonance, low/mid/high EQ, balance, pitch
+- Rearranger with manual slicing, auto-slice detection, destructive slice deletion, and auto-rearrange-on-loop
+- Delete Quiet tool to remove low-energy loop regions destructively
+- Clip Recorder with app-output recording or input-device recording
+- Clip Rack with waveform preview playback and per-clip FX metadata apply toggle
+- Session save/load in IndexedDB, plus zip export/import
+- Global drag/drop zip import (drop anywhere on app)
+- Keyboard shortcut overlay (`?`) and active-deck shortcut targeting
 
-## First 10 Minutes (No Experience Needed)
+## Quickstart (10 Minutes)
 
-1. Open the app and load one audio file into Deck 1.
-2. Press `Space` to play/pause the active deck.
-3. In the waveform, drag the `IN` and `OUT` loop markers so the loop is short (1-4 seconds).
-4. Open Deck FX and try:
-   - DJ Filter (sweep tone),
-   - Delay (echo),
-   - Rearranger (slice/reorder),
-   - Fractal Resonator (textural harmonic color).
-5. Use **Save Loop** to create a clip.
-6. Load the saved clip into a second deck.
-7. Start/stop decks to build a layered pattern.
+1. Run the app and click **Add Deck** if you want more decks.
+2. Load audio into a deck (button or drag/drop audio onto deck).
+3. Press `Space` to play/pause the active deck.
+4. Drag `IN`/`OUT` loop markers to isolate a short loop.
+5. Open **Deck FX** and try: Gain, DJ Filter, Delay, Rearranger.
+6. Click **Save Loop** to create a clip.
+7. In Clip Rack, click a deck number under **Load Deck** to load that clip.
 
-You are now using the app correctly.
-
-## Core Concepts (Beginner-Friendly)
+## Core Concepts
 
 ### Deck
-A deck is one independent player with its own:
-- audio file,
-- loop window,
-- playback state,
-- FX settings,
-- automation.
-
-### Loop
-A loop is a selected time range inside the file.
-- Example: if your file is 30 seconds, your loop might be seconds 4.2 to 6.0.
-- The deck repeats this range continuously when loop is enabled.
+An independent player and FX chain.
 
 ### Active Deck
-Keyboard shortcuts affect the active deck (usually last clicked/interacted).
+The last interacted deck. Keyboard actions apply here.
 
-### Clip Rack
-When you save loop material, clips appear in Clip Rack.
-- You can reload clips into any deck.
-- Clips can carry metadata about FX and automation settings.
+### Loop
+A bounded range in the source audio. Rearranger operations apply inside loop context.
 
-## Rearranger: The Most Important "Esoteric" Feature
+### Clip
+A saved audio artifact plus optional settings metadata.
 
-Rearranger works on your loop by dividing it into slices and changing their order/behavior.
+## Rearranger Behavior (Important)
 
-Controls:
-- **Slices**: how many chunks the loop is divided into.
-- **Offset**: rotates slice order.
-- **Chaos**: introduces randomized reordering.
-- **Reverse**: chance that a slice plays backwards.
-- **On Loop**: re-runs rearrangement each time loop wraps.
+Rearranger controls: **Slices**, **Offset**, **Chaos**, **Reverse**, **Sensitivity**, **Quiet Thresh**, **On Loop**.
 
-Waveform interactions when Rearranger is visible:
-- Click between slice boundaries: **add slice**.
-- Click a slice handle (boundary dot): **remove divider only** (audio stays same length).
-- Hold `Shift` + click a slice region: **destructive slice delete** (that audio segment is removed from buffer; duration shortens).
+Waveform interactions when Rearranger is open:
+- Click between boundaries: add a slice boundary
+- Click a boundary handle: remove divider only (audio length unchanged)
+- `Shift` + click a slice region: destructive removal of that slice audio (buffer shortens)
 
-Destructive delete example:
-- 10-second clip,
-- delete a 1-second slice,
-- deck becomes 9 seconds,
-- waveform and duration update.
+Auto tools:
+- **Auto Slice**: transient/silence-attack based boundary detection
+- **Delete Quiet**: detects low-energy regions and removes them destructively
 
-## Automation (Animated Parameter Motion)
+## Tempo + Pitch Workflow
 
-Automation lets a parameter move over time automatically.
+- Tempo can be edited directly from the tempo label in deck meta.
+- `+/-` tempo nudges use semitone ratio steps (~5.95% per step), so 12 steps map to one octave relationship.
+- This keeps tempo moves aligned with musically coherent pitch intervals.
 
-Typical use:
-- automate DJ Filter for rhythmic sweeps,
-- automate EQ or pitch for shape movement,
-- layer multiple automated decks.
+## Save Loop and FX Metadata
 
-In each automation lane you can:
-- draw values directly,
-- toggle active/bypass,
-- reset,
-- apply presets (`Sin`, `Tri`, `Ramp`),
-- invert curve (`Inv`),
-- scale length/amplitude.
+Save Loop always stores clip audio and can store deck FX/settings metadata.
 
-## Save Loop, FX Metadata, and "What Gets Baked"
+Clip Rack FX badge behavior:
+- **FX on**: loading clip reapplies saved settings/automation
+- **FX off**: load clip without applying saved settings
 
-This app separates **audio content** and **settings metadata**:
-- Save Loop stores raw loop audio (not always permanently baked with all deck FX).
-- Clip metadata stores deck settings/automation snapshots.
-- Clip Rack FX toggle controls whether loading a clip also reapplies stored settings.
+This allows one clip audio source to be reused in multiple deck contexts.
 
-This keeps clips reusable: same audio, different deck context.
+## Recording and Export
 
-## Keyboard Shortcuts (Current Workflow)
+### Clip Recorder
+- **App** source: records master output
+- **Input** source: records microphone/interface input
+- Input recordings are named as `Clip N (input)`
 
-Transport and deck workflow:
-- `Space`: play/pause active deck
-- `Shift + Space`: global play/pause
-- `R`: toggle Rearranger panel (active deck)
-- `L`: toggle loop (active deck)
-- `Shift + L`: reset loop to full file (active deck)
-- `=` / `-`: waveform zoom in/out (active deck)
+### Export / Global Recording Filenames
+Saved audio files use:
+- `loop-loop-loop-export_<Project-Name>-M-D-YYYY-H-M-S-AMPM.wav`
+- `loop-loop-loop-recording_<Project-Name>-M-D-YYYY-H-M-S-AMPM.wav`
 
-Session/workflow:
-- `Cmd/Ctrl + Z`: undo
-- `Cmd/Ctrl + Shift + Z`: redo
-- `Cmd/Ctrl + S`: save session
-- `Cmd/Ctrl + O`: open session
-- `A`: add deck
-- `?`: toggle keyboard help overlay
+## Keyboard Shortcuts
 
-## Undo/Redo Behavior Notes
+- `Space`: Play/Pause active deck
+- `Shift + Space`: Global Play/Pause
+- `R`: Toggle Rearranger panel (active deck)
+- `L`: Toggle loop (active deck)
+- `Shift + L`: Reset active deck loop to full file
+- `=`: Zoom out waveform (active deck)
+- `-`: Zoom in waveform (active deck)
+- `A`: Add deck
+- `Cmd/Ctrl + Z`: Undo
+- `Cmd/Ctrl + Shift + Z`: Redo
+- `Cmd/Ctrl + S`: Save session
+- `Cmd/Ctrl + O`: Open session
+- `?`: Toggle keyboard shortcuts panel
 
-Undo tracks meaningful deck/session actions.
+## Session Model
 
-For loop-bound dragging:
-- loop moves update live while dragging,
-- history commits on interaction end (pointer release),
-- undo should return to pre-drag bounds.
+Sessions persist:
+- Deck parameters (including loop bounds, tempo, FX, automation)
+- Deck UI state (including FX panel open/closed)
+- Clips and clip settings metadata
+- Welcome panel dismissed state
 
-If behavior ever feels surprising, check whether you changed:
-- loop bounds,
-- rearranger regions,
-- destructive slice operations,
-which can all be represented in history/state differently.
+Storage/export:
+- IndexedDB for local persistence
+- Zip bundle for import/export (`session.json` + WAV assets)
 
-## Audio Engine and Rendering Paths (Why It Matters)
+## Layout and UI Notes
 
-Several paths must stay aligned so what you hear matches what you save/export:
-- live deck playback,
-- Save Loop rendering,
-- Export Mix rendering,
-- master recording output.
+- Default deck layout mode is **2 columns**.
+- Header can toggle between **2 Col** and **1 Col**.
+- Each deck can also force width (`Full`/`Half`) via per-deck override.
+- `Restore + Export` opens in a full-width header subpanel.
 
-The project architecture intentionally emphasizes parity across those paths.
+## WASM Status
 
-## Sessions and Persistence
+Current implementation includes a small WASM-assisted onset gate in Rearranger auto-slice detection, with JS fallback.
 
-You can save/load sessions. A session stores:
-- deck state,
-- loop bounds,
-- FX settings,
-- automation snapshots,
-- panel UI states,
-- references to audio assets.
+This is an incremental step; larger DSP speedups are expected from moving heavier export/analysis kernels to Rust/C-generated WASM modules.
 
-Export/import uses a zip bundle with session manifest plus WAV assets.
+## Development
 
-## Development Setup
-
-Requirements:
+### Requirements
 - Node.js 18+
 - npm
 
-Install and run:
+### Commands
 - `npm install`
 - `npm run dev`
-
-Other commands:
 - `npm run build`
 - `npm run preview`
 - `npm run lint`
 - `npm test`
 
-## Project Layout (Quick Map)
+## Project Map
 
-- `src/components/`: UI components (`DeckCard`, `Waveform`, `ClipRecorder`, etc.)
-- `src/hooks/useDecks.ts`: deck/session state orchestration
-- `src/audio/`: engine and DSP plumbing
-- `src/audio/effects/`: effect modules
-- `src/utils/`: helper modules (session store, rearranger math, zip, etc.)
-- `BLUEPRINT.md`: architecture and product direction
+- `src/components/` UI (`DeckCard`, `Waveform`, `ClipRecorder`, `WelcomePanel`)
+- `src/hooks/useDecks.ts` core deck/session/automation state
+- `src/hooks/useAudioEngine.ts` Web Audio orchestration
+- `src/audio/effects/` effect implementations
+- `src/utils/rearranger.ts` slice/reorder/detect logic
+- `src/utils/rearrangerWasm.ts` tiny WASM onset kernel + fallback
+- `BLUEPRINT.md` architecture reference and product constraints
 
-## Guidance for First-Time Sound Explorers
+## Notes for Contributors
 
-If you feel lost, do this loop:
-1. Make loops shorter.
-2. Change one control at a time.
-3. Save clips often.
-4. Duplicate ideas across decks.
-5. Use undo aggressively.
-
-The app rewards experimentation over correctness.
-
-## Known Product Direction
-
-Loop Loop Loop is intentionally esoteric:
-- It supports destructive and non-destructive transformations.
-- It allows "wrong" but interesting workflows.
-- It treats mistakes as composition material.
-
-That is a design goal, not a bug.
+- `BLUEPRINT.md` is the source of truth for architecture and constraints.
+- Keep effect behavior parity across live playback, Save Loop, Export Mix, and global recording.
+- Run tests and lint for logic/UI changes:
+  - `npm test`
+  - `npm run lint`
