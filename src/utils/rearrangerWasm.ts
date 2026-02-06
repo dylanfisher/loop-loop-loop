@@ -233,14 +233,8 @@ const callInterleavedDetect = (
   const frameCount = channels[0]?.length ?? 0;
   if (channelCount <= 0 || frameCount <= 0) return null;
 
-  const interleaved = new Float32Array(frameCount * channelCount);
-  for (let frame = 0; frame < frameCount; frame += 1) {
-    for (let channel = 0; channel < channelCount; channel += 1) {
-      interleaved[frame * channelCount + channel] = channels[channel][frame] ?? 0;
-    }
-  }
-
-  const inputBytes = interleaved.length * 4;
+  const inputLength = frameCount * channelCount;
+  const inputBytes = inputLength * 4;
   const outCapacity = Math.max(2, maxSlices + 1);
   const outBytes = outCapacity * 4;
   const inputPtr = malloc(active.exports, inputBytes);
@@ -252,7 +246,13 @@ const callInterleavedDetect = (
   }
 
   try {
-    new Float32Array(memory.buffer, inputPtr, interleaved.length).set(interleaved);
+    const input = new Float32Array(memory.buffer, inputPtr, inputLength);
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      const rowOffset = frame * channelCount;
+      for (let channel = 0; channel < channelCount; channel += 1) {
+        input[rowOffset + channel] = channels[channel][frame] ?? 0;
+      }
+    }
     const count = fn(
       inputPtr,
       frameCount,

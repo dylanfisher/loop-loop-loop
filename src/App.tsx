@@ -2002,6 +2002,8 @@ const App = () => {
           : duration;
       const loopDuration = loopEnd - loopStart;
       if (loopDuration <= 0.01) return;
+      const frameDurationMs =
+        loopDuration > 180 ? 24 : loopDuration > 90 ? 20 : loopDuration > 45 ? 16 : 10;
       const currentSlices = Math.max(0, Math.round(deck.rearrangerSlices ?? 0));
       const maxSlices = currentSlices > 1 ? currentSlices : 16;
       const nextRegions = detectRearrangerRegionsFromBufferSegment(
@@ -2010,7 +2012,7 @@ const App = () => {
         loopDuration,
         {
           maxSlices,
-          frameDurationMs: 10,
+          frameDurationMs,
           sensitivity: deck.rearrangerSensitivity,
         }
       );

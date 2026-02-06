@@ -425,7 +425,7 @@ export const detectRearrangerRegionsFromBufferSegment = (
   );
   const thresholdStdDev = options?.thresholdStdDev ?? (2.3 - 2.05 * shapedSensitivity);
   const wasmChannels = Array.from({ length: source.numberOfChannels }, (_, channel) =>
-    source.getChannelData(channel).slice(startSample, endSample)
+    source.getChannelData(channel).subarray(startSample, endSample)
   );
   const wasmRegions = tryDetectRegionsWasm(
     wasmChannels,

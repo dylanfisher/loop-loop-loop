@@ -1761,6 +1761,20 @@ const Waveform = ({
             className={`deck__loop-handle ${loopEnabled ? "is-active" : ""}`}
             onPointerDown={(event) => {
               event.stopPropagation();
+              if (event.shiftKey && onLoopBoundsChange) {
+                const resolvedDuration = getResolvedDuration();
+                if (!resolvedDuration) return;
+                const minGap = Math.min(0.05, Math.max(0.005, resolvedDuration * 0.25));
+                const nextEnd = Math.max(loopEndRef.current, minGap);
+                const nextStart = Math.min(0, nextEnd - minGap);
+                loopStartRef.current = nextStart;
+                loopEndRef.current = nextEnd;
+                scheduleLoopBoundsChange(nextStart, nextEnd);
+                flushLoopBoundsChange();
+                scheduleRenderOverlay();
+                onLoopBoundsChangeComplete?.();
+                return;
+              }
               loopDragActiveRef.current = true;
               loopDragWindowStartRef.current = windowStartRef.current;
               panPointerIdRef.current = null;
@@ -1804,6 +1818,20 @@ const Waveform = ({
             className={`deck__loop-handle ${loopEnabled ? "is-active" : ""}`}
             onPointerDown={(event) => {
               event.stopPropagation();
+              if (event.shiftKey && onLoopBoundsChange) {
+                const resolvedDuration = getResolvedDuration();
+                if (!resolvedDuration) return;
+                const minGap = Math.min(0.05, Math.max(0.005, resolvedDuration * 0.25));
+                const nextStart = Math.max(0, Math.min(loopStartRef.current, resolvedDuration - minGap));
+                const nextEnd = resolvedDuration;
+                loopStartRef.current = nextStart;
+                loopEndRef.current = nextEnd;
+                scheduleLoopBoundsChange(nextStart, nextEnd);
+                flushLoopBoundsChange();
+                scheduleRenderOverlay();
+                onLoopBoundsChangeComplete?.();
+                return;
+              }
               loopDragActiveRef.current = true;
               loopDragWindowStartRef.current = windowStartRef.current;
               panPointerIdRef.current = null;

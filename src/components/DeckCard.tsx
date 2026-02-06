@@ -236,6 +236,8 @@ const DeckCard = ({
   setFileInputRef,
 }: DeckCardProps) => {
   const AUTO_SLICE_THROTTLE_MS = 90;
+  const AUTO_SLICE_LONG_CLIP_DEBOUNCE_MS = 220;
+  const AUTO_SLICE_DEBOUNCE_THRESHOLD_SEC = 30;
   const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
   const renderCountRef = useRef(0);
   useEffect(() => {
@@ -473,6 +475,24 @@ const DeckCard = ({
       autoSliceLastRunMsRef.current = performance.now();
       onRearrangerAutoSlice(deck.id);
     };
+    const totalDuration = deck.duration ?? deck.buffer.duration;
+    const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+    const loopEnd =
+      deck.loopEnabled && deck.loopEndSeconds > loopStart + 0.01
+        ? Math.min(deck.loopEndSeconds, totalDuration)
+        : totalDuration;
+    const loopDuration = Math.max(0, loopEnd - loopStart);
+    const useDebounce = loopDuration > AUTO_SLICE_DEBOUNCE_THRESHOLD_SEC;
+    if (useDebounce) {
+      if (autoSliceTimeoutRef.current !== null) {
+        window.clearTimeout(autoSliceTimeoutRef.current);
+      }
+      autoSliceTimeoutRef.current = window.setTimeout(() => {
+        autoSliceTimeoutRef.current = null;
+        run();
+      }, AUTO_SLICE_LONG_CLIP_DEBOUNCE_MS);
+      return;
+    }
     const now = performance.now();
     const elapsed = now - autoSliceLastRunMsRef.current;
     if (elapsed >= AUTO_SLICE_THROTTLE_MS && autoSliceTimeoutRef.current === null) {
@@ -487,7 +507,18 @@ const DeckCard = ({
       autoSliceTimeoutRef.current = null;
       run();
     }, wait);
-  }, [AUTO_SLICE_THROTTLE_MS, deck.buffer, deck.id, onRearrangerAutoSlice]);
+  }, [
+    AUTO_SLICE_DEBOUNCE_THRESHOLD_SEC,
+    AUTO_SLICE_LONG_CLIP_DEBOUNCE_MS,
+    AUTO_SLICE_THROTTLE_MS,
+    deck.buffer,
+    deck.duration,
+    deck.loopEnabled,
+    deck.loopEndSeconds,
+    deck.loopStartSeconds,
+    deck.id,
+    onRearrangerAutoSlice,
+  ]);
 
   const handleRearrangerSlicesKnobChange = useCallback(
     (next: number) => {
