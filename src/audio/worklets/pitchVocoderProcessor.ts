@@ -110,7 +110,12 @@ class PitchWasmFft {
   private readonly twiddleCount: number;
   private readonly normalizeInverse: number;
 
-  constructor(bytes: ArrayBuffer, fftFrameSize: number, normalizeInverse: number) {
+  constructor(
+    bytes: ArrayBuffer,
+    fftFrameSize: number,
+    windowData: Float32Array,
+    normalizeInverse: number
+  ) {
     const module = new WebAssembly.Module(bytes);
     const instance = new WebAssembly.Instance(module, {});
     const exports = instance.exports as PitchWasmExports;
@@ -156,7 +161,7 @@ class PitchWasmFft {
     this.fftView = new Float32Array(memory.buffer, this.fftPtr, fftFrameSize * 2);
     this.outBlockView = new Float32Array(memory.buffer, this.outBlockPtr, fftFrameSize);
     this.outputAccumView = new Float32Array(memory.buffer, this.outputAccumPtr, fftFrameSize);
-    new Float32Array(memory.buffer, this.windowPtr, fftFrameSize).set(window);
+    new Float32Array(memory.buffer, this.windowPtr, fftFrameSize).set(windowData);
     new Int32Array(memory.buffer, this.bitrevPairsPtr, bitrevPairs.length).set(bitrevPairs);
     new Float32Array(memory.buffer, this.twiddleRePtr, twiddleCount).set(
       twiddles.re.subarray(0, twiddleCount)
