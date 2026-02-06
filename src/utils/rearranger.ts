@@ -1,3 +1,9 @@
+import {
+  tryDetectRegionsWasm,
+  tryRearrangeSegmentWasm,
+  warmupRearrangerWasm,
+} from "./rearrangerWasm";
+
 export type RearrangerParams = {
   slices: number;
   swapCount: number;
@@ -44,6 +50,9 @@ const buildEqualRegions = (sliceCount: number) => {
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const DEFAULT_SLICE_FADE_MS = 3;
+
+// Start loading optional wasm backend early; JS path remains authoritative fallback.
+warmupRearrangerWasm();
 
 export const normalizeRearrangerRegions = (regions: number[] | null | undefined, slices: number) => {
   const safeSliceCount = Math.max(0, Math.min(MAX_REARRANGER_SLICES, Math.round(slices)));
@@ -242,11 +251,39 @@ export const rearrangeBufferSegment = (
     starts[i] = Math.floor(segmentLength * regions[i]);
   }
   const map = buildRearrangerMap(normalized, options);
+  const mapSource = new Int32Array(map.length);
+  const mapReversed = new Uint8Array(map.length);
+  for (let i = 0; i < map.length; i += 1) {
+    mapSource[i] = map[i].sourceIndex;
+    mapReversed[i] = map[i].reversed ? 1 : 0;
+  }
+  const startsInt = Int32Array.from(starts);
   let writeHead = 0;
   const fadeSamples = Math.max(
     0,
     Math.round((sampleRate * (normalized.sliceFadeMs ?? DEFAULT_SLICE_FADE_MS)) / 1000)
   );
+
+  let usedWasm = false;
+  for (let channel = 0; channel < source.numberOfChannels; channel += 1) {
+    const src = source.getChannelData(channel);
+    const wasmOut = tryRearrangeSegmentWasm(
+      src,
+      startsInt,
+      mapSource,
+      mapReversed,
+      startSample,
+      segmentLength,
+      fadeSamples
+    );
+    if (!wasmOut || wasmOut.length !== segmentLength) {
+      usedWasm = false;
+      break;
+    }
+    usedWasm = true;
+    output.getChannelData(channel).set(wasmOut);
+  }
+  if (usedWasm) return output;
 
   for (let sliceIndex = 0; sliceIndex < sliceCount; sliceIndex += 1) {
     const mapping = map[sliceIndex];
@@ -382,6 +419,30 @@ export const detectRearrangerRegionsFromBufferSegment = (
   const frameCount = Math.max(1, Math.floor((segmentLength - frameSize) / hopSize) + 1);
   if (frameCount <= 2) return [0, 1];
 
+  const minSliceDurationMs = Math.max(
+    20,
+    options?.minSliceDurationMs ?? (220 - 175 * shapedSensitivity)
+  );
+  const thresholdStdDev = options?.thresholdStdDev ?? (2.3 - 2.05 * shapedSensitivity);
+  const wasmChannels = Array.from({ length: source.numberOfChannels }, (_, channel) =>
+    source.getChannelData(channel).slice(startSample, endSample)
+  );
+  const wasmRegions = tryDetectRegionsWasm(
+    wasmChannels,
+    sampleRate,
+    maxSlices,
+    minSliceDurationMs,
+    frameDurationMs,
+    thresholdStdDev,
+    sensitivity
+  );
+  if (wasmRegions && wasmRegions.length >= 2) {
+    const cleaned = wasmRegions.map((value) => clamp01(value)).sort((a, b) => a - b);
+    if (cleaned[0] > 0) cleaned.unshift(0);
+    if (cleaned[cleaned.length - 1] < 1) cleaned.push(1);
+    return cleaned;
+  }
+
   const envelope = new Array<number>(frameCount);
   for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
     const frameStart = startSample + frameIndex * hopSize;
@@ -415,7 +476,7 @@ export const detectRearrangerRegionsFromBufferSegment = (
     }, 0) / positive.length;
   const stdDev = Math.sqrt(Math.max(0, variance));
   const thresholdK =
-    options?.thresholdStdDev ?? (2.3 - 2.05 * shapedSensitivity);
+    thresholdStdDev;
   const thresholdFromStd = mean + thresholdK * stdDev;
   const peakClamp = 0.9 - 0.72 * shapedSensitivity;
   const threshold = Math.max(1e-4, Math.min(thresholdFromStd, maxDelta * peakClamp));
@@ -425,10 +486,6 @@ export const detectRearrangerRegionsFromBufferSegment = (
     Math.max(0, Math.floor((envelopeSorted.length - 1) * 0.15))
   );
   const silenceFloor = envelopeSorted[floorIndex] ?? 0;
-  const minSliceDurationMs = Math.max(
-    20,
-    options?.minSliceDurationMs ?? (220 - 175 * shapedSensitivity)
-  );
   const minGapFromMs = Math.max(1, Math.round(sampleRate * (minSliceDurationMs / 1000)));
   const expectedGapSamples = Math.max(1, Math.floor(segmentLength / Math.max(1, maxSlices)));
   const minGapFromDistribution = Math.max(

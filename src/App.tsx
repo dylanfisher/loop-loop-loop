@@ -565,6 +565,18 @@ const App = () => {
   );
   const delaySliceSyncTrackerRef = useRef<Map<number, number>>(new Map());
   const rearrangerPingPongStateRef = useRef<Map<number, { signature: string }>>(new Map());
+  const pendingAutoRearrangeRef = useRef<
+    Map<
+      number,
+      {
+        sourceBuffer: AudioBuffer;
+        signature: string;
+        buffer: AudioBuffer;
+        regions: number[];
+        regionIds: number[];
+      }
+    >
+  >(new Map());
   const rearrangeBusyByDeckRef = useRef<Map<number, boolean>>(new Map());
   const skipNextAutosaveRef = useRef(0);
   const autosaveReadyRef = useRef(false);
@@ -1803,7 +1815,13 @@ const App = () => {
   );
 
   const handleRearrangeLoop = useCallback(
-    (deckId: number, options?: { transient?: boolean }) => {
+    (
+      deckId: number,
+      options?: {
+        transient?: boolean;
+        precomputed?: { buffer: AudioBuffer; regions: number[]; regionIds: number[] };
+      }
+    ) => {
       const deck = decks.find((item) => item.id === deckId);
       if (!deck?.buffer) return;
       if ((deck.rearrangerSlices ?? 0) <= 1) return;
@@ -1821,46 +1839,55 @@ const App = () => {
 
       rearrangeBusyByDeckRef.current.set(deckId, true);
       try {
-        const chaosSeed = Math.random() * 1_000_000_000;
-        const loopDuration = loopEnd - loopStart;
-        const sampleRate = deck.buffer.sampleRate;
-        const startSample = Math.max(
-          0,
-          Math.min(deck.buffer.length - 1, Math.round(loopStart * sampleRate))
-        );
-        const endSample = Math.max(
-          startSample + 1,
-          Math.min(deck.buffer.length, Math.round((loopStart + loopDuration) * sampleRate))
-        );
-        const segmentSamples = Math.max(1, endSample - startSample);
-        const rearranged = rearrangeBufferSegment(deck.buffer, loopStart, loopDuration, {
-          slices: deck.rearrangerSlices,
-          swapCount: deck.rearrangerSwapCount,
-          chaos: deck.rearrangerChaos,
-          reverse: deck.rearrangerReverse,
-          regions: deck.rearrangerRegions,
-          sliceFadeMs: deck.rearrangerSliceFadeMs,
-        }, { chaosSeed });
-        const nextRegions = deriveRearrangedRegions({
-          slices: deck.rearrangerSlices,
-          swapCount: deck.rearrangerSwapCount,
-          chaos: deck.rearrangerChaos,
-          reverse: deck.rearrangerReverse,
-          regions: deck.rearrangerRegions,
-          sliceFadeMs: deck.rearrangerSliceFadeMs,
-        }, { chaosSeed, segmentSamples });
-        const nextRegionIds = deriveRearrangedRegionIds(
-          {
+        let rearranged: AudioBuffer;
+        let nextRegions: number[];
+        let nextRegionIds: number[];
+        if (options?.precomputed) {
+          rearranged = options.precomputed.buffer;
+          nextRegions = options.precomputed.regions;
+          nextRegionIds = options.precomputed.regionIds;
+        } else {
+          const chaosSeed = Math.random() * 1_000_000_000;
+          const loopDuration = loopEnd - loopStart;
+          const sampleRate = deck.buffer.sampleRate;
+          const startSample = Math.max(
+            0,
+            Math.min(deck.buffer.length - 1, Math.round(loopStart * sampleRate))
+          );
+          const endSample = Math.max(
+            startSample + 1,
+            Math.min(deck.buffer.length, Math.round((loopStart + loopDuration) * sampleRate))
+          );
+          const segmentSamples = Math.max(1, endSample - startSample);
+          rearranged = rearrangeBufferSegment(deck.buffer, loopStart, loopDuration, {
             slices: deck.rearrangerSlices,
             swapCount: deck.rearrangerSwapCount,
             chaos: deck.rearrangerChaos,
             reverse: deck.rearrangerReverse,
             regions: deck.rearrangerRegions,
             sliceFadeMs: deck.rearrangerSliceFadeMs,
-          },
-          deck.rearrangerRegionIds,
-          { chaosSeed }
-        );
+          }, { chaosSeed });
+          nextRegions = deriveRearrangedRegions({
+            slices: deck.rearrangerSlices,
+            swapCount: deck.rearrangerSwapCount,
+            chaos: deck.rearrangerChaos,
+            reverse: deck.rearrangerReverse,
+            regions: deck.rearrangerRegions,
+            sliceFadeMs: deck.rearrangerSliceFadeMs,
+          }, { chaosSeed, segmentSamples });
+          nextRegionIds = deriveRearrangedRegionIds(
+            {
+              slices: deck.rearrangerSlices,
+              swapCount: deck.rearrangerSwapCount,
+              chaos: deck.rearrangerChaos,
+              reverse: deck.rearrangerReverse,
+              regions: deck.rearrangerRegions,
+              sliceFadeMs: deck.rearrangerSliceFadeMs,
+            },
+            deck.rearrangerRegionIds,
+            { chaosSeed }
+          );
+        }
         const name = buildDerivedDeckName(deck.fileName, "Rearranged");
         const wasPlaying = deck.status === "playing";
         if (options?.transient) {
@@ -2050,6 +2077,7 @@ const App = () => {
       const tracker = rearrangeLoopTrackerRef.current;
       const delaySyncTracker = delaySliceSyncTrackerRef.current;
       const pingPongSchedule = rearrangerPingPongStateRef.current;
+      const pendingAuto = pendingAutoRearrangeRef.current;
       const busyByDeck = rearrangeBusyByDeckRef.current;
       const activeDecks = new Set(decks.map((deck) => deck.id));
       tracker.forEach((_, deckId) => {
@@ -2070,6 +2098,11 @@ const App = () => {
       pingPongSchedule.forEach((_, deckId) => {
         if (!activeDecks.has(deckId)) {
           pingPongSchedule.delete(deckId);
+        }
+      });
+      pendingAuto.forEach((_, deckId) => {
+        if (!activeDecks.has(deckId)) {
+          pendingAuto.delete(deckId);
         }
       });
 
@@ -2197,6 +2230,7 @@ const App = () => {
           !snapshot?.playing ||
           !snapshot.loopEnabled
         ) {
+          pendingAuto.delete(deck.id);
           tracker.set(deck.id, {
             lastPosition: currentPosition,
             lastTriggerMs: state.lastTriggerMs,
@@ -2206,11 +2240,101 @@ const App = () => {
 
         const loopLength = Math.max(0, snapshot.loopEnd - snapshot.loopStart);
         if (loopLength < 0.08) {
+          pendingAuto.delete(deck.id);
           tracker.set(deck.id, {
             lastPosition: currentPosition,
             lastTriggerMs: state.lastTriggerMs,
           });
           return;
+        }
+
+        const sourceBuffer = deck.buffer;
+        if (!sourceBuffer) {
+          pendingAuto.delete(deck.id);
+          tracker.set(deck.id, {
+            lastPosition: currentPosition,
+            lastTriggerMs: state.lastTriggerMs,
+          });
+          return;
+        }
+
+        const loopStart = Math.max(0, snapshot.loopStart);
+        const loopEnd = Math.max(loopStart + 0.01, snapshot.loopEnd);
+        const playbackRate = Math.max(0.01, snapshot.playbackRate || 1);
+        const loopDuration = Math.max(0.01, loopEnd - loopStart);
+        const clampedPosition = Math.min(loopEnd - 1e-6, Math.max(loopStart, currentPosition));
+        const progress = Math.min(1 - 1e-6, Math.max(0, (clampedPosition - loopStart) / loopDuration));
+        const timeUntilWrapSec = ((1 - progress) * loopDuration) / playbackRate;
+        const rearrangerSignature = [
+          deck.rearrangerSlices,
+          deck.rearrangerSwapCount,
+          deck.rearrangerChaos,
+          deck.rearrangerReverse,
+          deck.rearrangerSliceFadeMs,
+          loopStart.toFixed(6),
+          loopEnd.toFixed(6),
+          (deck.rearrangerRegions ?? []).map((value) => value.toFixed(6)).join(","),
+          (deck.rearrangerRegionIds ?? []).join(","),
+          sourceBuffer.length,
+        ].join("|");
+        const cached = pendingAuto.get(deck.id);
+        if (
+          cached &&
+          (cached.sourceBuffer !== sourceBuffer || cached.signature !== rearrangerSignature)
+        ) {
+          pendingAuto.delete(deck.id);
+        }
+        if (
+          !pendingAuto.has(deck.id) &&
+          !rearrangeBusyByDeckRef.current.get(deck.id) &&
+          timeUntilWrapSec > 0.06
+        ) {
+          const chaosSeed = Math.random() * 1_000_000_000;
+          const sampleRate = sourceBuffer.sampleRate;
+          const startSample = Math.max(
+            0,
+            Math.min(sourceBuffer.length - 1, Math.round(loopStart * sampleRate))
+          );
+          const endSample = Math.max(
+            startSample + 1,
+            Math.min(sourceBuffer.length, Math.round(loopEnd * sampleRate))
+          );
+          const segmentSamples = Math.max(1, endSample - startSample);
+          const buffer = rearrangeBufferSegment(sourceBuffer, loopStart, loopDuration, {
+            slices: deck.rearrangerSlices,
+            swapCount: deck.rearrangerSwapCount,
+            chaos: deck.rearrangerChaos,
+            reverse: deck.rearrangerReverse,
+            regions: deck.rearrangerRegions,
+            sliceFadeMs: deck.rearrangerSliceFadeMs,
+          }, { chaosSeed });
+          const regions = deriveRearrangedRegions({
+            slices: deck.rearrangerSlices,
+            swapCount: deck.rearrangerSwapCount,
+            chaos: deck.rearrangerChaos,
+            reverse: deck.rearrangerReverse,
+            regions: deck.rearrangerRegions,
+            sliceFadeMs: deck.rearrangerSliceFadeMs,
+          }, { chaosSeed, segmentSamples });
+          const regionIds = deriveRearrangedRegionIds(
+            {
+              slices: deck.rearrangerSlices,
+              swapCount: deck.rearrangerSwapCount,
+              chaos: deck.rearrangerChaos,
+              reverse: deck.rearrangerReverse,
+              regions: deck.rearrangerRegions,
+              sliceFadeMs: deck.rearrangerSliceFadeMs,
+            },
+            deck.rearrangerRegionIds,
+            { chaosSeed }
+          );
+          pendingAuto.set(deck.id, {
+            sourceBuffer,
+            signature: rearrangerSignature,
+            buffer,
+            regions,
+            regionIds,
+          });
         }
 
         const triggerWindow = Math.min(0.12, loopLength * 0.25);
@@ -2221,7 +2345,24 @@ const App = () => {
         const cooldownMs = Math.max(120, Math.min(1000, loopLength * 500));
 
         if (wrapped && now - state.lastTriggerMs > cooldownMs) {
-          handleRearrangeLoop(deck.id, { transient: true });
+          const prepared = pendingAuto.get(deck.id);
+          if (
+            prepared &&
+            prepared.sourceBuffer === sourceBuffer &&
+            prepared.signature === rearrangerSignature
+          ) {
+            handleRearrangeLoop(deck.id, {
+              transient: true,
+              precomputed: {
+                buffer: prepared.buffer,
+                regions: prepared.regions,
+                regionIds: prepared.regionIds,
+              },
+            });
+            pendingAuto.delete(deck.id);
+          } else {
+            handleRearrangeLoop(deck.id, { transient: true });
+          }
           tracker.set(deck.id, {
             lastPosition: currentPosition,
             lastTriggerMs: now,
@@ -3054,7 +3195,7 @@ const App = () => {
             >
               →
             </button>
-            <button type="button" onClick={addDeck}>
+            <button type="button" onClick={() => addDeck()}>
               Add Deck
             </button>
             <button type="button" onClick={handleNewSession}>

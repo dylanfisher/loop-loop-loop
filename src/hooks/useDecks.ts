@@ -1184,7 +1184,7 @@ const useDecks = () => {
     nextDeckId.current += 1;
     resetAutomation(id, 0.9, 0, DEFAULT_RESONANCE, 0, 0, 0, 0, 0);
     setDecksWithHistory((prev) => {
-      const nextDeck = {
+      const nextDeck: DeckState = {
         id,
         status: "idle",
         gain: 0.9,

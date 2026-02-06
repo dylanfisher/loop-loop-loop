@@ -235,6 +235,7 @@ const DeckCard = ({
   getDeckPlaybackSnapshot,
   setFileInputRef,
 }: DeckCardProps) => {
+  const AUTO_SLICE_THROTTLE_MS = 90;
   const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
   const renderCountRef = useRef(0);
   useEffect(() => {
@@ -432,6 +433,7 @@ const DeckCard = ({
   const [autoSliceEnabled, setAutoSliceEnabled] = useState(false);
   const tempoFineDragRef = useRef<{ startY: number; startValue: number } | null>(null);
   const autoSliceTimeoutRef = useRef<number | null>(null);
+  const autoSliceLastRunMsRef = useRef(0);
   const tempoIgnoreChangeRef = useRef(false);
   const tempoInputRef = useRef<HTMLInputElement | null>(null);
   const tempoClickTimerRef = useRef<number | null>(null);
@@ -467,14 +469,25 @@ const DeckCard = ({
 
   const scheduleAutoSlice = useCallback(() => {
     if (!deck.buffer) return;
-    if (autoSliceTimeoutRef.current !== null) {
-      window.clearTimeout(autoSliceTimeoutRef.current);
-    }
-    autoSliceTimeoutRef.current = window.setTimeout(() => {
+    const run = () => {
+      autoSliceLastRunMsRef.current = performance.now();
       onRearrangerAutoSlice(deck.id);
+    };
+    const now = performance.now();
+    const elapsed = now - autoSliceLastRunMsRef.current;
+    if (elapsed >= AUTO_SLICE_THROTTLE_MS && autoSliceTimeoutRef.current === null) {
+      run();
+      return;
+    }
+    if (autoSliceTimeoutRef.current !== null) {
+      return;
+    }
+    const wait = Math.max(0, AUTO_SLICE_THROTTLE_MS - elapsed);
+    autoSliceTimeoutRef.current = window.setTimeout(() => {
       autoSliceTimeoutRef.current = null;
-    }, 120);
-  }, [deck.buffer, deck.id, onRearrangerAutoSlice]);
+      run();
+    }, wait);
+  }, [AUTO_SLICE_THROTTLE_MS, deck.buffer, deck.id, onRearrangerAutoSlice]);
 
   const handleRearrangerSlicesKnobChange = useCallback(
     (next: number) => {
