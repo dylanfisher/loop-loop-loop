@@ -44,11 +44,12 @@ export type DeckState = {
   delayPingPong: boolean;
   delaySliceSync: boolean;
   rearrangerSlices: number;
-  rearrangerOffset: number;
+  rearrangerSwapCount: number;
   rearrangerChaos: number;
   rearrangerReverse: number;
   rearrangerSensitivity: number;
   rearrangerQuietThreshold: number;
+  rearrangerSliceFadeMs: number;
   rearrangerAuto: boolean;
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];

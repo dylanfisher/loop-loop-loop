@@ -42,7 +42,7 @@ type WaveformProps = {
   } | null;
   showRearrangerSlices?: boolean;
   rearrangerSlices?: number;
-  rearrangerOffset?: number;
+  rearrangerSwapCount?: number;
   rearrangerChaos?: number;
   rearrangerReverse?: number;
   rearrangerRegions?: number[];
@@ -355,7 +355,7 @@ const Waveform = ({
   getPlaybackSnapshot,
   showRearrangerSlices = false,
   rearrangerSlices = 8,
-  rearrangerOffset = 0,
+  rearrangerSwapCount = 0,
   rearrangerChaos = 0,
   rearrangerReverse = 0,
   rearrangerRegions,
@@ -676,7 +676,7 @@ const Waveform = ({
   );
   const rearrangerHandleMap = buildRearrangerMap({
     slices: rearrangerSlices,
-    offset: rearrangerOffset,
+    swapCount: rearrangerSwapCount,
     chaos: rearrangerChaos,
     reverse: rearrangerReverse,
     regions: rearrangerHandleRegions,
@@ -747,7 +747,7 @@ const Waveform = ({
         if (rearrangerSlices > 1) {
           const map = buildRearrangerMap({
             slices: rearrangerSlices,
-            offset: rearrangerOffset,
+            swapCount: rearrangerSwapCount,
             chaos: rearrangerChaos,
             reverse: rearrangerReverse,
             regions: rearrangerRegions,
@@ -939,7 +939,7 @@ const Waveform = ({
     waveformGainScale,
     zoom,
     rearrangerChaos,
-    rearrangerOffset,
+    rearrangerSwapCount,
     rearrangerIds,
     rearrangerReverse,
     rearrangerRegions,

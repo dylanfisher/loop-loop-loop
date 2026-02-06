@@ -51,11 +51,12 @@ export type DeckSession = {
   delayPingPong: boolean;
   delaySliceSync?: boolean;
   rearrangerSlices?: number;
-  rearrangerOffset?: number;
+  rearrangerSwapCount?: number;
   rearrangerChaos?: number;
   rearrangerReverse?: number;
   rearrangerSensitivity?: number;
   rearrangerQuietThreshold?: number;
+  rearrangerSliceFadeMs?: number;
   rearrangerAuto?: boolean;
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];
@@ -101,11 +102,12 @@ export type ClipSettings = {
   delayPingPong: boolean;
   delaySliceSync?: boolean;
   rearrangerSlices?: number;
-  rearrangerOffset?: number;
+  rearrangerSwapCount?: number;
   rearrangerChaos?: number;
   rearrangerReverse?: number;
   rearrangerSensitivity?: number;
   rearrangerQuietThreshold?: number;
+  rearrangerSliceFadeMs?: number;
   rearrangerAuto?: boolean;
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];

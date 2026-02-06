@@ -1,9 +1,10 @@
 export type RearrangerParams = {
   slices: number;
-  offset: number;
+  swapCount: number;
   chaos: number;
   reverse: number;
   regions?: number[] | null;
+  sliceFadeMs?: number;
 };
 
 export type RearrangerSliceMap = {
@@ -42,6 +43,7 @@ const buildEqualRegions = (sliceCount: number) => {
 };
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+const DEFAULT_SLICE_FADE_MS = 3;
 
 export const normalizeRearrangerRegions = (regions: number[] | null | undefined, slices: number) => {
   const safeSliceCount = Math.max(0, Math.min(MAX_REARRANGER_SLICES, Math.round(slices)));
@@ -61,10 +63,11 @@ export const normalizeRearrangerRegions = (regions: number[] | null | undefined,
 
 export const normalizeRearrangerParams = (params: RearrangerParams): RearrangerParams => ({
   slices: Math.max(0, Math.min(MAX_REARRANGER_SLICES, Math.round(params.slices))),
-  offset: Math.max(-32, Math.min(32, Math.round(params.offset))),
+  swapCount: Math.max(0, Math.min(MAX_REARRANGER_SLICES, Math.round(params.swapCount))),
   chaos: Math.max(0, Math.min(1, params.chaos)),
   reverse: Math.max(0, Math.min(1, params.reverse)),
   regions: normalizeRearrangerRegions(params.regions, params.slices),
+  sliceFadeMs: Math.max(0, Math.min(12, params.sliceFadeMs ?? DEFAULT_SLICE_FADE_MS)),
 });
 
 export const normalizeRearrangerRegionIds = (
@@ -85,17 +88,29 @@ export const buildRearrangerMap = (
   if (normalized.slices <= 1) return [];
   const sliceCount = Math.max(2, (normalized.regions?.length ?? 0) - 1);
   const chaosSeed = options?.chaosSeed ?? 0;
-  const sourceOrder = Array.from({ length: sliceCount }, (_, index) =>
-    wrapIndex(index + normalized.offset, sliceCount)
-  );
-  for (let sliceIndex = 0; sliceIndex < sliceCount; sliceIndex += 1) {
-    if (
-      normalized.chaos > 0 &&
-      seedRand((chaosSeed + 1) * (sliceIndex * 19.37 + 0.17)) < normalized.chaos
-    ) {
-      const swapIndex = Math.floor(
-        seedRand((chaosSeed + 1) * (sliceIndex * 71.91 + 1.11)) * sliceCount
-      );
+  const sourceOrder = Array.from({ length: sliceCount }, (_, index) => index);
+  const swapCount = Math.min(normalized.swapCount ?? 0, sliceCount);
+  if (swapCount > 0) {
+    const indices = Array.from({ length: sliceCount }, (_, index) => index);
+    for (let i = indices.length - 1; i > 0; i -= 1) {
+      const seed = seedRand((chaosSeed + 1) * (i * 19.37 + 0.17));
+      const j = Math.floor(seed * (i + 1));
+      const temp = indices[i];
+      indices[i] = indices[j];
+      indices[j] = temp;
+    }
+    const maxDistance = Math.max(1, Math.round(1 + normalized.chaos * (sliceCount - 2)));
+    for (let i = 0; i < swapCount; i += 1) {
+      const sliceIndex = indices[i] ?? 0;
+      const distanceSeed = seedRand((chaosSeed + 1) * (sliceIndex * 71.91 + 1.11));
+      const biased = distanceSeed ** 2;
+      const distance = Math.max(1, Math.round(biased * maxDistance));
+      const direction =
+        seedRand((chaosSeed + 1) * (sliceIndex * 43.13 + 0.73)) < 0.5 ? -1 : 1;
+      let swapIndex = wrapIndex(sliceIndex + direction * distance, sliceCount);
+      if (swapIndex === sliceIndex) {
+        swapIndex = wrapIndex(sliceIndex + 1, sliceCount);
+      }
       const next = sourceOrder[sliceIndex];
       sourceOrder[sliceIndex] = sourceOrder[swapIndex];
       sourceOrder[swapIndex] = next;
@@ -132,6 +147,11 @@ export const rearrangeLoopBuffer = (
   const map = buildRearrangerMap(normalized, options);
   let writeHead = 0;
 
+  const fadeSamples = Math.max(
+    0,
+    Math.round((source.sampleRate * (normalized.sliceFadeMs ?? DEFAULT_SLICE_FADE_MS)) / 1000)
+  );
+
   for (let sliceIndex = 0; sliceIndex < sliceCount; sliceIndex += 1) {
     const mapping = map[sliceIndex];
     const srcStart = starts[mapping.sourceIndex];
@@ -143,6 +163,8 @@ export const rearrangeLoopBuffer = (
     const dstLen = Math.max(0, dstEnd - dstStart);
     if (dstLen === 0) continue;
 
+    const sliceFade = Math.min(fadeSamples, Math.floor(dstLen / 2));
+
     for (let channel = 0; channel < source.numberOfChannels; channel += 1) {
       const src = source.getChannelData(channel);
       const dst = output.getChannelData(channel);
@@ -151,7 +173,15 @@ export const rearrangeLoopBuffer = (
         const readIndex = mapping.reversed
           ? srcStart + (srcLen - 1 - srcIndexInSlice)
           : srcStart + srcIndexInSlice;
-        dst[dstStart + i] = src[readIndex] ?? 0;
+        let gain = 1;
+        if (sliceFade > 0) {
+          if (i < sliceFade) {
+            gain = i / sliceFade;
+          } else if (i >= dstLen - sliceFade) {
+            gain = (dstLen - 1 - i) / sliceFade;
+          }
+        }
+        dst[dstStart + i] = (src[readIndex] ?? 0) * gain;
       }
     }
     writeHead += srcLen;
@@ -214,6 +244,10 @@ export const rearrangeBufferSegment = (
   }
   const map = buildRearrangerMap(normalized, options);
   let writeHead = 0;
+  const fadeSamples = Math.max(
+    0,
+    Math.round((sampleRate * (normalized.sliceFadeMs ?? DEFAULT_SLICE_FADE_MS)) / 1000)
+  );
 
   for (let sliceIndex = 0; sliceIndex < sliceCount; sliceIndex += 1) {
     const mapping = map[sliceIndex];
@@ -226,6 +260,8 @@ export const rearrangeBufferSegment = (
     const dstLen = Math.max(0, dstEnd - dstStart);
     if (dstLen === 0) continue;
 
+    const sliceFade = Math.min(fadeSamples, Math.floor(dstLen / 2));
+
     for (let channel = 0; channel < source.numberOfChannels; channel += 1) {
       const src = source.getChannelData(channel);
       const dst = output.getChannelData(channel);
@@ -234,7 +270,15 @@ export const rearrangeBufferSegment = (
         const readIndex = mapping.reversed
           ? startSample + srcStart + (srcLen - 1 - srcIndexInSlice)
           : startSample + srcStart + srcIndexInSlice;
-        dst[dstStart + i] = src[readIndex] ?? 0;
+        let gain = 1;
+        if (sliceFade > 0) {
+          if (i < sliceFade) {
+            gain = i / sliceFade;
+          } else if (i >= dstLen - sliceFade) {
+            gain = (dstLen - 1 - i) / sliceFade;
+          }
+        }
+        dst[dstStart + i] = (src[readIndex] ?? 0) * gain;
       }
     }
     writeHead += srcLen;

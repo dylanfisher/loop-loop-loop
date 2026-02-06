@@ -53,7 +53,7 @@ const WelcomePanel = ({ onClose, onOpenDemoLoop }: WelcomePanelProps) => {
         <li>Load one file into Deck 1.</li>
         <li>Set a tight loop by dragging IN and OUT.</li>
         <li>Open Deck FX and tweak filter, EQ, delay, or rearranger.</li>
-        <li>Save Loop, then load that clip into another deck and layer it.</li>
+        <li>Save, then load that clip into another deck and layer it.</li>
       </ol>
       <div className="welcome-panel__columns">
         <article className="welcome-panel__card">
@@ -94,8 +94,8 @@ const WelcomePanel = ({ onClose, onOpenDemoLoop }: WelcomePanelProps) => {
         <article className="welcome-panel__card">
           <h3>Rearranger Tips</h3>
           <p>
-            Offset rotates order, Chaos randomizes mapping, Reverse flips slices. Use small amounts
-            first, then increase for glitchier structure.
+            Swap Count selects how many slices trade places, Chaos controls how far they can jump,
+            Reverse flips slices. Use small amounts first, then increase for glitchier structure.
           </p>
         </article>
         <article className="welcome-panel__card">
@@ -122,7 +122,7 @@ const WelcomePanel = ({ onClose, onOpenDemoLoop }: WelcomePanelProps) => {
         <article className="welcome-panel__card">
           <h3>Capture Ideas</h3>
           <p>
-            Save Loop captures loop material to Clip Rack. Use the FX badge to decide whether saved
+            Save captures loop material to Clip Rack. Use the FX badge to decide whether saved
             deck settings load with the clip.
           </p>
         </article>

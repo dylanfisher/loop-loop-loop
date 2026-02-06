@@ -45,7 +45,7 @@ describe("rearranger", () => {
     const slices = 16;
     const map = buildRearrangerMap({
       slices,
-      offset: 5,
+      swapCount: 8,
       chaos: 1,
       reverse: 0,
     });
@@ -54,7 +54,7 @@ describe("rearranger", () => {
   });
 
   it("uses a different chaos shuffle when the chaos seed changes", () => {
-    const params = { slices: 12, offset: 0, chaos: 1, reverse: 0 };
+    const params = { slices: 12, swapCount: 6, chaos: 1, reverse: 0 };
     const a = buildRearrangerMap(params, { chaosSeed: 123 }).map((item) => item.sourceIndex);
     const b = buildRearrangerMap(params, { chaosSeed: 456 }).map((item) => item.sourceIndex);
     expect(a).not.toEqual(b);
@@ -69,17 +69,18 @@ describe("rearranger", () => {
 
     const output = rearrangeBufferSegment(buffer as unknown as AudioBuffer, 1, 2, {
       slices: 4,
-      offset: 1,
-      chaos: 0,
+      swapCount: 2,
+      chaos: 0.2,
       reverse: 0,
+      sliceFadeMs: 0,
     });
     const outputChannel = (output as unknown as MockAudioBuffer).getChannelData(0);
-
+    const expected = Array.from(
+      buffer.getChannelData(0).slice(10, 30)
+    ).sort((a, b) => a - b);
+    const actual = Array.from(outputChannel).sort((a, b) => a - b);
     expect(output.length).toBe(20);
-    expect(outputChannel[0]).toBe(15);
-    expect(outputChannel[5]).toBe(20);
-    expect(outputChannel[10]).toBe(25);
-    expect(outputChannel[15]).toBe(10);
+    expect(actual).toEqual(expected);
   });
 
   it("keeps segment length stable across repeated rearranges", () => {
@@ -89,9 +90,10 @@ describe("rearranger", () => {
     for (let i = 0; i < 300; i += 1) {
       current = rearrangeBufferSegment(current, 0, current.duration, {
         slices: 7,
-        offset: 1,
+        swapCount: 3,
         chaos: 0.35,
         reverse: 0.1,
+        sliceFadeMs: 0,
       });
     }
     expect(current.length).toBe(initialLength);
@@ -103,7 +105,7 @@ describe("rearranger", () => {
 
     const map = buildRearrangerMap({
       slices: 3,
-      offset: 0,
+      swapCount: 0,
       chaos: 0,
       reverse: 0,
       regions,
@@ -120,25 +122,26 @@ describe("rearranger", () => {
 
     const output = rearrangeBufferSegment(buffer as unknown as AudioBuffer, 0, 1, {
       slices: 3,
-      offset: 1,
+      swapCount: 0,
       chaos: 0,
       reverse: 0,
+      sliceFadeMs: 0,
       regions: [0, 0.2, 0.8, 1],
     });
     const out = (output as unknown as MockAudioBuffer).getChannelData(0);
-    expect(Array.from(out)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 0, 1]);
+    expect(Array.from(out)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   it("reorders region boundaries with slice order", () => {
     const next = deriveRearrangedRegions({
       slices: 3,
-      offset: 1,
+      swapCount: 0,
       chaos: 0,
       reverse: 0,
       regions: [0, 0.2, 0.8, 1],
     });
     expect(next[0]).toBeCloseTo(0, 6);
-    expect(next[1]).toBeCloseTo(0.6, 6);
+    expect(next[1]).toBeCloseTo(0.2, 6);
     expect(next[2]).toBeCloseTo(0.8, 6);
     expect(next[3]).toBeCloseTo(1, 6);
   });
@@ -150,7 +153,7 @@ describe("rearranger", () => {
       regions = deriveRearrangedRegions(
         {
           slices: 4,
-          offset: (i % 5) - 2,
+          swapCount: i % 4,
           chaos: 0.35,
           reverse: 0,
           regions,
@@ -170,14 +173,14 @@ describe("rearranger", () => {
     const nextIds = deriveRearrangedRegionIds(
       {
         slices: 3,
-        offset: 1,
+        swapCount: 0,
         chaos: 0,
         reverse: 0,
         regions: [0, 0.2, 0.8, 1],
       },
       [10, 20, 30]
     );
-    expect(nextIds).toEqual([20, 30, 10]);
+    expect(nextIds).toEqual([10, 20, 30]);
   });
 
   it("detects transient-based slice boundaries from a segment", () => {

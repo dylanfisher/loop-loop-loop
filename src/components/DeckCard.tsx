@@ -108,11 +108,12 @@ type DeckCardProps = {
   onStretchTiltDbChange: (id: number, value: number) => void;
   onStretchScatterChange: (id: number, value: number) => void;
   onRearrangerSlicesChange: (id: number, value: number) => void;
-  onRearrangerOffsetChange: (id: number, value: number) => void;
+  onRearrangerSwapCountChange: (id: number, value: number) => void;
   onRearrangerChaosChange: (id: number, value: number) => void;
   onRearrangerReverseChange: (id: number, value: number) => void;
   onRearrangerSensitivityChange: (id: number, value: number) => void;
   onRearrangerQuietThresholdChange: (id: number, value: number) => void;
+  onRearrangerSliceFadeChange: (id: number, value: number) => void;
   onRearrangerAutoChange: (id: number, value: boolean) => void;
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
   onRearrangerSliceDelete: (id: number, sliceIndex: number) => void;
@@ -126,6 +127,7 @@ type DeckCardProps = {
   stretchEstimate?: string | null;
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
   onCropLoop: (id: number) => void;
+  onDuplicateLoop: (id: number, includeSettings: boolean) => void;
   getDeckPosition: (id: number) => number | null;
   getDeckPlaybackSnapshot: (id: number) => {
     position: number;
@@ -207,11 +209,12 @@ const DeckCard = ({
   onStretchTiltDbChange,
   onStretchScatterChange,
   onRearrangerSlicesChange,
-  onRearrangerOffsetChange,
+  onRearrangerSwapCountChange,
   onRearrangerChaosChange,
   onRearrangerReverseChange,
   onRearrangerSensitivityChange,
   onRearrangerQuietThresholdChange,
+  onRearrangerSliceFadeChange,
   onRearrangerAutoChange,
   onRearrangerRegionsChange,
   onRearrangerSliceDelete,
@@ -225,6 +228,7 @@ const DeckCard = ({
   stretchEstimate,
   onSaveLoopClip,
   onCropLoop,
+  onDuplicateLoop,
   getDeckPosition,
   getDeckPlaybackSnapshot,
   setFileInputRef,
@@ -622,11 +626,12 @@ const DeckCard = ({
       automation: false,
       modified:
         Math.round(deck.rearrangerSlices) > 0 ||
-        Math.round(deck.rearrangerOffset) !== 0 ||
+        Math.round(deck.rearrangerSwapCount) !== 0 ||
         isDifferent(deck.rearrangerChaos, 0) ||
         isDifferent(deck.rearrangerReverse, 0) ||
         isDifferent(deck.rearrangerSensitivity, 0.6) ||
         isDifferent(deck.rearrangerQuietThreshold, 0.3) ||
+        isDifferent(deck.rearrangerSliceFadeMs, 3, 1) ||
         deck.rearrangerAuto ||
         (deck.rearrangerRegions?.length ?? 0) > 0,
     },
@@ -804,18 +809,29 @@ const DeckCard = ({
               <AsyncActionButton
                 className="deck__action"
                 disabled={!deck.buffer}
-                idleLabel="Save Loop"
+                idleLabel="Save"
                 busyLabel="Saving..."
+                successLabel="Saved"
                 onAction={() => onSaveLoopClip(deck.id, saveSettings)}
                 title="Save the current loop as a clip."
               />
               <AsyncActionButton
                 className="deck__action"
                 disabled={!deck.buffer}
-                idleLabel="Crop Loop"
+                idleLabel="Crop"
                 busyLabel="Cropping..."
+                successLabel="Cropped"
                 onAction={() => onCropLoop(deck.id)}
                 title="Destructively crop the deck audio to the current loop bounds."
+              />
+              <AsyncActionButton
+                className="deck__action"
+                disabled={!deck.buffer}
+                idleLabel="Duplicate"
+                busyLabel="Duplicating..."
+                successLabel="Duplicated"
+                onAction={() => onDuplicateLoop(deck.id, saveSettings)}
+                title="Open the current loop in a new deck without saving a clip."
               />
               <button
                 type="button"
@@ -848,7 +864,7 @@ const DeckCard = ({
               <div className="deck__meta-actions">
                 <label
                   className="deck__pitch-sync"
-                  title="When enabled, Save Loop stores the current deck FX/automation/settings (filters, EQ, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
+                  title="When enabled, Save stores the current deck FX/automation/settings (filters, EQ, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
                 >
                   <input
                     type="checkbox"
@@ -958,7 +974,7 @@ const DeckCard = ({
           onEmptyClick={handleEmptyClick}
           showRearrangerSlices={fxPanelOpen.rearranger}
           rearrangerSlices={deck.rearrangerSlices}
-          rearrangerOffset={deck.rearrangerOffset}
+          rearrangerSwapCount={deck.rearrangerSwapCount}
           rearrangerChaos={deck.rearrangerChaos}
           rearrangerReverse={deck.rearrangerReverse}
           rearrangerRegions={deck.rearrangerRegions}
@@ -1685,14 +1701,14 @@ const DeckCard = ({
               />
               <Knob
                 className="knob--compact"
-                label="Offset"
-                min={-32}
-                max={32}
+                label="Swaps"
+                min={0}
+                max={Math.max(64, Math.round(deck.rearrangerSlices || 0))}
                 step={1}
-                value={deck.rearrangerOffset}
+                value={deck.rearrangerSwapCount}
                 defaultValue={0}
-                labelTitle="Rotates slice order by this many steps."
-                onChange={(next) => onRearrangerOffsetChange(deck.id, next)}
+                labelTitle="Number of slices to swap each pass."
+                onChange={(next) => onRearrangerSwapCountChange(deck.id, next)}
                 formatValue={(value) => `${Math.round(value)}`}
               />
               <Knob
@@ -1703,7 +1719,7 @@ const DeckCard = ({
                 step={0.01}
                 value={deck.rearrangerChaos}
                 defaultValue={0}
-                labelTitle="Randomly swaps slices; higher values produce less predictable order."
+                labelTitle="How far swaps can travel. Low stays local, high can jump anywhere."
                 onChange={(next) => onRearrangerChaosChange(deck.id, next)}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
@@ -1742,6 +1758,18 @@ const DeckCard = ({
                 labelTitle="Delete Quiet threshold. Higher values classify more of the loop as quiet."
                 onChange={(next) => onRearrangerQuietThresholdChange(deck.id, next)}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Slice Fade"
+                min={0}
+                max={12}
+                step={1}
+                value={deck.rearrangerSliceFadeMs}
+                defaultValue={3}
+                labelTitle="Short fades on slice edges to reduce clicks."
+                onChange={(next) => onRearrangerSliceFadeChange(deck.id, next)}
+                formatValue={(value) => `${Math.round(value)} ms`}
               />
               <label
                 className="deck__delay-toggle"

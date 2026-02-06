@@ -473,6 +473,7 @@ const App = () => {
     heapLimitMB: null,
   });
   const [activeDeckId, setActiveDeckId] = useState<number | null>(null);
+  const [scrollToDeckId, setScrollToDeckId] = useState<number | null>(null);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [deckLayoutMode, setDeckLayoutMode] = useState<"single" | "two">("two");
   const [showSessionPanel, setShowSessionPanel] = useState(false);
@@ -571,11 +572,12 @@ const App = () => {
     setDeckStretchTiltDb,
     setDeckStretchScatter,
     setDeckRearrangerSlices,
-    setDeckRearrangerOffset,
+    setDeckRearrangerSwapCount,
     setDeckRearrangerChaos,
     setDeckRearrangerReverse,
     setDeckRearrangerSensitivity,
     setDeckRearrangerQuietThreshold,
+    setDeckRearrangerSliceFadeMs,
     setDeckRearrangerAuto,
     setDeckRearrangerRegions,
     setDeckFxPanelOpen,
@@ -761,11 +763,12 @@ const App = () => {
         delayPingPong: deck.delayPingPong,
         delaySliceSync: deck.delaySliceSync,
         rearrangerSlices: deck.rearrangerSlices,
-        rearrangerOffset: deck.rearrangerOffset,
+        rearrangerSwapCount: deck.rearrangerSwapCount,
         rearrangerChaos: deck.rearrangerChaos,
         rearrangerReverse: deck.rearrangerReverse,
         rearrangerSensitivity: deck.rearrangerSensitivity,
         rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
+        rearrangerSliceFadeMs: deck.rearrangerSliceFadeMs,
         rearrangerAuto: deck.rearrangerAuto,
         rearrangerRegions: deck.rearrangerRegions,
         rearrangerRegionIds: deck.rearrangerRegionIds,
@@ -1128,6 +1131,27 @@ const App = () => {
       addClip(clip);
     },
     [addClip, renderLoopClip]
+  );
+
+  const handleDuplicateLoop = useCallback(
+    async (deckId: number, includeSettings: boolean) => {
+      const deck = decks.find((item) => item.id === deckId);
+      const clip = await renderLoopClip(deckId, includeSettings);
+      if (!clip) return;
+      const newDeckId = addDeck({ afterId: deckId });
+      setActiveDeckId(newDeckId);
+      setScrollToDeckId(newDeckId);
+      const name = deck
+        ? buildDerivedDeckName(deck.fileName, "Duplicate")
+        : clip.name;
+      const file = new File([clip.blob], `${name}.wav`, {
+        type: clip.blob.type || "audio/wav",
+      });
+      await handleFileSelected(newDeckId, file, {
+        settings: includeSettings ? clip.settings : undefined,
+      });
+    },
+    [addDeck, decks, handleFileSelected, renderLoopClip]
   );
 
   const handleCropLoop = useCallback(
@@ -1725,6 +1749,9 @@ const App = () => {
       if ((deck.rearrangerSlices ?? 0) <= 1) return;
       if (rearrangeBusyByDeckRef.current.get(deckId)) return;
       const duration = deck.duration ?? deck.buffer.duration;
+      const playbackSnapshot = getDeckPlaybackSnapshot(deckId);
+      const currentPosition = playbackSnapshot?.position ?? deck.offsetSeconds ?? 0;
+      const nextOffsetSeconds = Math.min(Math.max(0, currentPosition), duration);
       const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
       const loopEnd =
         deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
@@ -1748,25 +1775,28 @@ const App = () => {
         const segmentSamples = Math.max(1, endSample - startSample);
         const rearranged = rearrangeBufferSegment(deck.buffer, loopStart, loopDuration, {
           slices: deck.rearrangerSlices,
-          offset: deck.rearrangerOffset,
+          swapCount: deck.rearrangerSwapCount,
           chaos: deck.rearrangerChaos,
           reverse: deck.rearrangerReverse,
           regions: deck.rearrangerRegions,
+          sliceFadeMs: deck.rearrangerSliceFadeMs,
         }, { chaosSeed });
         const nextRegions = deriveRearrangedRegions({
           slices: deck.rearrangerSlices,
-          offset: deck.rearrangerOffset,
+          swapCount: deck.rearrangerSwapCount,
           chaos: deck.rearrangerChaos,
           reverse: deck.rearrangerReverse,
           regions: deck.rearrangerRegions,
+          sliceFadeMs: deck.rearrangerSliceFadeMs,
         }, { chaosSeed, segmentSamples });
         const nextRegionIds = deriveRearrangedRegionIds(
           {
             slices: deck.rearrangerSlices,
-            offset: deck.rearrangerOffset,
+            swapCount: deck.rearrangerSwapCount,
             chaos: deck.rearrangerChaos,
             reverse: deck.rearrangerReverse,
             regions: deck.rearrangerRegions,
+            sliceFadeMs: deck.rearrangerSliceFadeMs,
           },
           deck.rearrangerRegionIds,
           { chaosSeed }
@@ -1783,6 +1813,7 @@ const App = () => {
           preserveNodes: options?.transient,
           // Manual rearrange should keep current deck FX, matching auto-loop rearrange behavior.
           preserveFxState: true,
+          offsetSeconds: nextOffsetSeconds,
           rearrangerRegions: nextRegions,
           rearrangerRegionIds: nextRegionIds,
         });
@@ -1790,7 +1821,7 @@ const App = () => {
         rearrangeBusyByDeckRef.current.set(deckId, false);
       }
     },
-    [decks, loadDeckBuffer]
+    [decks, getDeckPlaybackSnapshot, loadDeckBuffer]
   );
 
   const handleDeleteRearrangerSlice = useCallback(
@@ -3115,6 +3146,12 @@ const App = () => {
           layoutMode={deckLayoutMode}
           zipDragActive={zipDragOver}
           activeDeckId={activeDeckId}
+          scrollToDeckId={scrollToDeckId}
+          onScrollComplete={(id) => {
+            if (scrollToDeckId === id) {
+              setScrollToDeckId(null);
+            }
+          }}
           onDeckActivate={handleDeckActivate}
           onRemoveDeck={removeDeck}
           onLoadClick={handleLoadClick}
@@ -3151,11 +3188,12 @@ const App = () => {
           onStretchTiltDbChange={setDeckStretchTiltDb}
           onStretchScatterChange={setDeckStretchScatter}
           onRearrangerSlicesChange={setDeckRearrangerSlices}
-          onRearrangerOffsetChange={setDeckRearrangerOffset}
+          onRearrangerSwapCountChange={setDeckRearrangerSwapCount}
           onRearrangerChaosChange={setDeckRearrangerChaos}
           onRearrangerReverseChange={setDeckRearrangerReverse}
           onRearrangerSensitivityChange={setDeckRearrangerSensitivity}
           onRearrangerQuietThresholdChange={setDeckRearrangerQuietThreshold}
+          onRearrangerSliceFadeChange={setDeckRearrangerSliceFadeMs}
           onRearrangerAutoChange={setDeckRearrangerAuto}
           onRearrangerRegionsChange={setDeckRearrangerRegions}
           onRearrangerSliceDelete={handleDeleteRearrangerSlice}
@@ -3184,6 +3222,7 @@ const App = () => {
           setFileInputRef={setFileInputRef}
           onSaveLoopClip={handleSaveLoopClip}
           onCropLoop={handleCropLoop}
+          onDuplicateLoop={handleDuplicateLoop}
         />
       </main>
       {showKeyboardShortcuts ? (

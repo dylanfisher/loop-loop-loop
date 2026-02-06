@@ -58,6 +58,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Rearranger includes an `Auto Slice` action plus sensitivity control; detection favors transient energy rises and silence-to-sound attacks inside the active loop (adaptive threshold + minimum spacing), then writes boundaries as manual slice regions.
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.
 - `Delete Quiet` exposes a per-deck quiet-threshold control to tune how aggressively low-energy spans are classified for removal.
+- Rearranger includes a per-deck slice-fade control to soften slice edges and reduce clicks.
 - Delay includes a phase-1 live-only `Slice Sync` mode that retimes delay-time per active rearranger slice boundary during loop playback.
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
