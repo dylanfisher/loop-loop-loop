@@ -1069,8 +1069,9 @@ const App = () => {
       1,
       Math.round(exportMinutes) * 60 + Math.round(exportSeconds)
     );
+    const estimateSeconds = 2 * (exportDurationSec / 60) * activeDecks.length;
     setExportEstimateLabel(
-      `Approx export: ${formatEstimateDuration(exportDurationSec * 0.5)}`
+      `Approx export: ${formatEstimateDuration(estimateSeconds)}`
     );
     setExporting(true);
     const durationSec = exportDurationSec;
@@ -1396,7 +1397,7 @@ const App = () => {
 
     try {
       const rendered = await offline.startRendering();
-      const blob = encodeWav(rendered);
+      const blob = await encodeWavOffThread(rendered);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;

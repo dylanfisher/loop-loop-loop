@@ -5,7 +5,225 @@ type ChannelState = {
   lastMagnitudes: Float32Array | null;
   lastNonSilentMagnitudes: Float32Array | null;
   lastPhases: Float32Array | null;
+  phaseRe: Float32Array | null;
+  phaseIm: Float32Array | null;
 };
+
+type PaulStretchWasmExports = WebAssembly.Exports & {
+  memory?: WebAssembly.Memory;
+  malloc?: (size: number) => number;
+  free?: (ptr: number) => void;
+  paulstretch_overlap_add_f32?: (
+    fftPtr: number,
+    windowPtr: number,
+    outputAccumPtr: number,
+    outBlockPtr: number,
+    winSize: number,
+    hopOut: number,
+    gain: number
+  ) => number;
+  paulstretch_analyze_bins_f32?: (
+    fftPtr: number,
+    magnitudesPtr: number,
+    phaseRePtr: number,
+    phaseImPtr: number,
+    tiltPtr: number,
+    halfBins: number,
+    smoothFactor: number,
+    phaseRandomness: number,
+    rngStatePtr: number
+  ) => number;
+  paulstretch_synthesize_bins_f32?: (
+    fftPtr: number,
+    magnitudesPtr: number,
+    phaseRePtr: number,
+    phaseImPtr: number,
+    tiltPtr: number,
+    halfBins: number,
+    phaseRandomness: number,
+    rngStatePtr: number
+  ) => number;
+  paulstretch_mirror_bins_f32?: (fftPtr: number, winSize: number, half: number) => number;
+};
+
+class PaulStretchWasmOverlapAdd {
+  private readonly fn: NonNullable<PaulStretchWasmExports["paulstretch_overlap_add_f32"]>;
+  private readonly analyzeFn: NonNullable<PaulStretchWasmExports["paulstretch_analyze_bins_f32"]>;
+  private readonly synthFn: NonNullable<PaulStretchWasmExports["paulstretch_synthesize_bins_f32"]>;
+  private readonly mirrorFn: NonNullable<PaulStretchWasmExports["paulstretch_mirror_bins_f32"]>;
+  private readonly fftPtr: number;
+  private readonly windowPtr: number;
+  private readonly outputAccumPtr: number;
+  private readonly outBlockPtr: number;
+  private readonly magnitudesPtr: number;
+  private readonly phaseRePtr: number;
+  private readonly phaseImPtr: number;
+  private readonly tiltPtr: number;
+  private readonly rngPtr: number;
+  private readonly fftView: Float32Array;
+  private readonly windowView: Float32Array;
+  private readonly outputAccumView: Float32Array;
+  private readonly outBlockView: Float32Array;
+  private readonly magnitudesView: Float32Array;
+  private readonly phaseReView: Float32Array;
+  private readonly phaseImView: Float32Array;
+  private readonly tiltView: Float32Array;
+  private readonly rngView: Uint32Array;
+  private readonly halfBins: number;
+
+  constructor(bytes: ArrayBuffer, winSize: number, hopOut: number, window: Float32Array) {
+    const module = new WebAssembly.Module(bytes);
+    const instance = new WebAssembly.Instance(module, {});
+    const exports = instance.exports as PaulStretchWasmExports;
+    const memory = exports.memory;
+    const malloc = exports.malloc;
+    const fn = exports.paulstretch_overlap_add_f32;
+    const analyzeFn = exports.paulstretch_analyze_bins_f32;
+    const synthFn = exports.paulstretch_synthesize_bins_f32;
+    const mirrorFn = exports.paulstretch_mirror_bins_f32;
+    if (!memory || !malloc || !fn || !analyzeFn || !synthFn || !mirrorFn) {
+      throw new Error("Paulstretch wasm missing required exports");
+    }
+    this.fn = fn;
+    this.analyzeFn = analyzeFn;
+    this.synthFn = synthFn;
+    this.mirrorFn = mirrorFn;
+    const fftBytes = winSize * 2 * 4;
+    const winBytes = winSize * 4;
+    const outputAccumBytes = winSize * 4;
+    const outBytes = hopOut * 4;
+    const halfBins = (winSize >> 1) + 1;
+    const binsBytes = halfBins * 4;
+    this.fftPtr = malloc(fftBytes);
+    this.windowPtr = malloc(winBytes);
+    this.outputAccumPtr = malloc(outputAccumBytes);
+    this.outBlockPtr = malloc(outBytes);
+    this.magnitudesPtr = malloc(binsBytes);
+    this.phaseRePtr = malloc(binsBytes);
+    this.phaseImPtr = malloc(binsBytes);
+    this.tiltPtr = malloc(binsBytes);
+    this.rngPtr = malloc(4);
+    if (
+      !this.fftPtr ||
+      !this.windowPtr ||
+      !this.outputAccumPtr ||
+      !this.outBlockPtr ||
+      !this.magnitudesPtr ||
+      !this.phaseRePtr ||
+      !this.phaseImPtr ||
+      !this.tiltPtr ||
+      !this.rngPtr
+    ) {
+      throw new Error("Paulstretch wasm allocation failed");
+    }
+    this.fftView = new Float32Array(memory.buffer, this.fftPtr, winSize * 2);
+    this.windowView = new Float32Array(memory.buffer, this.windowPtr, winSize);
+    this.outputAccumView = new Float32Array(memory.buffer, this.outputAccumPtr, winSize);
+    this.outBlockView = new Float32Array(memory.buffer, this.outBlockPtr, hopOut);
+    this.halfBins = halfBins;
+    this.magnitudesView = new Float32Array(memory.buffer, this.magnitudesPtr, halfBins);
+    this.phaseReView = new Float32Array(memory.buffer, this.phaseRePtr, halfBins);
+    this.phaseImView = new Float32Array(memory.buffer, this.phaseImPtr, halfBins);
+    this.tiltView = new Float32Array(memory.buffer, this.tiltPtr, halfBins);
+    this.rngView = new Uint32Array(memory.buffer, this.rngPtr, 1);
+    this.rngView[0] = 0x12345678;
+    this.windowView.set(window);
+  }
+
+  process(
+    fft: Float32Array,
+    outputAccum: Float32Array,
+    outBlock: Float32Array,
+    winSize: number,
+    hopOut: number,
+    gain: number
+  ) {
+    this.fftView.set(fft);
+    this.outputAccumView.set(outputAccum);
+    const ok = this.fn(
+      this.fftPtr,
+      this.windowPtr,
+      this.outputAccumPtr,
+      this.outBlockPtr,
+      winSize,
+      hopOut,
+      gain
+    );
+    if (ok !== 1) return false;
+    outputAccum.set(this.outputAccumView);
+    outBlock.set(this.outBlockView);
+    return true;
+  }
+
+  analyzeBins(
+    fft: Float32Array,
+    magnitudes: Float32Array,
+    phaseRe: Float32Array,
+    phaseIm: Float32Array,
+    tiltCurve: Float32Array,
+    smoothFactor: number,
+    phaseRandomness: number
+  ) {
+    this.fftView.set(fft);
+    this.magnitudesView.set(magnitudes);
+    this.phaseReView.set(phaseRe);
+    this.phaseImView.set(phaseIm);
+    this.tiltView.set(tiltCurve);
+    const ok = this.analyzeFn(
+      this.fftPtr,
+      this.magnitudesPtr,
+      this.phaseRePtr,
+      this.phaseImPtr,
+      this.tiltPtr,
+      this.halfBins,
+      smoothFactor,
+      phaseRandomness,
+      this.rngPtr
+    );
+    if (ok !== 1) return false;
+    fft.set(this.fftView);
+    magnitudes.set(this.magnitudesView);
+    phaseRe.set(this.phaseReView);
+    phaseIm.set(this.phaseImView);
+    return true;
+  }
+
+  synthesizeBins(
+    fft: Float32Array,
+    magnitudes: Float32Array,
+    phaseRe: Float32Array,
+    phaseIm: Float32Array,
+    tiltCurve: Float32Array,
+    phaseRandomness: number
+  ) {
+    this.fftView.set(fft);
+    this.magnitudesView.set(magnitudes);
+    this.phaseReView.set(phaseRe);
+    this.phaseImView.set(phaseIm);
+    this.tiltView.set(tiltCurve);
+    const ok = this.synthFn(
+      this.fftPtr,
+      this.magnitudesPtr,
+      this.phaseRePtr,
+      this.phaseImPtr,
+      this.tiltPtr,
+      this.halfBins,
+      phaseRandomness,
+      this.rngPtr
+    );
+    if (ok !== 1) return false;
+    fft.set(this.fftView);
+    return true;
+  }
+
+  mirrorBins(fft: Float32Array, winSize: number, half: number) {
+    this.fftView.set(fft);
+    const ok = this.mirrorFn(this.fftPtr, winSize, half);
+    if (ok !== 1) return false;
+    fft.set(this.fftView);
+    return true;
+  }
+}
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -142,6 +360,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
   private readonly hopOut: number;
   private readonly window: Float32Array;
   private readonly hopScale: number;
+  private readonly overlapAddWasm: PaulStretchWasmOverlapAdd | null;
   private outputStride: number;
   private smoothFactor = 0.6;
   private baseRatio = 1;
@@ -185,6 +404,21 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     this.hopOut = winSize >> 3;
     this.outputStride = this.hopOut;
     this.window = createWindow(winSize);
+    const wasmBytes = config.wasmBytes;
+    if (wasmBytes instanceof ArrayBuffer) {
+      try {
+        this.overlapAddWasm = new PaulStretchWasmOverlapAdd(
+          wasmBytes,
+          this.winSize,
+          this.hopOut,
+          this.window
+        );
+      } catch {
+        this.overlapAddWasm = null;
+      }
+    } else {
+      this.overlapAddWasm = null;
+    }
     // Normalize overlap-add so perceived loudness stays closer to the input.
     let windowEnergy = 0;
     for (let i = 0; i < winSize; i += 1) {
@@ -255,6 +489,8 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         lastMagnitudes: null,
         lastNonSilentMagnitudes: null,
         lastPhases: null,
+        phaseRe: null,
+        phaseIm: null,
       });
       this.outBlock.push(new Float32Array(this.hopOut));
       this.fftWork.push(new Float32Array(2 * this.winSize));
@@ -275,6 +511,35 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     this.zeroFrames = 0;
   }
 
+  private overlapAdd(
+    fft: Float32Array,
+    outputAccum: Float32Array,
+    out: Float32Array,
+    gain: number
+  ) {
+    const usedWasm =
+      this.overlapAddWasm?.process(
+        fft,
+        outputAccum,
+        out,
+        this.winSize,
+        this.hopOut,
+        gain
+      ) ?? false;
+    if (usedWasm) return;
+
+    for (let i = 0; i < this.winSize; i += 1) {
+      outputAccum[i] += fft[2 * i] * this.window[i];
+    }
+
+    for (let i = 0; i < this.hopOut; i += 1) {
+      out[i] = outputAccum[i] * gain;
+    }
+
+    outputAccum.copyWithin(0, this.hopOut);
+    outputAccum.fill(0, this.winSize - this.hopOut);
+  }
+
   private processFrameFromInput(allowZeroPad = false, inputDone = false) {
     const half = this.winSize >> 1;
     const inputLimit = this.maxInputSamples;
@@ -287,6 +552,8 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       const outputAccum = this.outputAccum[ch];
       let magnitudes = channel.lastMagnitudes;
       let phases = channel.lastPhases;
+      let phaseRe = channel.phaseRe;
+      let phaseIm = channel.phaseIm;
       if (!magnitudes || magnitudes.length !== half + 1) {
         magnitudes = new Float32Array(half + 1);
         channel.lastMagnitudes = magnitudes;
@@ -294,6 +561,15 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       if (!phases || phases.length !== half + 1) {
         phases = new Float32Array(half + 1);
         channel.lastPhases = phases;
+      }
+      if (!phaseRe || phaseRe.length !== half + 1) {
+        phaseRe = new Float32Array(half + 1);
+        phaseRe.fill(1);
+        channel.phaseRe = phaseRe;
+      }
+      if (!phaseIm || phaseIm.length !== half + 1) {
+        phaseIm = new Float32Array(half + 1);
+        channel.phaseIm = phaseIm;
       }
 
       for (let i = 0; i < this.winSize; i += 1) {
@@ -315,47 +591,58 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
 
       stft(fft, this.winSize, -1);
 
-      for (let i = 0; i <= half; i += 1) {
-        const re = fft[2 * i];
-        const im = fft[2 * i + 1];
-        const magn = Math.sqrt(re * re + im * im);
-        const phase = Math.atan2(im, re);
-        phases[i] = phase;
-        const prev = magnitudes[i];
-        const smoothed = prev
-          ? this.smoothFactor * prev + (1 - this.smoothFactor) * magn
-          : magn;
-        magnitudes[i] = smoothed;
-        const tiltGain = this.tiltCurve[i] ?? 1;
-        const magnTilted = smoothed * tiltGain;
-        const randomPhase = Math.random() * 2 * Math.PI;
-        const phaseRand = blendPhase(phase, randomPhase, this.phaseRandomness);
-        fft[2 * i] = magnTilted * Math.cos(phaseRand);
-        fft[2 * i + 1] = magnTilted * Math.sin(phaseRand);
+      let usedWasmBins = false;
+      if (this.overlapAddWasm) {
+        usedWasmBins = this.overlapAddWasm.analyzeBins(
+          fft,
+          magnitudes,
+          phaseRe,
+          phaseIm,
+          this.tiltCurve,
+          this.smoothFactor,
+          this.phaseRandomness
+        );
+      }
+      if (!usedWasmBins) {
+        for (let i = 0; i <= half; i += 1) {
+          const re = fft[2 * i];
+          const im = fft[2 * i + 1];
+          const magn = Math.sqrt(re * re + im * im);
+          const phase = Math.atan2(im, re);
+          phases[i] = phase;
+          const prev = magnitudes[i];
+          const smoothed = prev
+            ? this.smoothFactor * prev + (1 - this.smoothFactor) * magn
+            : magn;
+          magnitudes[i] = smoothed;
+          const tiltGain = this.tiltCurve[i] ?? 1;
+          const magnTilted = smoothed * tiltGain;
+          const randomPhase = Math.random() * 2 * Math.PI;
+          const phaseRand = blendPhase(phase, randomPhase, this.phaseRandomness);
+          fft[2 * i] = magnTilted * Math.cos(phaseRand);
+          fft[2 * i + 1] = magnTilted * Math.sin(phaseRand);
+        }
       }
       if (frameEnergy >= minFrameEnergy) {
         channel.lastNonSilentMagnitudes = new Float32Array(magnitudes);
       }
 
-      for (let i = 1; i < half; i += 1) {
-        const mirror = this.winSize - i;
-        fft[2 * mirror] = fft[2 * i];
-        fft[2 * mirror + 1] = -fft[2 * i + 1];
+      let usedWasmMirror = false;
+      if (this.overlapAddWasm) {
+        usedWasmMirror = this.overlapAddWasm.mirrorBins(fft, this.winSize, half);
+      }
+      if (!usedWasmMirror) {
+        for (let i = 1; i < half; i += 1) {
+          const mirror = this.winSize - i;
+          fft[2 * mirror] = fft[2 * i];
+          fft[2 * mirror + 1] = -fft[2 * i + 1];
+        }
       }
 
       stft(fft, this.winSize, 1);
 
-      for (let i = 0; i < this.winSize; i += 1) {
-        outputAccum[i] += fft[2 * i] * this.window[i];
-      }
-
       const out = this.outBlock[ch];
-      for (let i = 0; i < this.hopOut; i += 1) {
-        out[i] = outputAccum[i];
-      }
-
-      outputAccum.copyWithin(0, this.hopOut);
-      outputAccum.fill(0, this.winSize - this.hopOut);
+      this.overlapAdd(fft, outputAccum, out, 1);
     }
 
     this.advanceReadPos();
@@ -370,44 +657,65 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       const magnitudes =
         channel.lastNonSilentMagnitudes ?? channel.lastMagnitudes;
       let phases = channel.lastPhases;
+      let phaseRe = channel.phaseRe;
+      let phaseIm = channel.phaseIm;
       if (!phases || phases.length !== half + 1) {
         phases = new Float32Array(half + 1);
         channel.lastPhases = phases;
+      }
+      if (!phaseRe || phaseRe.length !== half + 1) {
+        phaseRe = new Float32Array(half + 1);
+        phaseRe.fill(1);
+        channel.phaseRe = phaseRe;
+      }
+      if (!phaseIm || phaseIm.length !== half + 1) {
+        phaseIm = new Float32Array(half + 1);
+        channel.phaseIm = phaseIm;
       }
 
       if (!magnitudes) {
         fft.fill(0);
       } else {
-        for (let i = 0; i <= half; i += 1) {
-          const magn = magnitudes[i];
-          const tiltGain = this.tiltCurve[i] ?? 1;
-          const magnTilted = magn * tiltGain;
-          const phase = phases[i] ?? 0;
-          const randomPhase = Math.random() * 2 * Math.PI;
-          const phaseRand = blendPhase(phase, randomPhase, this.phaseRandomness);
-          fft[2 * i] = magnTilted * Math.cos(phaseRand);
-          fft[2 * i + 1] = magnTilted * Math.sin(phaseRand);
+        let usedWasmBins = false;
+        if (this.overlapAddWasm) {
+          usedWasmBins = this.overlapAddWasm.synthesizeBins(
+            fft,
+            magnitudes,
+            phaseRe,
+            phaseIm,
+            this.tiltCurve,
+            this.phaseRandomness
+          );
         }
-        for (let i = 1; i < half; i += 1) {
-          const mirror = this.winSize - i;
-          fft[2 * mirror] = fft[2 * i];
-          fft[2 * mirror + 1] = -fft[2 * i + 1];
+        if (!usedWasmBins) {
+          for (let i = 0; i <= half; i += 1) {
+            const magn = magnitudes[i];
+            const tiltGain = this.tiltCurve[i] ?? 1;
+            const magnTilted = magn * tiltGain;
+            const phase = phases[i] ?? 0;
+            const randomPhase = Math.random() * 2 * Math.PI;
+            const phaseRand = blendPhase(phase, randomPhase, this.phaseRandomness);
+            fft[2 * i] = magnTilted * Math.cos(phaseRand);
+            fft[2 * i + 1] = magnTilted * Math.sin(phaseRand);
+          }
+        }
+        let usedWasmMirror = false;
+        if (this.overlapAddWasm) {
+          usedWasmMirror = this.overlapAddWasm.mirrorBins(fft, this.winSize, half);
+        }
+        if (!usedWasmMirror) {
+          for (let i = 1; i < half; i += 1) {
+            const mirror = this.winSize - i;
+            fft[2 * mirror] = fft[2 * i];
+            fft[2 * mirror + 1] = -fft[2 * i + 1];
+          }
         }
       }
 
       stft(fft, this.winSize, 1);
 
-      for (let i = 0; i < this.winSize; i += 1) {
-        outputAccum[i] += fft[2 * i] * this.window[i];
-      }
-
       const out = this.outBlock[ch];
-      for (let i = 0; i < this.hopOut; i += 1) {
-        out[i] = outputAccum[i] * this.hopScale;
-      }
-
-      outputAccum.copyWithin(0, this.hopOut);
-      outputAccum.fill(0, this.winSize - this.hopOut);
+      this.overlapAdd(fft, outputAccum, out, this.hopScale);
     }
   }
 
@@ -464,6 +772,8 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         stereoWidth: this.stereoWidth,
         tiltDb: this.tiltDb,
         scatter: this.scatter,
+        wasmOverlapAdd: this.overlapAddWasm !== null,
+        wasmBins: this.overlapAddWasm !== null,
       });
     }
 

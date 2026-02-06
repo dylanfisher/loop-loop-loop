@@ -61,6 +61,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Rearranger includes a per-deck slice-fade control to soften slice edges and reduce clicks.
 - Rearranger includes a per-deck slice ping-pong control (0..1) that alternates slices toward L/R stereo placement in real time (not baked into rendered loop audio). Live ping-pong now runs through a dedicated AudioWorklet processor that derives slice side from loop timing on the audio thread to reduce main-thread scheduling jitter.
 - Rearranger numeric hot paths now support an optional WASM backend (`/wasm/rearranger.wasm`) for segment rearrange and onset-region detection kernels (including optional interleaved multi-channel onset detection export), with automatic runtime fallback to the existing JS implementation when unavailable.
+- Paulstretch render now supports an optional WASM kernel (`/wasm/paulstretch.wasm`) inside the worklet for overlap-add plus spectral-bin analyze/synthesize/mirror hot paths, with automatic runtime fallback to existing JS paths when unavailable.
 - Delay includes a phase-1 live-only `Slice Sync` mode that retimes delay-time per active rearranger slice boundary during loop playback.
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
@@ -115,6 +116,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - TypeScript + Vite.
 - WASM toolchain for DSP modules.
 - Rearranger WASM kernels can be precompiled manually from `wasm-src/rearranger.c` into `public/wasm/rearranger.wasm` to avoid adding Rust/C build steps to normal app scripts.
+- Paulstretch WASM kernels can be precompiled manually from `wasm-src/paulstretch.c` into `public/wasm/paulstretch.wasm`.
 - JS DSP implementations remain the required fallback path when WASM fails to load or execute.
 - Tests for DSP and scheduling behavior (Vitest for unit/integration).
 

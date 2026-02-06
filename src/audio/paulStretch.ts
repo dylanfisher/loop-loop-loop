@@ -2,6 +2,27 @@ import paulStretchUrl from "./worklets/paulStretchProcessor.ts?worker&url";
 
 const workletPromises = new WeakMap<BaseAudioContext, Promise<void>>();
 const workletReady = new WeakMap<BaseAudioContext, boolean>();
+const wasmBytesByContext = new WeakMap<BaseAudioContext, ArrayBuffer | null>();
+const paulStretchWasmUrl = `${import.meta.env.BASE_URL}wasm/paulstretch.wasm`;
+let paulStretchWasmLoad: Promise<ArrayBuffer | null> | null = null;
+
+const loadPaulStretchWasmBytes = () => {
+  if (paulStretchWasmLoad) return paulStretchWasmLoad;
+  if (typeof window === "undefined") {
+    paulStretchWasmLoad = Promise.resolve(null);
+    return paulStretchWasmLoad;
+  }
+  paulStretchWasmLoad = (async () => {
+    try {
+      const response = await fetch(paulStretchWasmUrl);
+      if (!response.ok) return null;
+      return await response.arrayBuffer();
+    } catch {
+      return null;
+    }
+  })();
+  return paulStretchWasmLoad;
+};
 
 export const ensurePaulStretchWorklet = async (context: BaseAudioContext) => {
   if (!context.audioWorklet) return false;
@@ -22,6 +43,8 @@ export const ensurePaulStretchWorklet = async (context: BaseAudioContext) => {
     workletPromises.set(context, promise);
   }
 
+  const wasmBytes = await loadPaulStretchWasmBytes();
+  wasmBytesByContext.set(context, wasmBytes);
   await promise;
   return true;
 };
@@ -57,6 +80,7 @@ export const createPaulStretchNode = (
       winSize,
       inputSamples,
       outputSamples,
+      wasmBytes: wasmBytesByContext.get(context) ?? null,
     },
     parameterData: {
       ratio,
