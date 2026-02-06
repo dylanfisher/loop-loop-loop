@@ -59,6 +59,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.
 - `Delete Quiet` exposes a per-deck quiet-threshold control to tune how aggressively low-energy spans are classified for removal.
 - Rearranger includes a per-deck slice-fade control to soften slice edges and reduce clicks.
+- Rearranger slice-fade defaults to `0ms` on new decks/sessions.
 - Rearranger includes a per-deck slice ping-pong control (0..1) that alternates slices toward L/R stereo placement in real time (not baked into rendered loop audio). Live ping-pong now runs through a dedicated AudioWorklet processor that derives slice side from loop timing on the audio thread to reduce main-thread scheduling jitter.
 - Rearranger numeric hot paths now support an optional WASM backend (`/wasm/rearranger.wasm`) for segment rearrange and onset-region detection kernels (including optional interleaved multi-channel onset detection export), with automatic runtime fallback to the existing JS implementation when unavailable.
 - Paulstretch render now uses a hybrid WASM setup: shared FFT from `/wasm/dsp-core.wasm` plus Paulstretch-specific overlap-add/spectral-bin kernels from `/wasm/paulstretch.wasm`, each with automatic JS fallback.

@@ -49,7 +49,7 @@ const buildEqualRegions = (sliceCount: number) => {
 };
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
-const DEFAULT_SLICE_FADE_MS = 3;
+const DEFAULT_SLICE_FADE_MS = 0;
 
 // Start loading optional wasm backend early; JS path remains authoritative fallback.
 warmupRearrangerWasm();

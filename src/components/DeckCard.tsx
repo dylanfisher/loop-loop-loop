@@ -726,7 +726,7 @@ const DeckCard = ({
         isDifferent(deck.rearrangerReverse, 0) ||
         isDifferent(deck.rearrangerSensitivity, 0.6) ||
         isDifferent(deck.rearrangerQuietThreshold, 0.3) ||
-        isDifferent(deck.rearrangerSliceFadeMs, 3, 1) ||
+        isDifferent(deck.rearrangerSliceFadeMs, 0, 1) ||
         isDifferent(deck.rearrangerPingPong, 0) ||
         deck.rearrangerAuto ||
         (deck.rearrangerRegions?.length ?? 0) > 0,
@@ -1862,7 +1862,7 @@ const DeckCard = ({
                 max={12}
                 step={1}
                 value={deck.rearrangerSliceFadeMs}
-                defaultValue={3}
+                defaultValue={0}
                 labelTitle="Short fades on slice edges to reduce clicks."
                 onChange={(next) => onRearrangerSliceFadeChange(deck.id, next)}
                 formatValue={(value) => `${Math.round(value)} ms`}
