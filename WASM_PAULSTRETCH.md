@@ -2,6 +2,8 @@
 
 This project supports an optional WASM backend for part of the Paulstretch worklet.
 
+Note: shared FFT lives in `dsp-core.wasm` (see `WASM_DSP_CORE.md`). This module only contains Paulstretch-specific kernels.
+
 ## Files
 
 - `wasm-src/paulstretch.c`: C kernel source.

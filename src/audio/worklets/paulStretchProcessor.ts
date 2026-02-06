@@ -46,6 +46,71 @@ type PaulStretchWasmExports = WebAssembly.Exports & {
   paulstretch_mirror_bins_f32?: (fftPtr: number, winSize: number, half: number) => number;
 };
 
+type DspCoreWasmExports = WebAssembly.Exports & {
+  memory?: WebAssembly.Memory;
+  malloc?: (size: number) => number;
+  dsp_fft_f32?: (
+    fftPtr: number,
+    fftFrameSize: number,
+    sign: number,
+    normalizeInverse: number,
+    bitrevPairsPtr: number,
+    bitrevPairCount: number,
+    twiddleRePtr: number,
+    twiddleImPtr: number,
+    twiddleCount: number
+  ) => number;
+  dsp_overlap_add_real_f32?: (
+    fftPtr: number,
+    windowPtr: number,
+    outputAccumPtr: number,
+    outBlockPtr: number,
+    winSize: number,
+    hopOut: number,
+    windowScale: number,
+    outGain: number
+  ) => number;
+};
+
+const reverseBits = (value: number, bits: number) => {
+  let input = value;
+  let result = 0;
+  for (let i = 0; i < bits; i += 1) {
+    result = (result << 1) | (input & 1);
+    input >>= 1;
+  }
+  return result;
+};
+
+const createBitrevSwapPairs = (fftFrameSize: number) => {
+  const bits = Math.round(Math.log2(fftFrameSize));
+  const pairs: number[] = [];
+  for (let i = 0; i < fftFrameSize; i += 1) {
+    const j = reverseBits(i, bits);
+    if (i < j) {
+      pairs.push(i, j);
+    }
+  }
+  return Int32Array.from(pairs);
+};
+
+const createFftTwiddles = (fftFrameSize: number) => {
+  const count = Math.max(1, fftFrameSize - 1);
+  const re = new Float32Array(count);
+  const im = new Float32Array(count);
+  let index = 0;
+  for (let step = 2; step <= fftFrameSize; step <<= 1) {
+    const half = step >> 1;
+    for (let m = 0; m < half; m += 1) {
+      const arg = (2 * Math.PI * m) / step;
+      re[index] = Math.cos(arg);
+      im[index] = Math.sin(arg);
+      index += 1;
+    }
+  }
+  return { re, im, count: index };
+};
+
 class PaulStretchWasmOverlapAdd {
   private readonly fn: NonNullable<PaulStretchWasmExports["paulstretch_overlap_add_f32"]>;
   private readonly analyzeFn: NonNullable<PaulStretchWasmExports["paulstretch_analyze_bins_f32"]>;
@@ -225,6 +290,128 @@ class PaulStretchWasmOverlapAdd {
   }
 }
 
+class DspCoreFftWasm {
+  private readonly fn: NonNullable<DspCoreWasmExports["dsp_fft_f32"]>;
+  private readonly overlapFn: NonNullable<DspCoreWasmExports["dsp_overlap_add_real_f32"]>;
+  private readonly fftPtr: number;
+  private readonly windowPtr: number;
+  private readonly outputAccumPtr: number;
+  private readonly outBlockPtr: number;
+  private readonly bitrevPairsPtr: number;
+  private readonly twiddleRePtr: number;
+  private readonly twiddleImPtr: number;
+  private readonly fftView: Float32Array;
+  private readonly outputAccumView: Float32Array;
+  private readonly outBlockView: Float32Array;
+  private readonly bitrevPairCount: number;
+  private readonly twiddleCount: number;
+  private readonly normalizeInverse: number;
+
+  constructor(
+    bytes: ArrayBuffer,
+    fftFrameSize: number,
+    window: Float32Array,
+    normalizeInverse: number
+  ) {
+    const module = new WebAssembly.Module(bytes);
+    const instance = new WebAssembly.Instance(module, {});
+    const exports = instance.exports as DspCoreWasmExports;
+    const memory = exports.memory;
+    const malloc = exports.malloc;
+    const fn = exports.dsp_fft_f32;
+    const overlapFn = exports.dsp_overlap_add_real_f32;
+    if (!memory || !malloc || !fn || !overlapFn) {
+      throw new Error("DSP core wasm missing required FFT exports");
+    }
+    this.fn = fn;
+    this.overlapFn = overlapFn;
+    this.normalizeInverse = normalizeInverse ? 1 : 0;
+
+    const bitrevPairs = createBitrevSwapPairs(fftFrameSize);
+    const bitrevPairCount = bitrevPairs.length / 2;
+    const twiddles = createFftTwiddles(fftFrameSize);
+    const twiddleCount = twiddles.count;
+
+    this.fftPtr = malloc(fftFrameSize * 2 * 4);
+    this.windowPtr = malloc(fftFrameSize * 4);
+    this.outputAccumPtr = malloc(fftFrameSize * 4);
+    this.outBlockPtr = malloc(fftFrameSize * 4);
+    this.bitrevPairsPtr = malloc(bitrevPairs.length * 4);
+    this.twiddleRePtr = malloc(twiddleCount * 4);
+    this.twiddleImPtr = malloc(twiddleCount * 4);
+    if (
+      !this.fftPtr ||
+      !this.windowPtr ||
+      !this.outputAccumPtr ||
+      !this.outBlockPtr ||
+      !this.bitrevPairsPtr ||
+      !this.twiddleRePtr ||
+      !this.twiddleImPtr
+    ) {
+      throw new Error("DSP core wasm FFT allocation failed");
+    }
+
+    this.fftView = new Float32Array(memory.buffer, this.fftPtr, fftFrameSize * 2);
+    new Float32Array(memory.buffer, this.windowPtr, fftFrameSize).set(window);
+    this.outputAccumView = new Float32Array(memory.buffer, this.outputAccumPtr, fftFrameSize);
+    this.outBlockView = new Float32Array(memory.buffer, this.outBlockPtr, fftFrameSize);
+    new Int32Array(memory.buffer, this.bitrevPairsPtr, bitrevPairs.length).set(bitrevPairs);
+    new Float32Array(memory.buffer, this.twiddleRePtr, twiddleCount).set(
+      twiddles.re.subarray(0, twiddleCount)
+    );
+    new Float32Array(memory.buffer, this.twiddleImPtr, twiddleCount).set(
+      twiddles.im.subarray(0, twiddleCount)
+    );
+    this.bitrevPairCount = bitrevPairCount;
+    this.twiddleCount = twiddleCount;
+  }
+
+  run(fftBuffer: Float32Array, fftFrameSize: number, sign: number) {
+    this.fftView.set(fftBuffer);
+    const ok = this.fn(
+      this.fftPtr,
+      fftFrameSize,
+      sign,
+      this.normalizeInverse,
+      this.bitrevPairsPtr,
+      this.bitrevPairCount,
+      this.twiddleRePtr,
+      this.twiddleImPtr,
+      this.twiddleCount
+    );
+    if (ok !== 1) return false;
+    fftBuffer.set(this.fftView);
+    return true;
+  }
+
+  overlapAdd(
+    fftBuffer: Float32Array,
+    outputAccum: Float32Array,
+    outBlock: Float32Array,
+    fftFrameSize: number,
+    hopOut: number,
+    windowScale: number,
+    outGain: number
+  ) {
+    this.fftView.set(fftBuffer);
+    this.outputAccumView.set(outputAccum.subarray(0, fftFrameSize));
+    const ok = this.overlapFn(
+      this.fftPtr,
+      this.windowPtr,
+      this.outputAccumPtr,
+      this.outBlockPtr,
+      fftFrameSize,
+      hopOut,
+      windowScale,
+      outGain
+    );
+    if (ok !== 1) return false;
+    outputAccum.set(this.outputAccumView, 0);
+    outBlock.set(this.outBlockView.subarray(0, hopOut));
+    return true;
+  }
+}
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
@@ -361,6 +548,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
   private readonly window: Float32Array;
   private readonly hopScale: number;
   private readonly overlapAddWasm: PaulStretchWasmOverlapAdd | null;
+  private readonly fftWasm: DspCoreFftWasm | null;
   private outputStride: number;
   private smoothFactor = 0.6;
   private baseRatio = 1;
@@ -404,11 +592,11 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     this.hopOut = winSize >> 3;
     this.outputStride = this.hopOut;
     this.window = createWindow(winSize);
-    const wasmBytes = config.wasmBytes;
-    if (wasmBytes instanceof ArrayBuffer) {
+    const paulStretchWasmBytes = config.paulStretchWasmBytes;
+    if (paulStretchWasmBytes instanceof ArrayBuffer) {
       try {
         this.overlapAddWasm = new PaulStretchWasmOverlapAdd(
-          wasmBytes,
+          paulStretchWasmBytes,
           this.winSize,
           this.hopOut,
           this.window
@@ -418,6 +606,16 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       }
     } else {
       this.overlapAddWasm = null;
+    }
+    const dspCoreWasmBytes = config.dspCoreWasmBytes;
+    if (dspCoreWasmBytes instanceof ArrayBuffer) {
+      try {
+        this.fftWasm = new DspCoreFftWasm(dspCoreWasmBytes, this.winSize, this.window, 1);
+      } catch {
+        this.fftWasm = null;
+      }
+    } else {
+      this.fftWasm = null;
     }
     // Normalize overlap-add so perceived loudness stays closer to the input.
     let windowEnergy = 0;
@@ -517,7 +715,19 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     out: Float32Array,
     gain: number
   ) {
-    const usedWasm =
+    const usedSharedWasm =
+      this.fftWasm?.overlapAdd(
+        fft,
+        outputAccum,
+        out,
+        this.winSize,
+        this.hopOut,
+        1,
+        gain
+      ) ?? false;
+    if (usedSharedWasm) return;
+
+    const usedEffectWasm =
       this.overlapAddWasm?.process(
         fft,
         outputAccum,
@@ -526,7 +736,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         this.hopOut,
         gain
       ) ?? false;
-    if (usedWasm) return;
+    if (usedEffectWasm) return;
 
     for (let i = 0; i < this.winSize; i += 1) {
       outputAccum[i] += fft[2 * i] * this.window[i];
@@ -538,6 +748,12 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
 
     outputAccum.copyWithin(0, this.hopOut);
     outputAccum.fill(0, this.winSize - this.hopOut);
+  }
+
+  private runFft(fft: Float32Array, sign: number) {
+    const usedWasm = this.fftWasm?.run(fft, this.winSize, sign) ?? false;
+    if (usedWasm) return;
+    stft(fft, this.winSize, sign);
   }
 
   private processFrameFromInput(allowZeroPad = false, inputDone = false) {
@@ -589,7 +805,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         continue;
       }
 
-      stft(fft, this.winSize, -1);
+      this.runFft(fft, -1);
 
       let usedWasmBins = false;
       if (this.overlapAddWasm) {
@@ -639,7 +855,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         }
       }
 
-      stft(fft, this.winSize, 1);
+      this.runFft(fft, 1);
 
       const out = this.outBlock[ch];
       this.overlapAdd(fft, outputAccum, out, 1);
@@ -712,7 +928,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         }
       }
 
-      stft(fft, this.winSize, 1);
+      this.runFft(fft, 1);
 
       const out = this.outBlock[ch];
       this.overlapAdd(fft, outputAccum, out, this.hopScale);
@@ -773,7 +989,9 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         tiltDb: this.tiltDb,
         scatter: this.scatter,
         wasmOverlapAdd: this.overlapAddWasm !== null,
+        wasmSharedOverlapAdd: this.fftWasm !== null,
         wasmBins: this.overlapAddWasm !== null,
+        wasmFft: this.fftWasm !== null,
       });
     }
 

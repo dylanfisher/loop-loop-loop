@@ -1,4 +1,8 @@
 import paulStretchUrl from "./worklets/paulStretchProcessor.ts?worker&url";
+import {
+  ensureDspCoreWasmForContext,
+  getDspCoreWasmForContext,
+} from "./wasm/dspCore";
 
 const workletPromises = new WeakMap<BaseAudioContext, Promise<void>>();
 const workletReady = new WeakMap<BaseAudioContext, boolean>();
@@ -45,6 +49,7 @@ export const ensurePaulStretchWorklet = async (context: BaseAudioContext) => {
 
   const wasmBytes = await loadPaulStretchWasmBytes();
   wasmBytesByContext.set(context, wasmBytes);
+  await ensureDspCoreWasmForContext(context);
   await promise;
   return true;
 };
@@ -80,7 +85,8 @@ export const createPaulStretchNode = (
       winSize,
       inputSamples,
       outputSamples,
-      wasmBytes: wasmBytesByContext.get(context) ?? null,
+      paulStretchWasmBytes: wasmBytesByContext.get(context) ?? null,
+      dspCoreWasmBytes: getDspCoreWasmForContext(context),
     },
     parameterData: {
       ratio,

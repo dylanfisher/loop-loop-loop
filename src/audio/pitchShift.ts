@@ -17,6 +17,10 @@ const DEFAULT_OSAMP = 8;
 const ZERO_THRESHOLD = 0.001;
 
 import pitchVocoderUrl from "./worklets/pitchVocoderProcessor.ts?worker&url";
+import {
+  ensureDspCoreWasmForContext,
+  getDspCoreWasmForContext,
+} from "./wasm/dspCore";
 
 const workletPromises = new WeakMap<BaseAudioContext, Promise<void>>();
 const workletReady = new WeakMap<BaseAudioContext, boolean>();
@@ -40,6 +44,7 @@ export const ensurePitchShiftWorklet = async (context: BaseAudioContext) => {
     workletPromises.set(context, promise);
   }
 
+  await ensureDspCoreWasmForContext(context);
   await promise;
   return true;
 };
@@ -71,6 +76,7 @@ export const createPitchShiftNodes = (
         processorOptions: {
           fftFrameSize: config.fftFrameSize,
           osamp: config.osamp,
+          dspCoreWasmBytes: getDspCoreWasmForContext(context),
         },
       });
       worklet.channelCountMode = "max";
