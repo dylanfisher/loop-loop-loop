@@ -40,6 +40,7 @@ const DEFAULT_REARRANGER_REVERSE = 0;
 const DEFAULT_REARRANGER_SENSITIVITY = 0.6;
 const DEFAULT_REARRANGER_QUIET_THRESHOLD = 0.3;
 const DEFAULT_REARRANGER_SLICE_FADE_MS = 3;
+const DEFAULT_REARRANGER_PINGPONG = 0;
 const DEFAULT_REARRANGER_AUTO = false;
 const DEFAULT_RESONANCE = 0;
 const EQ_MAX_DB = 18;
@@ -222,6 +223,7 @@ const useDecks = () => {
       rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
       rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
       rearrangerSliceFadeMs: DEFAULT_REARRANGER_SLICE_FADE_MS,
+      rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
       rearrangerAuto: DEFAULT_REARRANGER_AUTO,
       rearrangerRegionsManual: false,
       fxPanelOpen: withDefaultFxPanelOpen(),
@@ -241,6 +243,11 @@ const useDecks = () => {
     setDeckEqMid,
     setDeckEqHigh,
     setDeckBalance,
+    setDeckRearrangerPan,
+    setDeckRearrangerPingPongAmount,
+    setDeckRearrangerPingPongConfig,
+    clearDeckRearrangerPanAutomation,
+    scheduleDeckRearrangerPan,
     setDeckDelayTime,
     setDeckDelayFeedback,
     setDeckDelayMix,
@@ -253,6 +260,7 @@ const useDecks = () => {
     setDeckLoopParams,
     setDeckPlaybackRate,
     setDeckPlaybackOffset,
+    getCurrentTime,
   } = useAudioEngine();
 
   const getFilterTargets = useCallback((djFilter: number) => {
@@ -1214,6 +1222,7 @@ const useDecks = () => {
         rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
         rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
         rearrangerSliceFadeMs: DEFAULT_REARRANGER_SLICE_FADE_MS,
+        rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
         rearrangerAuto: DEFAULT_REARRANGER_AUTO,
         rearrangerRegionsManual: false,
         fxPanelOpen: withDefaultFxPanelOpen(),
@@ -1281,6 +1290,7 @@ const useDecks = () => {
             rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
             rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
             rearrangerSliceFadeMs: DEFAULT_REARRANGER_SLICE_FADE_MS,
+            rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
             rearrangerAuto: DEFAULT_REARRANGER_AUTO,
             rearrangerRegionsManual: false,
             fxPanelOpen: withDefaultFxPanelOpen(),
@@ -1376,6 +1386,10 @@ const useDecks = () => {
       0,
       Math.min(12, clipSettings?.rearrangerSliceFadeMs ?? DEFAULT_REARRANGER_SLICE_FADE_MS)
     );
+    const nextRearrangerPingPong = Math.max(
+      0,
+      Math.min(1, clipSettings?.rearrangerPingPong ?? DEFAULT_REARRANGER_PINGPONG)
+    );
     const nextRearrangerAuto = clipSettings?.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO;
     const nextRearrangerRegions = sanitizeRearrangerRegions(clipSettings?.rearrangerRegions);
     const nextRearrangerRegionIds = normalizeRearrangerRegionIds(
@@ -1426,6 +1440,7 @@ const useDecks = () => {
             DEFAULT_REARRANGER_QUIET_THRESHOLD
           ) ||
           !approxEqual(nextRearrangerSliceFadeMs, DEFAULT_REARRANGER_SLICE_FADE_MS) ||
+          !approxEqual(nextRearrangerPingPong, DEFAULT_REARRANGER_PINGPONG) ||
           (nextRearrangerRegions?.length ?? 0) > 0,
         stretch: currentPanels.stretch || stretchChanged,
       };
@@ -1513,6 +1528,7 @@ const useDecks = () => {
       rearrangerSensitivity: nextRearrangerSensitivity,
       rearrangerQuietThreshold: nextRearrangerQuietThreshold,
       rearrangerSliceFadeMs: nextRearrangerSliceFadeMs,
+      rearrangerPingPong: nextRearrangerPingPong,
       rearrangerAuto: nextRearrangerAuto,
       rearrangerRegions: nextRearrangerRegions,
       rearrangerRegionIds: nextRearrangerRegionIds,
@@ -1573,6 +1589,7 @@ const useDecks = () => {
       rearrangerSensitivity: nextRearrangerSensitivity,
       rearrangerQuietThreshold: nextRearrangerQuietThreshold,
       rearrangerSliceFadeMs: nextRearrangerSliceFadeMs,
+      rearrangerPingPong: nextRearrangerPingPong,
       rearrangerAuto: nextRearrangerAuto,
         rearrangerRegions: nextRearrangerRegions,
         rearrangerRegionIds: nextRearrangerRegionIds,
@@ -1940,6 +1957,43 @@ const useDecks = () => {
   const setDeckDelayTimeTransient = (id: number, value: number) => {
     const clamped = Math.min(Math.max(value, 0.01), 1.5);
     setDeckDelayTime(id, clamped);
+  };
+
+  const setDeckRearrangerPanTransient = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, -1), 1);
+    setDeckRearrangerPan(id, clamped);
+  };
+
+  const setDeckRearrangerPingPongLive = (
+    id: number,
+    amount: number,
+    config: {
+      enabled: boolean;
+      loopStart: number;
+      loopEnd: number;
+      playbackRate: number;
+      regions: number[];
+      anchorTime: number;
+      anchorPosition: number;
+    } | null
+  ) => {
+    const clampedAmount = Math.min(Math.max(amount, 0), 1);
+    setDeckRearrangerPingPongAmount(id, clampedAmount);
+    setDeckRearrangerPingPongConfig(id, config);
+  };
+
+  const clearDeckRearrangerPanAutomationTransient = (id: number, fromTime: number) => {
+    clearDeckRearrangerPanAutomation(id, Math.max(0, fromTime));
+  };
+
+  const scheduleDeckRearrangerPanTransient = (
+    id: number,
+    value: number,
+    atTime: number,
+    rampSeconds = 0
+  ) => {
+    const clamped = Math.min(Math.max(value, -1), 1);
+    scheduleDeckRearrangerPan(id, clamped, Math.max(0, atTime), Math.max(0, rampSeconds));
   };
 
 
@@ -2431,6 +2485,8 @@ const useDecks = () => {
         deck.rearrangerQuietThreshold ?? DEFAULT_REARRANGER_QUIET_THRESHOLD;
       const nextRearrangerSliceFadeMs =
         deck.rearrangerSliceFadeMs ?? DEFAULT_REARRANGER_SLICE_FADE_MS;
+      const nextRearrangerPingPong =
+        deck.rearrangerPingPong ?? DEFAULT_REARRANGER_PINGPONG;
       const nextRearrangerAuto = deck.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO;
       const nextRearrangerRegions = sanitizeRearrangerRegions(
         options?.rearrangerRegions ?? deck.rearrangerRegions
@@ -2497,6 +2553,7 @@ const useDecks = () => {
         rearrangerSensitivity: nextRearrangerSensitivity,
         rearrangerQuietThreshold: nextRearrangerQuietThreshold,
         rearrangerSliceFadeMs: nextRearrangerSliceFadeMs,
+        rearrangerPingPong: nextRearrangerPingPong,
         rearrangerAuto: nextRearrangerAuto,
         rearrangerRegions: nextRearrangerRegions,
         rearrangerRegionIds: nextRearrangerRegionIds,
@@ -2752,6 +2809,12 @@ const useDecks = () => {
     updateDeck(id, { rearrangerSliceFadeMs: clamped }, false);
   };
 
+  const setDeckRearrangerPingPong = (id: number, value: number) => {
+    const safeValue = Number.isFinite(value) ? value : DEFAULT_REARRANGER_PINGPONG;
+    const clamped = Math.min(Math.max(safeValue, 0), 1);
+    updateDeck(id, { rearrangerPingPong: clamped }, false);
+  };
+
   const setDeckRearrangerAuto = (id: number, value: boolean) => {
     updateDeck(id, { rearrangerAuto: value }, false);
   };
@@ -2882,6 +2945,7 @@ const useDecks = () => {
           rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
           rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
           rearrangerSliceFadeMs: DEFAULT_REARRANGER_SLICE_FADE_MS,
+          rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
           rearrangerAuto: DEFAULT_REARRANGER_AUTO,
           rearrangerRegions: undefined,
           rearrangerRegionIds: undefined,
@@ -3010,6 +3074,7 @@ const useDecks = () => {
         rearrangerSensitivity: deck.rearrangerSensitivity,
         rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
         rearrangerSliceFadeMs: deck.rearrangerSliceFadeMs,
+        rearrangerPingPong: deck.rearrangerPingPong,
         rearrangerAuto: deck.rearrangerAuto,
         rearrangerRegions: sanitizeRearrangerRegions(deck.rearrangerRegions),
         rearrangerRegionIds: deck.rearrangerRegionIds,
@@ -3184,6 +3249,8 @@ const useDecks = () => {
             DEFAULT_REARRANGER_QUIET_THRESHOLD,
           rearrangerSliceFadeMs:
             sessionDeck.rearrangerSliceFadeMs ?? DEFAULT_REARRANGER_SLICE_FADE_MS,
+          rearrangerPingPong:
+            sessionDeck.rearrangerPingPong ?? DEFAULT_REARRANGER_PINGPONG,
           rearrangerAuto:
             sessionDeck.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO,
           rearrangerRegions: sanitizeRearrangerRegions(sessionDeck.rearrangerRegions),
@@ -3266,6 +3333,10 @@ const useDecks = () => {
     setDeckDelayPingPong: setDeckDelayPingPongValue,
     setDeckDelaySliceSync: setDeckDelaySliceSyncValue,
     setDeckDelayTimeTransient,
+    setDeckRearrangerPanTransient,
+    setDeckRearrangerPingPongLive,
+    clearDeckRearrangerPanAutomationTransient,
+    scheduleDeckRearrangerPanTransient,
     setDeckPitchShift: setDeckPitchShiftValue,
     seekDeck,
     setDeckZoom: setDeckZoomValue,
@@ -3288,6 +3359,7 @@ const useDecks = () => {
     setDeckRearrangerSensitivity,
     setDeckRearrangerQuietThreshold,
     setDeckRearrangerSliceFadeMs,
+    setDeckRearrangerPingPong,
     setDeckRearrangerAuto,
     setDeckRearrangerRegions,
     setDeckFxPanelOpen,
@@ -3308,6 +3380,7 @@ const useDecks = () => {
     setAutomationDuration,
     getDeckPosition,
     getDeckPlaybackSnapshot: getDeckPlaybackSnapshotSafe,
+    getAudioCurrentTime: getCurrentTime,
     setFileInputRef,
     loadDeckBuffer,
     getSessionDecks,

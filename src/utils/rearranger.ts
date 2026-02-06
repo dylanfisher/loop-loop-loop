@@ -146,7 +146,6 @@ export const rearrangeLoopBuffer = (
   }
   const map = buildRearrangerMap(normalized, options);
   let writeHead = 0;
-
   const fadeSamples = Math.max(
     0,
     Math.round((source.sampleRate * (normalized.sliceFadeMs ?? DEFAULT_SLICE_FADE_MS)) / 1000)

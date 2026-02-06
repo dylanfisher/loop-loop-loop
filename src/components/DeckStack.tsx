@@ -61,6 +61,7 @@ type DeckStackProps = {
   onRearrangerSensitivityChange: (id: number, value: number) => void;
   onRearrangerQuietThresholdChange: (id: number, value: number) => void;
   onRearrangerSliceFadeChange: (id: number, value: number) => void;
+  onRearrangerPingPongChange: (id: number, value: number) => void;
   onRearrangerAutoChange: (id: number, value: boolean) => void;
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
   onRearrangerSliceDelete: (id: number, sliceIndex: number) => void;
@@ -165,6 +166,7 @@ const DeckStack = ({
   onRearrangerSensitivityChange,
   onRearrangerQuietThresholdChange,
   onRearrangerSliceFadeChange,
+  onRearrangerPingPongChange,
   onRearrangerAutoChange,
   onRearrangerRegionsChange,
   onRearrangerSliceDelete,
@@ -290,6 +292,7 @@ const DeckStack = ({
               onRearrangerSensitivityChange={onRearrangerSensitivityChange}
               onRearrangerQuietThresholdChange={onRearrangerQuietThresholdChange}
               onRearrangerSliceFadeChange={onRearrangerSliceFadeChange}
+              onRearrangerPingPongChange={onRearrangerPingPongChange}
               onRearrangerAutoChange={onRearrangerAutoChange}
               onRearrangerRegionsChange={onRearrangerRegionsChange}
               onRearrangerSliceDelete={onRearrangerSliceDelete}

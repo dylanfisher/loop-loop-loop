@@ -1,4 +1,5 @@
 declare const sampleRate: number;
+declare const currentTime: number;
 
 declare class AudioWorkletProcessor {
   readonly port: MessagePort;

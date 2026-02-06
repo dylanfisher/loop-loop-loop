@@ -442,6 +442,27 @@ const buildDerivedDeckName = (fileName: string | undefined, suffix: string) => {
   return `${base} ${suffix}`;
 };
 
+const inferAudioExtension = (mimeType: string | undefined, fallback = "wav") => {
+  if (!mimeType) return fallback;
+  if (mimeType.includes("wav")) return "wav";
+  if (mimeType.includes("webm")) return "webm";
+  if (mimeType.includes("ogg")) return "ogg";
+  if (mimeType.includes("mpeg") || mimeType.includes("mp3")) return "mp3";
+  if (mimeType.includes("mp4") || mimeType.includes("aac") || mimeType.includes("m4a")) return "m4a";
+  return fallback;
+};
+
+const inferAudioMimeTypeFromPath = (path: string | undefined, fallback = "audio/wav") => {
+  if (!path) return fallback;
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".wav")) return "audio/wav";
+  if (lower.endsWith(".webm")) return "audio/webm";
+  if (lower.endsWith(".ogg")) return "audio/ogg";
+  if (lower.endsWith(".mp3")) return "audio/mpeg";
+  if (lower.endsWith(".m4a") || lower.endsWith(".mp4")) return "audio/mp4";
+  return fallback;
+};
+
 const isSessionBrandNew = (session: {
   decks: Array<{ fileName?: string; wavBlobId?: string; wavFile?: string }>;
   clips: unknown[];
@@ -451,7 +472,8 @@ const isSessionBrandNew = (session: {
 
 const App = () => {
   const [clips, setClips] = useState<ClipItem[]>([]);
-  const [exportMinutes, setExportMinutes] = useState(10);
+  const [exportMinutes, setExportMinutes] = useState(1);
+  const [exportSeconds, setExportSeconds] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportEstimateLabel, setExportEstimateLabel] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -542,6 +564,7 @@ const App = () => {
     new Map()
   );
   const delaySliceSyncTrackerRef = useRef<Map<number, number>>(new Map());
+  const rearrangerPingPongStateRef = useRef<Map<number, { signature: string }>>(new Map());
   const rearrangeBusyByDeckRef = useRef<Map<number, boolean>>(new Map());
   const skipNextAutosaveRef = useRef(0);
   const autosaveReadyRef = useRef(false);
@@ -573,6 +596,8 @@ const App = () => {
     setDeckDelayPingPong,
     setDeckDelaySliceSync,
     setDeckDelayTimeTransient,
+    setDeckRearrangerPanTransient,
+    setDeckRearrangerPingPongLive,
     setDeckPitchShift,
     seekDeck,
     setDeckZoom,
@@ -595,6 +620,7 @@ const App = () => {
     setDeckRearrangerSensitivity,
     setDeckRearrangerQuietThreshold,
     setDeckRearrangerSliceFadeMs,
+    setDeckRearrangerPingPong,
     setDeckRearrangerAuto,
     setDeckRearrangerRegions,
     setDeckFxPanelOpen,
@@ -615,6 +641,7 @@ const App = () => {
     setAutomationDuration,
     getDeckPosition,
     getDeckPlaybackSnapshot,
+    getAudioCurrentTime,
     getSessionDecks,
     loadSessionDecks,
     resetDecks,
@@ -786,6 +813,7 @@ const App = () => {
         rearrangerSensitivity: deck.rearrangerSensitivity,
         rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
         rearrangerSliceFadeMs: deck.rearrangerSliceFadeMs,
+        rearrangerPingPong: deck.rearrangerPingPong,
         rearrangerAuto: deck.rearrangerAuto,
         rearrangerRegions: deck.rearrangerRegions,
         rearrangerRegionIds: deck.rearrangerRegionIds,
@@ -948,147 +976,6 @@ const App = () => {
     [buildClipSettings, decks]
   );
 
-  const renderClipWithSettingsBaked = useCallback(
-    async (buffer: AudioBuffer, settings: ClipSettings) => {
-      const tempoRatio = Math.min(Math.max(1 + settings.tempoOffset / 100, 0.01), 16);
-      const renderDuration = buffer.duration / Math.max(0.01, tempoRatio);
-      const sampleRate = buffer.sampleRate;
-      const pitchTrack = settings.automation?.pitch;
-      const djFilterTrack = settings.automation?.djFilter;
-      const resonanceTrack = settings.automation?.resonance;
-      const eqLowTrack = settings.automation?.eqLow;
-      const eqMidTrack = settings.automation?.eqMid;
-      const eqHighTrack = settings.automation?.eqHigh;
-      const balanceTrack = settings.automation?.balance;
-      const pitchActive =
-        Math.abs(settings.pitchShift) >= 0.001 || pitchTrack?.active === true;
-      const delayTime = Math.min(Math.max(settings.delayTime ?? 0.35, 0.01), 1.5);
-      const delayFeedback = Math.min(Math.max(settings.delayFeedback ?? 0.35, 0), 0.95);
-      const delayMix = Math.min(Math.max(settings.delayMix ?? 0, 0), 1);
-      const delayTone = Math.min(Math.max(settings.delayTone ?? 6000, 400), 12000);
-      const delayPingPong = settings.delayPingPong ?? false;
-
-      const needsPitch = pitchActive || pitchTrack?.active === true;
-      const needsFilter =
-        !approxEqual(settings.djFilter, 0) ||
-        !approxEqual(settings.filterResonance, 0) ||
-        djFilterTrack?.active === true ||
-        resonanceTrack?.active === true;
-      const needsEq =
-        !approxEqual(settings.eqLowGain, 0) ||
-        !approxEqual(settings.eqMidGain, 0) ||
-        !approxEqual(settings.eqHighGain, 0) ||
-        eqLowTrack?.active === true ||
-        eqMidTrack?.active === true ||
-        eqHighTrack?.active === true;
-      const needsBalance = !approxEqual(settings.balance, 0) || balanceTrack?.active === true;
-      const needsGain = !approxEqual(settings.gain, 0.9);
-      const needsDelay = delayMix > 0.001;
-      const needsRender =
-        !approxEqual(tempoRatio, 1) ||
-        needsPitch ||
-        needsFilter ||
-        needsEq ||
-        needsBalance ||
-        needsGain ||
-        needsDelay;
-      if (!needsRender) return buffer;
-
-      const toAutomation = (track?: ClipSettings["automation"][keyof ClipSettings["automation"]]) =>
-        track
-          ? {
-              active: track.active,
-              samples: Float32Array.from(track.samples),
-              durationSec: track.durationSec,
-            }
-          : undefined;
-
-      const targetSamples = Math.max(1, Math.ceil(renderDuration * sampleRate));
-      const fftFrameSize = 1024;
-      const osamp = 8;
-      const latencySamples = pitchActive
-        ? Math.round(fftFrameSize - fftFrameSize / osamp)
-        : 0;
-      const maxSilenceTrimSamples = Math.ceil(0.03 * sampleRate);
-      const extraSamples = latencySamples + maxSilenceTrimSamples;
-      const length = Math.max(1, targetSamples + extraSamples);
-      const offline = new OfflineAudioContext(
-        buffer.numberOfChannels,
-        length,
-        sampleRate
-      );
-      if (needsPitch) {
-        try {
-          await ensurePitchShiftWorklet(offline);
-        } catch (error) {
-          console.warn("Pitch shift worklet unavailable for clip bake", error);
-        }
-      }
-      const source = offline.createBufferSource();
-      source.buffer = buffer;
-      source.playbackRate.value = tempoRatio;
-
-      let chain: AudioNode = source;
-      chain = applyBalanceOffline(offline, chain, {
-        balance: settings.balance,
-        renderDuration,
-        automation: toAutomation(balanceTrack),
-      });
-      chain = applyPitchShiftOffline(offline, chain, {
-        pitch: settings.pitchShift,
-        renderDuration,
-        automation: toAutomation(pitchTrack),
-      });
-      chain = applyDjFilterOffline(offline, chain, {
-        djFilter: settings.djFilter,
-        resonance: settings.filterResonance,
-        renderDuration,
-        djAutomation: toAutomation(djFilterTrack),
-        resonanceAutomation: toAutomation(resonanceTrack),
-      });
-      chain = applyEq3Offline(offline, chain, {
-        low: settings.eqLowGain,
-        mid: settings.eqMidGain,
-        high: settings.eqHighGain,
-        renderDuration,
-        lowAutomation: toAutomation(eqLowTrack),
-        midAutomation: toAutomation(eqMidTrack),
-        highAutomation: toAutomation(eqHighTrack),
-      });
-      chain = applyPostEqEffectsOffline(
-        offline,
-        chain,
-        {
-          delay: {
-            time: delayTime,
-            feedback: delayFeedback,
-            mix: delayMix,
-            tone: delayTone,
-            pingPong: delayPingPong,
-          },
-        },
-        "saveLoop"
-      );
-      chain = applyGainOffline(offline, chain, { gain: settings.gain, bypassAt: 0.9 });
-      chain.connect(offline.destination);
-      source.start(0, 0, renderDuration);
-      const rendered = await offline.startRendering();
-      const silenceTrimSamples = findLeadingSilenceSamples(
-        rendered,
-        maxSilenceTrimSamples,
-        1e-4
-      );
-      const totalTrim = Math.min(latencySamples + silenceTrimSamples, extraSamples);
-      return trimBufferLeadingSamples(
-        offline,
-        rendered,
-        totalTrim,
-        targetSamples
-      );
-    },
-    []
-  );
-
   const handleLoadClipToDeck = useCallback(
     async (deckId: number, clip: ClipItem) => {
       const applyFxSettings = Boolean(clip.settings && clip.applyFxSettings);
@@ -1096,34 +983,6 @@ const App = () => {
         new File([blob], `${clip.name}.${ext}`, {
           type: blob.type || fallbackType,
         });
-      if (clip.settings && !applyFxSettings) {
-        try {
-          const cached = clipBufferCacheRef.current.get(clip.id);
-          const sourceBuffer = (() => {
-            if (clip.buffer) return clip.buffer;
-            if (cached && cached.blob === clip.blob) return cached.buffer;
-            return null;
-          })();
-          const rawBuffer =
-            sourceBuffer ??
-            (await decodeFile(makeClipFile(clip.blob, "wav", "audio/wav")));
-          const baked = await renderClipWithSettingsBaked(rawBuffer, clip.settings);
-          const bakedBlob = encodeWav(baked);
-          await handleFileSelected(
-            deckId,
-            makeClipFile(bakedBlob, "wav", "audio/wav"),
-            {
-              gain: clip.gain,
-              balance: clip.balance,
-              pitchShift: clip.pitchShift,
-              tempoOffset: clip.tempoOffset ?? 0,
-            }
-          );
-          return;
-        } catch (error) {
-          console.warn("Failed to bake clip with settings; loading raw clip", error);
-        }
-      }
       await handleFileSelected(
         deckId,
         makeClipFile(clip.blob, "webm", "audio/webm"),
@@ -1138,7 +997,7 @@ const App = () => {
         }
       );
     },
-    [decodeFile, handleFileSelected, renderClipWithSettingsBaked]
+    [handleFileSelected]
   );
 
   const handleSaveLoopClip = useCallback(
@@ -1194,11 +1053,15 @@ const App = () => {
       setSessionStatus("Load at least one deck before exporting.");
       return;
     }
+    const exportDurationSec = Math.max(
+      1,
+      Math.round(exportMinutes) * 60 + Math.round(exportSeconds)
+    );
     setExportEstimateLabel(
-      `Approx export: ${formatEstimateDuration(Math.max(1, exportMinutes) * 30)}`
+      `Approx export: ${formatEstimateDuration(exportDurationSec * 0.5)}`
     );
     setExporting(true);
-    const durationSec = Math.max(1, exportMinutes) * 60;
+    const durationSec = exportDurationSec;
     const sampleRate = activeDecks[0].buffer?.sampleRate ?? 44100;
     const length = Math.max(1, Math.ceil(durationSec * sampleRate));
     const offline = new OfflineAudioContext(2, length, sampleRate);
@@ -1212,6 +1075,25 @@ const App = () => {
     masterGain.gain.value = 0.9;
     masterMix.connect(masterGain);
     masterGain.connect(offline.destination);
+
+    const scheduleRearrangerPingPongSpan = (
+      panner: StereoPannerNode,
+      startTime: number,
+      spanDuration: number,
+      regions: number[],
+      amount: number
+    ) => {
+      if (spanDuration <= 0.000001) return;
+      const sliceCount = Math.max(0, regions.length - 1);
+      if (sliceCount <= 1) return;
+      for (let sliceIndex = 0; sliceIndex < sliceCount; sliceIndex += 1) {
+        const normalizedStart = regions[sliceIndex] ?? 0;
+        const eventTime = startTime + Math.max(0, normalizedStart) * spanDuration;
+        if (eventTime > durationSec) break;
+        const targetPan = (sliceIndex % 2 === 0 ? -1 : 1) * amount;
+        panner.pan.setValueAtTime(targetPan, Math.max(0, eventTime));
+      }
+    };
 
     activeDecks.forEach((deck) => {
       if (!deck.buffer) return;
@@ -1243,9 +1125,15 @@ const App = () => {
       const eqMidValue = eqMidTrack?.active ? eqMidTrack.currentValue : deck.eqMidGain;
       const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
       const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
+      const loopStart = deck.loopStartSeconds ?? 0;
+      const loopEnd =
+        deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+          ? deck.loopEndSeconds
+          : deck.buffer.duration;
+      const pingPongAmount = Math.min(Math.max(deck.rearrangerPingPong ?? 0, 0), 1);
 
       const deckInput = offline.createGain();
-      let preEq: AudioNode = applyBalanceOffline(offline, deckInput, {
+      const balancedOut = applyBalanceOffline(offline, deckInput, {
         balance: balanceValue,
         renderDuration: durationSec,
         automation: balanceTrack
@@ -1256,6 +1144,10 @@ const App = () => {
             }
           : undefined,
       });
+      const rearrangerPanner = offline.createStereoPanner();
+      balancedOut.connect(rearrangerPanner);
+      rearrangerPanner.pan.setValueAtTime(0, 0);
+      let preEq: AudioNode = rearrangerPanner;
       preEq = applyPitchShiftOffline(offline, preEq, {
         pitch: pitchValue,
         renderDuration: durationSec,
@@ -1331,11 +1223,6 @@ const App = () => {
       const protectedOut = applyMasterProtectOffline(offline, postGain, { enabled: true });
       protectedOut.connect(masterMix);
 
-      const loopStart = deck.loopStartSeconds ?? 0;
-      const loopEnd =
-        deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
-          ? deck.loopEndSeconds
-          : deck.buffer.duration;
       if (deck.loopEnabled && loopEnd > loopStart + 0.01) {
         const hasAutoLoopRearrange =
           deck.rearrangerAuto && (deck.rearrangerSlices ?? 0) > 1;
@@ -1389,12 +1276,23 @@ const App = () => {
           let timelineSec = 0;
 
           for (let cycle = 0; cycle < cyclesToRender && timelineSec < durationSec; cycle += 1) {
+            const cycleStartSec = timelineSec;
+            const cycleDurationSec = Math.max(0.001, currentBuffer.duration / tempoRatio);
+            if (pingPongAmount > 0.001) {
+              scheduleRearrangerPingPongSpan(
+                rearrangerPanner,
+                cycleStartSec,
+                cycleDurationSec,
+                currentRegions,
+                pingPongAmount
+              );
+            }
             const source = offline.createBufferSource();
             source.buffer = currentBuffer;
             source.playbackRate.value = tempoRatio;
             source.connect(deckInput);
-            source.start(timelineSec, 0);
-            timelineSec += Math.max(0.001, currentBuffer.duration / tempoRatio);
+            source.start(cycleStartSec, 0);
+            timelineSec += cycleDurationSec;
             if (timelineSec >= durationSec) break;
 
             const cycleSeed = (deckSeedBase ^ Math.imul(cycle + 1, 2654435761)) >>> 0;
@@ -1427,6 +1325,20 @@ const App = () => {
           }
 
           if (timelineSec < durationSec) {
+            if (pingPongAmount > 0.001) {
+              const cycleDurationSec = Math.max(0.001, currentBuffer.duration / tempoRatio);
+              let pingPongTime = timelineSec;
+              while (pingPongTime < durationSec) {
+                scheduleRearrangerPingPongSpan(
+                  rearrangerPanner,
+                  pingPongTime,
+                  cycleDurationSec,
+                  currentRegions,
+                  pingPongAmount
+                );
+                pingPongTime += cycleDurationSec;
+              }
+            }
             const tail = offline.createBufferSource();
             tail.buffer = currentBuffer;
             tail.playbackRate.value = tempoRatio;
@@ -1437,6 +1349,24 @@ const App = () => {
             tail.start(timelineSec, 0);
           }
           return;
+        }
+        if (pingPongAmount > 0.001 && (deck.rearrangerSlices ?? 0) > 1) {
+          const cycleDurationSec = Math.max(0.001, (loopEnd - loopStart) / tempoRatio);
+          const loopRegions = normalizeRearrangerRegions(
+            deck.rearrangerRegions,
+            deck.rearrangerSlices
+          );
+          let cycleStartSec = 0;
+          while (cycleStartSec < durationSec) {
+            scheduleRearrangerPingPongSpan(
+              rearrangerPanner,
+              cycleStartSec,
+              cycleDurationSec,
+              loopRegions,
+              pingPongAmount
+            );
+            cycleStartSec += cycleDurationSec;
+          }
         }
       }
 
@@ -1471,14 +1401,21 @@ const App = () => {
     automationState,
     decks,
     exportMinutes,
+    exportSeconds,
     exporting,
     sessionName,
   ]);
 
   const handleExportMinutesChange = useCallback((value: number) => {
     if (!Number.isFinite(value)) return;
-    const clamped = Math.min(Math.max(Math.round(value), 1), 60);
+    const clamped = Math.min(Math.max(Math.round(value), 0), 60);
     setExportMinutes(clamped);
+  }, []);
+
+  const handleExportSecondsChange = useCallback((value: number) => {
+    if (!Number.isFinite(value)) return;
+    const clamped = Math.min(Math.max(Math.round(value), 0), 59);
+    setExportSeconds(clamped);
   }, []);
 
   const handleRecordToggle = useCallback(() => {
@@ -2112,6 +2049,7 @@ const App = () => {
       const now = performance.now();
       const tracker = rearrangeLoopTrackerRef.current;
       const delaySyncTracker = delaySliceSyncTrackerRef.current;
+      const pingPongSchedule = rearrangerPingPongStateRef.current;
       const busyByDeck = rearrangeBusyByDeckRef.current;
       const activeDecks = new Set(decks.map((deck) => deck.id));
       tracker.forEach((_, deckId) => {
@@ -2127,6 +2065,11 @@ const App = () => {
       delaySyncTracker.forEach((_, deckId) => {
         if (!activeDecks.has(deckId)) {
           delaySyncTracker.delete(deckId);
+        }
+      });
+      pingPongSchedule.forEach((_, deckId) => {
+        if (!activeDecks.has(deckId)) {
+          pingPongSchedule.delete(deckId);
         }
       });
 
@@ -2180,6 +2123,65 @@ const App = () => {
                   setDeckDelayTimeTransient(deck.id, Math.min(1.5, Math.max(0.01, sliceDuration)));
                 }
                 delaySyncTracker.set(deck.id, sliceIndex);
+              }
+            }
+          }
+        }
+        const audioNow = getAudioCurrentTime();
+        const resetPingPongPan = () => {
+          setDeckRearrangerPanTransient(deck.id, 0);
+          setDeckRearrangerPingPongLive(deck.id, 0, null);
+          pingPongSchedule.delete(deck.id);
+        };
+        const pingPongAmount = Math.min(Math.max(deck.rearrangerPingPong ?? 0, 0), 1);
+        if (
+          pingPongAmount <= 1e-3 ||
+          deck.status !== "playing" ||
+          !snapshot?.playing ||
+          !snapshot.loopEnabled ||
+          (deck.rearrangerSlices ?? 0) <= 1
+        ) {
+          resetPingPongPan();
+        } else {
+          const loopLength = Math.max(0, snapshot.loopEnd - snapshot.loopStart);
+          if (loopLength <= 0.001) {
+            resetPingPongPan();
+          } else {
+            const regions = normalizeRearrangerRegions(deck.rearrangerRegions, deck.rearrangerSlices);
+            const sliceCount = Math.max(0, regions.length - 1);
+            if (sliceCount <= 1) {
+              resetPingPongPan();
+            } else {
+              if (audioNow === null) {
+                resetPingPongPan();
+              } else {
+                const clampedPosition = Math.min(
+                  snapshot.loopEnd - 1e-6,
+                  Math.max(snapshot.loopStart, currentPosition)
+                );
+                const playbackRate = Math.max(0.01, snapshot.playbackRate || 1);
+                const regionsSignature = regions.map((value) => value.toFixed(6)).join(",");
+                const signature = [
+                  pingPongAmount.toFixed(4),
+                  snapshot.loopStart.toFixed(5),
+                  snapshot.loopEnd.toFixed(5),
+                  clampedPosition.toFixed(5),
+                  playbackRate.toFixed(5),
+                  regionsSignature,
+                ].join("|");
+                const current = pingPongSchedule.get(deck.id);
+                if (!current || current.signature !== signature) {
+                  setDeckRearrangerPingPongLive(deck.id, pingPongAmount, {
+                    enabled: true,
+                    loopStart: snapshot.loopStart,
+                    loopEnd: snapshot.loopEnd,
+                    playbackRate,
+                    regions,
+                    anchorTime: audioNow,
+                    anchorPosition: clampedPosition,
+                  });
+                  pingPongSchedule.set(deck.id, { signature });
+                }
               }
             }
           }
@@ -2238,7 +2240,15 @@ const App = () => {
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [decks, getDeckPlaybackSnapshot, handleRearrangeLoop, setDeckDelayTimeTransient]);
+  }, [
+    decks,
+    getAudioCurrentTime,
+    getDeckPlaybackSnapshot,
+    handleRearrangeLoop,
+    setDeckDelayTimeTransient,
+    setDeckRearrangerPanTransient,
+    setDeckRearrangerPingPongLive,
+  ]);
 
   const encodeDecksForSession = useCallback(async () => {
     const sessionDecks = getSessionDecks();
@@ -2265,31 +2275,21 @@ const App = () => {
       const clipSessions: ClipSession[] = [];
 
       for (const clip of clips) {
-        let buffer = clip.buffer;
-        if (!buffer) {
-          const cached = clipBufferCacheRef.current.get(clip.id);
-          if (cached && cached.blob === clip.blob) {
-            buffer = cached.buffer;
-          } else {
-            const file = new File([clip.blob], `${clip.name}.webm`, {
-              type: clip.blob.type || "audio/webm",
-            });
-            buffer = await decodeFile(file);
-            clipBufferCacheRef.current.set(clip.id, { blob: clip.blob, buffer });
-          }
-        }
-        const wav = await encodeWavOffThread(buffer);
         const blobId = createSessionBlobId("clip");
-        nextBlobs.set(blobId, wav);
+        nextBlobs.set(blobId, clip.blob);
+        const mimeType = clip.blob.type || "audio/wav";
+        const ext = inferAudioExtension(mimeType, "wav");
         clipSessions.push({
           id: clip.id,
           name: clip.name,
-          durationSec: clip.durationSec ?? buffer.duration,
+          durationSec: clip.durationSec,
           gain: clip.gain,
           balance: clip.balance,
           pitchShift: clip.pitchShift,
           tempoOffset: clip.tempoOffset ?? 0,
-          wavBlobId: blobId,
+          audioBlobId: blobId,
+          audioMimeType: mimeType,
+          audioFileName: `${clip.name}.${ext}`,
           settings: clip.settings,
           applyFxSettings: clip.applyFxSettings ?? false,
         });
@@ -2297,7 +2297,7 @@ const App = () => {
 
       return { clipSessions, blobs: nextBlobs };
     },
-    [clips, decodeFile]
+    [clips]
   );
 
   const encodeForExport = useCallback(async () => {
@@ -2318,10 +2318,11 @@ const App = () => {
         };
       }),
       clips: clipSessions.map((clip) => {
-        const { wavBlobId: _wavBlobId, ...rest } = clip;
+        const { audioBlobId: _audioBlobId, wavBlobId: _wavBlobId, ...rest } = clip;
+        const ext = inferAudioExtension(clip.audioMimeType, "wav");
         return {
           ...rest,
-          wavFile: `audio/clip-${clip.id}.wav`,
+          audioFile: `audio/clip-${clip.id}.${ext}`,
         };
       }),
     };
@@ -2344,11 +2345,14 @@ const App = () => {
     }
 
     for (const clip of clipSessions) {
-      const wavFile = `audio/clip-${clip.id}.wav`;
-      const blob = blobs.get(clip.wavBlobId);
+      const blobId = clip.audioBlobId ?? clip.wavBlobId;
+      if (!blobId) continue;
+      const ext = inferAudioExtension(clip.audioMimeType, "wav");
+      const audioFile = `audio/clip-${clip.id}.${ext}`;
+      const blob = blobs.get(blobId);
       if (!blob) continue;
       fileEntries.push({
-        path: wavFile,
+        path: audioFile,
         data: new Uint8Array(await blob.arrayBuffer()),
       });
     }
@@ -2423,9 +2427,12 @@ const App = () => {
       const nextClips: ClipItem[] = [];
       let maxClipId = 0;
       for (const clip of sessionFile.clips) {
-        const data = files.get(clip.wavFile);
+        const audioPath = clip.audioFile ?? clip.wavFile;
+        if (!audioPath) continue;
+        const data = files.get(audioPath);
         if (!data) continue;
-        const blob = new Blob([toArrayBuffer(data)], { type: "audio/wav" });
+        const mimeType = clip.audioMimeType ?? inferAudioMimeTypeFromPath(audioPath, "audio/wav");
+        const blob = new Blob([toArrayBuffer(data)], { type: mimeType });
         const url = URL.createObjectURL(blob);
         nextClips.push({
           id: clip.id,
@@ -2575,7 +2582,9 @@ const App = () => {
       const nextClips: ClipItem[] = [];
       let maxClipId = 0;
       for (const clip of session.clips) {
-        const blob = blobs.get(clip.wavBlobId);
+        const blobId = clip.audioBlobId ?? clip.wavBlobId;
+        if (!blobId) continue;
+        const blob = blobs.get(blobId);
         if (!blob) continue;
         const url = URL.createObjectURL(blob);
         nextClips.push({
@@ -3217,12 +3226,25 @@ const App = () => {
                         Minutes
                         <input
                           type="number"
-                          min="1"
+                          min="0"
                           max="60"
                           step="1"
                           value={exportMinutes}
                           onChange={(event) =>
                             handleExportMinutesChange(Number(event.target.value))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Seconds
+                        <input
+                          type="number"
+                          min="0"
+                          max="59"
+                          step="1"
+                          value={exportSeconds}
+                          onChange={(event) =>
+                            handleExportSecondsChange(Number(event.target.value))
                           }
                         />
                       </label>
@@ -3317,6 +3339,7 @@ const App = () => {
           onRearrangerSensitivityChange={setDeckRearrangerSensitivity}
           onRearrangerQuietThresholdChange={setDeckRearrangerQuietThreshold}
           onRearrangerSliceFadeChange={setDeckRearrangerSliceFadeMs}
+          onRearrangerPingPongChange={setDeckRearrangerPingPong}
           onRearrangerAutoChange={setDeckRearrangerAuto}
           onRearrangerRegionsChange={setDeckRearrangerRegions}
           onRearrangerSliceDelete={handleDeleteRearrangerSlice}

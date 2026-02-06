@@ -55,10 +55,11 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.
 - Deck cards include a per-deck width override control (force full-width or half-width) next to the deck label.
 - Header `Restore + Export` controls open as a full-width inner panel in a dedicated second header row (collapsible toggle in primary row).
-- Rearranger includes an `Auto Slice` action plus sensitivity control; detection favors transient energy rises and silence-to-sound attacks inside the active loop (adaptive threshold + minimum spacing), then writes boundaries as manual slice regions.
+- Rearranger includes an `Auto Slice` checkbox plus sensitivity control; when enabled, changing the `Slices` knob re-runs transient boundary detection (adaptive threshold + minimum spacing) and writes boundaries as manual slice regions.
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.
 - `Delete Quiet` exposes a per-deck quiet-threshold control to tune how aggressively low-energy spans are classified for removal.
 - Rearranger includes a per-deck slice-fade control to soften slice edges and reduce clicks.
+- Rearranger includes a per-deck slice ping-pong control (0..1) that alternates slices toward L/R stereo placement in real time (not baked into rendered loop audio). Live ping-pong now runs through a dedicated AudioWorklet processor that derives slice side from loop timing on the audio thread to reduce main-thread scheduling jitter.
 - Delay includes a phase-1 live-only `Slice Sync` mode that retimes delay-time per active rearranger slice boundary during loop playback.
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
@@ -87,10 +88,11 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 ### State & Presets
 - Session state stored in memory with optional persistence to IndexedDB.
 - Presets for FX chains, deck states, and mappings.
-- Session persistence: save/load session JSON to IndexedDB plus WAV blobs for deck/clip audio.
+- Session persistence: save/load session JSON to IndexedDB plus audio blobs for deck/clip audio.
+- Clip session persistence now preserves original clip blob format (for example `audio/webm` from Clip Recorder) instead of re-encoding unchanged clips to WAV on each autosave.
 - Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.
 - Deck UI state is also mirrored immediately to localStorage (lightweight patch) so quick refreshes restore panel state before the next full autosave.
-- Session WAV encoding (for save/export/autosave) uses a dedicated web worker to reduce main-thread stalls.
+- Session WAV encoding (for deck audio and transformed renders) uses a dedicated web worker to reduce main-thread stalls.
 - Welcome panel dismissed state is persisted through autosave, saved sessions, and exported/imported project zips.
 - After the welcome panel is dismissed, it remains hidden across New Session/reset flows and is reopened explicitly from the header `?` shortcut/help control.
 - Auto-rearrange (On Loop) updates are treated as transient: they do not create undo history snapshots and skip immediate autosave scheduling to avoid runaway memory/encode pressure during continuous looping.
@@ -102,7 +104,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Save Loop clip audio is always exported from the raw loop slice (unbaked audio); FX settings are stored as metadata and can be selectively applied on clip load via the Clip Rack FX toggle.
 - Automation lanes support compact preset waveforms and length scaling controls.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
-- Session export/import: zip bundle with `session.json` manifest and WAV audio assets.
+- Session export/import: zip bundle with `session.json` manifest and audio assets (WAV for decks; clips preserve original format when unchanged).
 
 ## Data Flow (High-Level)
 - User/controller events -> UI -> engine API -> AudioWorklet graph.

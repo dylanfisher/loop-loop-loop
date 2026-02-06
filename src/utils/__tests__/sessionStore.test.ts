@@ -233,7 +233,8 @@ describe("sessionStore", () => {
           gain: 1,
           balance: 0,
           pitchShift: 0,
-          wavBlobId: "clip-blob",
+          audioBlobId: "clip-blob",
+          audioMimeType: "audio/webm",
         },
       ],
     };

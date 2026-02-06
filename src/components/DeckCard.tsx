@@ -114,6 +114,7 @@ type DeckCardProps = {
   onRearrangerSensitivityChange: (id: number, value: number) => void;
   onRearrangerQuietThresholdChange: (id: number, value: number) => void;
   onRearrangerSliceFadeChange: (id: number, value: number) => void;
+  onRearrangerPingPongChange: (id: number, value: number) => void;
   onRearrangerAutoChange: (id: number, value: boolean) => void;
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
   onRearrangerSliceDelete: (id: number, sliceIndex: number) => void;
@@ -215,6 +216,7 @@ const DeckCard = ({
   onRearrangerSensitivityChange,
   onRearrangerQuietThresholdChange,
   onRearrangerSliceFadeChange,
+  onRearrangerPingPongChange,
   onRearrangerAutoChange,
   onRearrangerRegionsChange,
   onRearrangerSliceDelete,
@@ -427,7 +429,9 @@ const DeckCard = ({
   const [tempoEditing, setTempoEditing] = useState(false);
   const [tempoInput, setTempoInput] = useState(deck.tempoOffset.toFixed(2));
   const [showQuietDeletePreview, setShowQuietDeletePreview] = useState(false);
+  const [autoSliceEnabled, setAutoSliceEnabled] = useState(false);
   const tempoFineDragRef = useRef<{ startY: number; startValue: number } | null>(null);
+  const autoSliceTimeoutRef = useRef<number | null>(null);
   const tempoIgnoreChangeRef = useRef(false);
   const tempoInputRef = useRef<HTMLInputElement | null>(null);
   const tempoClickTimerRef = useRef<number | null>(null);
@@ -449,6 +453,9 @@ const DeckCard = ({
       if (tempoClickTimerRef.current !== null) {
         window.clearTimeout(tempoClickTimerRef.current);
       }
+      if (autoSliceTimeoutRef.current !== null) {
+        window.clearTimeout(autoSliceTimeoutRef.current);
+      }
     };
   }, []);
   const fxPanelOpen = deck.fxPanelOpen;
@@ -457,6 +464,50 @@ const DeckCard = ({
     tempoInputRef.current?.focus();
     tempoInputRef.current?.select();
   }, [tempoEditing]);
+
+  const scheduleAutoSlice = useCallback(() => {
+    if (!deck.buffer) return;
+    if (autoSliceTimeoutRef.current !== null) {
+      window.clearTimeout(autoSliceTimeoutRef.current);
+    }
+    autoSliceTimeoutRef.current = window.setTimeout(() => {
+      onRearrangerAutoSlice(deck.id);
+      autoSliceTimeoutRef.current = null;
+    }, 120);
+  }, [deck.buffer, deck.id, onRearrangerAutoSlice]);
+
+  const handleRearrangerSlicesKnobChange = useCallback(
+    (next: number) => {
+      onRearrangerSlicesChange(deck.id, next);
+      if (autoSliceEnabled) {
+        scheduleAutoSlice();
+      }
+    },
+    [autoSliceEnabled, deck.id, onRearrangerSlicesChange, scheduleAutoSlice]
+  );
+
+  const handleAutoSliceToggle = useCallback(
+    (enabled: boolean) => {
+      setAutoSliceEnabled(enabled);
+      if (!enabled) {
+        if (autoSliceTimeoutRef.current !== null) {
+          window.clearTimeout(autoSliceTimeoutRef.current);
+          autoSliceTimeoutRef.current = null;
+        }
+        return;
+      }
+      scheduleAutoSlice();
+    },
+    [scheduleAutoSlice]
+  );
+
+  useEffect(() => {
+    if (deck.buffer) return;
+    if (autoSliceTimeoutRef.current !== null) {
+      window.clearTimeout(autoSliceTimeoutRef.current);
+      autoSliceTimeoutRef.current = null;
+    }
+  }, [deck.buffer]);
 
   const commitTempoInput = useCallback(() => {
     const normalized = tempoInput.replace("%", "").trim();
@@ -632,6 +683,7 @@ const DeckCard = ({
         isDifferent(deck.rearrangerSensitivity, 0.6) ||
         isDifferent(deck.rearrangerQuietThreshold, 0.3) ||
         isDifferent(deck.rearrangerSliceFadeMs, 3, 1) ||
+        isDifferent(deck.rearrangerPingPong, 0) ||
         deck.rearrangerAuto ||
         (deck.rearrangerRegions?.length ?? 0) > 0,
     },
@@ -1693,7 +1745,7 @@ const DeckCard = ({
                 value={deck.rearrangerSlices}
                 defaultValue={0}
                 labelTitle="Number of slices. You can also click between waveform boundaries to add slices, or hold Shift and click a slice region to destructively remove it."
-                onChange={(next) => onRearrangerSlicesChange(deck.id, next)}
+                onChange={handleRearrangerSlicesKnobChange}
                 formatValue={(value) => {
                   const rounded = Math.round(value);
                   return rounded <= 0 ? "Off" : `${rounded}`;
@@ -1771,6 +1823,18 @@ const DeckCard = ({
                 onChange={(next) => onRearrangerSliceFadeChange(deck.id, next)}
                 formatValue={(value) => `${Math.round(value)} ms`}
               />
+              <Knob
+                className="knob--compact"
+                label="Ping Pong"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.rearrangerPingPong}
+                defaultValue={0}
+                labelTitle="Alternates slices between left and right. 0 = centered/no processing, 1 = full L/R ping pong."
+                onChange={(next) => onRearrangerPingPongChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
               <label
                 className="deck__delay-toggle"
                 title="When enabled, the current loop is rearranged again each time playback wraps to the loop start."
@@ -1782,17 +1846,20 @@ const DeckCard = ({
                   onChange={(event) => onRearrangerAutoChange(deck.id, event.target.checked)}
                 />
               </label>
+              <label
+                className="deck__delay-toggle"
+                title="When enabled, changing the Slices knob re-detects slice boundaries from loop transients."
+              >
+                <span>Auto Slice</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(deck.buffer) && autoSliceEnabled}
+                  disabled={!deck.buffer}
+                  onChange={(event) => handleAutoSliceToggle(event.target.checked)}
+                />
+              </label>
             </div>
             <div className="deck__fx-actions">
-              <button
-                type="button"
-                className="deck__action"
-                disabled={!deck.buffer}
-                onClick={() => onRearrangerAutoSlice(deck.id)}
-                title="Detect slice boundaries from loop transients."
-              >
-                Auto Slice
-              </button>
               <button
                 type="button"
                 className="deck__action"

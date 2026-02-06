@@ -1,9 +1,11 @@
 import {
+  clearDeckRearrangerPanAutomation,
   getDeckPlaybackPosition,
   getDeckPlaybackSnapshot,
   hasDeckPlayback,
   playDeckBuffer,
   removeDeckNodes,
+  scheduleDeckRearrangerPanValue,
   setDeckGainValue,
   setDeckFilterValue,
   setDeckHighpassValue,
@@ -12,6 +14,9 @@ import {
   setDeckEqMidGain,
   setDeckEqHighGain,
   setDeckBalanceValue,
+  setDeckRearrangerPanValue,
+  setDeckRearrangerPingPongAmountValue,
+  setDeckRearrangerPingPongConfigValue,
   setDeckDelayTimeValue,
   setDeckDelayFeedbackValue,
   setDeckDelayMixValue,
@@ -24,6 +29,10 @@ import {
   stopDeckPlayback,
 } from "./deck";
 import { ensurePitchShiftWorklet } from "./pitchShift";
+import {
+  ensureRearrangerPingPongWorklet,
+  type RearrangerPingPongConfig,
+} from "./rearrangerPingPong";
 
 type DeckEndedCallback = () => void;
 
@@ -63,6 +72,19 @@ type AudioEngine = {
   setDeckEqMid: (deckId: number, value: number) => void;
   setDeckEqHigh: (deckId: number, value: number) => void;
   setDeckBalance: (deckId: number, value: number) => void;
+  setDeckRearrangerPan: (deckId: number, value: number) => void;
+  setDeckRearrangerPingPongAmount: (deckId: number, value: number) => void;
+  setDeckRearrangerPingPongConfig: (
+    deckId: number,
+    config: RearrangerPingPongConfig | null
+  ) => void;
+  clearDeckRearrangerPanAutomation: (deckId: number, fromTime: number) => void;
+  scheduleDeckRearrangerPan: (
+    deckId: number,
+    value: number,
+    atTime: number,
+    rampSeconds?: number
+  ) => void;
   setDeckDelayTime: (deckId: number, value: number) => void;
   setDeckDelayFeedback: (deckId: number, value: number) => void;
   setDeckDelayMix: (deckId: number, value: number) => void;
@@ -78,6 +100,7 @@ type AudioEngine = {
   getMasterStream: () => MediaStream | null;
   getDeckPlaybackSnapshot: (deckId: number) => import("./deck").DeckPlaybackSnapshot | null;
   getAudioContextState: () => AudioContextState | "uninitialized";
+  getCurrentTime: () => number | null;
   suspendContext: () => Promise<void>;
   resumeContext: () => Promise<void>;
 };
@@ -176,6 +199,13 @@ const playBuffer = async (
       console.warn("Pitch shift worklet failed to load", error);
     }
   }
+  try {
+    await ensureRearrangerPingPongWorklet(context);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("Rearranger ping pong worklet failed to load", error);
+    }
+  }
   const output = masterGain ?? context.destination;
   playDeckBuffer(
     context,
@@ -243,6 +273,34 @@ const setDeckEqHigh = (deckId: number, value: number) => {
 
 const setDeckBalance = (deckId: number, value: number) => {
   setDeckBalanceValue(deckId, value);
+};
+
+const setDeckRearrangerPan = (deckId: number, value: number) => {
+  setDeckRearrangerPanValue(deckId, value);
+};
+
+const setDeckRearrangerPingPongAmount = (deckId: number, value: number) => {
+  setDeckRearrangerPingPongAmountValue(deckId, value);
+};
+
+const setDeckRearrangerPingPongConfig = (
+  deckId: number,
+  config: RearrangerPingPongConfig | null
+) => {
+  setDeckRearrangerPingPongConfigValue(deckId, config);
+};
+
+const clearRearrangerPanAutomation = (deckId: number, fromTime: number) => {
+  clearDeckRearrangerPanAutomation(deckId, fromTime);
+};
+
+const scheduleRearrangerPan = (
+  deckId: number,
+  value: number,
+  atTime: number,
+  rampSeconds = 0
+) => {
+  scheduleDeckRearrangerPanValue(deckId, value, atTime, rampSeconds);
 };
 
 const setDeckDelayTime = (deckId: number, value: number) => {
@@ -334,6 +392,11 @@ const getAudioContextState = (): AudioContextState | "uninitialized" => {
   return audioContext.state;
 };
 
+const getCurrentTime = () => {
+  if (!audioContext) return null;
+  return audioContext.currentTime;
+};
+
 export const getAudioEngine = (): AudioEngine => {
   return {
     decodeFile,
@@ -348,6 +411,11 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckEqMid,
     setDeckEqHigh,
     setDeckBalance,
+    setDeckRearrangerPan,
+    setDeckRearrangerPingPongAmount,
+    setDeckRearrangerPingPongConfig,
+    clearDeckRearrangerPanAutomation: clearRearrangerPanAutomation,
+    scheduleDeckRearrangerPan: scheduleRearrangerPan,
     setDeckDelayTime,
     setDeckDelayFeedback,
     setDeckDelayMix,
@@ -363,6 +431,7 @@ export const getAudioEngine = (): AudioEngine => {
     getMasterStream,
     getDeckPlaybackSnapshot: getDeckSnapshot,
     getAudioContextState,
+    getCurrentTime,
     suspendContext,
     resumeContext,
   };

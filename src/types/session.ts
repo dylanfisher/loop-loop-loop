@@ -57,6 +57,7 @@ export type DeckSession = {
   rearrangerSensitivity?: number;
   rearrangerQuietThreshold?: number;
   rearrangerSliceFadeMs?: number;
+  rearrangerPingPong?: number;
   rearrangerAuto?: boolean;
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];
@@ -73,7 +74,10 @@ export type ClipSession = {
   balance: number;
   pitchShift: number;
   tempoOffset: number;
-  wavBlobId: string;
+  audioBlobId?: string;
+  audioMimeType?: string;
+  audioFileName?: string;
+  wavBlobId?: string;
   settings?: ClipSettings;
   applyFxSettings?: boolean;
 };
@@ -108,6 +112,7 @@ export type ClipSettings = {
   rearrangerSensitivity?: number;
   rearrangerQuietThreshold?: number;
   rearrangerSliceFadeMs?: number;
+  rearrangerPingPong?: number;
   rearrangerAuto?: boolean;
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];
@@ -139,8 +144,9 @@ export type SessionFileDeck = Omit<DeckSession, "wavBlobId"> & {
   wavFile?: string;
 };
 
-export type SessionFileClip = Omit<ClipSession, "wavBlobId"> & {
-  wavFile: string;
+export type SessionFileClip = Omit<ClipSession, "audioBlobId" | "wavBlobId"> & {
+  audioFile?: string;
+  wavFile?: string;
 };
 
 export type SessionFileState = {

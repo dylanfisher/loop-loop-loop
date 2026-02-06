@@ -50,6 +50,11 @@ const setDeckEqLow = vi.fn();
 const setDeckEqMid = vi.fn();
 const setDeckEqHigh = vi.fn();
 const setDeckBalance = vi.fn();
+const setDeckRearrangerPan = vi.fn();
+const setDeckRearrangerPingPongAmount = vi.fn();
+const setDeckRearrangerPingPongConfig = vi.fn();
+const clearDeckRearrangerPanAutomation = vi.fn();
+const scheduleDeckRearrangerPan = vi.fn();
 const setDeckDelayTime = vi.fn();
 const setDeckDelayFeedback = vi.fn();
 const setDeckDelayMix = vi.fn();
@@ -68,6 +73,7 @@ const getDeckPlaybackSnapshot = vi.fn(() => null);
 const setDeckLoopParams = vi.fn();
 const setDeckPlaybackRate = vi.fn();
 const setDeckPlaybackOffset = vi.fn();
+const getCurrentTime = vi.fn(() => null);
 
 vi.mock("../useAudioEngine", () => ({
   default: () => ({
@@ -82,6 +88,11 @@ vi.mock("../useAudioEngine", () => ({
     setDeckEqMid,
     setDeckEqHigh,
     setDeckBalance,
+    setDeckRearrangerPan,
+    setDeckRearrangerPingPongAmount,
+    setDeckRearrangerPingPongConfig,
+    clearDeckRearrangerPanAutomation,
+    scheduleDeckRearrangerPan,
     setDeckDelayTime,
     setDeckDelayFeedback,
     setDeckDelayMix,
@@ -100,6 +111,7 @@ vi.mock("../useAudioEngine", () => ({
     setDeckLoopParams,
     setDeckPlaybackRate,
     setDeckPlaybackOffset,
+    getCurrentTime,
   }),
 }));
 
@@ -116,6 +128,11 @@ describe("useDecks", () => {
     setDeckEqMid.mockClear();
     setDeckEqHigh.mockClear();
     setDeckBalance.mockClear();
+    setDeckRearrangerPan.mockClear();
+    setDeckRearrangerPingPongAmount.mockClear();
+    setDeckRearrangerPingPongConfig.mockClear();
+    clearDeckRearrangerPanAutomation.mockClear();
+    scheduleDeckRearrangerPan.mockClear();
     setDeckDelayTime.mockClear();
     setDeckDelayFeedback.mockClear();
     setDeckDelayMix.mockClear();
@@ -134,6 +151,7 @@ describe("useDecks", () => {
     setDeckLoopParams.mockClear();
     setDeckPlaybackRate.mockClear();
     setDeckPlaybackOffset.mockClear();
+    getCurrentTime.mockClear();
   });
 
   afterEach(() => {

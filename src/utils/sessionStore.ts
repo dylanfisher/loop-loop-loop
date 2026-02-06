@@ -83,6 +83,7 @@ export const loadSessionState = async (id: string) => {
     if (deck.wavBlobId) blobIds.add(deck.wavBlobId);
   });
   session.clips.forEach((clip) => {
+    if (clip.audioBlobId) blobIds.add(clip.audioBlobId);
     if (clip.wavBlobId) blobIds.add(clip.wavBlobId);
   });
 

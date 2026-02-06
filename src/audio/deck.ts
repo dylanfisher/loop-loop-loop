@@ -4,6 +4,14 @@ import {
   setPitchShift,
   type PitchShiftNodes,
 } from "./pitchShift";
+import {
+  createRearrangerPingPongNodes,
+  disposeRearrangerPingPong,
+  setRearrangerPingPongAmount,
+  setRearrangerPingPongConfig,
+  type RearrangerPingPongConfig,
+  type RearrangerPingPongNodes,
+} from "./rearrangerPingPong";
 import { createLimiter, createSoftClipper } from "./clipper";
 import { normalizeDelayParams } from "./effects/delay";
 
@@ -12,6 +20,8 @@ type DeckEndedCallback = () => void;
 type DeckNodes = {
   gain: GainNode;
   balance: StereoPannerNode;
+  rearrangerPan: StereoPannerNode;
+  rearrangerPingPong: RearrangerPingPongNodes;
   lowpass: BiquadFilterNode;
   highpass: BiquadFilterNode;
   eqLow: BiquadFilterNode[];
@@ -68,6 +78,9 @@ const pendingEqLow = new Map<number, number>();
 const pendingEqMid = new Map<number, number>();
 const pendingEqHigh = new Map<number, number>();
 const pendingBalance = new Map<number, number>();
+const pendingRearrangerPan = new Map<number, number>();
+const pendingRearrangerPingPongAmount = new Map<number, number>();
+const pendingRearrangerPingPongConfig = new Map<number, RearrangerPingPongConfig | null>();
 const pendingPitchShift = new Map<number, number>();
 const pendingDelayTime = new Map<number, number>();
 const pendingDelayFeedback = new Map<number, number>();
@@ -150,6 +163,17 @@ const ensureDeckNodes = (
   if (!nodes) {
     const balanceNode = context.createStereoPanner();
     balanceNode.pan.value = pendingBalance.get(deckId) ?? balance;
+    const rearrangerPanNode = context.createStereoPanner();
+    rearrangerPanNode.pan.value = pendingRearrangerPan.get(deckId) ?? 0;
+    const rearrangerPingPongNodes = createRearrangerPingPongNodes(context);
+    setRearrangerPingPongAmount(
+      rearrangerPingPongNodes,
+      pendingRearrangerPingPongAmount.get(deckId) ?? 0
+    );
+    setRearrangerPingPongConfig(
+      rearrangerPingPongNodes,
+      pendingRearrangerPingPongConfig.get(deckId) ?? null
+    );
     const pitchShiftNodes = createPitchShiftNodes(context);
     const deckHighpass = context.createBiquadFilter();
     deckHighpass.type = "highpass";
@@ -239,6 +263,8 @@ const ensureDeckNodes = (
     nodes = {
       gain: deckGain,
       balance: balanceNode,
+      rearrangerPan: rearrangerPanNode,
+      rearrangerPingPong: rearrangerPingPongNodes,
       lowpass: deckLowpass,
       highpass: deckHighpass,
       eqLow,
@@ -261,7 +287,9 @@ const ensureDeckNodes = (
       limiter,
       pitchShift: pitchShiftNodes,
     };
-    balanceNode.connect(pitchShiftNodes.input);
+    balanceNode.connect(rearrangerPanNode);
+    rearrangerPanNode.connect(rearrangerPingPongNodes.input);
+    rearrangerPingPongNodes.output.connect(pitchShiftNodes.input);
     connectDelayFeedback(nodes, nextDelayPingPong);
     setDelayRouting(nodes, nextDelayMix > 0);
     deckNodes.set(deckId, nodes);
@@ -275,6 +303,15 @@ const ensureDeckNodes = (
     applyEqGain(nodes.eqMid, eqMidGain);
     applyEqGain(nodes.eqHigh, eqHighGain);
     nodes.balance.pan.value = balance;
+    nodes.rearrangerPan.pan.value = pendingRearrangerPan.get(deckId) ?? 0;
+    setRearrangerPingPongAmount(
+      nodes.rearrangerPingPong,
+      pendingRearrangerPingPongAmount.get(deckId) ?? 0
+    );
+    setRearrangerPingPongConfig(
+      nodes.rearrangerPingPong,
+      pendingRearrangerPingPongConfig.get(deckId) ?? null
+    );
     setPitchShift(nodes.pitchShift, pitchShift);
     nodes.delayL.delayTime.value = normalizedDelay.time;
     nodes.delayR.delayTime.value = normalizedDelay.time;
@@ -296,6 +333,9 @@ const ensureDeckNodes = (
   pendingEqMid.delete(deckId);
   pendingEqHigh.delete(deckId);
   pendingBalance.delete(deckId);
+  pendingRearrangerPan.delete(deckId);
+  pendingRearrangerPingPongAmount.delete(deckId);
+  pendingRearrangerPingPongConfig.delete(deckId);
   pendingPitchShift.delete(deckId);
   pendingDelayTime.delete(deckId);
   pendingDelayFeedback.delete(deckId);
@@ -531,6 +571,66 @@ export const setDeckBalanceValue = (deckId: number, value: number) => {
   }
 };
 
+export const setDeckRearrangerPanValue = (deckId: number, value: number) => {
+  const clamped = Math.min(Math.max(value, -1), 1);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.rearrangerPan.pan.value = clamped;
+    pendingRearrangerPan.delete(deckId);
+  } else {
+    pendingRearrangerPan.set(deckId, clamped);
+  }
+};
+
+export const setDeckRearrangerPingPongAmountValue = (deckId: number, value: number) => {
+  const clamped = Math.min(Math.max(value, 0), 1);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    setRearrangerPingPongAmount(nodes.rearrangerPingPong, clamped, nodes.balance.context.currentTime);
+    pendingRearrangerPingPongAmount.delete(deckId);
+  } else {
+    pendingRearrangerPingPongAmount.set(deckId, clamped);
+  }
+};
+
+export const setDeckRearrangerPingPongConfigValue = (
+  deckId: number,
+  config: RearrangerPingPongConfig | null
+) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    setRearrangerPingPongConfig(nodes.rearrangerPingPong, config);
+    pendingRearrangerPingPongConfig.delete(deckId);
+  } else {
+    pendingRearrangerPingPongConfig.set(deckId, config);
+  }
+};
+
+export const clearDeckRearrangerPanAutomation = (deckId: number, fromTime: number) => {
+  const nodes = deckNodes.get(deckId);
+  if (!nodes) return;
+  nodes.rearrangerPan.pan.cancelScheduledValues(Math.max(0, fromTime));
+};
+
+export const scheduleDeckRearrangerPanValue = (
+  deckId: number,
+  value: number,
+  atTime: number,
+  rampSeconds = 0
+) => {
+  const nodes = deckNodes.get(deckId);
+  if (!nodes) return;
+  const clamped = Math.min(Math.max(value, -1), 1);
+  const targetTime = Math.max(0, atTime);
+  const ramp = Math.max(0, rampSeconds);
+  const pan = nodes.rearrangerPan.pan;
+  if (ramp <= 0.0001) {
+    pan.setValueAtTime(clamped, targetTime);
+    return;
+  }
+  pan.linearRampToValueAtTime(clamped, targetTime + ramp);
+};
+
 export const setDeckPitchShiftValue = (deckId: number, value: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
@@ -617,6 +717,7 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.source?.stop();
     nodes.source?.disconnect();
     disposePitchShift(nodes.pitchShift);
+    disposeRearrangerPingPong(nodes.rearrangerPingPong);
     nodes.highpass.disconnect();
     nodes.lowpass.disconnect();
     nodes.eqLow.forEach((node) => node.disconnect());
@@ -637,6 +738,7 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.limiter.disconnect();
     nodes.clipper.disconnect();
     nodes.balance.disconnect();
+    nodes.rearrangerPan.disconnect();
     deckNodes.delete(deckId);
   }
   deckPlayback.delete(deckId);
@@ -649,6 +751,9 @@ export const removeDeckNodes = (deckId: number) => {
   pendingEqMid.delete(deckId);
   pendingEqHigh.delete(deckId);
   pendingBalance.delete(deckId);
+  pendingRearrangerPan.delete(deckId);
+  pendingRearrangerPingPongAmount.delete(deckId);
+  pendingRearrangerPingPongConfig.delete(deckId);
   pendingPitchShift.delete(deckId);
   pendingDelayTime.delete(deckId);
   pendingDelayFeedback.delete(deckId);
