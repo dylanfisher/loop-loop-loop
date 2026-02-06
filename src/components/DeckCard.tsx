@@ -1286,6 +1286,118 @@ const DeckCard = ({
             />
           </div>
         </div>
+        <div className="deck__fx-row deck__fx-row--single">
+          <div
+            className={`deck__fx-unit deck__fx-unit--balance ${fxPanelOpen.balance ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.balance}
+              onClick={() => toggleFxPanel("balance")}
+            >
+              {renderFxToggleLabel("balance", "Balance")}
+            </button>
+            <Knob
+              label="Balance"
+              min={-1}
+              max={1}
+              step={0.01}
+              value={balanceValue}
+              defaultValue={0}
+              labelTitle="Stereo pan. Left is negative, right is positive."
+              onChange={(next) => onBalanceChange(deck.id, next)}
+              formatValue={(value, fine) => value.toFixed(fine ? 3 : 1)}
+              centerSnap={0.03}
+              isAutomated={balanceAutomation.active}
+            />
+            <AutomationLane
+              label="Automation"
+              min={-1}
+              max={1}
+              value={balanceValue}
+              samples={balanceAutomation.samples}
+              previewSamples={balanceAutomation.previewSamples}
+              durationSec={balanceAutomation.durationSec}
+              recording={balanceAutomation.recording}
+              active={balanceAutomation.active}
+              amplitudeScale={balanceAutomation.amplitudeScale}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "balance")}
+              onDrawStart={() => onAutomationStart(deck.id, "balance")}
+              onDrawEnd={() => onAutomationStop(deck.id, "balance")}
+              onReset={() => onAutomationReset(deck.id, "balance")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "balance", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "balance", value)
+              }
+              onPreset={(preset) => onAutomationPreset(deck.id, "balance", preset, -1, 1)}
+              onInvert={() => onAutomationInvert(deck.id, "balance", -1, 1)}
+              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "balance", factor)}
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(deck.id, "balance", factor, -1, 1)
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "balance", durationSec)
+              }
+            />
+          </div>
+          <div
+            className={`deck__fx-unit deck__fx-unit--pitch ${fxPanelOpen.pitch ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.pitch}
+              onClick={() => toggleFxPanel("pitch")}
+            >
+              {renderFxToggleLabel("pitch", "Pitch")}
+            </button>
+            <Knob
+              label="Pitch"
+              min={-24}
+              max={24}
+              step={0.1}
+              value={pitchValue}
+              defaultValue={0}
+              labelTitle="Pitch shift in semitones. Positive raises, negative lowers."
+              onChange={(next) => onPitchShiftChange(deck.id, next)}
+              formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)} st`}
+              centerSnap={0.25}
+              isAutomated={pitchAutomation.active}
+              disabled={deck.tempoPitchSync}
+            />
+            <AutomationLane
+              label="Automation"
+              min={-24}
+              max={24}
+              value={pitchValue}
+              samples={pitchAutomation.samples}
+              previewSamples={pitchAutomation.previewSamples}
+              durationSec={pitchAutomation.durationSec}
+              recording={pitchAutomation.recording}
+              active={pitchAutomation.active}
+              amplitudeScale={pitchAutomation.amplitudeScale}
+              getPlayhead={() => getAutomationPlayhead(deck.id, "pitch")}
+              onDrawStart={() => onAutomationStart(deck.id, "pitch")}
+              onDrawEnd={() => onAutomationStop(deck.id, "pitch")}
+              onReset={() => onAutomationReset(deck.id, "pitch")}
+              onToggleActive={(next) => onAutomationToggle(deck.id, "pitch", next)}
+              onDrawValueChange={(value) =>
+                onAutomationValueChange(deck.id, "pitch", value)
+              }
+              onPreset={(preset) => onAutomationPreset(deck.id, "pitch", preset, -24, 24)}
+              onInvert={() => onAutomationInvert(deck.id, "pitch", -24, 24)}
+              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "pitch", factor)}
+              onAmplitudeScale={(factor) =>
+                onAutomationAmplitudeScale(deck.id, "pitch", factor, -24, 24)
+              }
+              onDurationChange={(durationSec) =>
+                onAutomationDurationChange(deck.id, "pitch", durationSec)
+              }
+              disabled={deck.tempoPitchSync}
+            />
+          </div>
+        </div>
         <div className="deck__fx-row deck__fx-row--eq">
           <div
             className={`deck__fx-unit deck__fx-unit--eq ${fxPanelOpen.eqLow ? "" : "is-collapsed"}`.trim()}
@@ -1453,116 +1565,6 @@ const DeckCard = ({
           </div>
         </div>
         <div className="deck__fx-row deck__fx-row--single">
-          <div
-            className={`deck__fx-unit deck__fx-unit--balance ${fxPanelOpen.balance ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.balance}
-              onClick={() => toggleFxPanel("balance")}
-            >
-              {renderFxToggleLabel("balance", "Balance")}
-            </button>
-            <Knob
-              label="Balance"
-              min={-1}
-              max={1}
-              step={0.01}
-              value={balanceValue}
-              defaultValue={0}
-              labelTitle="Stereo pan. Left is negative, right is positive."
-              onChange={(next) => onBalanceChange(deck.id, next)}
-              formatValue={(value, fine) => value.toFixed(fine ? 3 : 1)}
-              centerSnap={0.03}
-              isAutomated={balanceAutomation.active}
-            />
-            <AutomationLane
-              label="Automation"
-              min={-1}
-              max={1}
-              value={balanceValue}
-              samples={balanceAutomation.samples}
-              previewSamples={balanceAutomation.previewSamples}
-              durationSec={balanceAutomation.durationSec}
-              recording={balanceAutomation.recording}
-              active={balanceAutomation.active}
-              amplitudeScale={balanceAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "balance")}
-              onDrawStart={() => onAutomationStart(deck.id, "balance")}
-              onDrawEnd={() => onAutomationStop(deck.id, "balance")}
-              onReset={() => onAutomationReset(deck.id, "balance")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "balance", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "balance", value)
-              }
-              onPreset={(preset) => onAutomationPreset(deck.id, "balance", preset, -1, 1)}
-              onInvert={() => onAutomationInvert(deck.id, "balance", -1, 1)}
-              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "balance", factor)}
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(deck.id, "balance", factor, -1, 1)
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "balance", durationSec)
-              }
-            />
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--pitch ${fxPanelOpen.pitch ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.pitch}
-              onClick={() => toggleFxPanel("pitch")}
-            >
-              {renderFxToggleLabel("pitch", "Pitch")}
-            </button>
-            <Knob
-              label="Pitch"
-              min={-24}
-              max={24}
-              step={0.1}
-              value={pitchValue}
-              defaultValue={0}
-              labelTitle="Pitch shift in semitones. Positive raises, negative lowers."
-              onChange={(next) => onPitchShiftChange(deck.id, next)}
-              formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)} st`}
-              centerSnap={0.25}
-              isAutomated={pitchAutomation.active}
-              disabled={deck.tempoPitchSync}
-            />
-            <AutomationLane
-              label="Automation"
-              min={-24}
-              max={24}
-              value={pitchValue}
-              samples={pitchAutomation.samples}
-              previewSamples={pitchAutomation.previewSamples}
-              durationSec={pitchAutomation.durationSec}
-              recording={pitchAutomation.recording}
-              active={pitchAutomation.active}
-              amplitudeScale={pitchAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "pitch")}
-              onDrawStart={() => onAutomationStart(deck.id, "pitch")}
-              onDrawEnd={() => onAutomationStop(deck.id, "pitch")}
-              onReset={() => onAutomationReset(deck.id, "pitch")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "pitch", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "pitch", value)
-              }
-              onPreset={(preset) => onAutomationPreset(deck.id, "pitch", preset, -24, 24)}
-              onInvert={() => onAutomationInvert(deck.id, "pitch", -24, 24)}
-              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "pitch", factor)}
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(deck.id, "pitch", factor, -24, 24)
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "pitch", durationSec)
-              }
-              disabled={deck.tempoPitchSync}
-            />
-          </div>
           <div
             className={`deck__fx-unit deck__fx-unit--delay deck__fx-unit--span-2 ${fxPanelOpen.delay ? "" : "is-collapsed"}`.trim()}
           >
