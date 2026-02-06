@@ -69,6 +69,23 @@ type PerformanceMemory = {
 
 const CLIP_AUTOMATION_SAMPLE_RATE = 30;
 const ZOOM_STEPS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+const MAX_EXPORT_AUTO_REARRANGE_CYCLES = 4096;
+const hashStringToUint32 = (value: string) => {
+  let hash = 2166136261 >>> 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash >>> 0;
+};
+
+const seededUnitFloat = (seed: number) => {
+  let x = (seed >>> 0) || 0x9e3779b9;
+  x ^= x << 13;
+  x ^= x >>> 17;
+  x ^= x << 5;
+  return ((x >>> 0) / 4294967296);
+};
 const isTextInputTarget = (target: EventTarget | null) => {
   const node = target as HTMLElement | null;
   if (!node) return false;
@@ -1198,10 +1215,7 @@ const App = () => {
 
     activeDecks.forEach((deck) => {
       if (!deck.buffer) return;
-      const source = offline.createBufferSource();
-      source.buffer = deck.buffer;
       const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
-      source.playbackRate.value = tempoRatio;
       const pitchValue = (automationState.get(deck.id)?.pitch?.active
         ? automationState.get(deck.id)?.pitch?.currentValue
         : deck.pitchShift) ?? deck.pitchShift;
@@ -1230,7 +1244,8 @@ const App = () => {
       const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
       const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
 
-      let preEq: AudioNode = applyBalanceOffline(offline, source, {
+      const deckInput = offline.createGain();
+      let preEq: AudioNode = applyBalanceOffline(offline, deckInput, {
         balance: balanceValue,
         renderDuration: durationSec,
         automation: balanceTrack
@@ -1321,6 +1336,114 @@ const App = () => {
         deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
           ? deck.loopEndSeconds
           : deck.buffer.duration;
+      if (deck.loopEnabled && loopEnd > loopStart + 0.01) {
+        const hasAutoLoopRearrange =
+          deck.rearrangerAuto && (deck.rearrangerSlices ?? 0) > 1;
+        if (hasAutoLoopRearrange) {
+          const startSample = Math.max(
+            0,
+            Math.min(deck.buffer.length - 1, Math.round(loopStart * deck.buffer.sampleRate))
+          );
+          const endSample = Math.max(
+            startSample + 1,
+            Math.min(deck.buffer.length, Math.round(loopEnd * deck.buffer.sampleRate))
+          );
+          const segmentSamples = Math.max(1, endSample - startSample);
+          const loopSegment = trimBufferLeadingSamples(
+            offline,
+            deck.buffer,
+            startSample,
+            segmentSamples
+          );
+          const cycleDurationSec = Math.max(0.001, loopSegment.duration / tempoRatio);
+          const estimatedCycles = Math.ceil(durationSec / cycleDurationSec);
+          const cyclesToRender = Math.min(
+            MAX_EXPORT_AUTO_REARRANGE_CYCLES,
+            Math.max(1, estimatedCycles)
+          );
+          const deckSeedBase = hashStringToUint32(
+            [
+              sessionName,
+              deck.id,
+              deck.fileName ?? "",
+              loopStart.toFixed(6),
+              loopEnd.toFixed(6),
+              tempoRatio.toFixed(6),
+              deck.rearrangerSlices,
+              deck.rearrangerSwapCount,
+              deck.rearrangerChaos,
+              deck.rearrangerReverse,
+              deck.rearrangerSliceFadeMs,
+              durationSec.toFixed(6),
+            ].join("|")
+          );
+          let currentBuffer = loopSegment;
+          let currentRegions = normalizeRearrangerRegions(
+            deck.rearrangerRegions,
+            deck.rearrangerSlices
+          );
+          let currentRegionIds = normalizeRearrangerRegionIds(
+            deck.rearrangerRegionIds,
+            deck.rearrangerSlices
+          );
+          let timelineSec = 0;
+
+          for (let cycle = 0; cycle < cyclesToRender && timelineSec < durationSec; cycle += 1) {
+            const source = offline.createBufferSource();
+            source.buffer = currentBuffer;
+            source.playbackRate.value = tempoRatio;
+            source.connect(deckInput);
+            source.start(timelineSec, 0);
+            timelineSec += Math.max(0.001, currentBuffer.duration / tempoRatio);
+            if (timelineSec >= durationSec) break;
+
+            const cycleSeed = (deckSeedBase ^ Math.imul(cycle + 1, 2654435761)) >>> 0;
+            const chaosSeed = seededUnitFloat(cycleSeed) * 1_000_000_000;
+            const rearrangerParams = {
+              slices: deck.rearrangerSlices,
+              swapCount: deck.rearrangerSwapCount,
+              chaos: deck.rearrangerChaos,
+              reverse: deck.rearrangerReverse,
+              regions: currentRegions,
+              sliceFadeMs: deck.rearrangerSliceFadeMs,
+            };
+            const nextBuffer = rearrangeBufferSegment(
+              currentBuffer,
+              0,
+              currentBuffer.duration,
+              rearrangerParams,
+              { chaosSeed }
+            );
+            currentRegions = deriveRearrangedRegions(rearrangerParams, {
+              chaosSeed,
+              segmentSamples: nextBuffer.length,
+            });
+            currentRegionIds = deriveRearrangedRegionIds(
+              rearrangerParams,
+              currentRegionIds,
+              { chaosSeed }
+            );
+            currentBuffer = nextBuffer;
+          }
+
+          if (timelineSec < durationSec) {
+            const tail = offline.createBufferSource();
+            tail.buffer = currentBuffer;
+            tail.playbackRate.value = tempoRatio;
+            tail.loop = true;
+            tail.loopStart = 0;
+            tail.loopEnd = currentBuffer.duration;
+            tail.connect(deckInput);
+            tail.start(timelineSec, 0);
+          }
+          return;
+        }
+      }
+
+      const source = offline.createBufferSource();
+      source.buffer = deck.buffer;
+      source.playbackRate.value = tempoRatio;
+      source.connect(deckInput);
       if (deck.loopEnabled && loopEnd > loopStart + 0.01) {
         source.loop = true;
         source.loopStart = Math.max(0, loopStart);
