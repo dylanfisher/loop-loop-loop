@@ -1265,7 +1265,7 @@ input[type="range"]::-moz-focus-outer {
 .deck__fx-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 20px;
   text-align: center;
 }
 
@@ -1575,32 +1575,15 @@ input[type="range"]::-moz-focus-outer {
   align-items: center;
 }
 
-.deck__stretch-controls {
+.deck__fx-controls-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
-  row-gap: 10px;
+  row-gap: 20px;
   justify-items: center;
 }
 
-.deck-stack__list--single .deck__stretch-controls {
+.deck__fx-controls-grid--cols-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.deck__delay-controls {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  row-gap: 10px;
-  justify-items: center;
-}
-
-.deck__rearranger-controls {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  row-gap: 10px;
-  justify-items: center;
 }
 
 .deck__delay-toggle {
@@ -1626,6 +1609,9 @@ input[type="range"]::-moz-focus-outer {
   flex-wrap: wrap;
 }
 
+.deck__fx-footer {
+  margin-top: 10px;
+}
 
 .deck__fx-actions {
   display: flex;
@@ -1742,6 +1728,7 @@ input[type="range"]::-moz-focus-outer {
 .automation-lane {
   display: grid;
   gap: 6px;
+  margin-top: 10px;
 }
 
 .automation-lane__header {
@@ -1984,6 +1971,13 @@ button:active {
   display: grid;
   gap: 6px;
   border-radius: 10px;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.clip-rack__clip.is-playing {
+  border-color: color-mix(in oklab, var(--accent) 34%, var(--line));
+  background: color-mix(in oklab, var(--surface-strong) 90%, var(--accent) 10%);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 25%, transparent);
 }
 
 .clip-rack__clip-waveform {
@@ -2032,6 +2026,17 @@ button:active {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+.clip-rack__clip-preview-label {
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  color: transparent;
+  transition: color 120ms ease;
+}
+
+.clip-rack__clip-preview-label.is-active {
+  color: color-mix(in oklab, var(--accent) 70%, var(--ink));
 }
 
 .clip-rack__clip-name > span:last-child {

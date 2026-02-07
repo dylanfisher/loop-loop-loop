@@ -3039,6 +3039,12 @@ const App = () => {
     commitDeckLoopBoundsHistory(deck.id);
   }, [commitDeckLoopBoundsHistory, getActiveDeck, setDeckLoopBounds]);
 
+  const handleFocusedDeckRemove = useCallback(() => {
+    const deck = getActiveDeck();
+    if (!deck) return;
+    removeDeck(deck.id);
+  }, [getActiveDeck, removeDeck]);
+
   const handleFocusedDeckZoom = useCallback(
     (direction: "in" | "out") => {
       const deck = getActiveDeck();
@@ -3114,6 +3120,12 @@ const App = () => {
         return;
       }
 
+      if (key === "Delete" || key === "Backspace") {
+        event.preventDefault();
+        handleFocusedDeckRemove();
+        return;
+      }
+
       if (lower === "r") {
         event.preventDefault();
         handleFocusedDeckRearrangerPanelToggle();
@@ -3146,6 +3158,7 @@ const App = () => {
     handleGlobalPlaybackToggle,
     handleFocusedDeckLoopReset,
     handleFocusedDeckLoopToggle,
+    handleFocusedDeckRemove,
     handleFocusedDeckPlaybackToggle,
     handleFocusedDeckRearrangerPanelToggle,
     handleFocusedDeckZoom,
@@ -3562,6 +3575,7 @@ const App = () => {
               <li><kbd>R</kbd> Toggle Rearranger panel (active deck)</li>
               <li><kbd>L</kbd> Toggle loop (active deck)</li>
               <li><kbd>Shift</kbd> + <kbd>L</kbd> Reset loop to full file</li>
+              <li><kbd>Delete</kbd> Remove active deck</li>
               <li><kbd>=</kbd> Zoom out waveform</li>
               <li><kbd>-</kbd> Zoom in waveform</li>
               <li><kbd>A</kbd> Add deck</li>

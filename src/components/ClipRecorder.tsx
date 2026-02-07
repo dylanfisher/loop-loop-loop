@@ -434,9 +434,17 @@ const ClipRecorder = ({
           <div className="clip-rack__empty">No clips yet.</div>
         ) : (
           clips.map((clip) => (
-            <div key={clip.id} className="clip-rack__clip">
+            <div
+              key={clip.id}
+              className={`clip-rack__clip ${previewingClipId === clip.id ? "is-playing" : ""}`.trim()}
+            >
               <div className="clip-rack__clip-info">
                 <span className="clip-rack__clip-name">
+                  <span
+                    className={`clip-rack__clip-preview-label ${previewingClipId === clip.id ? "is-active" : ""}`}
+                  >
+                    Preview
+                  </span>
                   <span
                     className={`clip-rack__clip-preview-icon ${previewingClipId === clip.id ? "is-active" : ""}`}
                     aria-hidden="true"

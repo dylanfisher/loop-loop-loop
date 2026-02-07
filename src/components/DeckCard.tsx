@@ -1758,7 +1758,7 @@ const DeckCard = ({
             >
               {renderFxToggleLabel("delay", "Delay")}
             </button>
-            <div className="deck__delay-controls">
+            <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-4">
               <Knob
                 className="knob--compact"
                 label="Mix"
@@ -1809,7 +1809,7 @@ const DeckCard = ({
                 formatValue={(value, fine) => `${value.toFixed(fine ? 1 : 0)} Hz`}
               />
             </div>
-            <div className="deck__delay-options">
+            <div className="deck__delay-options deck__fx-footer">
               <label
                 className="deck__delay-toggle"
                 title="Cross-feed delay repeats between left and right channels."
@@ -1849,7 +1849,7 @@ const DeckCard = ({
             >
               {renderFxToggleLabel("rearranger", "Rearranger")}
             </button>
-            <div className="deck__rearranger-controls">
+            <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-4">
               <Knob
                 className="knob--compact"
                 label="Slices"
@@ -1973,7 +1973,7 @@ const DeckCard = ({
                 />
               </label>
             </div>
-            <div className="deck__fx-actions">
+            <div className="deck__fx-actions deck__fx-footer">
               <button
                 type="button"
                 className="deck__action"
@@ -2019,7 +2019,7 @@ const DeckCard = ({
                 onChange={(next) => onStretchRatioChange(deck.id, next)}
                 formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}x`}
               />
-              <div className="deck__stretch-controls">
+              <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-4">
                 <Knob
                   className="knob--compact"
                   label="Phase"
@@ -2089,7 +2089,7 @@ const DeckCard = ({
                 />
               </div>
             </div>
-            <div className="deck__fx-actions">
+            <div className="deck__fx-actions deck__fx-footer">
               <AsyncActionButton
                 className="deck__action"
                 disabled={!deck.buffer}
