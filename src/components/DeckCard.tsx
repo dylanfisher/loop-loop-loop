@@ -34,6 +34,20 @@ type DeckCardProps = {
   onDelayToneChange: (id: number, value: number) => void;
   onDelayPingPongChange: (id: number, value: boolean) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
+  onVocoderMixChange: (id: number, value: number) => void;
+  onVocoderCarrierDeckIdChange: (id: number, value: number | null) => void;
+  onVocoderModulatorMonitorChange: (id: number, value: number) => void;
+  onVocoderModDriveChange: (id: number, value: number) => void;
+  onVocoderBandCountChange: (id: number, value: number) => void;
+  onVocoderAttackMsChange: (id: number, value: number) => void;
+  onVocoderReleaseMsChange: (id: number, value: number) => void;
+  onVocoderPhaseRotateChange: (id: number, value: number) => void;
+  onVocoderGateThresholdChange: (id: number, value: number) => void;
+  carrierDeckOptions: Array<{ id: number; label: string }>;
+  vocoderModulatingTargetDeckIds: number[];
+  vocoderModulatingTargets: string[];
+  onDisableDeckVocoder: (id: number) => void;
+  onDisableDeckVocoders: (ids: number[]) => void;
   onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   automation?: Record<
@@ -152,6 +166,7 @@ const FX_PANEL_KEYS: DeckFxPanel[] = [
   "parametricEq",
   "balance",
   "pitch",
+  "vocoder",
   "delay",
   "rearranger",
   "stretch",
@@ -184,6 +199,20 @@ const DeckCard = ({
   onDelayToneChange,
   onDelayPingPongChange,
   onDelaySliceSyncChange,
+  onVocoderMixChange,
+  onVocoderCarrierDeckIdChange,
+  onVocoderModulatorMonitorChange,
+  onVocoderModDriveChange,
+  onVocoderBandCountChange,
+  onVocoderAttackMsChange,
+  onVocoderReleaseMsChange,
+  onVocoderPhaseRotateChange,
+  onVocoderGateThresholdChange,
+  carrierDeckOptions,
+  vocoderModulatingTargetDeckIds,
+  vocoderModulatingTargets,
+  onDisableDeckVocoder,
+  onDisableDeckVocoders,
   onBalanceChange,
   onPitchShiftChange,
   automation,
@@ -670,6 +699,12 @@ const DeckCard = ({
     },
     [deck.id, fxPanelOpen, onFxPanelToggle]
   );
+  const activeModulatorLabel =
+    deck.vocoderCarrierDeckId === null
+      ? null
+      : carrierDeckOptions.find((option) => option.id === deck.vocoderCarrierDeckId)?.label ?? null;
+  const hasActiveVocoderModulatorLink = deck.vocoderMix > 1e-3 && activeModulatorLabel !== null;
+  const isVocoderSourceForDecks = vocoderModulatingTargets.length > 0;
   const allFxOpen = FX_PANEL_KEYS.every((key) => fxPanelOpen[key]);
   const toggleAllFxPanels = useCallback(() => {
     onFxPanelsToggleAll(deck.id, !allFxOpen);
@@ -727,6 +762,19 @@ const DeckCard = ({
       automation: hasAutomationData(pitchAutomation),
       modified: isDifferent(deck.pitchShift, 0),
     },
+    vocoder: {
+      automation: false,
+      modified:
+        isDifferent(deck.vocoderMix, 0) ||
+        deck.vocoderCarrierDeckId !== null ||
+        isDifferent(deck.vocoderModulatorMonitor, 0) ||
+        isDifferent(deck.vocoderModDrive, 2) ||
+        Math.round(deck.vocoderBandCount) !== 12 ||
+        isDifferent(deck.vocoderAttackMs, 8) ||
+        isDifferent(deck.vocoderReleaseMs, 5) ||
+        isDifferent(deck.vocoderNoiseMix, 0) ||
+        isDifferent(deck.vocoderGateThreshold, 0.5),
+    },
     delay: {
       automation: false,
       modified:
@@ -776,6 +824,8 @@ const DeckCard = ({
       "EQ: switch between EQ3 (low/mid/high) and Parametric modes.",
     balance: "Balance: pan the deck left/right in stereo.",
     pitch: "Pitch: semitone shift for key matching or creative detune.",
+    vocoder:
+      "Vocoder: this deck is the carrier; select another deck as the modulator envelope source.",
     delay: "Delay: time, feedback, tone, mix, and ping-pong echo.",
     rearranger:
       "Rearranger: Auto Slice detects transient boundaries. Delete Quiet removes low-energy spans in the loop. You can also click waveform between boundaries to add slices; hold Shift and click a slice to destructively remove that slice audio.",
@@ -978,6 +1028,26 @@ const DeckCard = ({
             <span className={`deck__status deck__status--${deck.status}`}>
               {deck.status}
             </span>
+            {hasActiveVocoderModulatorLink ? (
+              <button
+                type="button"
+                className="deck__vocoder-link deck__vocoder-link--button"
+                title={`Vocoder modulator linked to ${activeModulatorLabel}.`}
+                onClick={() => onDisableDeckVocoder(deck.id)}
+              >
+                VOC SRC {activeModulatorLabel}
+              </button>
+            ) : null}
+            {isVocoderSourceForDecks ? (
+              <button
+                type="button"
+                className="deck__vocoder-link deck__vocoder-link--source deck__vocoder-link--button"
+                title={`Used as vocoder source by ${vocoderModulatingTargets.join(", ")}.`}
+                onClick={() => onDisableDeckVocoders(vocoderModulatingTargetDeckIds)}
+              >
+                VOC MOD {vocoderModulatingTargets.join(", ")}
+              </button>
+            ) : null}
             <div className="deck__title">{deck.fileName ?? "No file loaded"}</div>
           </div>
           <div className="deck__meta">
@@ -985,7 +1055,7 @@ const DeckCard = ({
               <div className="deck__meta-actions">
                 <label
                   className="deck__pitch-sync"
-                  title="When enabled, Save stores the current deck FX/automation/settings (filters, EQ, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
+                  title="When enabled, Save stores the current deck FX/automation/settings (filters, EQ, vocoder, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
                 >
                   <input
                     type="checkbox"
@@ -1749,6 +1819,139 @@ const DeckCard = ({
           </div>
         </div>
         <div className="deck__fx-row deck__fx-row--single">
+          <div
+            className={`deck__fx-unit deck__fx-unit--vocoder deck__fx-unit--span-2 ${fxPanelOpen.vocoder ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.vocoder}
+              onClick={() => toggleFxPanel("vocoder")}
+            >
+              {renderFxToggleLabel("vocoder", "Vocoder")}
+            </button>
+            <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-4">
+              <Knob
+                className="knob--compact"
+                label="Mix"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.vocoderMix}
+                defaultValue={0}
+                labelTitle="Wet/dry mix for deck-to-deck vocoding."
+                onChange={(next) => onVocoderMixChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Monitor"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.vocoderModulatorMonitor}
+                defaultValue={0}
+                labelTitle="Controls how much of the linked modulator deck is audible in the mix. 0 = fully muted."
+                onChange={(next) => onVocoderModulatorMonitorChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Mod Drive"
+                min={0.5}
+                max={10}
+                step={0.01}
+                value={deck.vocoderModDrive}
+                defaultValue={2}
+                labelTitle="Boosts modulator envelope sensitivity for stronger/louder vocoder articulation."
+                onChange={(next) => onVocoderModDriveChange(deck.id, next)}
+                formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)}x`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Bands"
+                min={4}
+                max={24}
+                step={1}
+                value={deck.vocoderBandCount}
+                defaultValue={12}
+                labelTitle="Number of analysis/synthesis bands."
+                onChange={(next) => onVocoderBandCountChange(deck.id, next)}
+                formatValue={(value) => `${Math.round(value)}`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Attack"
+                min={1}
+                max={160}
+                step={1}
+                value={deck.vocoderAttackMs}
+                defaultValue={8}
+                labelTitle="Envelope attack time in milliseconds."
+                onChange={(next) => onVocoderAttackMsChange(deck.id, next)}
+                formatValue={(value) => `${Math.round(value)} ms`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Release"
+                min={1}
+                max={1200}
+                step={1}
+                value={deck.vocoderReleaseMs}
+                defaultValue={5}
+                labelTitle="Envelope release time in milliseconds."
+                onChange={(next) => onVocoderReleaseMsChange(deck.id, next)}
+                formatValue={(value) => `${Math.round(value)} ms`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Phase Rotate"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.vocoderNoiseMix}
+                defaultValue={0}
+                labelTitle="Continuously rotates vocoder band phases in a loop."
+                onChange={(next) => onVocoderPhaseRotateChange(deck.id, next)}
+                formatValue={(value, fine) => {
+                  if (value <= 1e-6) return "Off";
+                  const durationSec = 16 + value * (0.25 - 16);
+                  return `${durationSec.toFixed(fine ? 2 : 1)}s`;
+                }}
+              />
+              <Knob
+                className="knob--compact"
+                label="Gate"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.vocoderGateThreshold}
+                defaultValue={0.5}
+                labelTitle="Envelope gate threshold to suppress low-level chatter."
+                onChange={(next) => onVocoderGateThresholdChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+            </div>
+            <div className="deck__delay-options deck__fx-footer">
+              <label className="deck__delay-toggle" title="Modulator deck used to imprint its envelope onto this deck.">
+                <span>Modulator</span>
+                <select
+                  value={deck.vocoderCarrierDeckId ?? ""}
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    onVocoderCarrierDeckIdChange(deck.id, raw ? Number(raw) : null);
+                  }}
+                >
+                  <option value="">None</option>
+                  {carrierDeckOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
           <div
             className={`deck__fx-unit deck__fx-unit--delay deck__fx-unit--span-2 ${fxPanelOpen.delay ? "" : "is-collapsed"}`.trim()}
           >

@@ -37,6 +37,16 @@ const playBuffer = vi.fn(
     _delayMix?: number,
     _delayTone?: number,
     _delayPingPong?: boolean,
+    _vocoderMix?: number,
+    _vocoderCarrierDeckId?: number | null,
+    _vocoderModulatorMonitor?: number,
+    _vocoderModDrive?: number,
+    _vocoderBandCount?: number,
+    _vocoderBandSpread?: number,
+    _vocoderAttackMs?: number,
+    _vocoderReleaseMs?: number,
+    _vocoderNoiseMix?: number,
+    _vocoderGateThreshold?: number,
     _balance?: number,
     _pitchShift?: number
   ) => {
@@ -71,6 +81,16 @@ const setDeckFractalDrift = vi.fn();
 const setDeckFractalDecay = vi.fn();
 const setDeckFractalTone = vi.fn();
 const setDeckPitchShift = vi.fn();
+const setDeckVocoderMix = vi.fn();
+const setDeckVocoderCarrierDeckId = vi.fn();
+const setDeckVocoderModulatorMonitor = vi.fn();
+const setDeckVocoderModDrive = vi.fn();
+const setDeckVocoderBandCount = vi.fn();
+const setDeckVocoderBandSpread = vi.fn();
+const setDeckVocoderAttackMs = vi.fn();
+const setDeckVocoderReleaseMs = vi.fn();
+const setDeckVocoderNoiseMix = vi.fn();
+const setDeckVocoderGateThreshold = vi.fn();
 const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
 const getDeckPlaybackSnapshot = vi.fn(() => null);
@@ -111,6 +131,16 @@ vi.mock("../useAudioEngine", () => ({
     setDeckFractalDecay,
     setDeckFractalTone,
     setDeckPitchShift,
+    setDeckVocoderMix,
+    setDeckVocoderCarrierDeckId,
+    setDeckVocoderModulatorMonitor,
+    setDeckVocoderModDrive,
+    setDeckVocoderBandCount,
+    setDeckVocoderBandSpread,
+    setDeckVocoderAttackMs,
+    setDeckVocoderReleaseMs,
+    setDeckVocoderNoiseMix,
+    setDeckVocoderGateThreshold,
     removeDeck,
     getDeckPosition,
     getDeckPlaybackSnapshot,
@@ -153,6 +183,16 @@ describe("useDecks", () => {
     setDeckFractalDecay.mockClear();
     setDeckFractalTone.mockClear();
     setDeckPitchShift.mockClear();
+    setDeckVocoderMix.mockClear();
+    setDeckVocoderCarrierDeckId.mockClear();
+    setDeckVocoderModulatorMonitor.mockClear();
+    setDeckVocoderModDrive.mockClear();
+    setDeckVocoderBandCount.mockClear();
+    setDeckVocoderBandSpread.mockClear();
+    setDeckVocoderAttackMs.mockClear();
+    setDeckVocoderReleaseMs.mockClear();
+    setDeckVocoderNoiseMix.mockClear();
+    setDeckVocoderGateThreshold.mockClear();
     removeDeck.mockClear();
     getDeckPosition.mockClear();
     getDeckPlaybackSnapshot.mockClear();

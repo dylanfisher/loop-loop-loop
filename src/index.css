@@ -929,6 +929,29 @@ body[data-theme="dark"] .welcome-panel__card {
   letter-spacing: 0.08em;
 }
 
+.deck__vocoder-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--accent) 38%, var(--line));
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: color-mix(in oklab, var(--text) 80%, var(--accent));
+  font-size: 0.56rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.deck__vocoder-link--button {
+  cursor: pointer;
+}
+
+.deck__vocoder-link--source {
+  border-color: color-mix(in oklab, var(--line) 62%, var(--accent));
+  background: color-mix(in oklab, var(--surface-strong) 72%, var(--accent));
+}
+
 .deck__status--loading {
   color: #7a4b00;
 }

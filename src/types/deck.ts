@@ -20,6 +20,7 @@ export type DeckFxPanel =
   | "parametricEq"
   | "balance"
   | "pitch"
+  | "vocoder"
   | "delay"
   | "rearranger"
   | "stretch";
@@ -75,6 +76,16 @@ export type DeckState = {
   parametricEqBands: ParametricEqBand[];
   balance: number;
   pitchShift: number;
+  vocoderMix: number;
+  vocoderCarrierDeckId: number | null;
+  vocoderModulatorMonitor: number;
+  vocoderModDrive: number;
+  vocoderBandCount: number;
+  vocoderBandSpread: number;
+  vocoderAttackMs: number;
+  vocoderReleaseMs: number;
+  vocoderNoiseMix: number;
+  vocoderGateThreshold: number;
   deckWidthOverride?: DeckWidthOverride;
   fxPanelOpen: DeckFxPanelState;
 };

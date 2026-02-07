@@ -36,6 +36,17 @@ type DeckStackProps = {
   onDelayToneChange: (id: number, value: number) => void;
   onDelayPingPongChange: (id: number, value: boolean) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
+  onVocoderMixChange: (id: number, value: number) => void;
+  onVocoderCarrierDeckIdChange: (id: number, value: number | null) => void;
+  onVocoderModulatorMonitorChange: (id: number, value: number) => void;
+  onVocoderModDriveChange: (id: number, value: number) => void;
+  onVocoderBandCountChange: (id: number, value: number) => void;
+  onVocoderAttackMsChange: (id: number, value: number) => void;
+  onVocoderReleaseMsChange: (id: number, value: number) => void;
+  onVocoderPhaseRotateChange: (id: number, value: number) => void;
+  onVocoderGateThresholdChange: (id: number, value: number) => void;
+  onDisableDeckVocoder: (id: number) => void;
+  onDisableDeckVocoders: (ids: number[]) => void;
   onBalanceChange: (id: number, value: number) => void;
   onPitchShiftChange: (id: number, value: number) => void;
   onSeek: (id: number, progress: number) => void;
@@ -147,6 +158,17 @@ const DeckStack = ({
   onDelayToneChange,
   onDelayPingPongChange,
   onDelaySliceSyncChange,
+  onVocoderMixChange,
+  onVocoderCarrierDeckIdChange,
+  onVocoderModulatorMonitorChange,
+  onVocoderModDriveChange,
+  onVocoderBandCountChange,
+  onVocoderAttackMsChange,
+  onVocoderReleaseMsChange,
+  onVocoderPhaseRotateChange,
+  onVocoderGateThresholdChange,
+  onDisableDeckVocoder,
+  onDisableDeckVocoders,
   onBalanceChange,
   onPitchShiftChange,
   onSeek,
@@ -205,6 +227,25 @@ const DeckStack = ({
     layoutMode === "two"
       ? "deck-stack__list--two-column"
       : "deck-stack__list--single-column";
+  const deckLabelById = new Map<number, string>();
+  decks.forEach((deck, index) => {
+    deckLabelById.set(deck.id, `Deck ${index + 1}`);
+  });
+  const vocoderModulatingTargetsByDeckId = new Map<number, string[]>();
+  const vocoderModulatingTargetDeckIdsByDeckId = new Map<number, number[]>();
+  decks.forEach((targetDeck) => {
+    if (targetDeck.vocoderMix <= 1e-3) return;
+    const modulatorDeckId = targetDeck.vocoderCarrierDeckId;
+    if (modulatorDeckId === null || modulatorDeckId === targetDeck.id) return;
+    const targetLabel = deckLabelById.get(targetDeck.id);
+    if (!targetLabel) return;
+    const existing = vocoderModulatingTargetsByDeckId.get(modulatorDeckId) ?? [];
+    existing.push(targetLabel);
+    vocoderModulatingTargetsByDeckId.set(modulatorDeckId, existing);
+    const existingIds = vocoderModulatingTargetDeckIdsByDeckId.get(modulatorDeckId) ?? [];
+    existingIds.push(targetDeck.id);
+    vocoderModulatingTargetDeckIdsByDeckId.set(modulatorDeckId, existingIds);
+  });
   const deckRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
   const setDeckRef = useCallback((id: number, node: HTMLDivElement | null) => {
     deckRefs.current.set(id, node);
@@ -275,6 +316,27 @@ const DeckStack = ({
               onDelayToneChange={onDelayToneChange}
               onDelayPingPongChange={onDelayPingPongChange}
               onDelaySliceSyncChange={onDelaySliceSyncChange}
+              onVocoderMixChange={onVocoderMixChange}
+              onVocoderCarrierDeckIdChange={onVocoderCarrierDeckIdChange}
+              onVocoderModulatorMonitorChange={onVocoderModulatorMonitorChange}
+              onVocoderModDriveChange={onVocoderModDriveChange}
+              onVocoderBandCountChange={onVocoderBandCountChange}
+              onVocoderAttackMsChange={onVocoderAttackMsChange}
+              onVocoderReleaseMsChange={onVocoderReleaseMsChange}
+              onVocoderPhaseRotateChange={onVocoderPhaseRotateChange}
+              onVocoderGateThresholdChange={onVocoderGateThresholdChange}
+              onDisableDeckVocoder={onDisableDeckVocoder}
+              onDisableDeckVocoders={onDisableDeckVocoders}
+              vocoderModulatingTargetDeckIds={
+                vocoderModulatingTargetDeckIdsByDeckId.get(deck.id) ?? []
+              }
+              vocoderModulatingTargets={vocoderModulatingTargetsByDeckId.get(deck.id) ?? []}
+              carrierDeckOptions={decks
+                .filter((candidate) => candidate.id !== deck.id)
+                .map((candidate) => ({
+                  id: candidate.id,
+                  label: `Deck ${decks.findIndex((entry) => entry.id === candidate.id) + 1}`,
+                }))}
               onBalanceChange={onBalanceChange}
               onPitchShiftChange={onPitchShiftChange}
               onSeek={onSeek}

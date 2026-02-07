@@ -29,6 +29,10 @@ import { applyParametricEqOffline } from "./audio/effects/parametricEq";
 import { applyBalanceOffline } from "./audio/effects/balance";
 import { applyGainOffline } from "./audio/effects/gain";
 import { applyMasterProtectOffline } from "./audio/effects/masterProtect";
+import {
+  createChannelVocoder,
+  setChannelVocoderCarrierActive,
+} from "./audio/effects/vocoder";
 import PerfOverlay from "./components/PerfOverlay";
 import {
   AUTO_SESSION_ID,
@@ -609,6 +613,15 @@ const App = () => {
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
+    setDeckVocoderMix,
+    setDeckVocoderCarrierDeckId,
+    setDeckVocoderModulatorMonitor,
+    setDeckVocoderModDrive,
+    setDeckVocoderBandCount,
+    setDeckVocoderAttackMs,
+    setDeckVocoderReleaseMs,
+    setDeckVocoderNoiseMix,
+    setDeckVocoderGateThreshold,
     setDeckDelaySliceSync,
     setDeckDelayTimeTransient,
     setDeckRearrangerPanTransient,
@@ -809,6 +822,10 @@ const App = () => {
         parametricEqBands: deck.parametricEqBands,
         balance: deck.balance,
         pitchShift: deck.pitchShift,
+        vocoderMix: deck.vocoderMix,
+        vocoderCarrierDeckId: deck.vocoderCarrierDeckId,
+        vocoderModulatorMonitor: deck.vocoderModulatorMonitor,
+        vocoderModDrive: deck.vocoderModDrive,
         tempoOffset: deck.tempoOffset,
         tempoPitchSync: deck.tempoPitchSync,
         stretchRatio: deck.stretchRatio,
@@ -1113,6 +1130,42 @@ const App = () => {
       }
     };
 
+    const createCarrierDeckSource = (carrierDeck: DeckState) => {
+      if (!carrierDeck.buffer) return null;
+      const tempoRatio = Math.min(Math.max(1 + carrierDeck.tempoOffset / 100, 0.01), 16);
+      const loopStart = carrierDeck.loopStartSeconds ?? 0;
+      const loopEnd =
+        carrierDeck.loopEndSeconds && carrierDeck.loopEndSeconds > loopStart + 0.01
+          ? carrierDeck.loopEndSeconds
+          : carrierDeck.buffer.duration;
+      const source = offline.createBufferSource();
+      source.buffer = carrierDeck.buffer;
+      source.playbackRate.value = tempoRatio;
+      if (carrierDeck.loopEnabled && loopEnd > loopStart + 0.01) {
+        source.loop = true;
+        source.loopStart = Math.max(0, loopStart);
+        source.loopEnd = Math.min(loopEnd, carrierDeck.buffer.duration);
+      }
+      source.start(0, Math.max(0, loopStart));
+      return source;
+    };
+
+    const getDeckModulatorOutputGain = (deckId: number) => {
+      let isLinkedAsModulator = false;
+      let monitorGain = 0;
+      activeDecks.forEach((candidate) => {
+        if (candidate.id === deckId) return;
+        if ((candidate.vocoderMix ?? 0) <= 1e-3) return;
+        if (candidate.vocoderCarrierDeckId !== deckId) return;
+        isLinkedAsModulator = true;
+        monitorGain = Math.max(
+          monitorGain,
+          Math.min(Math.max(candidate.vocoderModulatorMonitor ?? 0, 0), 1)
+        );
+      });
+      return isLinkedAsModulator ? monitorGain : 1;
+    };
+
     activeDecks.forEach((deck) => {
       if (!deck.buffer) return;
       const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
@@ -1124,6 +1177,7 @@ const App = () => {
       const delayMix = Math.min(Math.max(deck.delayMix ?? 0, 0), 1);
       const delayTone = Math.min(Math.max(deck.delayTone ?? 6000, 400), 12000);
       const delayPingPong = deck.delayPingPong ?? false;
+      const modulatorOutputGain = getDeckModulatorOutputGain(deck.id);
 
 
       const automation = automationState.get(deck.id);
@@ -1232,9 +1286,36 @@ const App = () => {
                   }
                 : undefined,
             });
+      let postFxInput: AudioNode = postEq;
+      const hasSelectedVocoderSource =
+        deck.vocoderCarrierDeckId !== null && deck.vocoderCarrierDeckId !== deck.id;
+      if (deck.vocoderMix > 1e-3 && hasSelectedVocoderSource) {
+        const vocoder = createChannelVocoder(offline, {
+          mix: deck.vocoderMix,
+          modDrive: deck.vocoderModDrive ?? 2,
+          bandCount: deck.vocoderBandCount,
+          bandSpread: deck.vocoderBandSpread,
+          attackMs: deck.vocoderAttackMs,
+          releaseMs: deck.vocoderReleaseMs,
+          noiseMix: deck.vocoderNoiseMix,
+          gateThreshold: deck.vocoderGateThreshold,
+        });
+        postEq.connect(vocoder.carrierInput);
+        const carrierDeck =
+          deck.vocoderCarrierDeckId === null || deck.vocoderCarrierDeckId === deck.id
+            ? null
+            : activeDecks.find((candidate) => candidate.id === deck.vocoderCarrierDeckId) ?? null;
+        const carrierSource = carrierDeck ? createCarrierDeckSource(carrierDeck) : null;
+        if (carrierSource) {
+          carrierSource.connect(vocoder.input);
+        }
+        const hasCarrier = carrierSource !== null;
+        setChannelVocoderCarrierActive(vocoder, hasCarrier);
+        postFxInput = vocoder.output;
+      }
       postEq = applyPostEqEffectsOffline(
         offline,
-        postEq,
+        postFxInput,
         {
           delay: {
             time: delayTime,
@@ -1246,7 +1327,10 @@ const App = () => {
         },
         "exportMix"
       );
-      const postGain = applyGainOffline(offline, postEq, { gain: deck.gain, bypassAt: 0.9 });
+      const postGain = applyGainOffline(offline, postEq, {
+        gain: deck.gain * modulatorOutputGain,
+        bypassAt: 0.9,
+      });
       const protectedOut = applyMasterProtectOffline(offline, postGain, { enabled: true });
       protectedOut.connect(masterMix);
 
@@ -3534,6 +3618,29 @@ const App = () => {
           onDelayToneChange={setDeckDelayTone}
           onDelayPingPongChange={setDeckDelayPingPong}
           onDelaySliceSyncChange={setDeckDelaySliceSync}
+          onVocoderMixChange={setDeckVocoderMix}
+          onVocoderCarrierDeckIdChange={setDeckVocoderCarrierDeckId}
+          onVocoderModulatorMonitorChange={setDeckVocoderModulatorMonitor}
+          onVocoderModDriveChange={setDeckVocoderModDrive}
+          onVocoderBandCountChange={setDeckVocoderBandCount}
+          onVocoderAttackMsChange={setDeckVocoderAttackMs}
+          onVocoderReleaseMsChange={setDeckVocoderReleaseMs}
+          onVocoderPhaseRotateChange={setDeckVocoderNoiseMix}
+          onVocoderGateThresholdChange={setDeckVocoderGateThreshold}
+          onDisableDeckVocoder={(id) => {
+            setDeckVocoderMix(id, 0);
+            setDeckVocoderCarrierDeckId(id, null);
+            setDeckVocoderModulatorMonitor(id, 0);
+            setDeckVocoderModDrive(id, 2);
+          }}
+          onDisableDeckVocoders={(ids) => {
+            ids.forEach((id) => {
+              setDeckVocoderMix(id, 0);
+              setDeckVocoderCarrierDeckId(id, null);
+              setDeckVocoderModulatorMonitor(id, 0);
+              setDeckVocoderModDrive(id, 2);
+            });
+          }}
           onBalanceChange={setDeckBalance}
           onPitchShiftChange={setDeckPitchShift}
           onSeek={seekDeck}

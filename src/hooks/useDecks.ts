@@ -39,6 +39,16 @@ const DEFAULT_DELAY_MIX = 0;
 const DEFAULT_DELAY_TONE = 6000;
 const DEFAULT_DELAY_PINGPONG = false;
 const DEFAULT_DELAY_SLICE_SYNC = false;
+const DEFAULT_VOCODER_MIX = 0;
+const DEFAULT_VOCODER_CARRIER_DECK_ID: number | null = null;
+const DEFAULT_VOCODER_MODULATOR_MONITOR = 0;
+const DEFAULT_VOCODER_MOD_DRIVE = 2;
+const DEFAULT_VOCODER_BAND_COUNT = 12;
+const DEFAULT_VOCODER_BAND_SPREAD = 1;
+const DEFAULT_VOCODER_ATTACK_MS = 8;
+const DEFAULT_VOCODER_RELEASE_MS = 5;
+const DEFAULT_VOCODER_NOISE_MIX = 0;
+const DEFAULT_VOCODER_GATE_THRESHOLD = 0.5;
 const DEFAULT_REARRANGER_SLICES = 0;
 const DEFAULT_REARRANGER_SWAP_COUNT = 0;
 const DEFAULT_REARRANGER_CHAOS = 0;
@@ -62,6 +72,7 @@ const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
   parametricEq: false,
   balance: false,
   pitch: false,
+  vocoder: false,
   delay: false,
   rearranger: false,
   stretch: false,
@@ -209,6 +220,16 @@ const useDecks = () => {
       parametricEqBands: cloneDefaultParametricEqBands(),
       balance: 0,
       pitchShift: 0,
+      vocoderMix: DEFAULT_VOCODER_MIX,
+      vocoderCarrierDeckId: DEFAULT_VOCODER_CARRIER_DECK_ID,
+      vocoderModulatorMonitor: DEFAULT_VOCODER_MODULATOR_MONITOR,
+      vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
+      vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
+      vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+      vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
+      vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
+      vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
+      vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
       deckWidthOverride: undefined,
       offsetSeconds: 0,
       zoom: 1,
@@ -268,6 +289,16 @@ const useDecks = () => {
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
+    setDeckVocoderMix,
+    setDeckVocoderCarrierDeckId,
+    setDeckVocoderModulatorMonitor,
+    setDeckVocoderModDrive,
+    setDeckVocoderBandCount,
+    setDeckVocoderBandSpread,
+    setDeckVocoderAttackMs,
+    setDeckVocoderReleaseMs,
+    setDeckVocoderNoiseMix,
+    setDeckVocoderGateThreshold,
     setDeckPitchShift,
     removeDeck: removeDeckNodes,
     getDeckPosition,
@@ -371,6 +402,16 @@ const useDecks = () => {
         parametricEqBands: ParametricEqBand[];
         balance: number;
         pitchShift: number;
+        vocoderMix: number;
+        vocoderCarrierDeckId: number | null;
+        vocoderModulatorMonitor: number;
+        vocoderModDrive: number;
+        vocoderBandCount: number;
+        vocoderBandSpread: number;
+        vocoderAttackMs: number;
+        vocoderReleaseMs: number;
+        vocoderNoiseMix: number;
+        vocoderGateThreshold: number;
         tempoOffset: number;
         delayTime: number;
         delayFeedback: number;
@@ -392,6 +433,16 @@ const useDecks = () => {
       setDeckParametricEqBands(deckId, settings.parametricEqBands);
       setDeckBalance(deckId, settings.balance);
       setDeckPitchShift(deckId, settings.pitchShift);
+      setDeckVocoderMix(deckId, settings.vocoderMix);
+      setDeckVocoderCarrierDeckId(deckId, settings.vocoderCarrierDeckId);
+      setDeckVocoderModulatorMonitor(deckId, settings.vocoderModulatorMonitor);
+      setDeckVocoderModDrive(deckId, settings.vocoderModDrive);
+      setDeckVocoderBandCount(deckId, settings.vocoderBandCount);
+      setDeckVocoderBandSpread(deckId, settings.vocoderBandSpread);
+      setDeckVocoderAttackMs(deckId, settings.vocoderAttackMs);
+      setDeckVocoderReleaseMs(deckId, settings.vocoderReleaseMs);
+      setDeckVocoderNoiseMix(deckId, settings.vocoderNoiseMix);
+      setDeckVocoderGateThreshold(deckId, settings.vocoderGateThreshold);
       setDeckDelayTime(deckId, settings.delayTime);
       setDeckDelayFeedback(deckId, settings.delayFeedback);
       setDeckDelayMix(deckId, settings.delayMix);
@@ -416,6 +467,16 @@ const useDecks = () => {
       setDeckGain,
       setDeckHighpass,
       setDeckPitchShift,
+      setDeckVocoderMix,
+      setDeckVocoderCarrierDeckId,
+      setDeckVocoderModulatorMonitor,
+      setDeckVocoderModDrive,
+      setDeckVocoderBandCount,
+      setDeckVocoderBandSpread,
+      setDeckVocoderAttackMs,
+      setDeckVocoderReleaseMs,
+      setDeckVocoderNoiseMix,
+      setDeckVocoderGateThreshold,
       setDeckPlaybackRate,
       setDeckResonance,
     ]
@@ -896,6 +957,16 @@ const useDecks = () => {
         setDeckDelayMix(deck.id, deck.delayMix);
         setDeckDelayTone(deck.id, deck.delayTone);
         setDeckDelayPingPong(deck.id, deck.delayPingPong);
+        setDeckVocoderMix(deck.id, deck.vocoderMix);
+        setDeckVocoderCarrierDeckId(deck.id, deck.vocoderCarrierDeckId);
+        setDeckVocoderModulatorMonitor(deck.id, deck.vocoderModulatorMonitor);
+        setDeckVocoderModDrive(deck.id, deck.vocoderModDrive);
+        setDeckVocoderBandCount(deck.id, deck.vocoderBandCount);
+        setDeckVocoderBandSpread(deck.id, deck.vocoderBandSpread);
+        setDeckVocoderAttackMs(deck.id, deck.vocoderAttackMs);
+        setDeckVocoderReleaseMs(deck.id, deck.vocoderReleaseMs);
+        setDeckVocoderNoiseMix(deck.id, deck.vocoderNoiseMix);
+        setDeckVocoderGateThreshold(deck.id, deck.vocoderGateThreshold);
         setDeckPitchShift(deck.id, deck.pitchShift);
         setDeckPlaybackRate(deck.id, clampPlaybackRate(1 + deck.tempoOffset / 100));
         setDeckLoopParams(
@@ -953,6 +1024,16 @@ const useDecks = () => {
           deck.delayMix,
           deck.delayTone,
           deck.delayPingPong,
+          deck.vocoderMix,
+          deck.vocoderCarrierDeckId,
+          deck.vocoderModulatorMonitor,
+          deck.vocoderModDrive,
+          deck.vocoderBandCount,
+          deck.vocoderBandSpread,
+          deck.vocoderAttackMs,
+          deck.vocoderReleaseMs,
+          deck.vocoderNoiseMix,
+          deck.vocoderGateThreshold,
           deck.balance,
           deck.pitchShift
         ).catch((error) => {
@@ -984,6 +1065,16 @@ const useDecks = () => {
       setDeckDelayMix,
       setDeckDelayTone,
       setDeckDelayPingPong,
+      setDeckVocoderMix,
+      setDeckVocoderCarrierDeckId,
+      setDeckVocoderModulatorMonitor,
+      setDeckVocoderModDrive,
+      setDeckVocoderBandCount,
+      setDeckVocoderBandSpread,
+      setDeckVocoderAttackMs,
+      setDeckVocoderReleaseMs,
+      setDeckVocoderNoiseMix,
+      setDeckVocoderGateThreshold,
       setDeckPitchShift,
       setDeckPlaybackRate,
       setDeckResonance,
@@ -1224,6 +1315,16 @@ const useDecks = () => {
         parametricEqBands: cloneDefaultParametricEqBands(),
         balance: 0,
         pitchShift: 0,
+        vocoderMix: DEFAULT_VOCODER_MIX,
+        vocoderCarrierDeckId: DEFAULT_VOCODER_CARRIER_DECK_ID,
+        vocoderModulatorMonitor: DEFAULT_VOCODER_MODULATOR_MONITOR,
+        vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
+      vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
+      vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+      vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
+      vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
+      vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
+      vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
         deckWidthOverride: undefined,
         offsetSeconds: 0,
         zoom: 1,
@@ -1294,6 +1395,16 @@ const useDecks = () => {
             parametricEqBands: cloneDefaultParametricEqBands(),
             balance: 0,
             pitchShift: 0,
+            vocoderMix: DEFAULT_VOCODER_MIX,
+            vocoderCarrierDeckId: DEFAULT_VOCODER_CARRIER_DECK_ID,
+            vocoderModulatorMonitor: DEFAULT_VOCODER_MODULATOR_MONITOR,
+            vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
+      vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
+      vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+      vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
+      vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
+      vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
+      vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
             deckWidthOverride: undefined,
             offsetSeconds: 0,
             zoom: 1,
@@ -1357,6 +1468,12 @@ const useDecks = () => {
     loadRequestRef.current.set(id, requestId);
     const currentDeck = decks.find((deck) => deck.id === id);
     const wasPlaying = currentDeck?.status === "playing";
+    const hadExistingBuffer = Boolean(currentDeck?.buffer);
+    if (hadExistingBuffer) {
+      stop(id);
+      playbackStartRef.current.delete(id);
+      removeDeckNodes(id);
+    }
     const clipSettings = options?.settings;
     const nextGain = clipSettings?.gain ?? options?.gain ?? 0.9;
     const nextPitchShift = clipSettings?.pitchShift ?? options?.pitchShift ?? 0;
@@ -1387,6 +1504,25 @@ const useDecks = () => {
     const nextDelayTone = clipSettings?.delayTone ?? DEFAULT_DELAY_TONE;
     const nextDelayPingPong = clipSettings?.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
     const nextDelaySliceSync = clipSettings?.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC;
+    const nextVocoderMix = clipSettings?.vocoderMix ?? DEFAULT_VOCODER_MIX;
+    const nextVocoderCarrierDeckId =
+      clipSettings?.vocoderCarrierDeckId ?? DEFAULT_VOCODER_CARRIER_DECK_ID;
+    const nextVocoderModulatorMonitor =
+      clipSettings?.vocoderModulatorMonitor ?? DEFAULT_VOCODER_MODULATOR_MONITOR;
+    const nextVocoderModDrive =
+      clipSettings?.vocoderModDrive ?? DEFAULT_VOCODER_MOD_DRIVE;
+    const nextVocoderBandCount =
+      clipSettings?.vocoderBandCount ?? DEFAULT_VOCODER_BAND_COUNT;
+    const nextVocoderBandSpread =
+      clipSettings?.vocoderBandSpread ?? DEFAULT_VOCODER_BAND_SPREAD;
+    const nextVocoderAttackMs =
+      clipSettings?.vocoderAttackMs ?? DEFAULT_VOCODER_ATTACK_MS;
+    const nextVocoderReleaseMs =
+      clipSettings?.vocoderReleaseMs ?? DEFAULT_VOCODER_RELEASE_MS;
+    const nextVocoderNoiseMix =
+      clipSettings?.vocoderNoiseMix ?? DEFAULT_VOCODER_NOISE_MIX;
+    const nextVocoderGateThreshold =
+      clipSettings?.vocoderGateThreshold ?? DEFAULT_VOCODER_GATE_THRESHOLD;
     const nextRearrangerSlices = Math.max(
       0,
       Math.min(MAX_REARRANGER_SLICES, Math.round(clipSettings?.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES))
@@ -1464,6 +1600,18 @@ const useDecks = () => {
         balance:
           currentPanels.balance || !approxEqual(nextBalance, 0) || hasActiveAutomation("balance"),
         pitch: currentPanels.pitch || !approxEqual(nextPitchShift, 0) || hasActiveAutomation("pitch"),
+        vocoder:
+          currentPanels.vocoder ||
+          nextVocoderMix > FX_ACTIVE_EPSILON ||
+          nextVocoderCarrierDeckId !== DEFAULT_VOCODER_CARRIER_DECK_ID ||
+          nextVocoderModulatorMonitor > FX_ACTIVE_EPSILON ||
+          !approxEqual(nextVocoderModDrive, DEFAULT_VOCODER_MOD_DRIVE) ||
+          Math.round(nextVocoderBandCount) !== DEFAULT_VOCODER_BAND_COUNT ||
+          !approxEqual(nextVocoderBandSpread, DEFAULT_VOCODER_BAND_SPREAD) ||
+          !approxEqual(nextVocoderAttackMs, DEFAULT_VOCODER_ATTACK_MS) ||
+          !approxEqual(nextVocoderReleaseMs, DEFAULT_VOCODER_RELEASE_MS) ||
+          nextVocoderNoiseMix > FX_ACTIVE_EPSILON ||
+          nextVocoderGateThreshold > FX_ACTIVE_EPSILON,
         delay:
           currentPanels.delay ||
           nextDelayMix > FX_ACTIVE_EPSILON ||
@@ -1497,6 +1645,16 @@ const useDecks = () => {
       parametricEqBands: nextParametricEqBands,
       balance: nextBalance,
       pitchShift: nextPitchShift,
+      vocoderMix: nextVocoderMix,
+      vocoderCarrierDeckId: nextVocoderCarrierDeckId,
+      vocoderModulatorMonitor: nextVocoderModulatorMonitor,
+      vocoderModDrive: nextVocoderModDrive,
+      vocoderBandCount: nextVocoderBandCount,
+      vocoderBandSpread: nextVocoderBandSpread,
+      vocoderAttackMs: nextVocoderAttackMs,
+      vocoderReleaseMs: nextVocoderReleaseMs,
+      vocoderNoiseMix: nextVocoderNoiseMix,
+      vocoderGateThreshold: nextVocoderGateThreshold,
       tempoOffset: nextTempoOffset,
       delayTime: nextDelayTime,
       delayFeedback: nextDelayFeedback,
@@ -1505,10 +1663,6 @@ const useDecks = () => {
       delayPingPong: nextDelayPingPong,
       delaySliceSync: nextDelaySliceSync,
     });
-    if (wasPlaying) {
-      stop(id);
-      playbackStartRef.current.delete(id);
-    }
     if (clipSettings?.automation) {
       applyAutomationSnapshots(id, clipSettings.automation, {
         gain: nextGain,
@@ -1548,6 +1702,16 @@ const useDecks = () => {
       parametricEqBands: nextParametricEqBands,
       balance: nextBalance,
       pitchShift: nextPitchShift,
+      vocoderMix: nextVocoderMix,
+      vocoderCarrierDeckId: nextVocoderCarrierDeckId,
+      vocoderModulatorMonitor: nextVocoderModulatorMonitor,
+      vocoderModDrive: nextVocoderModDrive,
+      vocoderBandCount: nextVocoderBandCount,
+      vocoderBandSpread: nextVocoderBandSpread,
+      vocoderAttackMs: nextVocoderAttackMs,
+      vocoderReleaseMs: nextVocoderReleaseMs,
+      vocoderNoiseMix: nextVocoderNoiseMix,
+      vocoderGateThreshold: nextVocoderGateThreshold,
       zoom: 1,
       loopEnabled: clipSettings?.loopEnabled ?? true,
       loopStartSeconds: clipSettings?.loopStartSeconds ?? 0,
@@ -1587,6 +1751,16 @@ const useDecks = () => {
     setDeckDelayMix(id, nextDelayMix);
     setDeckDelayTone(id, nextDelayTone);
     setDeckDelayPingPong(id, nextDelayPingPong);
+    setDeckVocoderMix(id, nextVocoderMix);
+    setDeckVocoderCarrierDeckId(id, nextVocoderCarrierDeckId);
+    setDeckVocoderModulatorMonitor(id, nextVocoderModulatorMonitor);
+    setDeckVocoderModDrive(id, nextVocoderModDrive);
+    setDeckVocoderBandCount(id, nextVocoderBandCount);
+    setDeckVocoderBandSpread(id, nextVocoderBandSpread);
+    setDeckVocoderAttackMs(id, nextVocoderAttackMs);
+    setDeckVocoderReleaseMs(id, nextVocoderReleaseMs);
+    setDeckVocoderNoiseMix(id, nextVocoderNoiseMix);
+    setDeckVocoderGateThreshold(id, nextVocoderGateThreshold);
     try {
       const buffer = await decodeFile(file);
       if (loadRequestRef.current.get(id) !== requestId) return;
@@ -1611,6 +1785,16 @@ const useDecks = () => {
         parametricEqBands: nextParametricEqBands,
         balance: nextBalance,
         pitchShift: nextPitchShift,
+        vocoderMix: nextVocoderMix,
+        vocoderCarrierDeckId: nextVocoderCarrierDeckId,
+        vocoderModulatorMonitor: nextVocoderModulatorMonitor,
+        vocoderModDrive: nextVocoderModDrive,
+      vocoderBandCount: nextVocoderBandCount,
+      vocoderBandSpread: nextVocoderBandSpread,
+      vocoderAttackMs: nextVocoderAttackMs,
+      vocoderReleaseMs: nextVocoderReleaseMs,
+      vocoderNoiseMix: nextVocoderNoiseMix,
+      vocoderGateThreshold: nextVocoderGateThreshold,
         zoom: 1,
         loopEnabled: clipSettings?.loopEnabled ?? true,
         loopStartSeconds: loopStart,
@@ -1681,6 +1865,16 @@ const useDecks = () => {
           nextDelayMix,
           nextDelayTone,
           nextDelayPingPong,
+          nextVocoderMix,
+          nextVocoderCarrierDeckId,
+          nextVocoderModulatorMonitor,
+          nextVocoderModDrive,
+          nextVocoderBandCount,
+          nextVocoderBandSpread,
+          nextVocoderAttackMs,
+          nextVocoderReleaseMs,
+          nextVocoderNoiseMix,
+          nextVocoderGateThreshold,
           nextBalance,
           nextPitchShift
         );
@@ -1744,6 +1938,16 @@ const useDecks = () => {
       deck.delayMix,
       deck.delayTone,
       deck.delayPingPong,
+      deck.vocoderMix,
+      deck.vocoderCarrierDeckId,
+      deck.vocoderModulatorMonitor,
+      deck.vocoderModDrive,
+      deck.vocoderBandCount,
+      deck.vocoderBandSpread,
+      deck.vocoderAttackMs,
+      deck.vocoderReleaseMs,
+      deck.vocoderNoiseMix,
+      deck.vocoderGateThreshold,
       deck.balance,
       deck.pitchShift
     );
@@ -1864,6 +2068,16 @@ const useDecks = () => {
         deck.delayMix,
         deck.delayTone,
         deck.delayPingPong,
+        deck.vocoderMix,
+        deck.vocoderCarrierDeckId,
+        deck.vocoderModulatorMonitor,
+        deck.vocoderModDrive,
+        deck.vocoderBandCount,
+        deck.vocoderBandSpread,
+        deck.vocoderAttackMs,
+        deck.vocoderReleaseMs,
+        deck.vocoderNoiseMix,
+        deck.vocoderGateThreshold,
         deck.balance,
         deck.pitchShift
       );
@@ -2013,6 +2227,83 @@ const useDecks = () => {
   const setDeckDelayPingPongValue = (id: number, value: boolean) => {
     setDeckDelayPingPong(id, value);
     updateDeck(id, { delayPingPong: value }, false);
+  };
+
+  const setDeckVocoderMixValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderMix(id, clamped);
+    updateDeck(id, { vocoderMix: clamped }, false);
+  };
+
+  const setDeckVocoderCarrierDeckIdValue = (id: number, value: number | null) => {
+    const deck = decks.find((item) => item.id === id);
+    const previous = deck?.vocoderCarrierDeckId ?? null;
+    const normalized = value === id ? null : value;
+    setDeckVocoderCarrierDeckId(id, normalized);
+    let nextMixPatch: number | undefined;
+    if (previous === null && normalized !== null) {
+      nextMixPatch = 0.5;
+      setDeckVocoderMix(id, nextMixPatch);
+    } else if (normalized === null) {
+      nextMixPatch = 0;
+      setDeckVocoderMix(id, nextMixPatch);
+    }
+    updateDeck(
+      id,
+      {
+        vocoderCarrierDeckId: normalized,
+        ...(nextMixPatch === undefined ? {} : { vocoderMix: nextMixPatch }),
+      },
+      false
+    );
+  };
+
+  const setDeckVocoderModulatorMonitorValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderModulatorMonitor(id, clamped);
+    updateDeck(id, { vocoderModulatorMonitor: clamped }, false);
+  };
+
+  const setDeckVocoderModDriveValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0.5), 10);
+    setDeckVocoderModDrive(id, clamped);
+    updateDeck(id, { vocoderModDrive: clamped }, false);
+  };
+
+  const setDeckVocoderBandCountValue = (id: number, value: number) => {
+    const clamped = Math.round(Math.min(Math.max(value, 4), 24));
+    setDeckVocoderBandCount(id, clamped);
+    updateDeck(id, { vocoderBandCount: clamped }, false);
+  };
+
+  const setDeckVocoderBandSpreadValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderBandSpread(id, clamped);
+    updateDeck(id, { vocoderBandSpread: clamped }, false);
+  };
+
+  const setDeckVocoderAttackMsValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 1), 160);
+    setDeckVocoderAttackMs(id, clamped);
+    updateDeck(id, { vocoderAttackMs: clamped }, false);
+  };
+
+  const setDeckVocoderReleaseMsValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 1), 1200);
+    setDeckVocoderReleaseMs(id, clamped);
+    updateDeck(id, { vocoderReleaseMs: clamped }, false);
+  };
+
+  const setDeckVocoderNoiseMixValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderNoiseMix(id, clamped);
+    updateDeck(id, { vocoderNoiseMix: clamped }, false);
+  };
+
+  const setDeckVocoderGateThresholdValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderGateThreshold(id, clamped);
+    updateDeck(id, { vocoderGateThreshold: clamped }, false);
   };
 
   const setDeckDelaySliceSyncValue = (id: number, value: boolean) => {
@@ -2250,6 +2541,16 @@ const useDecks = () => {
           deck.delayMix,
           deck.delayTone,
           deck.delayPingPong,
+          deck.vocoderMix,
+          deck.vocoderCarrierDeckId,
+          deck.vocoderModulatorMonitor,
+          deck.vocoderModDrive,
+          deck.vocoderBandCount,
+          deck.vocoderBandSpread,
+          deck.vocoderAttackMs,
+          deck.vocoderReleaseMs,
+          deck.vocoderNoiseMix,
+          deck.vocoderGateThreshold,
           deck.balance,
           deck.pitchShift
         );
@@ -2364,6 +2665,16 @@ const useDecks = () => {
             deck.delayMix,
             deck.delayTone,
             deck.delayPingPong,
+            deck.vocoderMix,
+            deck.vocoderCarrierDeckId,
+            deck.vocoderModulatorMonitor,
+            deck.vocoderModDrive,
+            deck.vocoderBandCount,
+            deck.vocoderBandSpread,
+            deck.vocoderAttackMs,
+            deck.vocoderReleaseMs,
+            deck.vocoderNoiseMix,
+            deck.vocoderGateThreshold,
             deck.balance,
             deck.pitchShift
           );
@@ -2520,6 +2831,34 @@ const useDecks = () => {
       const nextGain = preserveFxState ? deck.gain : 0.9;
       const nextBalance = preserveFxState ? deck.balance : 0;
       const nextPitchShift = preserveFxState ? deck.pitchShift : 0;
+      const nextVocoderMix = preserveFxState ? deck.vocoderMix : DEFAULT_VOCODER_MIX;
+      const nextVocoderCarrierDeckId = preserveFxState
+        ? deck.vocoderCarrierDeckId
+        : DEFAULT_VOCODER_CARRIER_DECK_ID;
+      const nextVocoderModulatorMonitor = preserveFxState
+        ? deck.vocoderModulatorMonitor
+        : DEFAULT_VOCODER_MODULATOR_MONITOR;
+      const nextVocoderModDrive = preserveFxState
+        ? deck.vocoderModDrive
+        : DEFAULT_VOCODER_MOD_DRIVE;
+      const nextVocoderBandCount = preserveFxState
+        ? deck.vocoderBandCount
+        : DEFAULT_VOCODER_BAND_COUNT;
+      const nextVocoderBandSpread = preserveFxState
+        ? deck.vocoderBandSpread
+        : DEFAULT_VOCODER_BAND_SPREAD;
+      const nextVocoderAttackMs = preserveFxState
+        ? deck.vocoderAttackMs
+        : DEFAULT_VOCODER_ATTACK_MS;
+      const nextVocoderReleaseMs = preserveFxState
+        ? deck.vocoderReleaseMs
+        : DEFAULT_VOCODER_RELEASE_MS;
+      const nextVocoderNoiseMix = preserveFxState
+        ? deck.vocoderNoiseMix
+        : DEFAULT_VOCODER_NOISE_MIX;
+      const nextVocoderGateThreshold = preserveFxState
+        ? deck.vocoderGateThreshold
+        : DEFAULT_VOCODER_GATE_THRESHOLD;
       const nextTempoOffset = preserveFxState ? deck.tempoOffset : 0;
       const nextTempoPitchSync = preserveFxState ? deck.tempoPitchSync : false;
       const nextDjFilter = preserveFxState ? deck.djFilter : 0;
@@ -2602,6 +2941,16 @@ const useDecks = () => {
         parametricEqBands: nextParametricEqBands,
         balance: nextBalance,
         pitchShift: nextPitchShift,
+        vocoderMix: nextVocoderMix,
+        vocoderCarrierDeckId: nextVocoderCarrierDeckId,
+        vocoderModulatorMonitor: nextVocoderModulatorMonitor,
+        vocoderModDrive: nextVocoderModDrive,
+      vocoderBandCount: nextVocoderBandCount,
+      vocoderBandSpread: nextVocoderBandSpread,
+      vocoderAttackMs: nextVocoderAttackMs,
+      vocoderReleaseMs: nextVocoderReleaseMs,
+      vocoderNoiseMix: nextVocoderNoiseMix,
+      vocoderGateThreshold: nextVocoderGateThreshold,
         offsetSeconds: nextOffsetSeconds,
         zoom: nextZoom,
         loopEnabled: true,
@@ -2652,6 +3001,16 @@ const useDecks = () => {
       setDeckParametricEqBands(id, nextParametricEqBands);
       setDeckBalance(id, nextBalance);
       setDeckPitchShift(id, nextPitchShift);
+      setDeckVocoderMix(id, nextVocoderMix);
+      setDeckVocoderCarrierDeckId(id, nextVocoderCarrierDeckId);
+      setDeckVocoderModulatorMonitor(id, nextVocoderModulatorMonitor);
+      setDeckVocoderModDrive(id, nextVocoderModDrive);
+      setDeckVocoderBandCount(id, nextVocoderBandCount);
+      setDeckVocoderBandSpread(id, nextVocoderBandSpread);
+      setDeckVocoderAttackMs(id, nextVocoderAttackMs);
+      setDeckVocoderReleaseMs(id, nextVocoderReleaseMs);
+      setDeckVocoderNoiseMix(id, nextVocoderNoiseMix);
+      setDeckVocoderGateThreshold(id, nextVocoderGateThreshold);
       setDeckDelayTime(id, nextDelayTime);
       setDeckDelayFeedback(id, nextDelayFeedback);
       setDeckDelayMix(id, nextDelayMix);
@@ -2691,6 +3050,16 @@ const useDecks = () => {
           nextDelayMix,
           nextDelayTone,
           nextDelayPingPong,
+          nextVocoderMix,
+          nextVocoderCarrierDeckId,
+          nextVocoderModulatorMonitor,
+          nextVocoderModDrive,
+          nextVocoderBandCount,
+          nextVocoderBandSpread,
+          nextVocoderAttackMs,
+          nextVocoderReleaseMs,
+          nextVocoderNoiseMix,
+          nextVocoderGateThreshold,
           nextBalance,
           nextPitchShift
         );
@@ -2718,6 +3087,16 @@ const useDecks = () => {
       setDeckLoopParams,
       setDeckParametricEqBands,
       setDeckPitchShift,
+      setDeckVocoderMix,
+      setDeckVocoderCarrierDeckId,
+      setDeckVocoderModulatorMonitor,
+      setDeckVocoderModDrive,
+      setDeckVocoderBandCount,
+      setDeckVocoderBandSpread,
+      setDeckVocoderAttackMs,
+      setDeckVocoderReleaseMs,
+      setDeckVocoderNoiseMix,
+      setDeckVocoderGateThreshold,
       setDeckPlaybackRate,
       setDeckResonance,
       setDecksWithHistory,
@@ -2954,6 +3333,7 @@ const useDecks = () => {
                 parametricEq: open,
                 balance: open,
                 pitch: open,
+                vocoder: open,
                 delay: open,
                 rearranger: open,
                 stretch: open,
@@ -2982,6 +3362,16 @@ const useDecks = () => {
         parametricEqBands: cloneDefaultParametricEqBands(),
         balance: 0,
         pitchShift: nextPitchShift,
+        vocoderMix: DEFAULT_VOCODER_MIX,
+        vocoderCarrierDeckId: DEFAULT_VOCODER_CARRIER_DECK_ID,
+        vocoderModulatorMonitor: DEFAULT_VOCODER_MODULATOR_MONITOR,
+        vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
+      vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
+      vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+      vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
+      vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
+      vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
+      vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
         tempoOffset: deck.tempoOffset,
         delayTime: DEFAULT_DELAY_TIME,
         delayFeedback: DEFAULT_DELAY_FEEDBACK,
@@ -3012,6 +3402,16 @@ const useDecks = () => {
           parametricEqBands: cloneDefaultParametricEqBands(),
           balance: 0,
           pitchShift: nextPitchShift,
+          vocoderMix: DEFAULT_VOCODER_MIX,
+          vocoderCarrierDeckId: DEFAULT_VOCODER_CARRIER_DECK_ID,
+          vocoderModulatorMonitor: DEFAULT_VOCODER_MODULATOR_MONITOR,
+          vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
+      vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
+      vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+      vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
+      vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
+      vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
+      vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
           stretchRatio: DEFAULT_STRETCH_RATIO,
           stretchWindowSize: DEFAULT_STRETCH_WINDOW_SIZE,
           stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
@@ -3135,6 +3535,16 @@ const useDecks = () => {
         parametricEqBands: normalizeParametricEqBands(deck.parametricEqBands),
         balance: deck.balance,
         pitchShift: deck.pitchShift,
+        vocoderMix: deck.vocoderMix,
+        vocoderCarrierDeckId: deck.vocoderCarrierDeckId,
+        vocoderModulatorMonitor: deck.vocoderModulatorMonitor,
+        vocoderModDrive: deck.vocoderModDrive,
+        vocoderBandCount: deck.vocoderBandCount,
+        vocoderBandSpread: deck.vocoderBandSpread,
+        vocoderAttackMs: deck.vocoderAttackMs,
+        vocoderReleaseMs: deck.vocoderReleaseMs,
+        vocoderNoiseMix: deck.vocoderNoiseMix,
+        vocoderGateThreshold: deck.vocoderGateThreshold,
         deckWidthOverride: deck.deckWidthOverride,
         offsetSeconds: deck.offsetSeconds ?? 0,
         zoom: deck.zoom,
@@ -3302,6 +3712,20 @@ const useDecks = () => {
           parametricEqBands: normalizeParametricEqBands(sessionDeck.parametricEqBands),
           balance: sessionDeck.balance ?? 0,
           pitchShift: sessionDeck.pitchShift ?? 0,
+          vocoderMix: sessionDeck.vocoderMix ?? DEFAULT_VOCODER_MIX,
+          vocoderCarrierDeckId:
+            sessionDeck.vocoderCarrierDeckId === sessionDeck.id
+              ? DEFAULT_VOCODER_CARRIER_DECK_ID
+              : (sessionDeck.vocoderCarrierDeckId ?? DEFAULT_VOCODER_CARRIER_DECK_ID),
+          vocoderModulatorMonitor:
+            sessionDeck.vocoderModulatorMonitor ?? DEFAULT_VOCODER_MODULATOR_MONITOR,
+          vocoderModDrive: sessionDeck.vocoderModDrive ?? DEFAULT_VOCODER_MOD_DRIVE,
+          vocoderBandCount: sessionDeck.vocoderBandCount ?? DEFAULT_VOCODER_BAND_COUNT,
+          vocoderBandSpread: sessionDeck.vocoderBandSpread ?? DEFAULT_VOCODER_BAND_SPREAD,
+          vocoderAttackMs: sessionDeck.vocoderAttackMs ?? DEFAULT_VOCODER_ATTACK_MS,
+          vocoderReleaseMs: sessionDeck.vocoderReleaseMs ?? DEFAULT_VOCODER_RELEASE_MS,
+          vocoderNoiseMix: sessionDeck.vocoderNoiseMix ?? DEFAULT_VOCODER_NOISE_MIX,
+          vocoderGateThreshold: sessionDeck.vocoderGateThreshold ?? DEFAULT_VOCODER_GATE_THRESHOLD,
           deckWidthOverride: sessionDeck.deckWidthOverride,
           offsetSeconds,
           zoom: sessionDeck.zoom,
@@ -3423,6 +3847,16 @@ const useDecks = () => {
     setDeckDelayMix: setDeckDelayMixValue,
     setDeckDelayTone: setDeckDelayToneValue,
     setDeckDelayPingPong: setDeckDelayPingPongValue,
+    setDeckVocoderMix: setDeckVocoderMixValue,
+    setDeckVocoderCarrierDeckId: setDeckVocoderCarrierDeckIdValue,
+    setDeckVocoderModulatorMonitor: setDeckVocoderModulatorMonitorValue,
+    setDeckVocoderModDrive: setDeckVocoderModDriveValue,
+    setDeckVocoderBandCount: setDeckVocoderBandCountValue,
+    setDeckVocoderBandSpread: setDeckVocoderBandSpreadValue,
+    setDeckVocoderAttackMs: setDeckVocoderAttackMsValue,
+    setDeckVocoderReleaseMs: setDeckVocoderReleaseMsValue,
+    setDeckVocoderNoiseMix: setDeckVocoderNoiseMixValue,
+    setDeckVocoderGateThreshold: setDeckVocoderGateThresholdValue,
     setDeckDelaySliceSync: setDeckDelaySliceSyncValue,
     setDeckDelayTimeTransient,
     setDeckRearrangerPanTransient,

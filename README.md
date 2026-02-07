@@ -19,6 +19,7 @@ It is designed for rapid experimentation: load audio, define a loop, transform i
 - Automation lanes for: gain, DJ filter, resonance, low/mid/high EQ, balance, pitch
 - Rearranger with manual slicing, auto-slice detection, destructive slice deletion, and auto-rearrange-on-loop
 - Delete Quiet tool to remove low-energy loop regions destructively
+- Deck-to-deck channel vocoder (select carrier deck + mix)
 - Clip Recorder with app-output recording or input-device recording
 - Clip Rack with waveform preview playback and per-clip FX metadata apply toggle
 - Session save/load in IndexedDB, plus zip export/import

@@ -19,7 +19,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ### DSP Modules
 - Beat/onset detection (WASM or lightweight JS analysis).
-- FX chain: filters, delay (time/feedback/mix/tone + ping-pong), Loop Rearranger (offline loop slicing/reordering with slices/offset/chaos/reverse controls, draggable colored slice-boundary handles in the waveform, click-between-handles to add a slice at pointer position, Shift+click in the slice zone to destructively remove the clicked slice audio from the deck buffer and shorten duration, and slice-handle click to remove only a divider while preserving audio, plus optional auto-rearrange each loop cycle), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
+- FX chain: filters, delay (time/feedback/mix/tone + ping-pong), deck-to-deck channel vocoder (modulator deck + carrier deck routing), Loop Rearranger (offline loop slicing/reordering with slices/offset/chaos/reverse controls, draggable colored slice-boundary handles in the waveform, click-between-handles to add a slice at pointer position, Shift+click in the slice zone to destructively remove the clicked slice audio from the deck buffer and shorten duration, and slice-handle click to remove only a divider while preserving audio, plus optional auto-rearrange each loop cycle), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
 - Modulation system: LFOs, envelopes, random/stochastic sources.
 
 ## BPM Detection & Control (Planned)
@@ -52,6 +52,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Parametric EQ is implemented as a dedicated 5-unit-wide FX panel with a draggable node graph (click-to-add, drag freq/gain, node type/Q controls), while keeping EQ3 available via per-deck EQ mode selection.
 - Deck FX now includes a dedicated Gain unit (first slot) with its own collapsible panel and automation lane; waveform sidebar gain control was removed.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
+- Deck FX includes a Vocoder panel with per-deck mix, modulator-deck selection, modulator monitor level (controls linked modulator deck audibility in the mix), mod-drive sensitivity boost for stronger envelope transfer, and a single `Phase Rotate` control that continuously cycles vocoder band phase offsets.
+- Vocoder is bypassed in live/render paths when mix is zero or no modulator source is selected; selecting a modulator source auto-primes mix to 50%, and clearing source sets mix to 0%.
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
 - Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.
 - Deck cards include a per-deck width override control (force full-width or half-width) next to the deck label.
