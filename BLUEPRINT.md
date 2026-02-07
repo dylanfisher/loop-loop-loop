@@ -67,7 +67,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Pitch shift phase-vocoder now uses shared FFT from `/wasm/dsp-core.wasm` for forward/inverse STFT steps, with automatic fallback to JS FFT when unavailable.
 - Shared DSP core also exposes reusable window-to-complex and overlap-add kernels used by both Paulstretch and pitch-vocoder hot paths.
 - Delay includes a phase-1 live-only `Slice Sync` mode that retimes delay-time per active rearranger slice boundary during loop playback.
-- Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
+- Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/crop/duplicate/remove/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
 - Brand-new projects show a dismissible Welcome panel above the clip recorder with selectable first-run guidance, quickstart steps, and concise interaction hints for non-musicians.

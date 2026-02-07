@@ -900,7 +900,7 @@ const DeckCard = ({
                   type="button"
                   className="deck__action"
                   onClick={() => onPause(deck)}
-                  title="Pause playback at the current playhead position."
+                  title="Pause playback at the current playhead position. (Space)"
                 >
                   Pause
                 </button>
@@ -912,8 +912,8 @@ const DeckCard = ({
                   onClick={() => onPlay(deck)}
                   title={
                     deck.status === "paused"
-                      ? "Resume playback from the current playhead position."
-                      : "Start playback."
+                      ? "Resume playback from the current playhead position. (Space)"
+                      : "Start playback. (Space)"
                   }
                 >
                   {deck.status === "paused" ? "Resume" : "Play"}
@@ -923,7 +923,7 @@ const DeckCard = ({
                 type="button"
                 className={`deck__action ${deck.loopEnabled ? "is-active" : ""}`}
                 onClick={() => onLoopChange(deck.id, !deck.loopEnabled)}
-                title="Toggle loop playback for this deck."
+                title="Toggle loop playback for this deck. (L)"
               >
                 {deck.loopEnabled ? "Looping" : "Loop"}
               </button>
@@ -943,7 +943,7 @@ const DeckCard = ({
                 busyLabel="Cropping..."
                 successLabel="Cropped"
                 onAction={() => onCropLoop(deck.id)}
-                title="Destructively crop the deck audio to the current loop bounds."
+                title="Destructively crop the deck audio to the current loop bounds. (C)"
               />
               <AsyncActionButton
                 className="deck__action"
@@ -952,7 +952,7 @@ const DeckCard = ({
                 busyLabel="Duplicating..."
                 successLabel="Duplicated"
                 onAction={() => onDuplicateLoop(deck.id, saveSettings)}
-                title="Open the current loop in a new deck without saving a clip."
+                title="Open the current loop in a new deck without saving a clip. (D)"
               />
               <button
                 type="button"
@@ -966,7 +966,7 @@ const DeckCard = ({
                 type="button"
                 className="deck__action deck__remove"
                 onClick={() => onRemove(deck.id)}
-                title="Remove this deck. If this is the last deck, a new empty deck is created."
+                title="Remove this deck. If this is the last deck, a new empty deck is created. (Delete/Backspace)"
               >
                 Remove
               </button>
@@ -1205,6 +1205,7 @@ const DeckCard = ({
                 className="deck__zoom-button"
                 disabled={zoomIndex <= 0}
                 onClick={() => onZoomChange(deck.id, zoomSteps[Math.max(0, zoomIndex - 1)])}
+                title="Zoom out waveform. (=)"
               >
                 -
               </button>
@@ -1222,6 +1223,7 @@ const DeckCard = ({
                 onClick={() =>
                   onZoomChange(deck.id, zoomSteps[Math.min(zoomSteps.length - 1, zoomIndex + 1)])
                 }
+                title="Zoom in waveform. (-)"
               >
                 +
               </button>
@@ -1846,6 +1848,7 @@ const DeckCard = ({
               className="deck__fx-unit-toggle"
               aria-expanded={fxPanelOpen.rearranger}
               onClick={() => toggleFxPanel("rearranger")}
+              title="Toggle Rearranger panel. (R)"
             >
               {renderFxToggleLabel("rearranger", "Rearranger")}
             </button>

@@ -97,6 +97,9 @@ Saved audio files use:
 - `R`: Toggle Rearranger panel (active deck)
 - `L`: Toggle loop (active deck)
 - `Shift + L`: Reset active deck loop to full file
+- `C`: Crop active deck to current loop
+- `D`: Duplicate active deck
+- `Delete/Backspace`: Remove active deck
 - `=`: Zoom out waveform (active deck)
 - `-`: Zoom in waveform (active deck)
 - `A`: Add deck

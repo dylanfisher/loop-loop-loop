@@ -81,7 +81,7 @@ const WelcomePanel = ({ onClose, onOpenDemoLoop }: WelcomePanelProps) => {
           <h3>Choose an Active Deck</h3>
           <p>
             Keyboard controls follow the last clicked deck. Click a deck before using shortcuts
-            like loop toggle, zoom, or rearranger.
+            like loop toggle, crop, zoom, or rearranger.
           </p>
         </article>
         <article className="welcome-panel__card">

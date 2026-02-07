@@ -267,10 +267,7 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
           const now = event.timeStamp;
           const lastTap = lastNodeTapRef.current;
           if (lastTap.bandId === activeBandId && now - lastTap.atMs < 280) {
-            const band = bands.find((item) => item.id === activeBandId);
-            if (band) {
-              updateBand(activeBandId, { enabled: !band.enabled });
-            }
+            removeBand(activeBandId);
             lastNodeTapRef.current = { bandId: null, atMs: 0 };
           } else {
             lastNodeTapRef.current = { bandId: activeBandId, atMs: now };
@@ -343,7 +340,7 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
       </svg>
       <div className="peq__toolbar">
         <span className="peq__hint">
-          Click graph to add node. Drag node for freq/gain. Double-click node to bypass. Shift+click node to remove.
+          Click graph to add node. Drag node for freq/gain. Double-click or Shift+click node to remove.
         </span>
           <button
             type="button"
@@ -420,14 +417,6 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
               }}
               onChange={(event) => updateBand(selectedBand.id, { q: Number(event.target.value) })}
             />
-          </label>
-          <label className="peq__toggle">
-            <input
-              type="checkbox"
-              checked={selectedBand.enabled}
-              onChange={(event) => updateBand(selectedBand.id, { enabled: event.target.checked })}
-            />
-            Enabled
           </label>
           <button
             type="button"

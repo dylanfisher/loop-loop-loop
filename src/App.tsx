@@ -3045,6 +3045,18 @@ const App = () => {
     removeDeck(deck.id);
   }, [getActiveDeck, removeDeck]);
 
+  const handleFocusedDeckCrop = useCallback(() => {
+    const deck = getActiveDeck();
+    if (!deck || !deck.buffer) return;
+    void handleCropLoop(deck.id);
+  }, [getActiveDeck, handleCropLoop]);
+
+  const handleFocusedDeckDuplicate = useCallback(() => {
+    const deck = getActiveDeck();
+    if (!deck || !deck.buffer) return;
+    void handleDuplicateLoop(deck.id, true);
+  }, [getActiveDeck, handleDuplicateLoop]);
+
   const handleFocusedDeckZoom = useCallback(
     (direction: "in" | "out") => {
       const deck = getActiveDeck();
@@ -3146,6 +3158,16 @@ const App = () => {
         handleFocusedDeckZoom("in");
         return;
       }
+      if (lower === "c") {
+        event.preventDefault();
+        handleFocusedDeckCrop();
+        return;
+      }
+      if (lower === "d") {
+        event.preventDefault();
+        handleFocusedDeckDuplicate();
+        return;
+      }
       if (lower === "a") {
         event.preventDefault();
         addDeck();
@@ -3158,6 +3180,8 @@ const App = () => {
     handleGlobalPlaybackToggle,
     handleFocusedDeckLoopReset,
     handleFocusedDeckLoopToggle,
+    handleFocusedDeckCrop,
+    handleFocusedDeckDuplicate,
     handleFocusedDeckRemove,
     handleFocusedDeckPlaybackToggle,
     handleFocusedDeckRearrangerPanelToggle,
@@ -3222,7 +3246,7 @@ const App = () => {
               type="button"
               onClick={undo}
               disabled={!canUndo}
-              title="Undo"
+              title="Undo (Cmd/Ctrl+Z)"
               aria-label="Undo"
             >
               ←
@@ -3231,18 +3255,22 @@ const App = () => {
               type="button"
               onClick={redo}
               disabled={!canRedo}
-              title="Redo"
+              title="Redo (Cmd/Ctrl+Shift+Z)"
               aria-label="Redo"
             >
               →
             </button>
-            <button type="button" onClick={() => addDeck()}>
+            <button type="button" onClick={() => addDeck()} title="Add deck (A)">
               Add Deck
             </button>
-            <button type="button" onClick={handleNewSession}>
+            <button type="button" onClick={handleNewSession} title="New session">
               New
             </button>
-            <button type="button" onClick={handleGlobalPlaybackToggle}>
+            <button
+              type="button"
+              onClick={handleGlobalPlaybackToggle}
+              title="Global play/pause (Shift+Space)"
+            >
               {hasActivePlayback ? "Pause" : "Play"}
             </button>
             <button
@@ -3360,7 +3388,12 @@ const App = () => {
                     />
                   </label>
                   <div className="session-bar__group session-bar__group--save">
-                    <button type="button" onClick={handleSaveSession} disabled={sessionBusy}>
+                    <button
+                      type="button"
+                      onClick={handleSaveSession}
+                      disabled={sessionBusy}
+                      title="Save session (Cmd/Ctrl+S)"
+                    >
                       Save Session
                     </button>
                   </div>
@@ -3386,6 +3419,7 @@ const App = () => {
                       type="button"
                       onClick={handleLoadSession}
                       disabled={sessionBusy || sessions.length === 0}
+                      title="Open session (Cmd/Ctrl+O)"
                     >
                       Load Session
                     </button>
@@ -3575,7 +3609,9 @@ const App = () => {
               <li><kbd>R</kbd> Toggle Rearranger panel (active deck)</li>
               <li><kbd>L</kbd> Toggle loop (active deck)</li>
               <li><kbd>Shift</kbd> + <kbd>L</kbd> Reset loop to full file</li>
-              <li><kbd>Delete</kbd> Remove active deck</li>
+              <li><kbd>C</kbd> Crop active deck to loop</li>
+              <li><kbd>D</kbd> Duplicate active deck</li>
+              <li><kbd>Delete</kbd>/<kbd>Backspace</kbd> Remove active deck</li>
               <li><kbd>=</kbd> Zoom out waveform</li>
               <li><kbd>-</kbd> Zoom in waveform</li>
               <li><kbd>A</kbd> Add deck</li>
