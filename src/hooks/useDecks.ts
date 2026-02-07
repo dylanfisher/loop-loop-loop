@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
 import type {
+  EqMode,
+  ParametricEqBand,
   DeckFxPanel,
   DeckFxPanelState,
   DeckState,
@@ -13,6 +15,10 @@ import {
   normalizeRearrangerRegionIds,
   normalizeRearrangerRegions,
 } from "../utils/rearranger";
+import {
+  defaultParametricEqBands,
+  normalizeParametricEqBands,
+} from "../audio/effects/parametricEq";
 const clampPlaybackRate = (value: number) => Math.min(Math.max(value, 0.01), 16);
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const AUTOMATION_SAMPLE_RATE = 30;
@@ -43,6 +49,7 @@ const DEFAULT_REARRANGER_SLICE_FADE_MS = 0;
 const DEFAULT_REARRANGER_PINGPONG = 0;
 const DEFAULT_REARRANGER_AUTO = false;
 const DEFAULT_RESONANCE = 0;
+const DEFAULT_EQ_MODE: EqMode = "eq3";
 const EQ_MAX_DB = 18;
 const FX_ACTIVE_EPSILON = 1e-3;
 const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
@@ -52,6 +59,7 @@ const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
   eqLow: false,
   eqMid: false,
   eqHigh: false,
+  parametricEq: false,
   balance: false,
   pitch: false,
   delay: false,
@@ -65,6 +73,9 @@ const withDefaultFxPanelOpen = (
   ...DEFAULT_FX_PANEL_OPEN,
   ...(state ?? {}),
 });
+
+const cloneDefaultParametricEqBands = (): ParametricEqBand[] =>
+  defaultParametricEqBands().map((band) => ({ ...band }));
 
 const approxEqual = (a: number, b: number, epsilon = FX_ACTIVE_EPSILON) =>
   Math.abs(a - b) <= epsilon;
@@ -194,6 +205,8 @@ const useDecks = () => {
       eqLowGain: 0,
       eqMidGain: 0,
       eqHighGain: 0,
+      eqMode: DEFAULT_EQ_MODE,
+      parametricEqBands: cloneDefaultParametricEqBands(),
       balance: 0,
       pitchShift: 0,
       deckWidthOverride: undefined,
@@ -242,6 +255,8 @@ const useDecks = () => {
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckEqMode,
+    setDeckParametricEqBands,
     setDeckBalance,
     setDeckRearrangerPan,
     setDeckRearrangerPingPongAmount,
@@ -349,9 +364,11 @@ const useDecks = () => {
         gain: number;
         djFilter: number;
         filterResonance: number;
+        eqMode: EqMode;
         eqLowGain: number;
         eqMidGain: number;
         eqHighGain: number;
+        parametricEqBands: ParametricEqBand[];
         balance: number;
         pitchShift: number;
         tempoOffset: number;
@@ -368,9 +385,11 @@ const useDecks = () => {
       setDeckFilter(deckId, targets.lowpass);
       setDeckHighpass(deckId, targets.highpass);
       setDeckResonance(deckId, settings.filterResonance);
+      setDeckEqMode(deckId, settings.eqMode);
       setDeckEqLow(deckId, settings.eqLowGain);
       setDeckEqMid(deckId, settings.eqMidGain);
       setDeckEqHigh(deckId, settings.eqHighGain);
+      setDeckParametricEqBands(deckId, settings.parametricEqBands);
       setDeckBalance(deckId, settings.balance);
       setDeckPitchShift(deckId, settings.pitchShift);
       setDeckDelayTime(deckId, settings.delayTime);
@@ -388,9 +407,11 @@ const useDecks = () => {
       setDeckDelayPingPong,
       setDeckDelayTime,
       setDeckDelayTone,
+      setDeckEqMode,
       setDeckEqHigh,
       setDeckEqLow,
       setDeckEqMid,
+      setDeckParametricEqBands,
       setDeckFilter,
       setDeckGain,
       setDeckHighpass,
@@ -867,6 +888,8 @@ const useDecks = () => {
         setDeckEqLow(deck.id, deck.eqLowGain);
         setDeckEqMid(deck.id, deck.eqMidGain);
         setDeckEqHigh(deck.id, deck.eqHighGain);
+        setDeckEqMode(deck.id, deck.eqMode);
+        setDeckParametricEqBands(deck.id, deck.parametricEqBands);
         setDeckBalance(deck.id, deck.balance);
         setDeckDelayTime(deck.id, deck.delayTime);
         setDeckDelayFeedback(deck.id, deck.delayFeedback);
@@ -917,13 +940,15 @@ const useDecks = () => {
           deck.loopEnabled,
           deck.loopStartSeconds,
           deck.loopEndSeconds,
-          targets.lowpass,
-          targets.highpass,
-          deck.filterResonance,
-          deck.eqLowGain,
-          deck.eqMidGain,
-          deck.eqHighGain,
-          deck.delayTime,
+            targets.lowpass,
+            targets.highpass,
+            deck.filterResonance,
+            deck.eqMode,
+            deck.eqLowGain,
+            deck.eqMidGain,
+            deck.eqHighGain,
+            deck.parametricEqBands,
+            deck.delayTime,
           deck.delayFeedback,
           deck.delayMix,
           deck.delayTone,
@@ -948,8 +973,10 @@ const useDecks = () => {
       playBuffer,
       setDeckBalance,
       setDeckEqHigh,
+      setDeckEqMode,
       setDeckEqLow,
       setDeckEqMid,
+      setDeckParametricEqBands,
       setDeckFilter,
       setDeckGain,
       setDeckDelayTime,
@@ -1193,6 +1220,8 @@ const useDecks = () => {
         eqLowGain: 0,
         eqMidGain: 0,
         eqHighGain: 0,
+        eqMode: DEFAULT_EQ_MODE,
+        parametricEqBands: cloneDefaultParametricEqBands(),
         balance: 0,
         pitchShift: 0,
         deckWidthOverride: undefined,
@@ -1261,6 +1290,8 @@ const useDecks = () => {
             eqLowGain: 0,
             eqMidGain: 0,
             eqHighGain: 0,
+            eqMode: DEFAULT_EQ_MODE,
+            parametricEqBands: cloneDefaultParametricEqBands(),
             balance: 0,
             pitchShift: 0,
             deckWidthOverride: undefined,
@@ -1336,6 +1367,10 @@ const useDecks = () => {
     const nextEqLow = clipSettings?.eqLowGain ?? 0;
     const nextEqMid = clipSettings?.eqMidGain ?? 0;
     const nextEqHigh = clipSettings?.eqHighGain ?? 0;
+    const nextEqMode = clipSettings?.eqMode ?? DEFAULT_EQ_MODE;
+    const nextParametricEqBands = normalizeParametricEqBands(
+      clipSettings?.parametricEqBands
+    );
     const nextTempoPitchSync = clipSettings?.tempoPitchSync ?? false;
     const nextStretchRatio = clipSettings?.stretchRatio ?? DEFAULT_STRETCH_RATIO;
     const nextStretchWindowSize =
@@ -1420,6 +1455,12 @@ const useDecks = () => {
         eqLow: currentPanels.eqLow || !approxEqual(nextEqLow, 0) || hasActiveAutomation("eqLow"),
         eqMid: currentPanels.eqMid || !approxEqual(nextEqMid, 0) || hasActiveAutomation("eqMid"),
         eqHigh: currentPanels.eqHigh || !approxEqual(nextEqHigh, 0) || hasActiveAutomation("eqHigh"),
+        parametricEq:
+          currentPanels.parametricEq ||
+          nextEqMode === "parametric" ||
+          nextParametricEqBands.some(
+            (band) => band.enabled && (Math.abs(band.gain) > FX_ACTIVE_EPSILON || Math.abs(band.q - 1) > 1e-3)
+          ),
         balance:
           currentPanels.balance || !approxEqual(nextBalance, 0) || hasActiveAutomation("balance"),
         pitch: currentPanels.pitch || !approxEqual(nextPitchShift, 0) || hasActiveAutomation("pitch"),
@@ -1452,6 +1493,8 @@ const useDecks = () => {
       eqLowGain: nextEqLow,
       eqMidGain: nextEqMid,
       eqHighGain: nextEqHigh,
+      eqMode: nextEqMode,
+      parametricEqBands: nextParametricEqBands,
       balance: nextBalance,
       pitchShift: nextPitchShift,
       tempoOffset: nextTempoOffset,
@@ -1501,6 +1544,8 @@ const useDecks = () => {
       eqLowGain: nextEqLow,
       eqMidGain: nextEqMid,
       eqHighGain: nextEqHigh,
+      eqMode: nextEqMode,
+      parametricEqBands: nextParametricEqBands,
       balance: nextBalance,
       pitchShift: nextPitchShift,
       zoom: 1,
@@ -1562,6 +1607,8 @@ const useDecks = () => {
         eqLowGain: nextEqLow,
         eqMidGain: nextEqMid,
         eqHighGain: nextEqHigh,
+        eqMode: nextEqMode,
+        parametricEqBands: nextParametricEqBands,
         balance: nextBalance,
         pitchShift: nextPitchShift,
         zoom: 1,
@@ -1624,9 +1671,11 @@ const useDecks = () => {
           filters.lowpass,
           filters.highpass,
           nextResonance,
+          nextEqMode,
           nextEqLow,
           nextEqMid,
           nextEqHigh,
+          nextParametricEqBands,
           nextDelayTime,
           nextDelayFeedback,
           nextDelayMix,
@@ -1685,9 +1734,11 @@ const useDecks = () => {
       filters.lowpass,
       filters.highpass,
       deck.filterResonance,
+      deck.eqMode,
       deck.eqLowGain,
       deck.eqMidGain,
       deck.eqHighGain,
+      deck.parametricEqBands,
       deck.delayTime,
       deck.delayFeedback,
       deck.delayMix,
@@ -1803,9 +1854,11 @@ const useDecks = () => {
         filters.lowpass,
         filters.highpass,
         deck.filterResonance,
+        deck.eqMode,
         deck.eqLowGain,
         deck.eqMidGain,
         deck.eqHighGain,
+        deck.parametricEqBands,
         deck.delayTime,
         deck.delayFeedback,
         deck.delayMix,
@@ -1903,6 +1956,18 @@ const useDecks = () => {
       updateAutomationView(id);
     }
     updateAutomationTickEnabled();
+  };
+
+  const setDeckEqModeValue = (id: number, value: EqMode) => {
+    const mode: EqMode = value === "parametric" ? "parametric" : "eq3";
+    setDeckEqMode(id, mode);
+    updateDeck(id, { eqMode: mode }, false);
+  };
+
+  const setDeckParametricEqBandsValue = (id: number, bands: ParametricEqBand[]) => {
+    const normalized = normalizeParametricEqBands(bands);
+    setDeckParametricEqBands(id, normalized);
+    updateDeck(id, { parametricEqBands: normalized }, false);
   };
 
   const setDeckPitchShiftValue = (id: number, value: number) => {
@@ -2175,9 +2240,11 @@ const useDecks = () => {
           filters.lowpass,
           filters.highpass,
           deck.filterResonance,
+          deck.eqMode,
           deck.eqLowGain,
           deck.eqMidGain,
           deck.eqHighGain,
+          deck.parametricEqBands,
           deck.delayTime,
           deck.delayFeedback,
           deck.delayMix,
@@ -2287,9 +2354,11 @@ const useDecks = () => {
             filters.lowpass,
             filters.highpass,
             deck.filterResonance,
+            deck.eqMode,
             deck.eqLowGain,
             deck.eqMidGain,
             deck.eqHighGain,
+            deck.parametricEqBands,
             deck.delayTime,
             deck.delayFeedback,
             deck.delayMix,
@@ -2458,6 +2527,10 @@ const useDecks = () => {
       const nextEqLow = preserveFxState ? deck.eqLowGain : 0;
       const nextEqMid = preserveFxState ? deck.eqMidGain : 0;
       const nextEqHigh = preserveFxState ? deck.eqHighGain : 0;
+      const nextEqMode = preserveFxState ? deck.eqMode : DEFAULT_EQ_MODE;
+      const nextParametricEqBands = preserveFxState
+        ? normalizeParametricEqBands(deck.parametricEqBands)
+        : cloneDefaultParametricEqBands();
       const nextZoom = preserveFxState ? deck.zoom : 1;
       const nextStretchRatio = deck.stretchRatio ?? DEFAULT_STRETCH_RATIO;
       const nextStretchWindowSize = deck.stretchWindowSize ?? DEFAULT_STRETCH_WINDOW_SIZE;
@@ -2525,6 +2598,8 @@ const useDecks = () => {
         eqLowGain: nextEqLow,
         eqMidGain: nextEqMid,
         eqHighGain: nextEqHigh,
+        eqMode: nextEqMode,
+        parametricEqBands: nextParametricEqBands,
         balance: nextBalance,
         pitchShift: nextPitchShift,
         offsetSeconds: nextOffsetSeconds,
@@ -2573,6 +2648,8 @@ const useDecks = () => {
       setDeckEqLow(id, nextEqLow);
       setDeckEqMid(id, nextEqMid);
       setDeckEqHigh(id, nextEqHigh);
+      setDeckEqMode(id, nextEqMode);
+      setDeckParametricEqBands(id, nextParametricEqBands);
       setDeckBalance(id, nextBalance);
       setDeckPitchShift(id, nextPitchShift);
       setDeckDelayTime(id, nextDelayTime);
@@ -2603,11 +2680,13 @@ const useDecks = () => {
           duration,
           filterTargets.lowpass,
           filterTargets.highpass,
-          nextResonance,
-          nextEqLow,
-          nextEqMid,
-          nextEqHigh,
-          nextDelayTime,
+            nextResonance,
+            nextEqMode,
+            nextEqLow,
+            nextEqMid,
+            nextEqHigh,
+            nextParametricEqBands,
+            nextDelayTime,
           nextDelayFeedback,
           nextDelayMix,
           nextDelayTone,
@@ -2630,12 +2709,14 @@ const useDecks = () => {
       setDeckDelayTime,
       setDeckDelayTone,
       setDeckEqHigh,
+      setDeckEqMode,
       setDeckEqLow,
       setDeckEqMid,
       setDeckFilter,
       setDeckGain,
       setDeckHighpass,
       setDeckLoopParams,
+      setDeckParametricEqBands,
       setDeckPitchShift,
       setDeckPlaybackRate,
       setDeckResonance,
@@ -2870,6 +2951,7 @@ const useDecks = () => {
                 eqLow: open,
                 eqMid: open,
                 eqHigh: open,
+                parametricEq: open,
                 balance: open,
                 pitch: open,
                 delay: open,
@@ -2893,9 +2975,11 @@ const useDecks = () => {
         gain: deck.gain,
         djFilter: 0,
         filterResonance: DEFAULT_RESONANCE,
+        eqMode: DEFAULT_EQ_MODE,
         eqLowGain: 0,
         eqMidGain: 0,
         eqHighGain: 0,
+        parametricEqBands: cloneDefaultParametricEqBands(),
         balance: 0,
         pitchShift: nextPitchShift,
         tempoOffset: deck.tempoOffset,
@@ -2921,9 +3005,11 @@ const useDecks = () => {
         {
           djFilter: 0,
           filterResonance: DEFAULT_RESONANCE,
+          eqMode: DEFAULT_EQ_MODE,
           eqLowGain: 0,
           eqMidGain: 0,
           eqHighGain: 0,
+          parametricEqBands: cloneDefaultParametricEqBands(),
           balance: 0,
           pitchShift: nextPitchShift,
           stretchRatio: DEFAULT_STRETCH_RATIO,
@@ -3042,9 +3128,11 @@ const useDecks = () => {
         gain: deck.gain,
         djFilter: deck.djFilter,
         filterResonance: deck.filterResonance,
+        eqMode: deck.eqMode,
         eqLowGain: deck.eqLowGain,
         eqMidGain: deck.eqMidGain,
         eqHighGain: deck.eqHighGain,
+        parametricEqBands: normalizeParametricEqBands(deck.parametricEqBands),
         balance: deck.balance,
         pitchShift: deck.pitchShift,
         deckWidthOverride: deck.deckWidthOverride,
@@ -3207,9 +3295,11 @@ const useDecks = () => {
           gain: sessionDeck.gain,
           djFilter: sessionDeck.djFilter,
           filterResonance: sessionDeck.filterResonance,
+          eqMode: sessionDeck.eqMode ?? DEFAULT_EQ_MODE,
           eqLowGain: sessionDeck.eqLowGain,
           eqMidGain: sessionDeck.eqMidGain,
           eqHighGain: sessionDeck.eqHighGain,
+          parametricEqBands: normalizeParametricEqBands(sessionDeck.parametricEqBands),
           balance: sessionDeck.balance ?? 0,
           pitchShift: sessionDeck.pitchShift ?? 0,
           deckWidthOverride: sessionDeck.deckWidthOverride,
@@ -3325,6 +3415,8 @@ const useDecks = () => {
     setDeckEqLow: setDeckEqLowValue,
     setDeckEqMid: setDeckEqMidValue,
     setDeckEqHigh: setDeckEqHighValue,
+    setDeckEqMode: setDeckEqModeValue,
+    setDeckParametricEqBands: setDeckParametricEqBandsValue,
     setDeckBalance: setDeckBalanceValue,
     setDeckDelayTime: setDeckDelayTimeValue,
     setDeckDelayFeedback: setDeckDelayFeedbackValue,

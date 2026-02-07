@@ -14,6 +14,12 @@ import {
 } from "./rearrangerPingPong";
 import { createLimiter, createSoftClipper } from "./clipper";
 import { normalizeDelayParams } from "./effects/delay";
+import {
+  hasActiveParametricEq,
+  normalizeParametricEqBands,
+  PARAMETRIC_EQ_MAX_BANDS,
+} from "./effects/parametricEq";
+import type { EqMode, ParametricEqBand } from "../types/deck";
 
 type DeckEndedCallback = () => void;
 
@@ -27,6 +33,9 @@ type DeckNodes = {
   eqLow: BiquadFilterNode[];
   eqMid: BiquadFilterNode[];
   eqHigh: BiquadFilterNode[];
+  parametricEq: BiquadFilterNode[];
+  parametricBypassed: boolean;
+  eqMode: EqMode;
   delayDry: GainNode;
   delayWet: GainNode;
   delaySplit: ChannelSplitterNode;
@@ -77,6 +86,8 @@ const pendingResonance = new Map<number, number>();
 const pendingEqLow = new Map<number, number>();
 const pendingEqMid = new Map<number, number>();
 const pendingEqHigh = new Map<number, number>();
+const pendingEqMode = new Map<number, EqMode>();
+const pendingParametricEqBands = new Map<number, ParametricEqBand[]>();
 const pendingBalance = new Map<number, number>();
 const pendingRearrangerPan = new Map<number, number>();
 const pendingRearrangerPingPongAmount = new Map<number, number>();
@@ -91,6 +102,35 @@ const isDev = import.meta.env.DEV;
 const defaultPitchShift = 0;
 const defaultBalance = 0;
 const eqStageCount = 2;
+
+const resetParametricBandNode = (node: BiquadFilterNode) => {
+  node.type = "peaking";
+  node.frequency.value = 1000;
+  node.Q.value = 1;
+  node.gain.value = 0;
+};
+
+const applyParametricEq = (
+  filters: BiquadFilterNode[],
+  eqMode: EqMode,
+  bands: ParametricEqBand[] | undefined
+) => {
+  const isActive = hasActiveParametricEq(eqMode, bands);
+  const activeBands = isActive ? normalizeParametricEqBands(bands) : [];
+  for (let i = 0; i < filters.length; i += 1) {
+    const filter = filters[i];
+    const band = activeBands[i];
+    if (!band || !band.enabled) {
+      resetParametricBandNode(filter);
+      continue;
+    }
+    filter.type = band.type;
+    filter.frequency.value = band.frequency;
+    filter.gain.value = band.gain;
+    filter.Q.value = band.q;
+  }
+  return isActive;
+};
 
 const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
   const perStageGain = value / eqStageCount;
@@ -133,6 +173,22 @@ const setDelayRouting = (nodes: DeckNodes, active: boolean) => {
   nodes.delayActive = active;
 };
 
+const setParametricRouting = (nodes: DeckNodes, bypassed: boolean) => {
+  if (nodes.parametricBypassed === bypassed) return;
+  const eqOut = nodes.eqHigh[nodes.eqHigh.length - 1];
+  const firstParametric = nodes.parametricEq[0];
+  const lastParametric = nodes.parametricEq[nodes.parametricEq.length - 1];
+  eqOut.disconnect();
+  lastParametric.disconnect();
+  if (bypassed) {
+    eqOut.connect(nodes.postEq);
+  } else {
+    eqOut.connect(firstParametric);
+    lastParametric.connect(nodes.postEq);
+  }
+  nodes.parametricBypassed = bypassed;
+};
+
 const ensureDeckNodes = (
   context: AudioContext,
   output: AudioNode,
@@ -141,9 +197,11 @@ const ensureDeckNodes = (
   filterCutoff: number,
   highpassCutoff: number,
   resonance: number,
+  eqMode: EqMode,
   eqLowGain: number,
   eqMidGain: number,
   eqHighGain: number,
+  parametricEqBands: ParametricEqBand[],
   pitchShift: number,
   balance: number,
   delayTime: number,
@@ -201,9 +259,24 @@ const ensureDeckNodes = (
       filter.frequency.value = 8000;
       return filter;
     });
-    applyEqGain(eqLow, pendingEqLow.get(deckId) ?? eqLowGain);
-    applyEqGain(eqMid, pendingEqMid.get(deckId) ?? eqMidGain);
-    applyEqGain(eqHigh, pendingEqHigh.get(deckId) ?? eqHighGain);
+    const resolvedEqMode = pendingEqMode.get(deckId) ?? eqMode;
+    const resolvedEqLow =
+      resolvedEqMode === "eq3" ? pendingEqLow.get(deckId) ?? eqLowGain : 0;
+    const resolvedEqMid =
+      resolvedEqMode === "eq3" ? pendingEqMid.get(deckId) ?? eqMidGain : 0;
+    const resolvedEqHigh =
+      resolvedEqMode === "eq3" ? pendingEqHigh.get(deckId) ?? eqHighGain : 0;
+    applyEqGain(eqLow, resolvedEqLow);
+    applyEqGain(eqMid, resolvedEqMid);
+    applyEqGain(eqHigh, resolvedEqHigh);
+    const parametricEq = Array.from({ length: PARAMETRIC_EQ_MAX_BANDS }, () => {
+      const filter = context.createBiquadFilter();
+      resetParametricBandNode(filter);
+      return filter;
+    });
+    const resolvedParametricBands =
+      pendingParametricEqBands.get(deckId) ?? parametricEqBands;
+    const parametricActive = applyParametricEq(parametricEq, resolvedEqMode, resolvedParametricBands);
     const delayDry = context.createGain();
     const delayWet = context.createGain();
     const delaySplit = context.createChannelSplitter(2);
@@ -248,7 +321,11 @@ const ensureDeckNodes = (
     for (let i = 0; i < eqHigh.length - 1; i++) {
       eqHigh[i].connect(eqHigh[i + 1]);
     }
-    eqHigh[eqHigh.length - 1].connect(postEq);
+    eqHigh[eqHigh.length - 1].connect(parametricEq[0]);
+    for (let i = 0; i < parametricEq.length - 1; i++) {
+      parametricEq[i].connect(parametricEq[i + 1]);
+    }
+    parametricEq[parametricEq.length - 1].connect(postEq);
     postEq.connect(delayDry);
     delaySplit.connect(delayL, 0);
     delaySplit.connect(delayR, 1);
@@ -270,6 +347,9 @@ const ensureDeckNodes = (
       eqLow,
       eqMid,
       eqHigh,
+      parametricEq,
+      parametricBypassed: false,
+      eqMode: resolvedEqMode,
       delayDry,
       delayWet,
       delaySplit,
@@ -287,6 +367,7 @@ const ensureDeckNodes = (
       limiter,
       pitchShift: pitchShiftNodes,
     };
+    setParametricRouting(nodes, !parametricActive);
     balanceNode.connect(rearrangerPanNode);
     rearrangerPanNode.connect(rearrangerPingPongNodes.input);
     rearrangerPingPongNodes.output.connect(pitchShiftNodes.input);
@@ -299,9 +380,15 @@ const ensureDeckNodes = (
     nodes.highpass.frequency.value = highpassCutoff;
     nodes.lowpass.Q.value = resonance;
     nodes.highpass.Q.value = resonance;
-    applyEqGain(nodes.eqLow, eqLowGain);
-    applyEqGain(nodes.eqMid, eqMidGain);
-    applyEqGain(nodes.eqHigh, eqHighGain);
+    const resolvedEqMode = pendingEqMode.get(deckId) ?? eqMode;
+    nodes.eqMode = resolvedEqMode;
+    applyEqGain(nodes.eqLow, resolvedEqMode === "eq3" ? eqLowGain : 0);
+    applyEqGain(nodes.eqMid, resolvedEqMode === "eq3" ? eqMidGain : 0);
+    applyEqGain(nodes.eqHigh, resolvedEqMode === "eq3" ? eqHighGain : 0);
+    const resolvedParametricBands =
+      pendingParametricEqBands.get(deckId) ?? parametricEqBands;
+    const parametricActive = applyParametricEq(nodes.parametricEq, resolvedEqMode, resolvedParametricBands);
+    setParametricRouting(nodes, !parametricActive);
     nodes.balance.pan.value = balance;
     nodes.rearrangerPan.pan.value = pendingRearrangerPan.get(deckId) ?? 0;
     setRearrangerPingPongAmount(
@@ -332,6 +419,8 @@ const ensureDeckNodes = (
   pendingEqLow.delete(deckId);
   pendingEqMid.delete(deckId);
   pendingEqHigh.delete(deckId);
+  pendingEqMode.delete(deckId);
+  pendingParametricEqBands.delete(deckId);
   pendingBalance.delete(deckId);
   pendingRearrangerPan.delete(deckId);
   pendingRearrangerPingPongAmount.delete(deckId);
@@ -359,9 +448,11 @@ export const playDeckBuffer = (
   filterCutoff: number,
   highpassCutoff: number,
   resonance: number,
+  eqMode: EqMode,
   eqLowGain: number,
   eqMidGain: number,
   eqHighGain: number,
+  parametricEqBands: ParametricEqBand[],
   delayTime: number,
   delayFeedback: number,
   delayMix: number,
@@ -380,9 +471,11 @@ export const playDeckBuffer = (
     filterCutoff,
     highpassCutoff,
     resonance,
+    eqMode,
     eqLowGain,
     eqMidGain,
     eqHighGain,
+    parametricEqBands,
     pitchShift,
     balance,
     delayTime,
@@ -534,7 +627,7 @@ export const setDeckResonanceValue = (deckId: number, value: number) => {
 export const setDeckEqLowGain = (deckId: number, value: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    applyEqGain(nodes.eqLow, value);
+    applyEqGain(nodes.eqLow, nodes.eqMode === "eq3" ? value : 0);
     pendingEqLow.delete(deckId);
   } else {
     pendingEqLow.set(deckId, value);
@@ -544,7 +637,7 @@ export const setDeckEqLowGain = (deckId: number, value: number) => {
 export const setDeckEqMidGain = (deckId: number, value: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    applyEqGain(nodes.eqMid, value);
+    applyEqGain(nodes.eqMid, nodes.eqMode === "eq3" ? value : 0);
     pendingEqMid.delete(deckId);
   } else {
     pendingEqMid.set(deckId, value);
@@ -554,10 +647,45 @@ export const setDeckEqMidGain = (deckId: number, value: number) => {
 export const setDeckEqHighGain = (deckId: number, value: number) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    applyEqGain(nodes.eqHigh, value);
+    applyEqGain(nodes.eqHigh, nodes.eqMode === "eq3" ? value : 0);
     pendingEqHigh.delete(deckId);
   } else {
     pendingEqHigh.set(deckId, value);
+  }
+};
+
+export const setDeckEqModeValue = (deckId: number, value: EqMode) => {
+  const mode: EqMode = value === "parametric" ? "parametric" : "eq3";
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.eqMode = mode;
+    const low = pendingEqLow.get(deckId) ?? 0;
+    const mid = pendingEqMid.get(deckId) ?? 0;
+    const high = pendingEqHigh.get(deckId) ?? 0;
+    applyEqGain(nodes.eqLow, mode === "eq3" ? low : 0);
+    applyEqGain(nodes.eqMid, mode === "eq3" ? mid : 0);
+    applyEqGain(nodes.eqHigh, mode === "eq3" ? high : 0);
+    const bands = pendingParametricEqBands.get(deckId) ?? [];
+    const parametricActive = applyParametricEq(nodes.parametricEq, mode, bands);
+    setParametricRouting(nodes, !parametricActive);
+    pendingEqMode.delete(deckId);
+  } else {
+    pendingEqMode.set(deckId, mode);
+  }
+};
+
+export const setDeckParametricEqBandsValue = (
+  deckId: number,
+  bands: ParametricEqBand[]
+) => {
+  const normalized = normalizeParametricEqBands(bands);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    const parametricActive = applyParametricEq(nodes.parametricEq, nodes.eqMode, normalized);
+    setParametricRouting(nodes, !parametricActive);
+    pendingParametricEqBands.delete(deckId);
+  } else {
+    pendingParametricEqBands.set(deckId, normalized);
   }
 };
 
@@ -723,6 +851,7 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.eqLow.forEach((node) => node.disconnect());
     nodes.eqMid.forEach((node) => node.disconnect());
     nodes.eqHigh.forEach((node) => node.disconnect());
+    nodes.parametricEq.forEach((node) => node.disconnect());
     nodes.delayDry.disconnect();
     nodes.delayWet.disconnect();
     nodes.delaySplit.disconnect();
@@ -750,6 +879,8 @@ export const removeDeckNodes = (deckId: number) => {
   pendingEqLow.delete(deckId);
   pendingEqMid.delete(deckId);
   pendingEqHigh.delete(deckId);
+  pendingEqMode.delete(deckId);
+  pendingParametricEqBands.delete(deckId);
   pendingBalance.delete(deckId);
   pendingRearrangerPan.delete(deckId);
   pendingRearrangerPingPongAmount.delete(deckId);

@@ -394,6 +394,7 @@ const Waveform = ({
   const rearrangerHandleDragRef = useRef<{ pointerId: number; boundaryIndex: number } | null>(null);
   const rearrangerHandleMovedRef = useRef(false);
   const rearrangerHandleStartXRef = useRef(0);
+  const rearrangerHandleGrabOffsetRef = useRef(0);
   const rearrangerInsertPreviewRef = useRef<number | null>(null);
   const [rearrangerInsertPreview, setRearrangerInsertPreview] = useState<number | null>(null);
   const [optimisticRearrangerRegions, setOptimisticRearrangerRegions] = useState<number[] | null>(null);
@@ -641,6 +642,28 @@ const Waveform = ({
     offsetSeconds,
     startedAtMs,
   ]);
+
+  const getRearrangerLocalProgress = useCallback((clientX: number) => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return null;
+    const rect = wrapper.getBoundingClientRect();
+    if (!rect.width) return null;
+    const globalProgress = (clientX - rect.left) / rect.width;
+    const resolvedDuration = getResolvedDurationRef.current();
+    const loopStartValue = activeLoopDragRef.current ? loopStartRef.current : loopStartSeconds;
+    const loopEndValue = activeLoopDragRef.current
+      ? loopEndRef.current
+      : loopEndSeconds > loopStartValue
+        ? loopEndSeconds
+        : resolvedDuration;
+    const visibleDuration = Math.max(1e-6, visualDurationRef.current || resolvedDuration || 0);
+    const loopStartProgress = (loopStartValue - windowStartRef.current) / visibleDuration;
+    const loopEndProgress = (loopEndValue - windowStartRef.current) / visibleDuration;
+    const loopSpan = loopEndProgress - loopStartProgress;
+    if (!Number.isFinite(loopSpan) || loopSpan <= 1e-6) return null;
+    const localProgress = (globalProgress - loopStartProgress) / loopSpan;
+    return Math.max(0, Math.min(1, localProgress));
+  }, [loopEndSeconds, loopStartSeconds]);
 
   useEffect(() => {
     getResolvedDurationRef.current = getResolvedDuration;
@@ -1901,17 +1924,15 @@ const Waveform = ({
               scheduleRenderOverlay();
               return;
             }
-            const rect = event.currentTarget.getBoundingClientRect();
-            if (!rect.width) {
+            const nextPoint = getRearrangerLocalProgress(event.clientX);
+            if (nextPoint === null) {
               rearrangerInsertPreviewRef.current = null;
               setRearrangerInsertPreview(null);
               setRearrangerDeleteSliceIndex(null);
               scheduleRenderOverlay();
               return;
             }
-            const raw = (event.clientX - rect.left) / rect.width;
             const minGap = 0.002;
-            const nextPoint = Math.max(0, Math.min(1, raw));
             let insertAfter = -1;
             for (let i = 0; i < rearrangerHandleRegions.length - 1; i += 1) {
               const a = rearrangerHandleRegions[i];
@@ -1986,8 +2007,8 @@ const Waveform = ({
               }
               return;
             }
-            const rect = event.currentTarget.getBoundingClientRect();
-            if (!rect.width) {
+            const nextPoint = getRearrangerLocalProgress(event.clientX);
+            if (nextPoint === null) {
               if (rearrangerInsertPreviewRef.current !== null) {
                 rearrangerInsertPreviewRef.current = null;
                 setRearrangerInsertPreview(null);
@@ -1998,9 +2019,7 @@ const Waveform = ({
               }
               return;
             }
-            const raw = (event.clientX - rect.left) / rect.width;
             const minGap = 0.002;
-            const nextPoint = Math.max(0, Math.min(1, raw));
             let insertAfter = -1;
             for (let i = 0; i < rearrangerHandleRegions.length - 1; i += 1) {
               const a = rearrangerHandleRegions[i];
@@ -2096,6 +2115,9 @@ const Waveform = ({
                   };
                   rearrangerHandleMovedRef.current = false;
                   rearrangerHandleStartXRef.current = event.clientX;
+                  const pointerAtDown = getRearrangerLocalProgress(event.clientX);
+                  rearrangerHandleGrabOffsetRef.current =
+                    pointerAtDown === null ? 0 : pointerAtDown - point;
                   event.currentTarget.setPointerCapture(event.pointerId);
                 }}
                 onPointerMove={(event) => {
@@ -2111,10 +2133,9 @@ const Waveform = ({
                   if (Math.abs(event.clientX - rearrangerHandleStartXRef.current) > 2) {
                     rearrangerHandleMovedRef.current = true;
                   }
-                  const rect = event.currentTarget.parentElement?.getBoundingClientRect();
-                  if (!rect) return;
-                  if (!rect.width) return;
-                  const raw = (event.clientX - rect.left) / rect.width;
+                  const pointerLocal = getRearrangerLocalProgress(event.clientX);
+                  if (pointerLocal === null) return;
+                  const raw = pointerLocal - rearrangerHandleGrabOffsetRef.current;
                   const minGap = 0.002;
                   const previous = rearrangerHandleRegions[drag.boundaryIndex - 1] + minGap;
                   const next = rearrangerHandleRegions[drag.boundaryIndex + 1] - minGap;
@@ -2131,6 +2152,7 @@ const Waveform = ({
                   if (rearrangerHandleDragRef.current?.pointerId === event.pointerId) {
                     rearrangerHandleDragRef.current = null;
                   }
+                  rearrangerHandleGrabOffsetRef.current = 0;
                   event.currentTarget.releasePointerCapture(event.pointerId);
                 }}
                 onClick={(event) => {
@@ -2148,6 +2170,7 @@ const Waveform = ({
                 }}
                 onPointerLeave={() => {
                   rearrangerHandleDragRef.current = null;
+                  rearrangerHandleGrabOffsetRef.current = 0;
                 }}
               />
             );

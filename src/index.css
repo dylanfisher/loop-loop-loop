@@ -1281,6 +1281,10 @@ input[type="range"]::-moz-focus-outer {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.deck__fx-row--parametric {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .deck__fx-unit {
   border: 1px solid var(--line);
   padding: 6px;
@@ -1360,6 +1364,176 @@ input[type="range"]::-moz-focus-outer {
 
 .deck__fx-unit--span-2 {
   grid-column: span 2;
+}
+
+.deck__fx-unit--span-5 {
+  grid-column: span 5;
+}
+
+.deck__parametric-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.deck__parametric-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.deck__parametric-mode-buttons {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.deck__parametric-mode-buttons .deck__action {
+  font-size: 0.56rem;
+  letter-spacing: 0.1em;
+}
+
+.deck__parametric-mode-buttons .deck__action.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+
+.peq {
+  display: grid;
+  gap: 8px;
+}
+
+.peq.is-disabled {
+  opacity: 0.48;
+  filter: saturate(0.35) brightness(0.8);
+}
+
+.peq.is-disabled .peq__curve {
+  opacity: 0.32;
+}
+
+.peq.is-disabled .peq__grid {
+  opacity: 0.45;
+}
+
+.peq.is-disabled .peq__node {
+  opacity: 0.42;
+}
+
+.peq__graph {
+  width: 100%;
+  height: 220px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  touch-action: none;
+}
+
+.peq__bg {
+  fill: color-mix(in srgb, var(--surface) 86%, black 14%);
+}
+
+.peq__grid {
+  stroke: color-mix(in srgb, var(--line) 78%, transparent);
+  stroke-width: 1;
+}
+
+.peq__grid--zero {
+  stroke: color-mix(in oklab, var(--accent) 48%, var(--line));
+  stroke-width: 1.4;
+}
+
+.peq__curve {
+  fill: none;
+  stroke: color-mix(in oklab, var(--accent) 68%, #ffffff 32%);
+  stroke-width: 1.6;
+  opacity: 0.65;
+}
+
+.peq__node {
+  fill: color-mix(in oklab, var(--accent) 75%, #ffffff 25%);
+  stroke: #111;
+  stroke-width: 1.2;
+  cursor: grab;
+}
+
+.peq__node.is-selected {
+  stroke-width: 2.2;
+  stroke: color-mix(in oklab, var(--accent) 78%, #111 22%);
+}
+
+.peq__node.is-muted {
+  fill: color-mix(in srgb, #8f8f8f 65%, var(--surface) 35%);
+}
+
+.peq__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.peq__hint {
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.peq__motion-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.peq__motion-presets,
+.peq__motion-length {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.peq__motion-value {
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  min-width: 3.2rem;
+  text-align: right;
+}
+
+.peq__inspector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+}
+
+.peq__inspector--empty {
+  color: var(--muted);
+}
+
+.peq__inspector label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.peq__inspector select {
+  min-width: 110px;
+}
+
+.peq__inspector input[type="range"] {
+  width: 140px;
+}
+
+.peq__toggle {
+  color: var(--muted);
 }
 
 .deck__stretch-grid {

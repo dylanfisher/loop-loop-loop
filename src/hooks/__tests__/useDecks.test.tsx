@@ -27,9 +27,11 @@ const playBuffer = vi.fn(
     _filterCutoff?: number,
     _highpassCutoff?: number,
     _resonance?: number,
+    _eqMode?: "eq3" | "parametric",
     _eqLowGain?: number,
     _eqMidGain?: number,
     _eqHighGain?: number,
+    _parametricEqBands?: unknown[],
     _delayTime?: number,
     _delayFeedback?: number,
     _delayMix?: number,
@@ -49,6 +51,8 @@ const setDeckResonance = vi.fn();
 const setDeckEqLow = vi.fn();
 const setDeckEqMid = vi.fn();
 const setDeckEqHigh = vi.fn();
+const setDeckEqMode = vi.fn();
+const setDeckParametricEqBands = vi.fn();
 const setDeckBalance = vi.fn();
 const setDeckRearrangerPan = vi.fn();
 const setDeckRearrangerPingPongAmount = vi.fn();
@@ -87,6 +91,8 @@ vi.mock("../useAudioEngine", () => ({
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckEqMode,
+    setDeckParametricEqBands,
     setDeckBalance,
     setDeckRearrangerPan,
     setDeckRearrangerPingPongAmount,
@@ -127,6 +133,8 @@ describe("useDecks", () => {
     setDeckEqLow.mockClear();
     setDeckEqMid.mockClear();
     setDeckEqHigh.mockClear();
+    setDeckEqMode.mockClear();
+    setDeckParametricEqBands.mockClear();
     setDeckBalance.mockClear();
     setDeckRearrangerPan.mockClear();
     setDeckRearrangerPingPongAmount.mockClear();

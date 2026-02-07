@@ -13,6 +13,8 @@ import {
   setDeckEqLowGain,
   setDeckEqMidGain,
   setDeckEqHighGain,
+  setDeckEqModeValue,
+  setDeckParametricEqBandsValue,
   setDeckBalanceValue,
   setDeckRearrangerPanValue,
   setDeckRearrangerPingPongAmountValue,
@@ -33,6 +35,7 @@ import {
   ensureRearrangerPingPongWorklet,
   type RearrangerPingPongConfig,
 } from "./rearrangerPingPong";
+import type { EqMode, ParametricEqBand } from "../types/deck";
 
 type DeckEndedCallback = () => void;
 
@@ -52,9 +55,11 @@ type AudioEngine = {
     filterCutoff?: number,
     highpassCutoff?: number,
     resonance?: number,
+    eqMode?: EqMode,
     eqLowGain?: number,
     eqMidGain?: number,
     eqHighGain?: number,
+    parametricEqBands?: ParametricEqBand[],
     delayTime?: number,
     delayFeedback?: number,
     delayMix?: number,
@@ -71,6 +76,8 @@ type AudioEngine = {
   setDeckEqLow: (deckId: number, value: number) => void;
   setDeckEqMid: (deckId: number, value: number) => void;
   setDeckEqHigh: (deckId: number, value: number) => void;
+  setDeckEqMode: (deckId: number, value: EqMode) => void;
+  setDeckParametricEqBands: (deckId: number, bands: ParametricEqBand[]) => void;
   setDeckBalance: (deckId: number, value: number) => void;
   setDeckRearrangerPan: (deckId: number, value: number) => void;
   setDeckRearrangerPingPongAmount: (deckId: number, value: number) => void;
@@ -167,7 +174,7 @@ const createBuffer = (channels: number, length: number, sampleRate: number) => {
   return context.createBuffer(channels, length, sampleRate);
 };
 
-const playBuffer = async (
+const playBuffer: AudioEngine["playBuffer"] = async (
   deckId: number,
   buffer: AudioBuffer,
   onEnded?: DeckEndedCallback,
@@ -180,9 +187,11 @@ const playBuffer = async (
   filterCutoff = 20000,
   highpassCutoff = 60,
   resonance = 0,
+  eqMode: EqMode = "eq3",
   eqLowGain = 0,
   eqMidGain = 0,
   eqHighGain = 0,
+  parametricEqBands: ParametricEqBand[] = [],
   delayTime = 0.35,
   delayFeedback = 0.35,
   delayMix = 0,
@@ -221,9 +230,11 @@ const playBuffer = async (
     filterCutoff,
     highpassCutoff,
     resonance,
+    eqMode,
     eqLowGain,
     eqMidGain,
     eqHighGain,
+    parametricEqBands,
     delayTime,
     delayFeedback,
     delayMix,
@@ -269,6 +280,14 @@ const setDeckEqMid = (deckId: number, value: number) => {
 
 const setDeckEqHigh = (deckId: number, value: number) => {
   setDeckEqHighGain(deckId, value);
+};
+
+const setDeckEqMode = (deckId: number, value: EqMode) => {
+  setDeckEqModeValue(deckId, value);
+};
+
+const setDeckParametricEqBands = (deckId: number, bands: ParametricEqBand[]) => {
+  setDeckParametricEqBandsValue(deckId, bands);
 };
 
 const setDeckBalance = (deckId: number, value: number) => {
@@ -410,6 +429,8 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckEqMode,
+    setDeckParametricEqBands,
     setDeckBalance,
     setDeckRearrangerPan,
     setDeckRearrangerPingPongAmount,

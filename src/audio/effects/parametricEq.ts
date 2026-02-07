@@ -1,0 +1,103 @@
+import type { EqMode, ParametricEqBand } from "../../types/deck";
+
+export const PARAMETRIC_EQ_MAX_BANDS = 12;
+const MIN_FREQ = 20;
+const MAX_FREQ = 20000;
+const MIN_GAIN_DB = -18;
+const MAX_GAIN_DB = 18;
+const MIN_Q = 0.15;
+const MAX_Q = 20;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
+const isNeutralBand = (band: ParametricEqBand) =>
+  !band.enabled || Math.abs(band.gain) <= 1e-4;
+
+export const defaultParametricEqBands = (): ParametricEqBand[] => [
+  {
+    id: "peq-low",
+    type: "lowshelf",
+    frequency: 120,
+    gain: 0,
+    q: 0.8,
+    enabled: true,
+  },
+  {
+    id: "peq-mid",
+    type: "peaking",
+    frequency: 1200,
+    gain: 0,
+    q: 1.2,
+    enabled: true,
+  },
+  {
+    id: "peq-high",
+    type: "highshelf",
+    frequency: 8000,
+    gain: 0,
+    q: 0.8,
+    enabled: true,
+  },
+];
+
+export const normalizeParametricEqBand = (
+  band: Partial<ParametricEqBand>,
+  fallbackId: string
+): ParametricEqBand => ({
+  id: band.id || fallbackId,
+  type:
+    band.type === "lowshelf" || band.type === "highshelf" || band.type === "peaking"
+      ? band.type
+      : "peaking",
+  frequency: clamp(Number.isFinite(band.frequency) ? band.frequency! : 1200, MIN_FREQ, MAX_FREQ),
+  gain: clamp(Number.isFinite(band.gain) ? band.gain! : 0, MIN_GAIN_DB, MAX_GAIN_DB),
+  q: clamp(Number.isFinite(band.q) ? band.q! : 1, MIN_Q, MAX_Q),
+  enabled: band.enabled ?? true,
+});
+
+export const normalizeParametricEqBands = (bands: ParametricEqBand[] | undefined | null) => {
+  if (!bands || bands.length === 0) return defaultParametricEqBands();
+  return bands
+    .slice(0, PARAMETRIC_EQ_MAX_BANDS)
+    .map((band, index) => normalizeParametricEqBand(band, `peq-${index + 1}`));
+};
+
+export const hasActiveParametricEq = (
+  eqMode: EqMode,
+  bands: ParametricEqBand[] | undefined | null
+) => {
+  if (eqMode !== "parametric") return false;
+  const normalized = normalizeParametricEqBands(bands);
+  return normalized.some((band) => !isNeutralBand(band));
+};
+
+export const applyParametricEqOffline = (
+  context: OfflineAudioContext,
+  input: AudioNode,
+  eqMode: EqMode,
+  bands: ParametricEqBand[] | undefined | null,
+  renderDuration: number
+) => {
+  if (!hasActiveParametricEq(eqMode, bands)) return input;
+  const normalized = normalizeParametricEqBands(bands);
+  const filters = normalized.map((band) => {
+    const node = context.createBiquadFilter();
+    node.type = band.type;
+    node.frequency.setValueAtTime(band.frequency, 0);
+    node.gain.setValueAtTime(band.enabled ? band.gain : 0, 0);
+    node.Q.setValueAtTime(band.q, 0);
+    if (renderDuration > 0) {
+      node.frequency.setValueAtTime(band.frequency, renderDuration);
+      node.gain.setValueAtTime(band.enabled ? band.gain : 0, renderDuration);
+      node.Q.setValueAtTime(band.q, renderDuration);
+    }
+    return node;
+  });
+  if (filters.length === 0) return input;
+  input.connect(filters[0]);
+  for (let i = 0; i < filters.length - 1; i += 1) {
+    filters[i].connect(filters[i + 1]);
+  }
+  return filters[filters.length - 1];
+};

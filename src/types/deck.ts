@@ -1,4 +1,14 @@
 export type DeckStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
+export type EqMode = "eq3" | "parametric";
+export type ParametricEqBandType = "peaking" | "lowshelf" | "highshelf";
+export type ParametricEqBand = {
+  id: string;
+  type: ParametricEqBandType;
+  frequency: number;
+  gain: number;
+  q: number;
+  enabled: boolean;
+};
 
 export type DeckFxPanel =
   | "gain"
@@ -7,6 +17,7 @@ export type DeckFxPanel =
   | "eqLow"
   | "eqMid"
   | "eqHigh"
+  | "parametricEq"
   | "balance"
   | "pitch"
   | "delay"
@@ -57,9 +68,11 @@ export type DeckState = {
   rearrangerRegionsManual?: boolean;
   djFilter: number;
   filterResonance: number;
+  eqMode: EqMode;
   eqLowGain: number;
   eqMidGain: number;
   eqHighGain: number;
+  parametricEqBands: ParametricEqBand[];
   balance: number;
   pitchShift: number;
   deckWidthOverride?: DeckWidthOverride;

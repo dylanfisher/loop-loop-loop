@@ -1,4 +1,4 @@
-import type { DeckFxPanelState } from "./deck";
+import type { DeckFxPanelState, EqMode, ParametricEqBand } from "./deck";
 
 export type AutomationParam =
   | "gain"
@@ -25,9 +25,11 @@ export type DeckSession = {
   gain: number;
   djFilter: number;
   filterResonance: number;
+  eqMode?: EqMode;
   eqLowGain: number;
   eqMidGain: number;
   eqHighGain: number;
+  parametricEqBands?: ParametricEqBand[];
   balance: number;
   pitchShift: number;
   deckWidthOverride?: "full" | "half";
@@ -86,9 +88,11 @@ export type ClipSettings = {
   gain: number;
   djFilter: number;
   filterResonance: number;
+  eqMode?: EqMode;
   eqLowGain: number;
   eqMidGain: number;
   eqHighGain: number;
+  parametricEqBands?: ParametricEqBand[];
   balance: number;
   pitchShift: number;
   tempoOffset: number;

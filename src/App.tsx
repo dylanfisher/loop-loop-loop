@@ -25,6 +25,7 @@ import { applyPostEqEffectsOffline } from "./audio/effects/postEqPipeline";
 import { applyPitchShiftOffline } from "./audio/effects/pitchShift";
 import { applyDjFilterOffline } from "./audio/effects/djFilter";
 import { applyEq3Offline } from "./audio/effects/eq3";
+import { applyParametricEqOffline } from "./audio/effects/parametricEq";
 import { applyBalanceOffline } from "./audio/effects/balance";
 import { applyGainOffline } from "./audio/effects/gain";
 import { applyMasterProtectOffline } from "./audio/effects/masterProtect";
@@ -600,6 +601,8 @@ const App = () => {
     setDeckEqLow,
     setDeckEqMid,
     setDeckEqHigh,
+    setDeckEqMode,
+    setDeckParametricEqBands,
     setDeckBalance,
     setDeckDelayTime,
     setDeckDelayFeedback,
@@ -802,6 +805,8 @@ const App = () => {
         eqLowGain: deck.eqLowGain,
         eqMidGain: deck.eqMidGain,
         eqHighGain: deck.eqHighGain,
+        eqMode: deck.eqMode,
+        parametricEqBands: deck.parametricEqBands,
         balance: deck.balance,
         pitchShift: deck.pitchShift,
         tempoOffset: deck.tempoOffset,
@@ -1191,33 +1196,42 @@ const App = () => {
             }
           : undefined,
       });
-      let postEq: AudioNode = applyEq3Offline(offline, postFilter, {
-        low: eqLowValue,
-        mid: eqMidValue,
-        high: eqHighValue,
-        renderDuration: durationSec,
-        lowAutomation: eqLowTrack
-          ? {
-              active: eqLowTrack.active,
-              samples: eqLowTrack.samples,
-              durationSec: eqLowTrack.durationSec,
-            }
-          : undefined,
-        midAutomation: eqMidTrack
-          ? {
-              active: eqMidTrack.active,
-              samples: eqMidTrack.samples,
-              durationSec: eqMidTrack.durationSec,
-            }
-          : undefined,
-        highAutomation: eqHighTrack
-          ? {
-              active: eqHighTrack.active,
-              samples: eqHighTrack.samples,
-              durationSec: eqHighTrack.durationSec,
-            }
-          : undefined,
-      });
+      let postEq: AudioNode =
+        deck.eqMode === "parametric"
+          ? applyParametricEqOffline(
+              offline,
+              postFilter,
+              deck.eqMode,
+              deck.parametricEqBands,
+              durationSec
+            )
+          : applyEq3Offline(offline, postFilter, {
+              low: eqLowValue,
+              mid: eqMidValue,
+              high: eqHighValue,
+              renderDuration: durationSec,
+              lowAutomation: eqLowTrack
+                ? {
+                    active: eqLowTrack.active,
+                    samples: eqLowTrack.samples,
+                    durationSec: eqLowTrack.durationSec,
+                  }
+                : undefined,
+              midAutomation: eqMidTrack
+                ? {
+                    active: eqMidTrack.active,
+                    samples: eqMidTrack.samples,
+                    durationSec: eqMidTrack.durationSec,
+                  }
+                : undefined,
+              highAutomation: eqHighTrack
+                ? {
+                    active: eqHighTrack.active,
+                    samples: eqHighTrack.samples,
+                    durationSec: eqHighTrack.durationSec,
+                  }
+                : undefined,
+            });
       postEq = applyPostEqEffectsOffline(
         offline,
         postEq,
@@ -1616,12 +1630,14 @@ const App = () => {
         djFilterTrack?.active === true ||
         resonanceTrack?.active === true;
       const needsEq =
-        !approxEqual(eqLowValue, 0) ||
-        !approxEqual(eqMidValue, 0) ||
-        !approxEqual(eqHighValue, 0) ||
-        eqLowTrack?.active === true ||
-        eqMidTrack?.active === true ||
-        eqHighTrack?.active === true;
+        deck.eqMode === "parametric"
+          ? deck.parametricEqBands.some((band) => band.enabled && Math.abs(band.gain) > 1e-3)
+          : !approxEqual(eqLowValue, 0) ||
+            !approxEqual(eqMidValue, 0) ||
+            !approxEqual(eqHighValue, 0) ||
+            eqLowTrack?.active === true ||
+            eqMidTrack?.active === true ||
+            eqHighTrack?.active === true;
       const needsGain = !approxEqual(deck.gain, 0.9);
 
       if (needsPitch) {
@@ -1677,33 +1693,42 @@ const App = () => {
             }
           : undefined,
       });
-      chain = applyEq3Offline(offline, chain, {
-        low: eqLowValue,
-        mid: eqMidValue,
-        high: eqHighValue,
-        renderDuration,
-        lowAutomation: eqLowTrack
-          ? {
-              active: eqLowTrack.active,
-              samples: eqLowTrack.samples,
-              durationSec: eqLowTrack.durationSec,
-            }
-          : undefined,
-        midAutomation: eqMidTrack
-          ? {
-              active: eqMidTrack.active,
-              samples: eqMidTrack.samples,
-              durationSec: eqMidTrack.durationSec,
-            }
-          : undefined,
-        highAutomation: eqHighTrack
-          ? {
-              active: eqHighTrack.active,
-              samples: eqHighTrack.samples,
-              durationSec: eqHighTrack.durationSec,
-            }
-          : undefined,
-      });
+      chain =
+        deck.eqMode === "parametric"
+          ? applyParametricEqOffline(
+              offline,
+              chain,
+              deck.eqMode,
+              deck.parametricEqBands,
+              renderDuration
+            )
+          : applyEq3Offline(offline, chain, {
+              low: eqLowValue,
+              mid: eqMidValue,
+              high: eqHighValue,
+              renderDuration,
+              lowAutomation: eqLowTrack
+                ? {
+                    active: eqLowTrack.active,
+                    samples: eqLowTrack.samples,
+                    durationSec: eqLowTrack.durationSec,
+                  }
+                : undefined,
+              midAutomation: eqMidTrack
+                ? {
+                    active: eqMidTrack.active,
+                    samples: eqMidTrack.samples,
+                    durationSec: eqMidTrack.durationSec,
+                  }
+                : undefined,
+              highAutomation: eqHighTrack
+                ? {
+                    active: eqHighTrack.active,
+                    samples: eqHighTrack.samples,
+                    durationSec: eqHighTrack.durationSec,
+                  }
+                : undefined,
+            });
       chain = applyGainOffline(offline, chain, { gain: deck.gain, bypassAt: 0.9 });
       chain = applyMasterProtectOffline(offline, chain, { enabled: limiterNeeded });
       chain.connect(stretchNode, 0, 0);
@@ -3454,6 +3479,8 @@ const App = () => {
           onEqLowChange={setDeckEqLow}
           onEqMidChange={setDeckEqMid}
           onEqHighChange={setDeckEqHigh}
+          onEqModeChange={setDeckEqMode}
+          onParametricEqBandsChange={setDeckParametricEqBands}
           onDelayTimeChange={setDeckDelayTime}
           onDelayFeedbackChange={setDeckDelayFeedback}
           onDelayMixChange={setDeckDelayMix}

@@ -49,6 +49,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Clip Recorder supports source-select recording: app master output or user input device (microphone/interface).
 - Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
+- Parametric EQ is implemented as a dedicated 5-unit-wide FX panel with a draggable node graph (click-to-add, drag freq/gain, node type/Q controls), while keeping EQ3 available via per-deck EQ mode selection.
 - Deck FX now includes a dedicated Gain unit (first slot) with its own collapsible panel and automation lane; waveform sidebar gain control was removed.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
@@ -142,6 +143,9 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - UI visual direction and interaction style.
 - Which DSP features are MVP vs. experimental backlog?
 - Minimum viable controller mapping and default devices.
+
+## Feature Specs
+- Parametric EQ implementation plan: `PARAMETRIC_EQ_SPEC.md`
 
 ## Next Steps (Web Frontend and Technical Implementation)
 - [x] Initialize the React + TypeScript app with Vite to generate `package.json` and base tooling.

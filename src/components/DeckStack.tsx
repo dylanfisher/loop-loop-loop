@@ -1,6 +1,6 @@
 import DeckCard from "./DeckCard";
 import { useCallback, useEffect, useRef } from "react";
-import type { DeckFxPanel, DeckState } from "../types/deck";
+import type { DeckFxPanel, DeckState, EqMode, ParametricEqBand } from "../types/deck";
 import type { AutomationParam } from "../types/session";
 
 type DeckStackProps = {
@@ -28,6 +28,8 @@ type DeckStackProps = {
   onEqLowChange: (id: number, value: number) => void;
   onEqMidChange: (id: number, value: number) => void;
   onEqHighChange: (id: number, value: number) => void;
+  onEqModeChange: (id: number, value: EqMode) => void;
+  onParametricEqBandsChange: (id: number, bands: ParametricEqBand[]) => void;
   onDelayTimeChange: (id: number, value: number) => void;
   onDelayFeedbackChange: (id: number, value: number) => void;
   onDelayMixChange: (id: number, value: number) => void;
@@ -137,6 +139,8 @@ const DeckStack = ({
   onEqLowChange,
   onEqMidChange,
   onEqHighChange,
+  onEqModeChange,
+  onParametricEqBandsChange,
   onDelayTimeChange,
   onDelayFeedbackChange,
   onDelayMixChange,
@@ -263,6 +267,8 @@ const DeckStack = ({
               onEqLowChange={onEqLowChange}
               onEqMidChange={onEqMidChange}
               onEqHighChange={onEqHighChange}
+              onEqModeChange={onEqModeChange}
+              onParametricEqBandsChange={onParametricEqBandsChange}
               onDelayTimeChange={onDelayTimeChange}
               onDelayFeedbackChange={onDelayFeedbackChange}
               onDelayMixChange={onDelayMixChange}

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DeckFxPanel, DeckState } from "../types/deck";
+import type { DeckFxPanel, DeckState, EqMode, ParametricEqBand } from "../types/deck";
 import type { AutomationParam } from "../types/session";
 import AutomationLane from "./AutomationLane";
 import Knob from "./Knob";
 import Waveform from "./Waveform";
 import AsyncActionButton from "./AsyncActionButton";
+import ParametricEqEditor from "./ParametricEqEditor";
 import { setPerfCounter } from "../utils/perf";
 
 type DeckCardProps = {
@@ -25,6 +26,8 @@ type DeckCardProps = {
   onEqLowChange: (id: number, value: number) => void;
   onEqMidChange: (id: number, value: number) => void;
   onEqHighChange: (id: number, value: number) => void;
+  onEqModeChange: (id: number, value: EqMode) => void;
+  onParametricEqBandsChange: (id: number, bands: ParametricEqBand[]) => void;
   onDelayTimeChange: (id: number, value: number) => void;
   onDelayFeedbackChange: (id: number, value: number) => void;
   onDelayMixChange: (id: number, value: number) => void;
@@ -149,6 +152,7 @@ const FX_PANEL_KEYS: DeckFxPanel[] = [
   "eqLow",
   "eqMid",
   "eqHigh",
+  "parametricEq",
   "balance",
   "pitch",
   "delay",
@@ -175,6 +179,8 @@ const DeckCard = ({
   onEqLowChange,
   onEqMidChange,
   onEqHighChange,
+  onEqModeChange,
+  onParametricEqBandsChange,
   onDelayTimeChange,
   onDelayFeedbackChange,
   onDelayMixChange,
@@ -671,6 +677,20 @@ const DeckCard = ({
   const toggleAllFxPanels = useCallback(() => {
     onFxPanelsToggleAll(deck.id, !allFxOpen);
   }, [allFxOpen, deck.id, onFxPanelsToggleAll]);
+  const commitParametricEqBands = useCallback(
+    (bands: ParametricEqBand[]) => {
+      if (deck.eqMode !== "parametric") {
+        onEqModeChange(deck.id, "parametric");
+      }
+      onParametricEqBandsChange(deck.id, bands);
+    },
+    [deck.eqMode, deck.id, onEqModeChange, onParametricEqBandsChange]
+  );
+  const activateEq3Mode = useCallback(() => {
+    if (deck.eqMode !== "eq3") {
+      onEqModeChange(deck.id, "eq3");
+    }
+  }, [deck.eqMode, deck.id, onEqModeChange]);
   const fxIndicators: Record<DeckFxPanel, { automation: boolean; modified: boolean }> = {
     gain: {
       automation: hasAutomationData(gainAutomation),
@@ -695,6 +715,12 @@ const DeckCard = ({
     eqHigh: {
       automation: hasAutomationData(eqHighAutomation),
       modified: isDifferent(deck.eqHighGain, 0),
+    },
+    parametricEq: {
+      automation: false,
+      modified:
+        deck.eqMode === "parametric" &&
+        deck.parametricEqBands.some((band) => band.enabled && Math.abs(band.gain) > 1e-3),
     },
     balance: {
       automation: hasAutomationData(balanceAutomation),
@@ -749,6 +775,8 @@ const DeckCard = ({
     eqLow: "Low EQ: shape bass energy; boost for weight, cut for cleanup.",
     eqMid: "Mid EQ: shape presence and body; boost clarity or reduce boxiness.",
     eqHigh: "High EQ: shape brightness and air.",
+    parametricEq:
+      "Parametric EQ: click to add nodes and drag them to sculpt frequency and gain. Use EQ mode to switch between EQ3 and parametric.",
     balance: "Balance: pan the deck left/right in stereo.",
     pitch: "Pitch: semitone shift for key matching or creative detune.",
     delay: "Delay: time, feedback, tone, mix, and ping-pong echo.",
@@ -1510,6 +1538,48 @@ const DeckCard = ({
             />
           </div>
         </div>
+        <div className="deck__fx-row deck__fx-row--parametric">
+          <div
+            className={`deck__fx-unit deck__fx-unit--parametric deck__fx-unit--span-5 ${fxPanelOpen.parametricEq ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.parametricEq}
+              onClick={() => toggleFxPanel("parametricEq")}
+            >
+              {renderFxToggleLabel("parametricEq", "Parametric EQ")}
+            </button>
+            <div className="deck__parametric-controls">
+              <div className="deck__parametric-mode">
+                <span className="deck__fx-unit-title">Mode</span>
+                <div className="deck__parametric-mode-buttons" role="group" aria-label="EQ mode">
+                  <button
+                    type="button"
+                    className={`deck__action ${deck.eqMode === "eq3" ? "is-active" : ""}`.trim()}
+                    aria-pressed={deck.eqMode === "eq3"}
+                    onClick={() => onEqModeChange(deck.id, "eq3")}
+                  >
+                    EQ3
+                  </button>
+                  <button
+                    type="button"
+                    className={`deck__action ${deck.eqMode === "parametric" ? "is-active" : ""}`.trim()}
+                    aria-pressed={deck.eqMode === "parametric"}
+                    onClick={() => onEqModeChange(deck.id, "parametric")}
+                  >
+                    Parametric
+                  </button>
+                </div>
+              </div>
+              <ParametricEqEditor
+                bands={deck.parametricEqBands}
+                disabled={deck.eqMode !== "parametric"}
+                onChange={commitParametricEqBands}
+              />
+            </div>
+          </div>
+        </div>
         <div className="deck__fx-row deck__fx-row--eq">
           <div
             className={`deck__fx-unit deck__fx-unit--eq ${fxPanelOpen.eqLow ? "" : "is-collapsed"}`.trim()}
@@ -1530,7 +1600,10 @@ const DeckCard = ({
               value={eqLowValue}
               defaultValue={0}
               labelTitle="Low‑shelf EQ. Positive adds bass, negative removes weight."
-              onChange={(next) => onEqLowChange(deck.id, next)}
+              onChange={(next) => {
+                activateEq3Mode();
+                onEqLowChange(deck.id, next);
+              }}
               formatValue={formatEq}
               centerSnap={0.25}
               isAutomated={eqLowAutomation.active}
@@ -1547,13 +1620,20 @@ const DeckCard = ({
               active={eqLowAutomation.active}
               amplitudeScale={eqLowAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "eqLow")}
-              onDrawStart={() => onAutomationStart(deck.id, "eqLow")}
+              onDrawStart={() => {
+                activateEq3Mode();
+                onAutomationStart(deck.id, "eqLow");
+              }}
               onDrawEnd={() => onAutomationStop(deck.id, "eqLow")}
               onReset={() => onAutomationReset(deck.id, "eqLow")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "eqLow", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "eqLow", value)
-              }
+              onToggleActive={(next) => {
+                activateEq3Mode();
+                onAutomationToggle(deck.id, "eqLow", next);
+              }}
+              onDrawValueChange={(value) => {
+                activateEq3Mode();
+                onAutomationValueChange(deck.id, "eqLow", value);
+              }}
               onPreset={(preset) => onAutomationPreset(deck.id, "eqLow", preset, -18, 18)}
               onInvert={() => onAutomationInvert(deck.id, "eqLow", -18, 18)}
               onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqLow", factor)}
@@ -1584,7 +1664,10 @@ const DeckCard = ({
               value={eqMidValue}
               defaultValue={0}
               labelTitle="Mid‑band EQ. Boost presence or cut boxiness."
-              onChange={(next) => onEqMidChange(deck.id, next)}
+              onChange={(next) => {
+                activateEq3Mode();
+                onEqMidChange(deck.id, next);
+              }}
               formatValue={formatEq}
               centerSnap={0.25}
               isAutomated={eqMidAutomation.active}
@@ -1601,13 +1684,20 @@ const DeckCard = ({
               active={eqMidAutomation.active}
               amplitudeScale={eqMidAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "eqMid")}
-              onDrawStart={() => onAutomationStart(deck.id, "eqMid")}
+              onDrawStart={() => {
+                activateEq3Mode();
+                onAutomationStart(deck.id, "eqMid");
+              }}
               onDrawEnd={() => onAutomationStop(deck.id, "eqMid")}
               onReset={() => onAutomationReset(deck.id, "eqMid")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "eqMid", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "eqMid", value)
-              }
+              onToggleActive={(next) => {
+                activateEq3Mode();
+                onAutomationToggle(deck.id, "eqMid", next);
+              }}
+              onDrawValueChange={(value) => {
+                activateEq3Mode();
+                onAutomationValueChange(deck.id, "eqMid", value);
+              }}
               onPreset={(preset) => onAutomationPreset(deck.id, "eqMid", preset, -18, 18)}
               onInvert={() => onAutomationInvert(deck.id, "eqMid", -18, 18)}
               onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqMid", factor)}
@@ -1638,7 +1728,10 @@ const DeckCard = ({
               value={eqHighValue}
               defaultValue={0}
               labelTitle="High‑shelf EQ. Positive adds air, negative tames brightness."
-              onChange={(next) => onEqHighChange(deck.id, next)}
+              onChange={(next) => {
+                activateEq3Mode();
+                onEqHighChange(deck.id, next);
+              }}
               formatValue={formatEq}
               centerSnap={0.25}
               isAutomated={eqHighAutomation.active}
@@ -1655,13 +1748,20 @@ const DeckCard = ({
               active={eqHighAutomation.active}
               amplitudeScale={eqHighAutomation.amplitudeScale}
               getPlayhead={() => getAutomationPlayhead(deck.id, "eqHigh")}
-              onDrawStart={() => onAutomationStart(deck.id, "eqHigh")}
+              onDrawStart={() => {
+                activateEq3Mode();
+                onAutomationStart(deck.id, "eqHigh");
+              }}
               onDrawEnd={() => onAutomationStop(deck.id, "eqHigh")}
               onReset={() => onAutomationReset(deck.id, "eqHigh")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "eqHigh", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "eqHigh", value)
-              }
+              onToggleActive={(next) => {
+                activateEq3Mode();
+                onAutomationToggle(deck.id, "eqHigh", next);
+              }}
+              onDrawValueChange={(value) => {
+                activateEq3Mode();
+                onAutomationValueChange(deck.id, "eqHigh", value);
+              }}
               onPreset={(preset) => onAutomationPreset(deck.id, "eqHigh", preset, -18, 18)}
               onInvert={() => onAutomationInvert(deck.id, "eqHigh", -18, 18)}
               onLengthScale={(factor) =>
