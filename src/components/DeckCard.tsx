@@ -149,9 +149,6 @@ const FX_PANEL_KEYS: DeckFxPanel[] = [
   "gain",
   "djFilter",
   "resonance",
-  "eqLow",
-  "eqMid",
-  "eqHigh",
   "parametricEq",
   "balance",
   "pitch",
@@ -776,7 +773,7 @@ const DeckCard = ({
     eqMid: "Mid EQ: shape presence and body; boost clarity or reduce boxiness.",
     eqHigh: "High EQ: shape brightness and air.",
     parametricEq:
-      "Parametric EQ: click to add nodes and drag them to sculpt frequency and gain. Use EQ mode to switch between EQ3 and parametric.",
+      "EQ: switch between EQ3 (low/mid/high) and Parametric modes.",
     balance: "Balance: pan the deck left/right in stereo.",
     pitch: "Pitch: semitone shift for key matching or creative detune.",
     delay: "Delay: time, feedback, tone, mix, and ping-pong echo.",
@@ -1540,7 +1537,7 @@ const DeckCard = ({
         </div>
         <div className="deck__fx-row deck__fx-row--parametric">
           <div
-            className={`deck__fx-unit deck__fx-unit--parametric deck__fx-unit--span-5 ${fxPanelOpen.parametricEq ? "" : "is-collapsed"}`.trim()}
+            className={`deck__fx-unit deck__fx-unit--parametric deck__fx-unit--span-3 ${fxPanelOpen.parametricEq ? "" : "is-collapsed"}`.trim()}
           >
             <button
               type="button"
@@ -1548,7 +1545,7 @@ const DeckCard = ({
               aria-expanded={fxPanelOpen.parametricEq}
               onClick={() => toggleFxPanel("parametricEq")}
             >
-              {renderFxToggleLabel("parametricEq", "Parametric EQ")}
+              {renderFxToggleLabel("parametricEq", "EQ")}
             </button>
             <div className="deck__parametric-controls">
               <div className="deck__parametric-mode">
@@ -1572,208 +1569,181 @@ const DeckCard = ({
                   </button>
                 </div>
               </div>
-              <ParametricEqEditor
-                bands={deck.parametricEqBands}
-                disabled={deck.eqMode !== "parametric"}
-                onChange={commitParametricEqBands}
-              />
+              {deck.eqMode === "parametric" ? (
+                <ParametricEqEditor
+                  bands={deck.parametricEqBands}
+                  disabled={false}
+                  onChange={commitParametricEqBands}
+                />
+              ) : (
+                <div className="deck__eq3-inline">
+                  <div className="deck__eq3-sections">
+                    <div className="deck__eq3-section">
+                      <Knob
+                        label="Low"
+                        min={-18}
+                        max={18}
+                        step={0.1}
+                        value={eqLowValue}
+                        defaultValue={0}
+                        labelTitle="Low‑shelf EQ. Positive adds bass, negative removes weight."
+                        onChange={(next) => {
+                          activateEq3Mode();
+                          onEqLowChange(deck.id, next);
+                        }}
+                        formatValue={formatEq}
+                        centerSnap={0.25}
+                        isAutomated={eqLowAutomation.active}
+                      />
+                      <AutomationLane
+                        label="Low Auto"
+                        min={-18}
+                        max={18}
+                        value={eqLowValue}
+                        samples={eqLowAutomation.samples}
+                        previewSamples={eqLowAutomation.previewSamples}
+                        durationSec={eqLowAutomation.durationSec}
+                        recording={eqLowAutomation.recording}
+                        active={eqLowAutomation.active}
+                        amplitudeScale={eqLowAutomation.amplitudeScale}
+                        getPlayhead={() => getAutomationPlayhead(deck.id, "eqLow")}
+                        onDrawStart={() => {
+                          activateEq3Mode();
+                          onAutomationStart(deck.id, "eqLow");
+                        }}
+                        onDrawEnd={() => onAutomationStop(deck.id, "eqLow")}
+                        onReset={() => onAutomationReset(deck.id, "eqLow")}
+                        onToggleActive={(next) => {
+                          activateEq3Mode();
+                          onAutomationToggle(deck.id, "eqLow", next);
+                        }}
+                        onDrawValueChange={(value) => {
+                          activateEq3Mode();
+                          onAutomationValueChange(deck.id, "eqLow", value);
+                        }}
+                        onPreset={(preset) => onAutomationPreset(deck.id, "eqLow", preset, -18, 18)}
+                        onInvert={() => onAutomationInvert(deck.id, "eqLow", -18, 18)}
+                        onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqLow", factor)}
+                        onAmplitudeScale={(factor) =>
+                          onAutomationAmplitudeScale(deck.id, "eqLow", factor, -18, 18)
+                        }
+                        onDurationChange={(durationSec) =>
+                          onAutomationDurationChange(deck.id, "eqLow", durationSec)
+                        }
+                      />
+                    </div>
+                    <div className="deck__eq3-section">
+                      <Knob
+                        label="Mid"
+                        min={-18}
+                        max={18}
+                        step={0.1}
+                        value={eqMidValue}
+                        defaultValue={0}
+                        labelTitle="Mid‑band EQ. Boost presence or cut boxiness."
+                        onChange={(next) => {
+                          activateEq3Mode();
+                          onEqMidChange(deck.id, next);
+                        }}
+                        formatValue={formatEq}
+                        centerSnap={0.25}
+                        isAutomated={eqMidAutomation.active}
+                      />
+                      <AutomationLane
+                        label="Mid Auto"
+                        min={-18}
+                        max={18}
+                        value={eqMidValue}
+                        samples={eqMidAutomation.samples}
+                        previewSamples={eqMidAutomation.previewSamples}
+                        durationSec={eqMidAutomation.durationSec}
+                        recording={eqMidAutomation.recording}
+                        active={eqMidAutomation.active}
+                        amplitudeScale={eqMidAutomation.amplitudeScale}
+                        getPlayhead={() => getAutomationPlayhead(deck.id, "eqMid")}
+                        onDrawStart={() => {
+                          activateEq3Mode();
+                          onAutomationStart(deck.id, "eqMid");
+                        }}
+                        onDrawEnd={() => onAutomationStop(deck.id, "eqMid")}
+                        onReset={() => onAutomationReset(deck.id, "eqMid")}
+                        onToggleActive={(next) => {
+                          activateEq3Mode();
+                          onAutomationToggle(deck.id, "eqMid", next);
+                        }}
+                        onDrawValueChange={(value) => {
+                          activateEq3Mode();
+                          onAutomationValueChange(deck.id, "eqMid", value);
+                        }}
+                        onPreset={(preset) => onAutomationPreset(deck.id, "eqMid", preset, -18, 18)}
+                        onInvert={() => onAutomationInvert(deck.id, "eqMid", -18, 18)}
+                        onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqMid", factor)}
+                        onAmplitudeScale={(factor) =>
+                          onAutomationAmplitudeScale(deck.id, "eqMid", factor, -18, 18)
+                        }
+                        onDurationChange={(durationSec) =>
+                          onAutomationDurationChange(deck.id, "eqMid", durationSec)
+                        }
+                      />
+                    </div>
+                    <div className="deck__eq3-section">
+                      <Knob
+                        label="High"
+                        min={-18}
+                        max={18}
+                        step={0.1}
+                        value={eqHighValue}
+                        defaultValue={0}
+                        labelTitle="High‑shelf EQ. Positive adds air, negative tames brightness."
+                        onChange={(next) => {
+                          activateEq3Mode();
+                          onEqHighChange(deck.id, next);
+                        }}
+                        formatValue={formatEq}
+                        centerSnap={0.25}
+                        isAutomated={eqHighAutomation.active}
+                      />
+                      <AutomationLane
+                        label="High Auto"
+                        min={-18}
+                        max={18}
+                        value={eqHighValue}
+                        samples={eqHighAutomation.samples}
+                        previewSamples={eqHighAutomation.previewSamples}
+                        durationSec={eqHighAutomation.durationSec}
+                        recording={eqHighAutomation.recording}
+                        active={eqHighAutomation.active}
+                        amplitudeScale={eqHighAutomation.amplitudeScale}
+                        getPlayhead={() => getAutomationPlayhead(deck.id, "eqHigh")}
+                        onDrawStart={() => {
+                          activateEq3Mode();
+                          onAutomationStart(deck.id, "eqHigh");
+                        }}
+                        onDrawEnd={() => onAutomationStop(deck.id, "eqHigh")}
+                        onReset={() => onAutomationReset(deck.id, "eqHigh")}
+                        onToggleActive={(next) => {
+                          activateEq3Mode();
+                          onAutomationToggle(deck.id, "eqHigh", next);
+                        }}
+                        onDrawValueChange={(value) => {
+                          activateEq3Mode();
+                          onAutomationValueChange(deck.id, "eqHigh", value);
+                        }}
+                        onPreset={(preset) => onAutomationPreset(deck.id, "eqHigh", preset, -18, 18)}
+                        onInvert={() => onAutomationInvert(deck.id, "eqHigh", -18, 18)}
+                        onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqHigh", factor)}
+                        onAmplitudeScale={(factor) =>
+                          onAutomationAmplitudeScale(deck.id, "eqHigh", factor, -18, 18)
+                        }
+                        onDurationChange={(durationSec) =>
+                          onAutomationDurationChange(deck.id, "eqHigh", durationSec)
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        </div>
-        <div className="deck__fx-row deck__fx-row--eq">
-          <div
-            className={`deck__fx-unit deck__fx-unit--eq ${fxPanelOpen.eqLow ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.eqLow}
-              onClick={() => toggleFxPanel("eqLow")}
-            >
-              {renderFxToggleLabel("eqLow", "Low EQ")}
-            </button>
-            <Knob
-              label="Low"
-              min={-18}
-              max={18}
-              step={0.1}
-              value={eqLowValue}
-              defaultValue={0}
-              labelTitle="Low‑shelf EQ. Positive adds bass, negative removes weight."
-              onChange={(next) => {
-                activateEq3Mode();
-                onEqLowChange(deck.id, next);
-              }}
-              formatValue={formatEq}
-              centerSnap={0.25}
-              isAutomated={eqLowAutomation.active}
-            />
-            <AutomationLane
-              label="Automation"
-              min={-18}
-              max={18}
-              value={eqLowValue}
-              samples={eqLowAutomation.samples}
-              previewSamples={eqLowAutomation.previewSamples}
-              durationSec={eqLowAutomation.durationSec}
-              recording={eqLowAutomation.recording}
-              active={eqLowAutomation.active}
-              amplitudeScale={eqLowAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "eqLow")}
-              onDrawStart={() => {
-                activateEq3Mode();
-                onAutomationStart(deck.id, "eqLow");
-              }}
-              onDrawEnd={() => onAutomationStop(deck.id, "eqLow")}
-              onReset={() => onAutomationReset(deck.id, "eqLow")}
-              onToggleActive={(next) => {
-                activateEq3Mode();
-                onAutomationToggle(deck.id, "eqLow", next);
-              }}
-              onDrawValueChange={(value) => {
-                activateEq3Mode();
-                onAutomationValueChange(deck.id, "eqLow", value);
-              }}
-              onPreset={(preset) => onAutomationPreset(deck.id, "eqLow", preset, -18, 18)}
-              onInvert={() => onAutomationInvert(deck.id, "eqLow", -18, 18)}
-              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqLow", factor)}
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(deck.id, "eqLow", factor, -18, 18)
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "eqLow", durationSec)
-              }
-            />
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--eq ${fxPanelOpen.eqMid ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.eqMid}
-              onClick={() => toggleFxPanel("eqMid")}
-            >
-              {renderFxToggleLabel("eqMid", "Mid EQ")}
-            </button>
-            <Knob
-              label="Mid"
-              min={-18}
-              max={18}
-              step={0.1}
-              value={eqMidValue}
-              defaultValue={0}
-              labelTitle="Mid‑band EQ. Boost presence or cut boxiness."
-              onChange={(next) => {
-                activateEq3Mode();
-                onEqMidChange(deck.id, next);
-              }}
-              formatValue={formatEq}
-              centerSnap={0.25}
-              isAutomated={eqMidAutomation.active}
-            />
-            <AutomationLane
-              label="Automation"
-              min={-18}
-              max={18}
-              value={eqMidValue}
-              samples={eqMidAutomation.samples}
-              previewSamples={eqMidAutomation.previewSamples}
-              durationSec={eqMidAutomation.durationSec}
-              recording={eqMidAutomation.recording}
-              active={eqMidAutomation.active}
-              amplitudeScale={eqMidAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "eqMid")}
-              onDrawStart={() => {
-                activateEq3Mode();
-                onAutomationStart(deck.id, "eqMid");
-              }}
-              onDrawEnd={() => onAutomationStop(deck.id, "eqMid")}
-              onReset={() => onAutomationReset(deck.id, "eqMid")}
-              onToggleActive={(next) => {
-                activateEq3Mode();
-                onAutomationToggle(deck.id, "eqMid", next);
-              }}
-              onDrawValueChange={(value) => {
-                activateEq3Mode();
-                onAutomationValueChange(deck.id, "eqMid", value);
-              }}
-              onPreset={(preset) => onAutomationPreset(deck.id, "eqMid", preset, -18, 18)}
-              onInvert={() => onAutomationInvert(deck.id, "eqMid", -18, 18)}
-              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqMid", factor)}
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(deck.id, "eqMid", factor, -18, 18)
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "eqMid", durationSec)
-              }
-            />
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--eq ${fxPanelOpen.eqHigh ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.eqHigh}
-              onClick={() => toggleFxPanel("eqHigh")}
-            >
-              {renderFxToggleLabel("eqHigh", "High EQ")}
-            </button>
-            <Knob
-              label="High"
-              min={-18}
-              max={18}
-              step={0.1}
-              value={eqHighValue}
-              defaultValue={0}
-              labelTitle="High‑shelf EQ. Positive adds air, negative tames brightness."
-              onChange={(next) => {
-                activateEq3Mode();
-                onEqHighChange(deck.id, next);
-              }}
-              formatValue={formatEq}
-              centerSnap={0.25}
-              isAutomated={eqHighAutomation.active}
-            />
-            <AutomationLane
-              label="Automation"
-              min={-18}
-              max={18}
-              value={eqHighValue}
-              samples={eqHighAutomation.samples}
-              previewSamples={eqHighAutomation.previewSamples}
-              durationSec={eqHighAutomation.durationSec}
-              recording={eqHighAutomation.recording}
-              active={eqHighAutomation.active}
-              amplitudeScale={eqHighAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "eqHigh")}
-              onDrawStart={() => {
-                activateEq3Mode();
-                onAutomationStart(deck.id, "eqHigh");
-              }}
-              onDrawEnd={() => onAutomationStop(deck.id, "eqHigh")}
-              onReset={() => onAutomationReset(deck.id, "eqHigh")}
-              onToggleActive={(next) => {
-                activateEq3Mode();
-                onAutomationToggle(deck.id, "eqHigh", next);
-              }}
-              onDrawValueChange={(value) => {
-                activateEq3Mode();
-                onAutomationValueChange(deck.id, "eqHigh", value);
-              }}
-              onPreset={(preset) => onAutomationPreset(deck.id, "eqHigh", preset, -18, 18)}
-              onInvert={() => onAutomationInvert(deck.id, "eqHigh", -18, 18)}
-              onLengthScale={(factor) =>
-                onAutomationLengthScale(deck.id, "eqHigh", factor)
-              }
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(deck.id, "eqHigh", factor, -18, 18)
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "eqHigh", durationSec)
-              }
-            />
           </div>
         </div>
         <div className="deck__fx-row deck__fx-row--single">

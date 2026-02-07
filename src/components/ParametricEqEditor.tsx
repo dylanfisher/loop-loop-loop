@@ -183,7 +183,7 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
   }, [bands, motionCycleSec, motionPreset, onChange, resolvedSelectedBandId]);
 
   const addBandAtPoint = (x: number, y: number) => {
-    if (bands.length >= MAX_BANDS) return;
+    if (bands.length >= MAX_BANDS) return null;
     const band: ParametricEqBand = {
       id: createBandId(),
       type: "peaking",
@@ -195,6 +195,7 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
     const next = sortedBands([...bands, band]);
     onChange(next);
     setSelectedBandId(band.id);
+    return band;
   };
 
   const pointFromEvent = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -211,7 +212,15 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
     if (target.dataset.bandId) return;
     const point = pointFromEvent(event);
     if (!point) return;
-    addBandAtPoint(point.x, point.y);
+    const created = addBandAtPoint(point.x, point.y);
+    if (!created) return;
+    dragBandIdRef.current = created.id;
+    pointerIdRef.current = event.pointerId;
+    pointerDownBandIdRef.current = created.id;
+    nodeDragMovedRef.current = false;
+    nodeDragStartXRef.current = event.clientX;
+    nodeDragStartYRef.current = event.clientY;
+    svgRef.current?.setPointerCapture(event.pointerId);
   };
 
   const handleBandPointerDown = (
@@ -336,14 +345,16 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
         <span className="peq__hint">
           Click graph to add node. Drag node for freq/gain. Double-click node to bypass. Shift+click node to remove.
         </span>
-        <button
-          type="button"
-          className="deck__action"
-          disabled={bands.length >= MAX_BANDS}
-          onClick={() => addBandAtPoint(graphWidth * 0.5, VIEWBOX_HEIGHT * 0.5)}
-        >
-          Add Node
-        </button>
+          <button
+            type="button"
+            className="deck__action"
+            disabled={bands.length >= MAX_BANDS}
+            onClick={() => {
+              addBandAtPoint(graphWidth * 0.5, VIEWBOX_HEIGHT * 0.5);
+            }}
+          >
+            Add Node
+          </button>
       </div>
       <div className="peq__motion-tools">
         <div className="peq__motion-presets">

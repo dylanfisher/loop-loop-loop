@@ -1282,7 +1282,7 @@ input[type="range"]::-moz-focus-outer {
 }
 
 .deck__fx-row--parametric {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .deck__fx-unit {
@@ -1370,9 +1370,41 @@ input[type="range"]::-moz-focus-outer {
   grid-column: span 5;
 }
 
+.deck__fx-unit--span-3 {
+  grid-column: span 3;
+}
+
 .deck__parametric-controls {
   display: grid;
   gap: 10px;
+}
+
+.deck__eq3-inline {
+  display: grid;
+  gap: 8px;
+}
+
+.deck__eq3-sections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.deck__eq3-section {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.deck__eq3-section:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  left: -11px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: color-mix(in srgb, var(--line) 75%, transparent);
+  pointer-events: none;
 }
 
 .deck__parametric-mode {
