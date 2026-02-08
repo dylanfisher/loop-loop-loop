@@ -69,6 +69,8 @@ type PendingAutoRearrange = {
   regionIds: number[];
 };
 
+const HIDDEN_TICK_INTERVAL_MS = 10;
+
 const useRearrangerRuntime = ({
   decks,
   getDeckPlaybackSnapshot,
@@ -89,7 +91,11 @@ const useRearrangerRuntime = ({
   const pendingAutoRearrangeRef = useRef<Map<number, PendingAutoRearrange>>(new Map());
 
   useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
     let raf = 0;
+    let hiddenTick = 0;
     const tick = () => {
       const now = performance.now();
       const tracker = rearrangeLoopTrackerRef.current;
@@ -515,11 +521,41 @@ const useRearrangerRuntime = ({
         });
       });
 
-      raf = requestAnimationFrame(tick);
+      scheduleNextTick();
     };
 
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const scheduleNextTick = () => {
+      if (hiddenTick !== 0) {
+        window.clearTimeout(hiddenTick);
+        hiddenTick = 0;
+      }
+      if (raf !== 0) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+      if (document.visibilityState === "hidden") {
+        hiddenTick = window.setTimeout(tick, HIDDEN_TICK_INTERVAL_MS);
+      } else {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    const refreshSchedule = () => {
+      scheduleNextTick();
+    };
+
+    document.addEventListener("visibilitychange", refreshSchedule, { passive: true });
+    scheduleNextTick();
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshSchedule);
+      if (hiddenTick !== 0) {
+        window.clearTimeout(hiddenTick);
+      }
+      if (raf !== 0) {
+        cancelAnimationFrame(raf);
+      }
+    };
   }, [
     decks,
     getAudioCurrentTime,
