@@ -19,6 +19,11 @@ import {
   normalizeParametricEqBands,
 } from "../audio/effects/parametricEq";
 import {
+  hydrateDeckFromSession,
+  serializeDeckSession,
+} from "./deckSessionSerialization";
+import { createDeckParameterSetters } from "./deckParameterSetters";
+import {
   appendRearrangerBoundary,
   approxEqual,
   AUTOMATION_SAMPLE_RATE,
@@ -65,7 +70,6 @@ import {
   DEFAULT_VOCODER_MODULATOR_MONITOR,
   DEFAULT_VOCODER_NOISE_MIX,
   DEFAULT_VOCODER_RELEASE_MS,
-  EQ_MAX_DB,
   FX_ACTIVE_EPSILON,
   MIN_AUTOMATION_DURATION,
   regionsEqual,
@@ -1983,298 +1987,85 @@ const useDecks = () => {
     setDeckPlaybackOffset(id, offsetSeconds);
   };
 
-  const setDeckGainValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1.5);
-    setDeckGain(id, clamped);
-    updateDeck(id, { gain: clamped }, false);
-    const automation = automationRef.current.get(id);
-    const track = automation?.gain;
-    if (track && track.active && !track.recording) {
-      track.active = false;
-      track.playbackStartMs = 0;
-      updateAutomationView(id);
-    }
-    updateAutomationTickEnabled();
-  };
-
-  const setDeckFilterValue = (id: number, value: number) => {
-    const targets = getFilterTargets(value);
-    setDeckFilter(id, targets.lowpass);
-    setDeckHighpass(id, targets.highpass);
-    updateDeck(id, { djFilter: clamp(value, -1, 1) }, false);
-    const automation = automationRef.current.get(id);
-    const track = automation?.djFilter;
-    if (track && track.active && !track.recording) {
-      track.active = false;
-      track.playbackStartMs = 0;
-      updateAutomationView(id);
-    }
-    updateAutomationTickEnabled();
-  };
-
-  const setDeckResonanceValue = (id: number, value: number) => {
-    setDeckResonance(id, value);
-    updateDeck(id, { filterResonance: value }, false);
-    const automation = automationRef.current.get(id);
-    const track = automation?.resonance;
-    if (track && track.active && !track.recording) {
-      track.active = false;
-      track.playbackStartMs = 0;
-      updateAutomationView(id);
-    }
-    updateAutomationTickEnabled();
-  };
-
-  const setDeckEqLowValue = (id: number, value: number) => {
-    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
-    setDeckEqLow(id, clamped);
-    updateDeck(id, { eqLowGain: clamped }, false);
-    const automation = automationRef.current.get(id);
-    const track = automation?.eqLow;
-    if (track && track.active && !track.recording) {
-      track.active = false;
-      track.playbackStartMs = 0;
-      updateAutomationView(id);
-    }
-    updateAutomationTickEnabled();
-  };
-
-  const setDeckEqMidValue = (id: number, value: number) => {
-    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
-    setDeckEqMid(id, clamped);
-    updateDeck(id, { eqMidGain: clamped }, false);
-    const automation = automationRef.current.get(id);
-    const track = automation?.eqMid;
-    if (track && track.active && !track.recording) {
-      track.active = false;
-      track.playbackStartMs = 0;
-      updateAutomationView(id);
-    }
-    updateAutomationTickEnabled();
-  };
-
-  const setDeckEqHighValue = (id: number, value: number) => {
-    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
-    setDeckEqHigh(id, clamped);
-    updateDeck(id, { eqHighGain: clamped }, false);
-    const automation = automationRef.current.get(id);
-    const track = automation?.eqHigh;
-    if (track && track.active && !track.recording) {
-      track.active = false;
-      track.playbackStartMs = 0;
-      updateAutomationView(id);
-    }
-    updateAutomationTickEnabled();
-  };
-
-  const setDeckEqModeValue = (id: number, value: EqMode) => {
-    const mode: EqMode = value === "parametric" ? "parametric" : "eq3";
-    setDeckEqMode(id, mode);
-    updateDeck(id, { eqMode: mode }, false);
-  };
-
-  const setDeckParametricEqBandsValue = (id: number, bands: ParametricEqBand[]) => {
-    const normalized = normalizeParametricEqBands(bands);
-    setDeckParametricEqBands(id, normalized);
-    updateDeck(id, { parametricEqBands: normalized }, false);
-  };
-
-  const setDeckPitchShiftValue = (id: number, value: number) => {
-    const deck = decks.find((item) => item.id === id);
-    if (deck?.tempoPitchSync) return;
-    const clamped = Math.min(Math.max(value, -24), 24);
-    setDeckPitchShift(id, clamped);
-    updateDeck(id, { pitchShift: clamped }, false);
-    const automation = automationRef.current.get(id);
-    const track = automation?.pitch;
-    if (track && track.active && !track.recording) {
-      track.active = false;
-      track.playbackStartMs = 0;
-      updateAutomationView(id);
-    }
-    updateAutomationTickEnabled();
-  };
-
-  const setDeckDelayTimeValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0.01), 1.5);
-    setDeckDelayTime(id, clamped);
-    updateDeck(id, { delayTime: clamped }, false);
-  };
-
-  const setDeckDelayFeedbackValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 0.99);
-    setDeckDelayFeedback(id, clamped);
-    updateDeck(id, { delayFeedback: clamped }, false);
-  };
-
-  const setDeckDelayMixValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckDelayMix(id, clamped);
-    updateDeck(id, { delayMix: clamped }, false);
-  };
-
-  const setDeckDelayToneValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 400), 12000);
-    setDeckDelayTone(id, clamped);
-    updateDeck(id, { delayTone: clamped }, false);
-  };
-
-  const setDeckDelayPingPongValue = (id: number, value: boolean) => {
-    setDeckDelayPingPong(id, value);
-    updateDeck(id, { delayPingPong: value }, false);
-  };
-
-  const setDeckDelaySaturationValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckDelaySaturation(id, clamped);
-    updateDeck(id, { delaySaturation: clamped }, false);
-  };
-
-  const setDeckDelayDampingValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckDelayDamping(id, clamped);
-    updateDeck(id, { delayDamping: clamped }, false);
-  };
-
-  const setDeckDelaySafetyValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckDelaySafety(id, clamped);
-    updateDeck(id, { delaySafety: clamped }, false);
-  };
-
-  const setDeckVocoderMixValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckVocoderMix(id, clamped);
-    updateDeck(id, { vocoderMix: clamped }, false);
-  };
-
-  const setDeckVocoderCarrierDeckIdValue = (id: number, value: number | null) => {
-    const deck = decks.find((item) => item.id === id);
-    const previous = deck?.vocoderCarrierDeckId ?? null;
-    const normalized = value === id ? null : value;
-    setDeckVocoderCarrierDeckId(id, normalized);
-    let nextMixPatch: number | undefined;
-    if (previous === null && normalized !== null) {
-      nextMixPatch = 0.5;
-      setDeckVocoderMix(id, nextMixPatch);
-    } else if (normalized === null) {
-      nextMixPatch = 0;
-      setDeckVocoderMix(id, nextMixPatch);
-    }
-    updateDeck(
-      id,
-      {
-        vocoderCarrierDeckId: normalized,
-        ...(nextMixPatch === undefined ? {} : { vocoderMix: nextMixPatch }),
-      },
-      false
-    );
-  };
-
-  const setDeckVocoderModulatorMonitorValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckVocoderModulatorMonitor(id, clamped);
-    updateDeck(id, { vocoderModulatorMonitor: clamped }, false);
-  };
-
-  const setDeckVocoderModDriveValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0.5), 10);
-    setDeckVocoderModDrive(id, clamped);
-    updateDeck(id, { vocoderModDrive: clamped }, false);
-  };
-
-  const setDeckVocoderBandCountValue = (id: number, value: number) => {
-    const clamped = Math.round(Math.min(Math.max(value, 4), 24));
-    setDeckVocoderBandCount(id, clamped);
-    updateDeck(id, { vocoderBandCount: clamped }, false);
-  };
-
-  const setDeckVocoderBandSpreadValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckVocoderBandSpread(id, clamped);
-    updateDeck(id, { vocoderBandSpread: clamped }, false);
-  };
-
-  const setDeckVocoderAttackMsValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 1), 160);
-    setDeckVocoderAttackMs(id, clamped);
-    updateDeck(id, { vocoderAttackMs: clamped }, false);
-  };
-
-  const setDeckVocoderReleaseMsValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 1), 1200);
-    setDeckVocoderReleaseMs(id, clamped);
-    updateDeck(id, { vocoderReleaseMs: clamped }, false);
-  };
-
-  const setDeckVocoderNoiseMixValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckVocoderNoiseMix(id, clamped);
-    updateDeck(id, { vocoderNoiseMix: clamped }, false);
-  };
-
-  const setDeckVocoderGateThresholdValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 1);
-    setDeckVocoderGateThreshold(id, clamped);
-    updateDeck(id, { vocoderGateThreshold: clamped }, false);
-  };
-
-  const setDeckDelaySliceSyncValue = (id: number, value: boolean) => {
-    updateDeck(id, { delaySliceSync: value }, false);
-  };
-
-  const setDeckDelayTimeTransient = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0.01), 1.5);
-    setDeckDelayTime(id, clamped);
-  };
-
-  const setDeckPlaybackRateTransient = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 16);
-    setDeckPlaybackRate(id, clamped);
-  };
-
-  const setDeckPlaybackOffsetTransient = (id: number, value: number) => {
-    const clamped = Math.max(0, value);
-    setDeckPlaybackOffset(id, clamped);
-  };
-
-  const setDeckRearrangerPanTransient = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, -1), 1);
-    setDeckRearrangerPan(id, clamped);
-  };
-
-  const setDeckRearrangerPingPongLive = (
-    id: number,
-    amount: number,
-    config: {
-      enabled: boolean;
-      loopStart: number;
-      loopEnd: number;
-      playbackRate: number;
-      regions: number[];
-      sliceDelaySec?: number;
-      anchorTime: number;
-      anchorPosition: number;
-    } | null
-  ) => {
-    const clampedAmount = Math.min(Math.max(amount, 0), 1);
-    setDeckRearrangerPingPongAmount(id, clampedAmount);
-    setDeckRearrangerPingPongConfig(id, config);
-  };
-
-  const clearDeckRearrangerPanAutomationTransient = (id: number, fromTime: number) => {
-    clearDeckRearrangerPanAutomation(id, Math.max(0, fromTime));
-  };
-
-  const scheduleDeckRearrangerPanTransient = (
-    id: number,
-    value: number,
-    atTime: number,
-    rampSeconds = 0
-  ) => {
-    const clamped = Math.min(Math.max(value, -1), 1);
-    scheduleDeckRearrangerPan(id, clamped, Math.max(0, atTime), Math.max(0, rampSeconds));
-  };
+  const {
+    setDeckGainValue,
+    setDeckFilterValue,
+    setDeckResonanceValue,
+    setDeckEqLowValue,
+    setDeckEqMidValue,
+    setDeckEqHighValue,
+    setDeckEqModeValue,
+    setDeckParametricEqBandsValue,
+    setDeckPitchShiftValue,
+    setDeckDelayTimeValue,
+    setDeckDelayFeedbackValue,
+    setDeckDelayMixValue,
+    setDeckDelayToneValue,
+    setDeckDelayPingPongValue,
+    setDeckDelaySaturationValue,
+    setDeckDelayDampingValue,
+    setDeckDelaySafetyValue,
+    setDeckVocoderMixValue,
+    setDeckVocoderCarrierDeckIdValue,
+    setDeckVocoderModulatorMonitorValue,
+    setDeckVocoderModDriveValue,
+    setDeckVocoderBandCountValue,
+    setDeckVocoderBandSpreadValue,
+    setDeckVocoderAttackMsValue,
+    setDeckVocoderReleaseMsValue,
+    setDeckVocoderNoiseMixValue,
+    setDeckVocoderGateThresholdValue,
+    setDeckDelaySliceSyncValue,
+    setDeckDelayTimeTransient,
+    setDeckPlaybackRateTransient,
+    setDeckPlaybackOffsetTransient,
+    setDeckRearrangerPanTransient,
+    setDeckRearrangerPingPongLive,
+    clearDeckRearrangerPanAutomationTransient,
+    scheduleDeckRearrangerPanTransient,
+  } = createDeckParameterSetters({
+    decks,
+    automationRef,
+    getFilterTargets,
+    updateDeck,
+    updateAutomationView,
+    updateAutomationTickEnabled,
+    setDeckGain,
+    setDeckFilter,
+    setDeckHighpass,
+    setDeckResonance,
+    setDeckEqLow,
+    setDeckEqMid,
+    setDeckEqHigh,
+    setDeckEqMode,
+    setDeckParametricEqBands,
+    setDeckPitchShift,
+    setDeckDelayTime,
+    setDeckDelayFeedback,
+    setDeckDelayMix,
+    setDeckDelayTone,
+    setDeckDelayPingPong,
+    setDeckDelaySaturation,
+    setDeckDelayDamping,
+    setDeckDelaySafety,
+    setDeckVocoderMix,
+    setDeckVocoderCarrierDeckId,
+    setDeckVocoderModulatorMonitor,
+    setDeckVocoderModDrive,
+    setDeckVocoderBandCount,
+    setDeckVocoderBandSpread,
+    setDeckVocoderAttackMs,
+    setDeckVocoderReleaseMs,
+    setDeckVocoderNoiseMix,
+    setDeckVocoderGateThreshold,
+    setDeckPlaybackRate,
+    setDeckPlaybackOffset,
+    setDeckRearrangerPan,
+    setDeckRearrangerPingPongAmount,
+    setDeckRearrangerPingPongConfig,
+    clearDeckRearrangerPanAutomation,
+    scheduleDeckRearrangerPan,
+  });
 
 
   const startAutomationRecording = (id: number, param: AutomationParam) => {
@@ -3476,88 +3267,9 @@ const useDecks = () => {
   );
 
   const getSessionDecks = useCallback((): DeckSession[] => {
-    return decks.map((deck) => {
-      const automation = automationRef.current.get(deck.id);
-      const buildSnapshot = (track: AutomationTrack | undefined, fallbackValue: number) => ({
-        samples: Array.from(track?.samples ?? []),
-        sampleRate: track?.sampleRate ?? AUTOMATION_SAMPLE_RATE,
-        durationSec: track?.durationSec ?? 0,
-        active: track?.active ?? false,
-        currentValue: track?.currentValue ?? fallbackValue,
-      });
-
-      return {
-        id: deck.id,
-        fileName: deck.fileName,
-        gain: deck.gain,
-        djFilter: deck.djFilter,
-        filterResonance: deck.filterResonance,
-        eqMode: deck.eqMode,
-        eqLowGain: deck.eqLowGain,
-        eqMidGain: deck.eqMidGain,
-        eqHighGain: deck.eqHighGain,
-        parametricEqBands: normalizeParametricEqBands(deck.parametricEqBands),
-        balance: deck.balance,
-        pitchShift: deck.pitchShift,
-        vocoderMix: deck.vocoderMix,
-        vocoderCarrierDeckId: deck.vocoderCarrierDeckId,
-        vocoderModulatorMonitor: deck.vocoderModulatorMonitor,
-        vocoderModDrive: deck.vocoderModDrive,
-        vocoderBandCount: deck.vocoderBandCount,
-        vocoderBandSpread: deck.vocoderBandSpread,
-        vocoderAttackMs: deck.vocoderAttackMs,
-        vocoderReleaseMs: deck.vocoderReleaseMs,
-        vocoderNoiseMix: deck.vocoderNoiseMix,
-        vocoderGateThreshold: deck.vocoderGateThreshold,
-        deckWidthOverride: deck.deckWidthOverride,
-        offsetSeconds: deck.offsetSeconds ?? 0,
-        zoom: deck.zoom,
-        loopEnabled: deck.loopEnabled,
-        loopStartSeconds: deck.loopStartSeconds,
-        loopEndSeconds: deck.loopEndSeconds,
-        tempoOffset: deck.tempoOffset,
-        tempoPitchSync: deck.tempoPitchSync,
-        stretchRatio: deck.stretchRatio,
-        stretchWindowSize: deck.stretchWindowSize,
-        stretchStereoWidth: deck.stretchStereoWidth,
-        stretchPhaseRandomness: deck.stretchPhaseRandomness,
-        stretchTiltDb: deck.stretchTiltDb,
-        stretchScatter: deck.stretchScatter,
-        delayTime: deck.delayTime,
-        delayFeedback: deck.delayFeedback,
-        delayMix: deck.delayMix,
-        delayTone: deck.delayTone,
-        delayPingPong: deck.delayPingPong,
-        delaySliceSync: deck.delaySliceSync,
-        delaySaturation: deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
-        delayDamping: deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
-        delaySafety: deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
-        rearrangerSlices: deck.rearrangerSlices,
-        rearrangerSwapCount: deck.rearrangerSwapCount,
-        rearrangerChaos: deck.rearrangerChaos,
-        rearrangerReverse: deck.rearrangerReverse,
-        rearrangerSensitivity: deck.rearrangerSensitivity,
-        rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
-        rearrangerSliceFadeMs: deck.rearrangerSliceFadeMs,
-        rearrangerSliceDelaySec: deck.rearrangerSliceDelaySec,
-        rearrangerPingPong: deck.rearrangerPingPong,
-        rearrangerAuto: deck.rearrangerAuto,
-        rearrangerRegions: sanitizeRearrangerRegions(deck.rearrangerRegions),
-        rearrangerRegionIds: deck.rearrangerRegionIds,
-        rearrangerRegionsManual: deck.rearrangerRegionsManual ?? false,
-        fxPanelOpen: withDefaultFxPanelOpen(deck.fxPanelOpen),
-        automation: {
-          gain: buildSnapshot(automation?.gain, deck.gain),
-          djFilter: buildSnapshot(automation?.djFilter, deck.djFilter),
-          resonance: buildSnapshot(automation?.resonance, deck.filterResonance),
-          eqLow: buildSnapshot(automation?.eqLow, deck.eqLowGain),
-          eqMid: buildSnapshot(automation?.eqMid, deck.eqMidGain),
-          eqHigh: buildSnapshot(automation?.eqHigh, deck.eqHighGain),
-          balance: buildSnapshot(automation?.balance, deck.balance),
-          pitch: buildSnapshot(automation?.pitch, deck.pitchShift),
-        },
-      };
-    });
+    return decks.map((deck) =>
+      serializeDeckSession(deck, automationRef.current.get(deck.id))
+    );
   }, [decks]);
 
   const loadSessionDecks = useCallback(
@@ -3578,68 +3290,12 @@ const useDecks = () => {
       let maxDeckId = 1;
 
       const nextDecks = sessionDecks.map((sessionDeck) => {
-        const buffer = buffers.get(sessionDeck.id) ?? undefined;
-        const duration = buffer
-          ? Number.isFinite(buffer.duration)
-            ? buffer.duration
-            : buffer.length / buffer.sampleRate
-          : 0;
-        const loopStart = sessionDeck.loopStartSeconds ?? 0;
-        const loopEnd = duration
-          ? Math.min(
-              Math.max(loopStart + 0.01, sessionDeck.loopEndSeconds ?? duration),
-              duration
-            )
-          : sessionDeck.loopEndSeconds ?? 0;
-        const offsetSeconds = duration
-          ? Math.min(Math.max(0, sessionDeck.offsetSeconds ?? 0), duration)
-          : 0;
+        const hydrated = hydrateDeckFromSession(
+          sessionDeck,
+          buffers.get(sessionDeck.id) ?? undefined
+        );
 
-        const ensureTrack = (
-          snapshot: DeckSession["automation"][AutomationParam] | undefined,
-          fallbackValue: number
-        ): AutomationTrack => {
-          const isActive = snapshot?.active ?? false;
-          return {
-            samples: new Float32Array(snapshot?.samples ?? []),
-            sampleRate: snapshot?.sampleRate ?? AUTOMATION_SAMPLE_RATE,
-            durationSec: snapshot?.durationSec ?? 0,
-            recording: false,
-            active: isActive,
-            paused: isActive,
-            pausedPositionSec: 0,
-            currentValue: snapshot?.currentValue ?? fallbackValue,
-            amplitudeScale: 1,
-            lastIndex: -1,
-            lastPreviewLength: 0,
-            recordBuffer: [],
-            recordStartMs: 0,
-            lastSampleMs: 0,
-            playbackStartMs: 0,
-          };
-        };
-
-        const automation: AutomationDeck = {
-          gain: ensureTrack(sessionDeck.automation.gain, sessionDeck.gain),
-          djFilter: ensureTrack(sessionDeck.automation.djFilter, sessionDeck.djFilter),
-          resonance: ensureTrack(
-            sessionDeck.automation.resonance,
-            sessionDeck.filterResonance
-          ),
-          eqLow: ensureTrack(sessionDeck.automation.eqLow, sessionDeck.eqLowGain),
-          eqMid: ensureTrack(sessionDeck.automation.eqMid, sessionDeck.eqMidGain),
-          eqHigh: ensureTrack(sessionDeck.automation.eqHigh, sessionDeck.eqHighGain),
-          balance: ensureTrack(
-            sessionDeck.automation.balance,
-            sessionDeck.balance ?? 0
-          ),
-          pitch: ensureTrack(
-            sessionDeck.automation.pitch,
-            sessionDeck.pitchShift ?? 0
-          ),
-        };
-
-        automationRef.current.set(sessionDeck.id, automation);
+        automationRef.current.set(sessionDeck.id, hydrated.automation);
         automationPlayheadRef.current.set(sessionDeck.id, {
           gain: 0,
           djFilter: 0,
@@ -3650,107 +3306,10 @@ const useDecks = () => {
           balance: 0,
           pitch: 0,
         });
-        nextAutomationState.set(sessionDeck.id, {
-          gain: toAutomationView(automation.gain),
-          djFilter: toAutomationView(automation.djFilter),
-          resonance: toAutomationView(automation.resonance),
-          eqLow: toAutomationView(automation.eqLow),
-          eqMid: toAutomationView(automation.eqMid),
-          eqHigh: toAutomationView(automation.eqHigh),
-          balance: toAutomationView(automation.balance),
-          pitch: toAutomationView(automation.pitch),
-        });
+        nextAutomationState.set(sessionDeck.id, hydrated.automationView);
 
         maxDeckId = Math.max(maxDeckId, sessionDeck.id);
-
-        const status: DeckStatus = buffer ? "paused" : "idle";
-        return {
-          id: sessionDeck.id,
-          status,
-          fileName: sessionDeck.fileName,
-          buffer,
-          duration: duration || undefined,
-          gain: sessionDeck.gain,
-          djFilter: sessionDeck.djFilter,
-          filterResonance: sessionDeck.filterResonance,
-          eqMode: sessionDeck.eqMode ?? DEFAULT_EQ_MODE,
-          eqLowGain: sessionDeck.eqLowGain,
-          eqMidGain: sessionDeck.eqMidGain,
-          eqHighGain: sessionDeck.eqHighGain,
-          parametricEqBands: normalizeParametricEqBands(sessionDeck.parametricEqBands),
-          balance: sessionDeck.balance ?? 0,
-          pitchShift: sessionDeck.pitchShift ?? 0,
-          vocoderMix: sessionDeck.vocoderMix ?? DEFAULT_VOCODER_MIX,
-          vocoderCarrierDeckId:
-            sessionDeck.vocoderCarrierDeckId === sessionDeck.id
-              ? DEFAULT_VOCODER_CARRIER_DECK_ID
-              : (sessionDeck.vocoderCarrierDeckId ?? DEFAULT_VOCODER_CARRIER_DECK_ID),
-          vocoderModulatorMonitor:
-            sessionDeck.vocoderModulatorMonitor ?? DEFAULT_VOCODER_MODULATOR_MONITOR,
-          vocoderModDrive: sessionDeck.vocoderModDrive ?? DEFAULT_VOCODER_MOD_DRIVE,
-          vocoderBandCount: sessionDeck.vocoderBandCount ?? DEFAULT_VOCODER_BAND_COUNT,
-          vocoderBandSpread: sessionDeck.vocoderBandSpread ?? DEFAULT_VOCODER_BAND_SPREAD,
-          vocoderAttackMs: sessionDeck.vocoderAttackMs ?? DEFAULT_VOCODER_ATTACK_MS,
-          vocoderReleaseMs: sessionDeck.vocoderReleaseMs ?? DEFAULT_VOCODER_RELEASE_MS,
-          vocoderNoiseMix: sessionDeck.vocoderNoiseMix ?? DEFAULT_VOCODER_NOISE_MIX,
-          vocoderGateThreshold: sessionDeck.vocoderGateThreshold ?? DEFAULT_VOCODER_GATE_THRESHOLD,
-          deckWidthOverride: sessionDeck.deckWidthOverride,
-          offsetSeconds,
-          zoom: sessionDeck.zoom,
-          loopEnabled: sessionDeck.loopEnabled,
-          loopStartSeconds: loopStart,
-          loopEndSeconds: loopEnd,
-          tempoOffset: sessionDeck.tempoOffset,
-          tempoPitchSync: sessionDeck.tempoPitchSync ?? false,
-          stretchRatio: sessionDeck.stretchRatio ?? DEFAULT_STRETCH_RATIO,
-          stretchWindowSize: sessionDeck.stretchWindowSize ?? DEFAULT_STRETCH_WINDOW_SIZE,
-          stretchStereoWidth:
-            sessionDeck.stretchStereoWidth ?? DEFAULT_STRETCH_STEREO_WIDTH,
-          stretchPhaseRandomness:
-            sessionDeck.stretchPhaseRandomness ?? DEFAULT_STRETCH_PHASE_RANDOMNESS,
-          stretchTiltDb: sessionDeck.stretchTiltDb ?? DEFAULT_STRETCH_TILT_DB,
-          stretchScatter: sessionDeck.stretchScatter ?? DEFAULT_STRETCH_SCATTER,
-          delayTime: sessionDeck.delayTime ?? DEFAULT_DELAY_TIME,
-          delayFeedback: sessionDeck.delayFeedback ?? DEFAULT_DELAY_FEEDBACK,
-          delayMix: sessionDeck.delayMix ?? DEFAULT_DELAY_MIX,
-          delayTone: sessionDeck.delayTone ?? DEFAULT_DELAY_TONE,
-          delayPingPong: sessionDeck.delayPingPong ?? DEFAULT_DELAY_PINGPONG,
-          delaySliceSync: sessionDeck.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC,
-          delaySaturation: sessionDeck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
-          delayDamping: sessionDeck.delayDamping ?? DEFAULT_DELAY_DAMPING,
-          delaySafety: sessionDeck.delaySafety ?? DEFAULT_DELAY_SAFETY,
-          rearrangerSlices:
-            sessionDeck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES,
-          rearrangerSwapCount:
-            sessionDeck.rearrangerSwapCount ?? DEFAULT_REARRANGER_SWAP_COUNT,
-          rearrangerChaos:
-            sessionDeck.rearrangerChaos ?? DEFAULT_REARRANGER_CHAOS,
-          rearrangerReverse:
-            sessionDeck.rearrangerReverse ?? DEFAULT_REARRANGER_REVERSE,
-          rearrangerSensitivity:
-            sessionDeck.rearrangerSensitivity ?? DEFAULT_REARRANGER_SENSITIVITY,
-          rearrangerQuietThreshold:
-            sessionDeck.rearrangerQuietThreshold ??
-            DEFAULT_REARRANGER_QUIET_THRESHOLD,
-          rearrangerSliceFadeMs:
-            sessionDeck.rearrangerSliceFadeMs ?? DEFAULT_REARRANGER_SLICE_FADE_MS,
-          rearrangerSliceDelaySec:
-            sessionDeck.rearrangerSliceDelaySec ?? DEFAULT_REARRANGER_SLICE_DELAY_SEC,
-          rearrangerPingPong:
-            sessionDeck.rearrangerPingPong ?? DEFAULT_REARRANGER_PINGPONG,
-          rearrangerAuto:
-            sessionDeck.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO,
-          rearrangerRegions: sanitizeRearrangerRegions(sessionDeck.rearrangerRegions),
-          rearrangerRegionIds:
-            sessionDeck.rearrangerRegionIds ??
-            Array.from(
-              { length: Math.max(0, sessionDeck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES) },
-              (_, index) => index
-            ),
-          rearrangerRegionsManual: sessionDeck.rearrangerRegionsManual ?? false,
-          fxPanelOpen: withDefaultFxPanelOpen(sessionDeck.fxPanelOpen),
-          startedAtMs: undefined,
-        };
+        return hydrated.deck;
       });
 
       nextDeckId.current = Math.max(2, maxDeckId + 1);

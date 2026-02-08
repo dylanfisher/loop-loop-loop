@@ -1,0 +1,445 @@
+import type { MutableRefObject } from "react";
+import type { EqMode, ParametricEqBand, DeckState } from "../types/deck";
+import { normalizeParametricEqBands } from "../audio/effects/parametricEq";
+import { EQ_MAX_DB, clamp, type AutomationDeck } from "./useDecksShared";
+
+type Args = {
+  decks: DeckState[];
+  automationRef: MutableRefObject<Map<number, AutomationDeck>>;
+  getFilterTargets: (djFilter: number) => { lowpass: number; highpass: number };
+  updateDeck: (id: number, patch: Partial<DeckState>, recordHistory?: boolean) => void;
+  updateAutomationView: (deckId: number) => void;
+  updateAutomationTickEnabled: () => void;
+  setDeckGain: (id: number, value: number) => void;
+  setDeckFilter: (id: number, value: number) => void;
+  setDeckHighpass: (id: number, value: number) => void;
+  setDeckResonance: (id: number, value: number) => void;
+  setDeckEqLow: (id: number, value: number) => void;
+  setDeckEqMid: (id: number, value: number) => void;
+  setDeckEqHigh: (id: number, value: number) => void;
+  setDeckEqMode: (id: number, value: EqMode) => void;
+  setDeckParametricEqBands: (id: number, bands: ParametricEqBand[]) => void;
+  setDeckPitchShift: (id: number, value: number) => void;
+  setDeckDelayTime: (id: number, value: number) => void;
+  setDeckDelayFeedback: (id: number, value: number) => void;
+  setDeckDelayMix: (id: number, value: number) => void;
+  setDeckDelayTone: (id: number, value: number) => void;
+  setDeckDelayPingPong: (id: number, value: boolean) => void;
+  setDeckDelaySaturation: (id: number, value: number) => void;
+  setDeckDelayDamping: (id: number, value: number) => void;
+  setDeckDelaySafety: (id: number, value: number) => void;
+  setDeckVocoderMix: (id: number, value: number) => void;
+  setDeckVocoderCarrierDeckId: (id: number, value: number | null) => void;
+  setDeckVocoderModulatorMonitor: (id: number, value: number) => void;
+  setDeckVocoderModDrive: (id: number, value: number) => void;
+  setDeckVocoderBandCount: (id: number, value: number) => void;
+  setDeckVocoderBandSpread: (id: number, value: number) => void;
+  setDeckVocoderAttackMs: (id: number, value: number) => void;
+  setDeckVocoderReleaseMs: (id: number, value: number) => void;
+  setDeckVocoderNoiseMix: (id: number, value: number) => void;
+  setDeckVocoderGateThreshold: (id: number, value: number) => void;
+  setDeckPlaybackRate: (id: number, value: number) => void;
+  setDeckPlaybackOffset: (id: number, value: number) => void;
+  setDeckRearrangerPan: (id: number, value: number) => void;
+  setDeckRearrangerPingPongAmount: (id: number, value: number) => void;
+  setDeckRearrangerPingPongConfig: (
+    id: number,
+    config: {
+      enabled: boolean;
+      loopStart: number;
+      loopEnd: number;
+      playbackRate: number;
+      regions: number[];
+      sliceDelaySec?: number;
+      anchorTime: number;
+      anchorPosition: number;
+    } | null
+  ) => void;
+  clearDeckRearrangerPanAutomation: (id: number, fromTime: number) => void;
+  scheduleDeckRearrangerPan: (id: number, value: number, atTime: number, rampSeconds: number) => void;
+};
+
+const deactivateAutomationTrack = (
+  automationRef: Args["automationRef"],
+  deckId: number,
+  param: keyof AutomationDeck,
+  updateAutomationView: Args["updateAutomationView"],
+  updateAutomationTickEnabled: Args["updateAutomationTickEnabled"]
+) => {
+  const automation = automationRef.current.get(deckId);
+  const track = automation?.[param];
+  if (track && track.active && !track.recording) {
+    track.active = false;
+    track.playbackStartMs = 0;
+    updateAutomationView(deckId);
+  }
+  updateAutomationTickEnabled();
+};
+
+export const createDeckParameterSetters = ({
+  decks,
+  automationRef,
+  getFilterTargets,
+  updateDeck,
+  updateAutomationView,
+  updateAutomationTickEnabled,
+  setDeckGain,
+  setDeckFilter,
+  setDeckHighpass,
+  setDeckResonance,
+  setDeckEqLow,
+  setDeckEqMid,
+  setDeckEqHigh,
+  setDeckEqMode,
+  setDeckParametricEqBands,
+  setDeckPitchShift,
+  setDeckDelayTime,
+  setDeckDelayFeedback,
+  setDeckDelayMix,
+  setDeckDelayTone,
+  setDeckDelayPingPong,
+  setDeckDelaySaturation,
+  setDeckDelayDamping,
+  setDeckDelaySafety,
+  setDeckVocoderMix,
+  setDeckVocoderCarrierDeckId,
+  setDeckVocoderModulatorMonitor,
+  setDeckVocoderModDrive,
+  setDeckVocoderBandCount,
+  setDeckVocoderBandSpread,
+  setDeckVocoderAttackMs,
+  setDeckVocoderReleaseMs,
+  setDeckVocoderNoiseMix,
+  setDeckVocoderGateThreshold,
+  setDeckPlaybackRate,
+  setDeckPlaybackOffset,
+  setDeckRearrangerPan,
+  setDeckRearrangerPingPongAmount,
+  setDeckRearrangerPingPongConfig,
+  clearDeckRearrangerPanAutomation,
+  scheduleDeckRearrangerPan,
+}: Args) => {
+  const setDeckGainValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1.5);
+    setDeckGain(id, clamped);
+    updateDeck(id, { gain: clamped }, false);
+    deactivateAutomationTrack(
+      automationRef,
+      id,
+      "gain",
+      updateAutomationView,
+      updateAutomationTickEnabled
+    );
+  };
+
+  const setDeckFilterValue = (id: number, value: number) => {
+    const targets = getFilterTargets(value);
+    setDeckFilter(id, targets.lowpass);
+    setDeckHighpass(id, targets.highpass);
+    updateDeck(id, { djFilter: clamp(value, -1, 1) }, false);
+    deactivateAutomationTrack(
+      automationRef,
+      id,
+      "djFilter",
+      updateAutomationView,
+      updateAutomationTickEnabled
+    );
+  };
+
+  const setDeckResonanceValue = (id: number, value: number) => {
+    setDeckResonance(id, value);
+    updateDeck(id, { filterResonance: value }, false);
+    deactivateAutomationTrack(
+      automationRef,
+      id,
+      "resonance",
+      updateAutomationView,
+      updateAutomationTickEnabled
+    );
+  };
+
+  const setDeckEqLowValue = (id: number, value: number) => {
+    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
+    setDeckEqLow(id, clamped);
+    updateDeck(id, { eqLowGain: clamped }, false);
+    deactivateAutomationTrack(
+      automationRef,
+      id,
+      "eqLow",
+      updateAutomationView,
+      updateAutomationTickEnabled
+    );
+  };
+
+  const setDeckEqMidValue = (id: number, value: number) => {
+    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
+    setDeckEqMid(id, clamped);
+    updateDeck(id, { eqMidGain: clamped }, false);
+    deactivateAutomationTrack(
+      automationRef,
+      id,
+      "eqMid",
+      updateAutomationView,
+      updateAutomationTickEnabled
+    );
+  };
+
+  const setDeckEqHighValue = (id: number, value: number) => {
+    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
+    setDeckEqHigh(id, clamped);
+    updateDeck(id, { eqHighGain: clamped }, false);
+    deactivateAutomationTrack(
+      automationRef,
+      id,
+      "eqHigh",
+      updateAutomationView,
+      updateAutomationTickEnabled
+    );
+  };
+
+  const setDeckEqModeValue = (id: number, value: EqMode) => {
+    const mode: EqMode = value === "parametric" ? "parametric" : "eq3";
+    setDeckEqMode(id, mode);
+    updateDeck(id, { eqMode: mode }, false);
+  };
+
+  const setDeckParametricEqBandsValue = (id: number, bands: ParametricEqBand[]) => {
+    const normalized = normalizeParametricEqBands(bands);
+    setDeckParametricEqBands(id, normalized);
+    updateDeck(id, { parametricEqBands: normalized }, false);
+  };
+
+  const setDeckPitchShiftValue = (id: number, value: number) => {
+    const deck = decks.find((item) => item.id === id);
+    if (deck?.tempoPitchSync) return;
+    const clamped = Math.min(Math.max(value, -24), 24);
+    setDeckPitchShift(id, clamped);
+    updateDeck(id, { pitchShift: clamped }, false);
+    deactivateAutomationTrack(
+      automationRef,
+      id,
+      "pitch",
+      updateAutomationView,
+      updateAutomationTickEnabled
+    );
+  };
+
+  const setDeckDelayTimeValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0.01), 1.5);
+    setDeckDelayTime(id, clamped);
+    updateDeck(id, { delayTime: clamped }, false);
+  };
+
+  const setDeckDelayFeedbackValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 0.99);
+    setDeckDelayFeedback(id, clamped);
+    updateDeck(id, { delayFeedback: clamped }, false);
+  };
+
+  const setDeckDelayMixValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelayMix(id, clamped);
+    updateDeck(id, { delayMix: clamped }, false);
+  };
+
+  const setDeckDelayToneValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 400), 12000);
+    setDeckDelayTone(id, clamped);
+    updateDeck(id, { delayTone: clamped }, false);
+  };
+
+  const setDeckDelayPingPongValue = (id: number, value: boolean) => {
+    setDeckDelayPingPong(id, value);
+    updateDeck(id, { delayPingPong: value }, false);
+  };
+
+  const setDeckDelaySaturationValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelaySaturation(id, clamped);
+    updateDeck(id, { delaySaturation: clamped }, false);
+  };
+
+  const setDeckDelayDampingValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelayDamping(id, clamped);
+    updateDeck(id, { delayDamping: clamped }, false);
+  };
+
+  const setDeckDelaySafetyValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelaySafety(id, clamped);
+    updateDeck(id, { delaySafety: clamped }, false);
+  };
+
+  const setDeckVocoderMixValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderMix(id, clamped);
+    updateDeck(id, { vocoderMix: clamped }, false);
+  };
+
+  const setDeckVocoderCarrierDeckIdValue = (id: number, value: number | null) => {
+    const deck = decks.find((item) => item.id === id);
+    const previous = deck?.vocoderCarrierDeckId ?? null;
+    const normalized = value === id ? null : value;
+    setDeckVocoderCarrierDeckId(id, normalized);
+    let nextMixPatch: number | undefined;
+    if (previous === null && normalized !== null) {
+      nextMixPatch = 0.5;
+      setDeckVocoderMix(id, nextMixPatch);
+    } else if (normalized === null) {
+      nextMixPatch = 0;
+      setDeckVocoderMix(id, nextMixPatch);
+    }
+    updateDeck(
+      id,
+      {
+        vocoderCarrierDeckId: normalized,
+        ...(nextMixPatch === undefined ? {} : { vocoderMix: nextMixPatch }),
+      },
+      false
+    );
+  };
+
+  const setDeckVocoderModulatorMonitorValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderModulatorMonitor(id, clamped);
+    updateDeck(id, { vocoderModulatorMonitor: clamped }, false);
+  };
+
+  const setDeckVocoderModDriveValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0.5), 10);
+    setDeckVocoderModDrive(id, clamped);
+    updateDeck(id, { vocoderModDrive: clamped }, false);
+  };
+
+  const setDeckVocoderBandCountValue = (id: number, value: number) => {
+    const clamped = Math.round(Math.min(Math.max(value, 4), 24));
+    setDeckVocoderBandCount(id, clamped);
+    updateDeck(id, { vocoderBandCount: clamped }, false);
+  };
+
+  const setDeckVocoderBandSpreadValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderBandSpread(id, clamped);
+    updateDeck(id, { vocoderBandSpread: clamped }, false);
+  };
+
+  const setDeckVocoderAttackMsValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 1), 160);
+    setDeckVocoderAttackMs(id, clamped);
+    updateDeck(id, { vocoderAttackMs: clamped }, false);
+  };
+
+  const setDeckVocoderReleaseMsValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 1), 1200);
+    setDeckVocoderReleaseMs(id, clamped);
+    updateDeck(id, { vocoderReleaseMs: clamped }, false);
+  };
+
+  const setDeckVocoderNoiseMixValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderNoiseMix(id, clamped);
+    updateDeck(id, { vocoderNoiseMix: clamped }, false);
+  };
+
+  const setDeckVocoderGateThresholdValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderGateThreshold(id, clamped);
+    updateDeck(id, { vocoderGateThreshold: clamped }, false);
+  };
+
+  const setDeckDelaySliceSyncValue = (id: number, value: boolean) => {
+    updateDeck(id, { delaySliceSync: value }, false);
+  };
+
+  const setDeckDelayTimeTransient = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0.01), 1.5);
+    setDeckDelayTime(id, clamped);
+  };
+
+  const setDeckPlaybackRateTransient = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 16);
+    setDeckPlaybackRate(id, clamped);
+  };
+
+  const setDeckPlaybackOffsetTransient = (id: number, value: number) => {
+    const clamped = Math.max(0, value);
+    setDeckPlaybackOffset(id, clamped);
+  };
+
+  const setDeckRearrangerPanTransient = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, -1), 1);
+    setDeckRearrangerPan(id, clamped);
+  };
+
+  const setDeckRearrangerPingPongLive = (
+    id: number,
+    amount: number,
+    config: {
+      enabled: boolean;
+      loopStart: number;
+      loopEnd: number;
+      playbackRate: number;
+      regions: number[];
+      sliceDelaySec?: number;
+      anchorTime: number;
+      anchorPosition: number;
+    } | null
+  ) => {
+    const clampedAmount = Math.min(Math.max(amount, 0), 1);
+    setDeckRearrangerPingPongAmount(id, clampedAmount);
+    setDeckRearrangerPingPongConfig(id, config);
+  };
+
+  const clearDeckRearrangerPanAutomationTransient = (id: number, fromTime: number) => {
+    clearDeckRearrangerPanAutomation(id, Math.max(0, fromTime));
+  };
+
+  const scheduleDeckRearrangerPanTransient = (
+    id: number,
+    value: number,
+    atTime: number,
+    rampSeconds = 0
+  ) => {
+    const clamped = Math.min(Math.max(value, -1), 1);
+    scheduleDeckRearrangerPan(id, clamped, Math.max(0, atTime), Math.max(0, rampSeconds));
+  };
+
+  return {
+    setDeckGainValue,
+    setDeckFilterValue,
+    setDeckResonanceValue,
+    setDeckEqLowValue,
+    setDeckEqMidValue,
+    setDeckEqHighValue,
+    setDeckEqModeValue,
+    setDeckParametricEqBandsValue,
+    setDeckPitchShiftValue,
+    setDeckDelayTimeValue,
+    setDeckDelayFeedbackValue,
+    setDeckDelayMixValue,
+    setDeckDelayToneValue,
+    setDeckDelayPingPongValue,
+    setDeckDelaySaturationValue,
+    setDeckDelayDampingValue,
+    setDeckDelaySafetyValue,
+    setDeckVocoderMixValue,
+    setDeckVocoderCarrierDeckIdValue,
+    setDeckVocoderModulatorMonitorValue,
+    setDeckVocoderModDriveValue,
+    setDeckVocoderBandCountValue,
+    setDeckVocoderBandSpreadValue,
+    setDeckVocoderAttackMsValue,
+    setDeckVocoderReleaseMsValue,
+    setDeckVocoderNoiseMixValue,
+    setDeckVocoderGateThresholdValue,
+    setDeckDelaySliceSyncValue,
+    setDeckDelayTimeTransient,
+    setDeckPlaybackRateTransient,
+    setDeckPlaybackOffsetTransient,
+    setDeckRearrangerPanTransient,
+    setDeckRearrangerPingPongLive,
+    clearDeckRearrangerPanAutomationTransient,
+    scheduleDeckRearrangerPanTransient,
+  };
+};

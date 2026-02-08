@@ -1,0 +1,290 @@
+import type { DeckState, DeckStatus } from "../types/deck";
+import type { AutomationParam, AutomationSnapshot, DeckSession } from "../types/session";
+import { normalizeParametricEqBands } from "../audio/effects/parametricEq";
+import {
+  AUTOMATION_SAMPLE_RATE,
+  DEFAULT_DELAY_DAMPING,
+  DEFAULT_DELAY_FEEDBACK,
+  DEFAULT_DELAY_MIX,
+  DEFAULT_DELAY_PINGPONG,
+  DEFAULT_DELAY_SAFETY,
+  DEFAULT_DELAY_SATURATION,
+  DEFAULT_DELAY_SLICE_SYNC,
+  DEFAULT_DELAY_TIME,
+  DEFAULT_DELAY_TONE,
+  DEFAULT_EQ_MODE,
+  DEFAULT_REARRANGER_AUTO,
+  DEFAULT_REARRANGER_CHAOS,
+  DEFAULT_REARRANGER_PINGPONG,
+  DEFAULT_REARRANGER_QUIET_THRESHOLD,
+  DEFAULT_REARRANGER_REVERSE,
+  DEFAULT_REARRANGER_SENSITIVITY,
+  DEFAULT_REARRANGER_SLICE_DELAY_SEC,
+  DEFAULT_REARRANGER_SLICE_FADE_MS,
+  DEFAULT_REARRANGER_SLICES,
+  DEFAULT_REARRANGER_SWAP_COUNT,
+  DEFAULT_STRETCH_PHASE_RANDOMNESS,
+  DEFAULT_STRETCH_RATIO,
+  DEFAULT_STRETCH_SCATTER,
+  DEFAULT_STRETCH_STEREO_WIDTH,
+  DEFAULT_STRETCH_TILT_DB,
+  DEFAULT_STRETCH_WINDOW_SIZE,
+  DEFAULT_VOCODER_ATTACK_MS,
+  DEFAULT_VOCODER_BAND_COUNT,
+  DEFAULT_VOCODER_BAND_SPREAD,
+  DEFAULT_VOCODER_CARRIER_DECK_ID,
+  DEFAULT_VOCODER_GATE_THRESHOLD,
+  DEFAULT_VOCODER_MIX,
+  DEFAULT_VOCODER_MOD_DRIVE,
+  DEFAULT_VOCODER_MODULATOR_MONITOR,
+  DEFAULT_VOCODER_NOISE_MIX,
+  DEFAULT_VOCODER_RELEASE_MS,
+  sanitizeRearrangerRegions,
+  toAutomationView,
+  type AutomationDeck,
+  type AutomationTrack,
+  type AutomationView,
+  withDefaultFxPanelOpen,
+} from "./useDecksShared";
+
+const buildAutomationSnapshot = (
+  track: AutomationTrack | undefined,
+  fallbackValue: number
+): AutomationSnapshot => ({
+  samples: Array.from(track?.samples ?? []),
+  sampleRate: track?.sampleRate ?? AUTOMATION_SAMPLE_RATE,
+  durationSec: track?.durationSec ?? 0,
+  active: track?.active ?? false,
+  currentValue: track?.currentValue ?? fallbackValue,
+});
+
+const toAutomationTrack = (
+  snapshot: DeckSession["automation"][AutomationParam] | undefined,
+  fallbackValue: number
+): AutomationTrack => {
+  const isActive = snapshot?.active ?? false;
+  return {
+    samples: new Float32Array(snapshot?.samples ?? []),
+    sampleRate: snapshot?.sampleRate ?? AUTOMATION_SAMPLE_RATE,
+    durationSec: snapshot?.durationSec ?? 0,
+    recording: false,
+    active: isActive,
+    paused: isActive,
+    pausedPositionSec: 0,
+    currentValue: snapshot?.currentValue ?? fallbackValue,
+    amplitudeScale: 1,
+    lastIndex: -1,
+    lastPreviewLength: 0,
+    recordBuffer: [],
+    recordStartMs: 0,
+    lastSampleMs: 0,
+    playbackStartMs: 0,
+  };
+};
+
+export const serializeDeckSession = (
+  deck: DeckState,
+  automation: AutomationDeck | undefined
+): DeckSession => ({
+  id: deck.id,
+  fileName: deck.fileName,
+  gain: deck.gain,
+  djFilter: deck.djFilter,
+  filterResonance: deck.filterResonance,
+  eqMode: deck.eqMode,
+  eqLowGain: deck.eqLowGain,
+  eqMidGain: deck.eqMidGain,
+  eqHighGain: deck.eqHighGain,
+  parametricEqBands: normalizeParametricEqBands(deck.parametricEqBands),
+  balance: deck.balance,
+  pitchShift: deck.pitchShift,
+  vocoderMix: deck.vocoderMix,
+  vocoderCarrierDeckId: deck.vocoderCarrierDeckId,
+  vocoderModulatorMonitor: deck.vocoderModulatorMonitor,
+  vocoderModDrive: deck.vocoderModDrive,
+  vocoderBandCount: deck.vocoderBandCount,
+  vocoderBandSpread: deck.vocoderBandSpread,
+  vocoderAttackMs: deck.vocoderAttackMs,
+  vocoderReleaseMs: deck.vocoderReleaseMs,
+  vocoderNoiseMix: deck.vocoderNoiseMix,
+  vocoderGateThreshold: deck.vocoderGateThreshold,
+  deckWidthOverride: deck.deckWidthOverride,
+  offsetSeconds: deck.offsetSeconds ?? 0,
+  zoom: deck.zoom,
+  loopEnabled: deck.loopEnabled,
+  loopStartSeconds: deck.loopStartSeconds,
+  loopEndSeconds: deck.loopEndSeconds,
+  tempoOffset: deck.tempoOffset,
+  tempoPitchSync: deck.tempoPitchSync,
+  stretchRatio: deck.stretchRatio,
+  stretchWindowSize: deck.stretchWindowSize,
+  stretchStereoWidth: deck.stretchStereoWidth,
+  stretchPhaseRandomness: deck.stretchPhaseRandomness,
+  stretchTiltDb: deck.stretchTiltDb,
+  stretchScatter: deck.stretchScatter,
+  delayTime: deck.delayTime,
+  delayFeedback: deck.delayFeedback,
+  delayMix: deck.delayMix,
+  delayTone: deck.delayTone,
+  delayPingPong: deck.delayPingPong,
+  delaySliceSync: deck.delaySliceSync,
+  delaySaturation: deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+  delayDamping: deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+  delaySafety: deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
+  rearrangerSlices: deck.rearrangerSlices,
+  rearrangerSwapCount: deck.rearrangerSwapCount,
+  rearrangerChaos: deck.rearrangerChaos,
+  rearrangerReverse: deck.rearrangerReverse,
+  rearrangerSensitivity: deck.rearrangerSensitivity,
+  rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
+  rearrangerSliceFadeMs: deck.rearrangerSliceFadeMs,
+  rearrangerSliceDelaySec: deck.rearrangerSliceDelaySec,
+  rearrangerPingPong: deck.rearrangerPingPong,
+  rearrangerAuto: deck.rearrangerAuto,
+  rearrangerRegions: sanitizeRearrangerRegions(deck.rearrangerRegions),
+  rearrangerRegionIds: deck.rearrangerRegionIds,
+  rearrangerRegionsManual: deck.rearrangerRegionsManual ?? false,
+  fxPanelOpen: withDefaultFxPanelOpen(deck.fxPanelOpen),
+  automation: {
+    gain: buildAutomationSnapshot(automation?.gain, deck.gain),
+    djFilter: buildAutomationSnapshot(automation?.djFilter, deck.djFilter),
+    resonance: buildAutomationSnapshot(automation?.resonance, deck.filterResonance),
+    eqLow: buildAutomationSnapshot(automation?.eqLow, deck.eqLowGain),
+    eqMid: buildAutomationSnapshot(automation?.eqMid, deck.eqMidGain),
+    eqHigh: buildAutomationSnapshot(automation?.eqHigh, deck.eqHighGain),
+    balance: buildAutomationSnapshot(automation?.balance, deck.balance),
+    pitch: buildAutomationSnapshot(automation?.pitch, deck.pitchShift),
+  },
+});
+
+export type HydratedDeckSession = {
+  deck: DeckState;
+  automation: AutomationDeck;
+  automationView: Record<AutomationParam, AutomationView>;
+};
+
+export const hydrateDeckFromSession = (
+  sessionDeck: DeckSession,
+  buffer: AudioBuffer | null | undefined
+): HydratedDeckSession => {
+  const duration = buffer
+    ? Number.isFinite(buffer.duration)
+      ? buffer.duration
+      : buffer.length / buffer.sampleRate
+    : 0;
+  const loopStart = sessionDeck.loopStartSeconds ?? 0;
+  const loopEnd = duration
+    ? Math.min(Math.max(loopStart + 0.01, sessionDeck.loopEndSeconds ?? duration), duration)
+    : (sessionDeck.loopEndSeconds ?? 0);
+  const offsetSeconds = duration
+    ? Math.min(Math.max(0, sessionDeck.offsetSeconds ?? 0), duration)
+    : 0;
+
+  const automation: AutomationDeck = {
+    gain: toAutomationTrack(sessionDeck.automation.gain, sessionDeck.gain),
+    djFilter: toAutomationTrack(sessionDeck.automation.djFilter, sessionDeck.djFilter),
+    resonance: toAutomationTrack(sessionDeck.automation.resonance, sessionDeck.filterResonance),
+    eqLow: toAutomationTrack(sessionDeck.automation.eqLow, sessionDeck.eqLowGain),
+    eqMid: toAutomationTrack(sessionDeck.automation.eqMid, sessionDeck.eqMidGain),
+    eqHigh: toAutomationTrack(sessionDeck.automation.eqHigh, sessionDeck.eqHighGain),
+    balance: toAutomationTrack(sessionDeck.automation.balance, sessionDeck.balance ?? 0),
+    pitch: toAutomationTrack(sessionDeck.automation.pitch, sessionDeck.pitchShift ?? 0),
+  };
+
+  const status: DeckStatus = buffer ? "paused" : "idle";
+  const deck: DeckState = {
+    id: sessionDeck.id,
+    status,
+    fileName: sessionDeck.fileName,
+    buffer: buffer ?? undefined,
+    duration: duration || undefined,
+    gain: sessionDeck.gain,
+    djFilter: sessionDeck.djFilter,
+    filterResonance: sessionDeck.filterResonance,
+    eqMode: sessionDeck.eqMode ?? DEFAULT_EQ_MODE,
+    eqLowGain: sessionDeck.eqLowGain,
+    eqMidGain: sessionDeck.eqMidGain,
+    eqHighGain: sessionDeck.eqHighGain,
+    parametricEqBands: normalizeParametricEqBands(sessionDeck.parametricEqBands),
+    balance: sessionDeck.balance ?? 0,
+    pitchShift: sessionDeck.pitchShift ?? 0,
+    vocoderMix: sessionDeck.vocoderMix ?? DEFAULT_VOCODER_MIX,
+    vocoderCarrierDeckId:
+      sessionDeck.vocoderCarrierDeckId === sessionDeck.id
+        ? DEFAULT_VOCODER_CARRIER_DECK_ID
+        : (sessionDeck.vocoderCarrierDeckId ?? DEFAULT_VOCODER_CARRIER_DECK_ID),
+    vocoderModulatorMonitor:
+      sessionDeck.vocoderModulatorMonitor ?? DEFAULT_VOCODER_MODULATOR_MONITOR,
+    vocoderModDrive: sessionDeck.vocoderModDrive ?? DEFAULT_VOCODER_MOD_DRIVE,
+    vocoderBandCount: sessionDeck.vocoderBandCount ?? DEFAULT_VOCODER_BAND_COUNT,
+    vocoderBandSpread: sessionDeck.vocoderBandSpread ?? DEFAULT_VOCODER_BAND_SPREAD,
+    vocoderAttackMs: sessionDeck.vocoderAttackMs ?? DEFAULT_VOCODER_ATTACK_MS,
+    vocoderReleaseMs: sessionDeck.vocoderReleaseMs ?? DEFAULT_VOCODER_RELEASE_MS,
+    vocoderNoiseMix: sessionDeck.vocoderNoiseMix ?? DEFAULT_VOCODER_NOISE_MIX,
+    vocoderGateThreshold: sessionDeck.vocoderGateThreshold ?? DEFAULT_VOCODER_GATE_THRESHOLD,
+    deckWidthOverride: sessionDeck.deckWidthOverride,
+    offsetSeconds,
+    zoom: sessionDeck.zoom,
+    loopEnabled: sessionDeck.loopEnabled,
+    loopStartSeconds: loopStart,
+    loopEndSeconds: loopEnd,
+    tempoOffset: sessionDeck.tempoOffset,
+    tempoPitchSync: sessionDeck.tempoPitchSync ?? false,
+    stretchRatio: sessionDeck.stretchRatio ?? DEFAULT_STRETCH_RATIO,
+    stretchWindowSize: sessionDeck.stretchWindowSize ?? DEFAULT_STRETCH_WINDOW_SIZE,
+    stretchStereoWidth: sessionDeck.stretchStereoWidth ?? DEFAULT_STRETCH_STEREO_WIDTH,
+    stretchPhaseRandomness:
+      sessionDeck.stretchPhaseRandomness ?? DEFAULT_STRETCH_PHASE_RANDOMNESS,
+    stretchTiltDb: sessionDeck.stretchTiltDb ?? DEFAULT_STRETCH_TILT_DB,
+    stretchScatter: sessionDeck.stretchScatter ?? DEFAULT_STRETCH_SCATTER,
+    delayTime: sessionDeck.delayTime ?? DEFAULT_DELAY_TIME,
+    delayFeedback: sessionDeck.delayFeedback ?? DEFAULT_DELAY_FEEDBACK,
+    delayMix: sessionDeck.delayMix ?? DEFAULT_DELAY_MIX,
+    delayTone: sessionDeck.delayTone ?? DEFAULT_DELAY_TONE,
+    delayPingPong: sessionDeck.delayPingPong ?? DEFAULT_DELAY_PINGPONG,
+    delaySliceSync: sessionDeck.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC,
+    delaySaturation: sessionDeck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+    delayDamping: sessionDeck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+    delaySafety: sessionDeck.delaySafety ?? DEFAULT_DELAY_SAFETY,
+    rearrangerSlices: sessionDeck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES,
+    rearrangerSwapCount: sessionDeck.rearrangerSwapCount ?? DEFAULT_REARRANGER_SWAP_COUNT,
+    rearrangerChaos: sessionDeck.rearrangerChaos ?? DEFAULT_REARRANGER_CHAOS,
+    rearrangerReverse: sessionDeck.rearrangerReverse ?? DEFAULT_REARRANGER_REVERSE,
+    rearrangerSensitivity:
+      sessionDeck.rearrangerSensitivity ?? DEFAULT_REARRANGER_SENSITIVITY,
+    rearrangerQuietThreshold:
+      sessionDeck.rearrangerQuietThreshold ?? DEFAULT_REARRANGER_QUIET_THRESHOLD,
+    rearrangerSliceFadeMs:
+      sessionDeck.rearrangerSliceFadeMs ?? DEFAULT_REARRANGER_SLICE_FADE_MS,
+    rearrangerSliceDelaySec:
+      sessionDeck.rearrangerSliceDelaySec ?? DEFAULT_REARRANGER_SLICE_DELAY_SEC,
+    rearrangerPingPong: sessionDeck.rearrangerPingPong ?? DEFAULT_REARRANGER_PINGPONG,
+    rearrangerAuto: sessionDeck.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO,
+    rearrangerRegions: sanitizeRearrangerRegions(sessionDeck.rearrangerRegions),
+    rearrangerRegionIds:
+      sessionDeck.rearrangerRegionIds ??
+      Array.from(
+        { length: Math.max(0, sessionDeck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES) },
+        (_, index) => index
+      ),
+    rearrangerRegionsManual: sessionDeck.rearrangerRegionsManual ?? false,
+    fxPanelOpen: withDefaultFxPanelOpen(sessionDeck.fxPanelOpen),
+    startedAtMs: undefined,
+  };
+
+  return {
+    deck,
+    automation,
+    automationView: {
+      gain: toAutomationView(automation.gain),
+      djFilter: toAutomationView(automation.djFilter),
+      resonance: toAutomationView(automation.resonance),
+      eqLow: toAutomationView(automation.eqLow),
+      eqMid: toAutomationView(automation.eqMid),
+      eqHigh: toAutomationView(automation.eqHigh),
+      balance: toAutomationView(automation.balance),
+      pitch: toAutomationView(automation.pitch),
+    },
+  };
+};
+
