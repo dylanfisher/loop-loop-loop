@@ -153,6 +153,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Keyboard shortcut dialog rendering is extracted from `App.tsx` into `src/components/KeyboardShortcutsDialog.tsx`.
 - Audio unlock gate rendering is extracted from `App.tsx` into `src/components/AudioUnlockOverlay.tsx`.
 - `DeckStack` prop assembly/callback wiring is extracted from `App.tsx` into `src/hooks/useDeckStackProps.ts`.
+- Shared DeckCard formatting/default-automation/quiet-preview analysis helpers are extracted into `src/components/deckCardUtils.ts`.
 
 ## Code Structure (Audio Engine Module)
 - `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.

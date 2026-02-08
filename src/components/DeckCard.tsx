@@ -7,6 +7,18 @@ import Waveform from "./Waveform";
 import AsyncActionButton from "./AsyncActionButton";
 import ParametricEqEditor from "./ParametricEqEditor";
 import { setPerfCounter } from "../utils/perf";
+import {
+  FX_HINTS,
+  FX_PANEL_KEYS,
+  TEMPO_SEMITONE_RATIO,
+  buildQuietDeletePreviewRanges,
+  createAutomationFallback,
+  formatDjFilter,
+  formatEq,
+  formatTempo,
+  hasAutomationData,
+  isDifferent,
+} from "./deckCardUtils";
 
 type DeckCardProps = {
   deck: DeckState;
@@ -163,20 +175,6 @@ type DeckCardProps = {
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
 };
 
-const FX_PANEL_KEYS: DeckFxPanel[] = [
-  "gain",
-  "djFilter",
-  "resonance",
-  "parametricEq",
-  "balance",
-  "pitch",
-  "vocoder",
-  "delay",
-  "rearranger",
-  "stretch",
-];
-const TEMPO_SEMITONE_RATIO = Math.pow(2, 1 / 12);
-
 const DeckCard = ({
   deck,
   label,
@@ -285,11 +283,6 @@ const DeckCard = ({
     setPerfCounter("deckCardRenders", renderCountRef.current);
   });
 
-  const formatTempo = (value: number) => {
-    if (Math.abs(value) < 0.005) return "0.00%";
-    const sign = value > 0 ? "+" : "";
-    return `${sign}${value.toFixed(2)}%`;
-  };
   const stretchWindowSizes = [2048, 4096, 8192, 16384];
   const stretchWindowIndex = Math.max(
     0,
@@ -309,96 +302,14 @@ const DeckCard = ({
     Math.max(deck.filterResonance, resonanceMin),
     resonanceMax
   );
-  const formatDjFilter = (value: number, fine = false) => {
-    const precision = fine ? 3 : 1;
-    if (value > 0.05) return `HP ${value.toFixed(precision)}`;
-    if (value < -0.05) return `LP ${Math.abs(value).toFixed(precision)}`;
-    return "Flat";
-  };
-  const formatEq = (value: number, fine = false) => {
-    if (value === 0) return "0.0 dB";
-    const sign = value > 0 ? "+" : "";
-    return `${sign}${value.toFixed(fine ? 2 : 1)} dB`;
-  };
-  const isDifferent = (value: number, target: number, epsilon = 1e-3) =>
-    Math.abs(value - target) > epsilon;
-  const hasAutomationData = (track: {
-    samples: Float32Array;
-    previewSamples: Float32Array;
-    recording: boolean;
-  }) => track.samples.length > 0 || track.previewSamples.length > 0 || track.recording;
-  const gainAutomation = automation?.gain ?? {
-    samples: new Float32Array(0),
-    previewSamples: new Float32Array(0),
-    durationSec: 0,
-    recording: false,
-    active: false,
-    currentValue: deck.gain,
-    amplitudeScale: 1,
-  };
-  const djAutomation = automation?.djFilter ?? {
-    samples: new Float32Array(0),
-    previewSamples: new Float32Array(0),
-    durationSec: 0,
-    recording: false,
-    active: false,
-    currentValue: djFilter,
-    amplitudeScale: 1,
-  };
-  const resonanceAutomation = automation?.resonance ?? {
-    samples: new Float32Array(0),
-    previewSamples: new Float32Array(0),
-    durationSec: 0,
-    recording: false,
-    active: false,
-    currentValue: resonanceValue,
-    amplitudeScale: 1,
-  };
-  const eqLowAutomation = automation?.eqLow ?? {
-    samples: new Float32Array(0),
-    previewSamples: new Float32Array(0),
-    durationSec: 0,
-    recording: false,
-    active: false,
-    currentValue: deck.eqLowGain,
-    amplitudeScale: 1,
-  };
-  const eqMidAutomation = automation?.eqMid ?? {
-    samples: new Float32Array(0),
-    previewSamples: new Float32Array(0),
-    durationSec: 0,
-    recording: false,
-    active: false,
-    currentValue: deck.eqMidGain,
-    amplitudeScale: 1,
-  };
-  const eqHighAutomation = automation?.eqHigh ?? {
-    samples: new Float32Array(0),
-    previewSamples: new Float32Array(0),
-    durationSec: 0,
-    recording: false,
-    active: false,
-    currentValue: deck.eqHighGain,
-    amplitudeScale: 1,
-  };
-  const balanceAutomation = automation?.balance ?? {
-    samples: new Float32Array(0),
-    previewSamples: new Float32Array(0),
-    durationSec: 0,
-    recording: false,
-    active: false,
-    currentValue: deck.balance,
-    amplitudeScale: 1,
-  };
-  const pitchAutomation = automation?.pitch ?? {
-    samples: new Float32Array(0),
-    previewSamples: new Float32Array(0),
-    durationSec: 0,
-    recording: false,
-    active: false,
-    currentValue: deck.pitchShift,
-    amplitudeScale: 1,
-  };
+  const gainAutomation = automation?.gain ?? createAutomationFallback(deck.gain);
+  const djAutomation = automation?.djFilter ?? createAutomationFallback(djFilter);
+  const resonanceAutomation = automation?.resonance ?? createAutomationFallback(resonanceValue);
+  const eqLowAutomation = automation?.eqLow ?? createAutomationFallback(deck.eqLowGain);
+  const eqMidAutomation = automation?.eqMid ?? createAutomationFallback(deck.eqMidGain);
+  const eqHighAutomation = automation?.eqHigh ?? createAutomationFallback(deck.eqHighGain);
+  const balanceAutomation = automation?.balance ?? createAutomationFallback(deck.balance);
+  const pitchAutomation = automation?.pitch ?? createAutomationFallback(deck.pitchShift);
   const gainValue = gainAutomation.active ? gainAutomation.currentValue : deck.gain;
   const djFilterValue = djAutomation.active ? djAutomation.currentValue : djFilter;
   const resonanceDisplayValue = resonanceAutomation.active
@@ -621,77 +532,15 @@ const DeckCard = ({
   );
 
   const quietDeletePreviewRanges = useMemo(() => {
-    if (!showQuietDeletePreview || !deck.buffer || !deck.loopEnabled) return [];
-    const duration = deck.duration ?? deck.buffer.duration;
-    const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
-    const loopEnd =
-      deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
-        ? Math.min(deck.loopEndSeconds, duration)
-        : duration;
-    const loopDuration = loopEnd - loopStart;
-    if (loopDuration <= 0.01) return [];
-    const sampleRate = deck.buffer.sampleRate;
-    const startSample = Math.max(0, Math.min(deck.buffer.length - 1, Math.round(loopStart * sampleRate)));
-    const endSample = Math.max(startSample + 1, Math.min(deck.buffer.length, Math.round(loopEnd * sampleRate)));
-    const segmentLength = endSample - startSample;
-    if (segmentLength < 128) return [];
-    const frameSize = Math.max(32, Math.round(sampleRate * 0.012));
-    const hopSize = Math.max(16, Math.floor(frameSize / 2));
-    if (segmentLength <= frameSize + hopSize) return [];
-    const frameCount = Math.floor((segmentLength - frameSize) / hopSize) + 1;
-    const envelope = new Array<number>(frameCount);
-    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
-      const frameStart = startSample + frameIndex * hopSize;
-      let sum = 0;
-      for (let channel = 0; channel < deck.buffer.numberOfChannels; channel += 1) {
-        const data = deck.buffer.getChannelData(channel);
-        for (let offset = 0; offset < frameSize; offset += 1) {
-          const sample = data[frameStart + offset] ?? 0;
-          sum += sample * sample;
-        }
-      }
-      const count = frameSize * deck.buffer.numberOfChannels;
-      envelope[frameIndex] = count > 0 ? Math.sqrt(sum / count) : 0;
-    }
-    const sorted = [...envelope].sort((a, b) => a - b);
-    const p20 = sorted[Math.floor((sorted.length - 1) * 0.2)] ?? 0;
-    const p80 = sorted[Math.floor((sorted.length - 1) * 0.8)] ?? 0;
-    const dynamic = Math.max(0, p80 - p20);
-    const quietFactor = 0.03 + deck.rearrangerQuietThreshold * 0.17;
-    const quietThreshold = p20 + dynamic * quietFactor;
-    const minQuietSamples = Math.max(1, Math.round(sampleRate * 0.09));
-    const keepGuardSamples = Math.max(1, Math.round(sampleRate * 0.01));
-    const ranges: Array<{ start: number; end: number }> = [];
-    let runStart = -1;
-    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
-      const isQuiet = envelope[frameIndex] <= quietThreshold;
-      if (isQuiet) {
-        if (runStart < 0) runStart = frameIndex;
-        continue;
-      }
-      if (runStart >= 0) {
-        const absStart = startSample + runStart * hopSize + keepGuardSamples;
-        const absEnd = startSample + frameIndex * hopSize + frameSize - keepGuardSamples;
-        if (absEnd - absStart >= minQuietSamples) {
-          ranges.push({
-            start: Math.max(0, Math.min(1, (absStart - startSample) / segmentLength)),
-            end: Math.max(0, Math.min(1, (absEnd - startSample) / segmentLength)),
-          });
-        }
-        runStart = -1;
-      }
-    }
-    if (runStart >= 0) {
-      const absStart = startSample + runStart * hopSize + keepGuardSamples;
-      const absEnd = endSample - keepGuardSamples;
-      if (absEnd - absStart >= minQuietSamples) {
-        ranges.push({
-          start: Math.max(0, Math.min(1, (absStart - startSample) / segmentLength)),
-          end: Math.max(0, Math.min(1, (absEnd - startSample) / segmentLength)),
-        });
-      }
-    }
-    return ranges.filter((range) => range.end > range.start);
+    return buildQuietDeletePreviewRanges({
+      buffer: deck.buffer,
+      duration: deck.duration,
+      loopEnabled: deck.loopEnabled,
+      loopStartSeconds: deck.loopStartSeconds,
+      loopEndSeconds: deck.loopEndSeconds,
+      rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
+      showQuietDeletePreview,
+    });
   }, [
     deck.buffer,
     deck.duration,
@@ -825,29 +674,11 @@ const DeckCard = ({
         isDifferent(deck.stretchScatter, 1),
     },
   };
-  const fxHints: Record<DeckFxPanel, string> = {
-    gain: "Gain: controls deck output level before the FX chain.",
-    djFilter: "DJ Filter: sweeps between low-pass and high-pass for transitions and tone shaping.",
-    resonance: "Resonance: boosts filter edge intensity for sharper sweeps.",
-    eqLow: "Low EQ: shape bass energy; boost for weight, cut for cleanup.",
-    eqMid: "Mid EQ: shape presence and body; boost clarity or reduce boxiness.",
-    eqHigh: "High EQ: shape brightness and air.",
-    parametricEq:
-      "EQ: switch between EQ3 (low/mid/high) and Parametric modes.",
-    balance: "Balance: pan the deck left/right in stereo.",
-    pitch: "Pitch: semitone shift for key matching or creative detune.",
-    vocoder:
-      "Vocoder: this deck is the carrier; select another deck as the modulator envelope source.",
-    delay: "Delay: time, feedback, tone, saturation, damping, safety, mix, and ping-pong echo.",
-    rearranger:
-      "Rearranger: Auto Slice detects transient boundaries. Delete Quiet removes low-energy spans in the loop. You can also click waveform between boundaries to add slices; hold Shift and click a slice to destructively remove that slice audio.",
-    stretch: "Stretch: offline Paulstretch render with phase/width/tilt/scatter controls.",
-  };
   const renderFxToggleLabel = (panel: DeckFxPanel, label: string) => {
     const indicator = fxIndicators[panel];
     return (
       <>
-        <span className="deck__fx-toggle-label" title={fxHints[panel]}>
+        <span className="deck__fx-toggle-label" title={FX_HINTS[panel]}>
           {fxPanelOpen[panel] ? `${label} -` : `${label} +`}
         </span>
         {(indicator.automation || indicator.modified) && (
