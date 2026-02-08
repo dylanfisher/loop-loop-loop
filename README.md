@@ -155,6 +155,8 @@ Storage/export:
 ## Notes for Contributors
 
 - `BLUEPRINT.md` is the source of truth for architecture and constraints.
+- Keep code split into logical modules. Avoid growing single files with mixed concerns; extract cohesive hooks/utils/components as responsibilities expand.
+- Prefer refactoring oversized files in-place (behavior-preserving moves) rather than continuing to append new logic into them.
 - Keep effect behavior parity across live playback, Save Loop, Export Mix, and global recording.
 - Run tests and lint for logic/UI changes:
   - `npm test`

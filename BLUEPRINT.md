@@ -94,6 +94,12 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
   - Global recording path (master stream capture)
 - New effects should be added to all four paths in the same change set (or explicitly documented as intentionally excluded).
 
+### File Modularity (Constraint)
+- Keep orchestration files focused on composition and wiring, not deep feature implementations.
+- Prefer splitting by cohesive domain boundaries (for example: recording, session I/O, loop editing, keyboard control) before files become monolithic.
+- Avoid mixed-concern mega-files; when a file grows substantially, extract self-contained hooks/utils/components while preserving behavior.
+- Prioritize DRY boundaries and stable APIs between modules so both humans and LLM tools can operate on smaller context windows.
+
 ### State & Presets
 - Session state stored in memory with optional persistence to IndexedDB.
 - Presets for FX chains, deck states, and mappings.
@@ -139,6 +145,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Global keyboard shortcut registration is extracted from `App.tsx` into `src/hooks/useGlobalKeyboardShortcuts.ts`.
 - Clip lifecycle/render/load/save/crop/duplicate logic is extracted from `App.tsx` into `src/hooks/useClipLibrary.ts`.
 - Active-deck transport/loop/rearranger/zoom keyboard-targeted actions are extracted from `App.tsx` into `src/hooks/useFocusedDeckActions.ts`.
+- Master recording toggle/download flow is extracted from `App.tsx` into `src/hooks/useRecordingManager.ts`.
+- Deck loop editing actions (Stretch, Rearrange, Delete Slice, Auto Slice, Delete Quiet) are extracted from `App.tsx` into `src/hooks/useDeckLoopTools.ts`.
 - Offline mixdown rendering pipeline is extracted from `App.tsx` into `src/utils/exportMixdown.ts`, keeping `App.tsx` focused on export UI state and download orchestration.
 
 ## Code Structure (Audio Engine Module)
