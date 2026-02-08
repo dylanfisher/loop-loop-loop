@@ -27,6 +27,7 @@ type AppHeaderProps = {
   onGlobalPlaybackToggle: () => void;
   hasActivePlayback: boolean;
   recording: boolean;
+  savingRecording: boolean;
   onRecordToggle: () => void;
   showSessionPanel: boolean;
   onToggleSessionPanel: () => void;
@@ -71,6 +72,7 @@ const AppHeader = ({
   onGlobalPlaybackToggle,
   hasActivePlayback,
   recording,
+  savingRecording,
   onRecordToggle,
   showSessionPanel,
   onToggleSessionPanel,
@@ -156,8 +158,9 @@ const AppHeader = ({
           className="transport__record"
           data-active={recording ? "true" : "false"}
           onClick={onRecordToggle}
+          disabled={savingRecording}
         >
-          {recording ? "Stop Recording" : "Record"}
+          {savingRecording ? "Saving Recording..." : recording ? "Stop Recording" : "Record"}
           <span
             className="transport__record-indicator"
             aria-hidden={!recording}

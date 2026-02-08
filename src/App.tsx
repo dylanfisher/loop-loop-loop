@@ -243,7 +243,7 @@ const App = () => {
     applyDeckFxPanelStatePatch,
     setClips,
   });
-  const { recording, handleRecordToggle } = useRecordingManager({
+  const { recording, savingRecording, handleRecordToggle } = useRecordingManager({
     decodeFile,
     getMasterStream,
     sessionName,
@@ -654,6 +654,7 @@ const App = () => {
         onGlobalPlaybackToggle={handleGlobalPlaybackToggle}
         hasActivePlayback={hasActivePlayback}
         recording={recording}
+        savingRecording={savingRecording}
         onRecordToggle={handleRecordToggle}
         showSessionPanel={showSessionPanel}
         onToggleSessionPanel={() => setShowSessionPanel((prev) => !prev)}

@@ -14,13 +14,16 @@ const useRecordingManager = ({
   sessionName,
 }: UseRecordingManagerArgs) => {
   const [recording, setRecording] = useState(false);
+  const [savingRecording, setSavingRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
 
   const handleRecordToggle = useCallback(() => {
+    if (savingRecording) return;
     if (recording) {
       const recorder = recorderRef.current;
       if (recorder && recorder.state !== "inactive") {
+        setSavingRecording(true);
         recorder.stop();
       }
       return;
@@ -36,6 +39,7 @@ const useRecordingManager = ({
       }
     };
     recorder.onstop = () => {
+      setRecording(false);
       const blob = new Blob(recordChunksRef.current, {
         type: recorder.mimeType || "audio/webm",
       });
@@ -76,15 +80,17 @@ const useRecordingManager = ({
           URL.revokeObjectURL(url);
         })
         .finally(() => {
-          setRecording(false);
+          setSavingRecording(false);
         });
     };
     recorder.start(250);
+    setSavingRecording(false);
     setRecording(true);
-  }, [decodeFile, getMasterStream, recording, sessionName]);
+  }, [decodeFile, getMasterStream, recording, savingRecording, sessionName]);
 
   return {
     recording,
+    savingRecording,
     handleRecordToggle,
   };
 };

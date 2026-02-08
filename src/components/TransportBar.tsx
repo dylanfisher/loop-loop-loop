@@ -6,6 +6,7 @@ type TransportBarProps = {
   onExport: () => void;
   exporting: boolean;
   recording: boolean;
+  savingRecording: boolean;
   onRecordToggle: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -19,6 +20,7 @@ const TransportBar = ({
   onExport,
   exporting,
   recording,
+  savingRecording,
   onRecordToggle,
   onUndo,
   onRedo,
@@ -57,8 +59,13 @@ const TransportBar = ({
             busyLabel="Exporting..."
           />
         </div>
-        <button type="button" className="transport__record" onClick={onRecordToggle}>
-          {recording ? "Stop Recording" : "Record"}
+        <button
+          type="button"
+          className="transport__record"
+          onClick={onRecordToggle}
+          disabled={savingRecording}
+        >
+          {savingRecording ? "Saving Recording..." : recording ? "Stop Recording" : "Record"}
         </button>
       </div>
     </section>
