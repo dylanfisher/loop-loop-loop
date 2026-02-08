@@ -135,6 +135,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Optional WASM wrappers in `src/utils/` for precompiled DSP kernels.
 - App-level pure helpers are extracted to `src/utils/appHelpers.ts` to keep `App.tsx` focused on orchestration.
 - `useDecks` shared constants/defaults/automation helper types are extracted to `src/hooks/useDecksShared.ts` to keep deck lifecycle/state transitions centralized in the hook body.
+- Session/autosave/import-export and zip drag/drop orchestration are extracted from `App.tsx` into `src/hooks/useSessionManager.ts`.
+- Global keyboard shortcut registration is extracted from `App.tsx` into `src/hooks/useGlobalKeyboardShortcuts.ts`.
 
 ## Code Structure (Audio Engine Module)
 - `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.
