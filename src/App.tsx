@@ -12,6 +12,7 @@ import useGlobalKeyboardShortcuts from "./hooks/useGlobalKeyboardShortcuts";
 import useFocusedDeckActions from "./hooks/useFocusedDeckActions";
 import useClipLibrary from "./hooks/useClipLibrary";
 import useDeckLoopTools from "./hooks/useDeckLoopTools";
+import useDeckStackProps from "./hooks/useDeckStackProps";
 import useRearrangerRuntime from "./hooks/useRearrangerRuntime";
 import useRecordingManager from "./hooks/useRecordingManager";
 import PerfOverlay from "./components/PerfOverlay";
@@ -495,6 +496,101 @@ const App = () => {
     setDeckZoom,
     zoomSteps: ZOOM_STEPS,
   });
+  const deckStackProps = useDeckStackProps({
+    decks,
+    deckLayoutMode,
+    zipDragOver,
+    activeDeckId,
+    scrollToDeckId,
+    setScrollToDeckId,
+    handleDeckActivate,
+    removeDeck,
+    handleLoadClick,
+    handleFileSelected,
+    playDeck,
+    pauseDeck,
+    stopDeck,
+    setDeckGain,
+    setDeckFilter,
+    setDeckResonance,
+    setDeckEqLow,
+    setDeckEqMid,
+    setDeckEqHigh,
+    setDeckEqMode,
+    setDeckParametricEqBands,
+    setDeckDelayTime,
+    setDeckDelayFeedback,
+    setDeckDelayMix,
+    setDeckDelayTone,
+    setDeckDelayPingPong,
+    setDeckDelaySaturation,
+    setDeckDelayDamping,
+    setDeckDelaySafety,
+    setDeckDelaySliceSync,
+    setDeckVocoderMix,
+    setDeckVocoderCarrierDeckId,
+    setDeckVocoderModulatorMonitor,
+    setDeckVocoderModDrive,
+    setDeckVocoderBandCount,
+    setDeckVocoderAttackMs,
+    setDeckVocoderReleaseMs,
+    setDeckVocoderNoiseMix,
+    setDeckVocoderGateThreshold,
+    setDeckBalance,
+    setDeckPitchShift,
+    seekDeck,
+    setDeckZoom,
+    setDeckLoop,
+    setDeckLoopBounds,
+    commitDeckLoopBoundsHistory,
+    setDeckTempoOffset,
+    setDeckTempoPitchSync,
+    setDeckWidthOverride,
+    setDeckStretchRatio,
+    setDeckStretchWindowSize,
+    setDeckStretchStereoWidth,
+    setDeckStretchPhaseRandomness,
+    setDeckStretchTiltDb,
+    setDeckStretchScatter,
+    setDeckRearrangerSlices,
+    setDeckRearrangerSwapCount,
+    setDeckRearrangerChaos,
+    setDeckRearrangerReverse,
+    setDeckRearrangerSensitivity,
+    setDeckRearrangerQuietThreshold,
+    setDeckRearrangerSliceFadeMs,
+    setDeckRearrangerSliceDelaySec,
+    setDeckRearrangerPingPong,
+    setDeckRearrangerAuto,
+    setDeckRearrangerRegions,
+    handleDeleteRearrangerSlice,
+    handleAutoSliceRearranger,
+    handleTrimQuietRearranger,
+    handleRearrangeLoop,
+    setDeckFxPanelOpen,
+    setDeckFxPanelsOpen,
+    resetDeckFx,
+    handleStretchLoop,
+    stretchEstimateByDeckId,
+    automationState,
+    startAutomationRecording,
+    stopAutomationRecording,
+    updateAutomationValue,
+    getAutomationPlayhead,
+    toggleAutomationActive,
+    resetAutomationTrack,
+    applyAutomationPreset,
+    adjustAutomationLength,
+    adjustAutomationAmplitude,
+    invertAutomation,
+    setAutomationDuration,
+    getDeckPosition,
+    getDeckPlaybackSnapshot,
+    setFileInputRef,
+    handleSaveLoopClip,
+    handleCropLoop,
+    handleDuplicateLoop,
+  });
 
   useGlobalKeyboardShortcuts({
     addDeck,
@@ -613,119 +709,7 @@ const App = () => {
           onUpdateClip={updateClip}
           onRemoveClip={removeClip}
         />
-        <DeckStack
-          decks={decks}
-          layoutMode={deckLayoutMode}
-          zipDragActive={zipDragOver}
-          activeDeckId={activeDeckId}
-          scrollToDeckId={scrollToDeckId}
-          onScrollComplete={(id) => {
-            if (scrollToDeckId === id) {
-              setScrollToDeckId(null);
-            }
-          }}
-          onDeckActivate={handleDeckActivate}
-          onRemoveDeck={removeDeck}
-          onLoadClick={handleLoadClick}
-          onFileSelected={handleFileSelected}
-          onPlay={playDeck}
-          onPause={pauseDeck}
-          onStop={stopDeck}
-          onGainChange={setDeckGain}
-          onFilterChange={setDeckFilter}
-          onResonanceChange={setDeckResonance}
-          onEqLowChange={setDeckEqLow}
-          onEqMidChange={setDeckEqMid}
-          onEqHighChange={setDeckEqHigh}
-          onEqModeChange={setDeckEqMode}
-          onParametricEqBandsChange={setDeckParametricEqBands}
-          onDelayTimeChange={setDeckDelayTime}
-          onDelayFeedbackChange={setDeckDelayFeedback}
-          onDelayMixChange={setDeckDelayMix}
-          onDelayToneChange={setDeckDelayTone}
-          onDelayPingPongChange={setDeckDelayPingPong}
-          onDelaySaturationChange={setDeckDelaySaturation}
-          onDelayDampingChange={setDeckDelayDamping}
-          onDelaySafetyChange={setDeckDelaySafety}
-          onDelaySliceSyncChange={setDeckDelaySliceSync}
-          onVocoderMixChange={setDeckVocoderMix}
-          onVocoderCarrierDeckIdChange={setDeckVocoderCarrierDeckId}
-          onVocoderModulatorMonitorChange={setDeckVocoderModulatorMonitor}
-          onVocoderModDriveChange={setDeckVocoderModDrive}
-          onVocoderBandCountChange={setDeckVocoderBandCount}
-          onVocoderAttackMsChange={setDeckVocoderAttackMs}
-          onVocoderReleaseMsChange={setDeckVocoderReleaseMs}
-          onVocoderPhaseRotateChange={setDeckVocoderNoiseMix}
-          onVocoderGateThresholdChange={setDeckVocoderGateThreshold}
-          onDisableDeckVocoder={(id) => {
-            setDeckVocoderMix(id, 0);
-            setDeckVocoderCarrierDeckId(id, null);
-            setDeckVocoderModulatorMonitor(id, 0);
-            setDeckVocoderModDrive(id, 2);
-          }}
-          onDisableDeckVocoders={(ids) => {
-            ids.forEach((id) => {
-              setDeckVocoderMix(id, 0);
-              setDeckVocoderCarrierDeckId(id, null);
-              setDeckVocoderModulatorMonitor(id, 0);
-              setDeckVocoderModDrive(id, 2);
-            });
-          }}
-          onBalanceChange={setDeckBalance}
-          onPitchShiftChange={setDeckPitchShift}
-          onSeek={seekDeck}
-          onZoomChange={setDeckZoom}
-          onLoopChange={setDeckLoop}
-          onLoopBoundsChange={setDeckLoopBounds}
-          onLoopBoundsChangeComplete={commitDeckLoopBoundsHistory}
-          onTempoOffsetChange={setDeckTempoOffset}
-          onTempoPitchSyncChange={setDeckTempoPitchSync}
-          onDeckWidthOverrideChange={setDeckWidthOverride}
-          onStretchRatioChange={setDeckStretchRatio}
-          onStretchWindowSizeChange={setDeckStretchWindowSize}
-          onStretchStereoWidthChange={setDeckStretchStereoWidth}
-          onStretchPhaseRandomnessChange={setDeckStretchPhaseRandomness}
-          onStretchTiltDbChange={setDeckStretchTiltDb}
-          onStretchScatterChange={setDeckStretchScatter}
-          onRearrangerSlicesChange={setDeckRearrangerSlices}
-          onRearrangerSwapCountChange={setDeckRearrangerSwapCount}
-          onRearrangerChaosChange={setDeckRearrangerChaos}
-          onRearrangerReverseChange={setDeckRearrangerReverse}
-          onRearrangerSensitivityChange={setDeckRearrangerSensitivity}
-          onRearrangerQuietThresholdChange={setDeckRearrangerQuietThreshold}
-          onRearrangerSliceFadeChange={setDeckRearrangerSliceFadeMs}
-          onRearrangerSliceDelayChange={setDeckRearrangerSliceDelaySec}
-          onRearrangerPingPongChange={setDeckRearrangerPingPong}
-          onRearrangerAutoChange={setDeckRearrangerAuto}
-          onRearrangerRegionsChange={setDeckRearrangerRegions}
-          onRearrangerSliceDelete={handleDeleteRearrangerSlice}
-          onRearrangerAutoSlice={handleAutoSliceRearranger}
-          onRearrangerTrimQuiet={handleTrimQuietRearranger}
-          onRearrangeLoop={handleRearrangeLoop}
-          onFxPanelToggle={setDeckFxPanelOpen}
-          onFxPanelsToggleAll={setDeckFxPanelsOpen}
-          onFxResetAll={resetDeckFx}
-          onStretchLoop={handleStretchLoop}
-          stretchEstimateByDeckId={stretchEstimateByDeckId}
-          automationState={automationState}
-          onAutomationStart={startAutomationRecording}
-          onAutomationStop={stopAutomationRecording}
-          onAutomationValueChange={updateAutomationValue}
-          getAutomationPlayhead={getAutomationPlayhead}
-          onAutomationToggle={toggleAutomationActive}
-          onAutomationReset={resetAutomationTrack}
-          onAutomationPreset={applyAutomationPreset}
-          onAutomationLengthScale={adjustAutomationLength}
-          onAutomationAmplitudeScale={adjustAutomationAmplitude}
-          onAutomationInvert={invertAutomation}
-          onAutomationDurationChange={setAutomationDuration}
-          getDeckPosition={getDeckPosition}
-          getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}
-          setFileInputRef={setFileInputRef}
-          onSaveLoopClip={handleSaveLoopClip}
-          onCropLoop={handleCropLoop}
-          onDuplicateLoop={handleDuplicateLoop}
-        />
+        <DeckStack {...deckStackProps} />
       </main>
       <KeyboardShortcutsDialog
         open={showKeyboardShortcuts}

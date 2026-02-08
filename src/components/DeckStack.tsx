@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { DeckFxPanel, DeckState, EqMode, ParametricEqBand } from "../types/deck";
 import type { AutomationParam } from "../types/session";
 
-type DeckStackProps = {
+export type DeckStackProps = {
   decks: DeckState[];
   layoutMode: "single" | "two";
   zipDragActive?: boolean;
