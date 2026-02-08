@@ -137,6 +137,9 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - `useDecks` shared constants/defaults/automation helper types are extracted to `src/hooks/useDecksShared.ts` to keep deck lifecycle/state transitions centralized in the hook body.
 - Session/autosave/import-export and zip drag/drop orchestration are extracted from `App.tsx` into `src/hooks/useSessionManager.ts`.
 - Global keyboard shortcut registration is extracted from `App.tsx` into `src/hooks/useGlobalKeyboardShortcuts.ts`.
+- Clip lifecycle/render/load/save/crop/duplicate logic is extracted from `App.tsx` into `src/hooks/useClipLibrary.ts`.
+- Active-deck transport/loop/rearranger/zoom keyboard-targeted actions are extracted from `App.tsx` into `src/hooks/useFocusedDeckActions.ts`.
+- Offline mixdown rendering pipeline is extracted from `App.tsx` into `src/utils/exportMixdown.ts`, keeping `App.tsx` focused on export UI state and download orchestration.
 
 ## Code Structure (Audio Engine Module)
 - `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.
