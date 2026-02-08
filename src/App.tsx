@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import DeckStack from "./components/DeckStack";
 import ClipRecorder from "./components/ClipRecorder";
 import WelcomePanel from "./components/WelcomePanel";
-import AsyncActionButton from "./components/AsyncActionButton";
-import Knob from "./components/Knob";
+import AppHeader from "./components/AppHeader";
+import KeyboardShortcutsDialog from "./components/KeyboardShortcutsDialog";
+import AudioUnlockOverlay from "./components/AudioUnlockOverlay";
 import useDecks from "./hooks/useDecks";
 import useAudioEngine from "./hooks/useAudioEngine";
 import useSessionManager from "./hooks/useSessionManager";
@@ -544,265 +545,54 @@ const App = () => {
         </div>
       ) : null}
       {import.meta.env.DEV && debugPerf ? <PerfOverlay /> : null}
-      <header className="app__header">
-        <div className="app__header-row app__header-row--primary">
-          <div className="app__brand">Loop Loop Loop</div>
-          <div className="app__project">
-            {sessionName.trim() ? `Project: ${sessionName}` : "Project: Untitled"}
-          </div>
-          {debugPerf ? (
-            <div className="perf-panel" aria-live="polite">
-              <span className="perf-panel__label">Perf</span>
-              <span className="perf-panel__metric">{perfStats.fps} fps</span>
-              <span className="perf-panel__metric">{perfStats.frameMs} ms</span>
-              {perfStats.heapUsedMB !== null && perfStats.heapLimitMB !== null && (
-                <span className="perf-panel__metric">
-                  heap {perfStats.heapUsedMB}/{perfStats.heapLimitMB} MB
-                </span>
-              )}
-            </div>
-          ) : null}
-          <div className="app__header-actions">
-            <button
-              type="button"
-              onClick={undo}
-              disabled={!canUndo}
-              title="Undo (Cmd/Ctrl+Z)"
-              aria-label="Undo"
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              onClick={redo}
-              disabled={!canRedo}
-              title="Redo (Cmd/Ctrl+Shift+Z)"
-              aria-label="Redo"
-            >
-              →
-            </button>
-            <button type="button" onClick={() => addDeck()} title="Add deck (A)">
-              Add Deck
-            </button>
-            <button type="button" onClick={handleNewSession} title="New session">
-              New
-            </button>
-            <button
-              type="button"
-              onClick={handleGlobalPlaybackToggle}
-              title="Global play/pause (Shift+Space)"
-            >
-              {hasActivePlayback ? "Pause" : "Play"}
-            </button>
-            <button
-              type="button"
-              className="transport__record"
-              data-active={recording ? "true" : "false"}
-              onClick={handleRecordToggle}
-            >
-              {recording ? "Stop Recording" : "Record"}
-              <span
-                className="transport__record-indicator"
-                aria-hidden={!recording}
-                data-active={recording ? "true" : "false"}
-              />
-            </button>
-          </div>
-          <div className="app__header-right">
-            <button
-              type="button"
-              className={showSessionPanel ? "is-active" : undefined}
-              onClick={() => setShowSessionPanel((prev) => !prev)}
-              aria-expanded={showSessionPanel}
-              title="Show session restore and export controls"
-            >
-              Restore + Export
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setDeckLayoutMode((prev) => (prev === "single" ? "two" : "single"))
-              }
-              title={
-                deckLayoutMode === "single"
-                  ? "Switch deck layout to 2 columns."
-                  : "Switch deck layout to full single column."
-              }
-            >
-              {deckLayoutMode === "single" ? "2 Col" : "1 Col"}
-            </button>
-            <div className="app__header-master" title="Master Gain">
-              <Knob
-                label="Master"
-                min={0}
-                max={1.5}
-                step={0.01}
-                value={masterGain}
-                defaultValue={0.9}
-                className="knob--compact knob--tiny knob--icon-only app__header-knob"
-                labelTitle="Controls global output level after all decks. Affects monitoring and recording."
-                onChange={setMasterGainValue}
-              />
-            </div>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => {
-                setShowKeyboardShortcuts(true);
-                setShowWelcomePanelOverride(true);
-              }}
-              title="Keyboard shortcuts (?)"
-              aria-label="Toggle keyboard shortcuts"
-              aria-pressed={showKeyboardShortcuts}
-            >
-              ?
-            </button>
-            <button
-              type="button"
-              className="icon-button app__theme-toggle"
-              onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {theme === "dark" ? (
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="4.5" />
-                  <line x1="12" y1="2" x2="12" y2="5" />
-                  <line x1="12" y1="19" x2="12" y2="22" />
-                  <line x1="2" y1="12" x2="5" y2="12" />
-                  <line x1="19" y1="12" x2="22" y2="12" />
-                  <line x1="4.2" y1="4.2" x2="6.4" y2="6.4" />
-                  <line x1="17.6" y1="17.6" x2="19.8" y2="19.8" />
-                  <line x1="17.6" y1="6.4" x2="19.8" y2="4.2" />
-                  <line x1="4.2" y1="19.8" x2="6.4" y2="17.6" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z" />
-                </svg>
-              )}
-            </button>
-          </div>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".zip"
-            onChange={handleImportChange}
-            className="session-bar__input"
-          />
-        </div>
-        {showSessionPanel ? (
-          <div className="app__header-row app__header-row--session">
-            <div className="session-bar__panel">
-              <div className="session-bar__details-body">
-                <div className="session-bar__section">
-                  <div className="app__header-hint">
-                    Sessions save inside this browser. Export creates a shareable zip.
-                  </div>
-                  <label className="session-bar__field">
-                    <span>Session Name</span>
-                    <input
-                      type="text"
-                      value={sessionName}
-                      onChange={(event) => setSessionName(event.target.value)}
-                      placeholder="Name this session"
-                    />
-                  </label>
-                  <div className="session-bar__group session-bar__group--save">
-                    <button
-                      type="button"
-                      onClick={handleSaveSession}
-                      disabled={sessionBusy}
-                      title="Save session (Cmd/Ctrl+S)"
-                    >
-                      Save Session
-                    </button>
-                  </div>
-                </div>
-                <div className="session-bar__section">
-                  <label className="session-bar__field">
-                    <span>Load Saved Session</span>
-                    <select
-                      value={selectedSessionId ?? ""}
-                      onChange={(event) => setSelectedSessionId(event.target.value || null)}
-                      disabled={sessions.length === 0}
-                    >
-                      <option value="">Select a session</option>
-                      {sessions.map((session) => (
-                        <option key={session.id} value={session.id}>
-                          {session.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="session-bar__group session-bar__group--restore">
-                    <button
-                      type="button"
-                      onClick={handleLoadSession}
-                      disabled={sessionBusy || sessions.length === 0}
-                      title="Open session (Cmd/Ctrl+O)"
-                    >
-                      Load Session
-                    </button>
-                  </div>
-                </div>
-                <div className="session-bar__section">
-                  <div className="session-bar__group session-bar__group--export">
-                    <button type="button" onClick={handleExportSession} disabled={sessionBusy}>
-                      Export Zip
-                    </button>
-                    <button type="button" onClick={handleImportClick} disabled={sessionBusy}>
-                      Import Zip
-                    </button>
-                  </div>
-                </div>
-                <div className="session-bar__section">
-                  <div className="session-bar__group session-bar__group--mix">
-                    <div className="transport__export">
-                      <label>
-                        Minutes
-                        <input
-                          type="number"
-                          min="0"
-                          max="60"
-                          step="1"
-                          value={exportMinutes}
-                          onChange={(event) =>
-                            handleExportMinutesChange(Number(event.target.value))
-                          }
-                        />
-                      </label>
-                      <label>
-                        Seconds
-                        <input
-                          type="number"
-                          min="0"
-                          max="59"
-                          step="1"
-                          value={exportSeconds}
-                          onChange={(event) =>
-                            handleExportSecondsChange(Number(event.target.value))
-                          }
-                        />
-                      </label>
-                      <AsyncActionButton
-                        onAction={exportMixdown}
-                        disabled={exporting}
-                        busy={exporting}
-                        idleLabel="Export Mix"
-                        busyLabel="Exporting..."
-                      />
-                      {exportEstimateLabel ? (
-                        <span className="transport__estimate">{exportEstimateLabel}</span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </header>
+      <AppHeader
+        debugPerf={debugPerf}
+        perfStats={perfStats}
+        sessionName={sessionName}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
+        onAddDeck={() => addDeck()}
+        onNewSession={handleNewSession}
+        onGlobalPlaybackToggle={handleGlobalPlaybackToggle}
+        hasActivePlayback={hasActivePlayback}
+        recording={recording}
+        onRecordToggle={handleRecordToggle}
+        showSessionPanel={showSessionPanel}
+        onToggleSessionPanel={() => setShowSessionPanel((prev) => !prev)}
+        deckLayoutMode={deckLayoutMode}
+        onToggleDeckLayout={() =>
+          setDeckLayoutMode((prev) => (prev === "single" ? "two" : "single"))
+        }
+        masterGain={masterGain}
+        onMasterGainChange={setMasterGainValue}
+        onOpenKeyboardShortcuts={() => {
+          setShowKeyboardShortcuts(true);
+          setShowWelcomePanelOverride(true);
+        }}
+        showKeyboardShortcuts={showKeyboardShortcuts}
+        theme={theme}
+        onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+        importInputRef={importInputRef}
+        onImportChange={handleImportChange}
+        sessionBusy={sessionBusy}
+        onSaveSession={handleSaveSession}
+        sessions={sessions}
+        selectedSessionId={selectedSessionId}
+        onSelectedSessionIdChange={setSelectedSessionId}
+        onLoadSession={handleLoadSession}
+        onExportSession={handleExportSession}
+        onImportClick={handleImportClick}
+        exportMinutes={exportMinutes}
+        exportSeconds={exportSeconds}
+        onExportMinutesChange={handleExportMinutesChange}
+        onExportSecondsChange={handleExportSecondsChange}
+        onExportMix={exportMixdown}
+        exporting={exporting}
+        exportEstimateLabel={exportEstimateLabel}
+        onSessionNameChange={setSessionName}
+      />
 
       <main className="app__main">
         {showWelcomePanel ? (
@@ -937,60 +727,15 @@ const App = () => {
           onDuplicateLoop={handleDuplicateLoop}
         />
       </main>
-      {showKeyboardShortcuts ? (
-        <div className="app__shortcuts" role="dialog" aria-modal="false" aria-label="Keyboard shortcuts">
-          <div className="app__shortcuts-card">
-            <div className="app__shortcuts-header">
-              <strong>Keyboard Shortcuts</strong>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setShowKeyboardShortcuts(false)}
-                aria-label="Close keyboard shortcuts"
-              >
-                ×
-              </button>
-            </div>
-            <ul className="app__shortcuts-list">
-              <li><kbd>Space</kbd> Play/Pause active deck</li>
-              <li><kbd>Shift</kbd> + <kbd>Space</kbd> Global Play/Pause</li>
-              <li><kbd>R</kbd> Toggle Rearranger panel (active deck)</li>
-              <li><kbd>L</kbd> Toggle loop (active deck)</li>
-              <li><kbd>Shift</kbd> + <kbd>L</kbd> Reset loop to full file</li>
-              <li><kbd>C</kbd> Crop active deck to loop</li>
-              <li><kbd>D</kbd> Duplicate active deck</li>
-              <li><kbd>Delete</kbd>/<kbd>Backspace</kbd> Remove active deck</li>
-              <li><kbd>=</kbd> Zoom out waveform</li>
-              <li><kbd>-</kbd> Zoom in waveform</li>
-              <li><kbd>A</kbd> Add deck</li>
-              <li><kbd>Cmd/Ctrl</kbd> + <kbd>Z</kbd> Undo</li>
-              <li><kbd>Cmd/Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> Redo</li>
-              <li><kbd>Cmd/Ctrl</kbd> + <kbd>S</kbd> Save session</li>
-              <li><kbd>Cmd/Ctrl</kbd> + <kbd>O</kbd> Open session</li>
-              <li><kbd>?</kbd> Toggle this panel</li>
-            </ul>
-          </div>
-        </div>
-      ) : null}
-      {audioContextState !== "running" && !import.meta.env.DEV ? (
-        <div className="audio-unlock" role="dialog" aria-modal="true" aria-label="Enable audio">
-          <div className="audio-unlock__card">
-            <div className="audio-unlock__glow" aria-hidden="true" />
-            <div className="audio-unlock__badge">Audio Gate</div>
-            <h2>Enable Audio Engine</h2>
-            <p>
-              Your browser requires a user gesture before audio can play. Tap below
-              to unlock live playback, recording, and exports.
-            </p>
-            <button type="button" className="audio-unlock__action" onClick={handleEnableAudio}>
-              Enable Audio
-            </button>
-            <div className="audio-unlock__hint">
-              {audioUnlockError ?? "Tip: Spacebar works too."}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <KeyboardShortcutsDialog
+        open={showKeyboardShortcuts}
+        onClose={() => setShowKeyboardShortcuts(false)}
+      />
+      <AudioUnlockOverlay
+        open={audioContextState !== "running" && !import.meta.env.DEV}
+        audioUnlockError={audioUnlockError}
+        onEnableAudio={() => void handleEnableAudio()}
+      />
     </div>
   );
 };
