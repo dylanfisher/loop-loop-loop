@@ -55,6 +55,9 @@ export type DeckState = {
   delayTone: number;
   delayPingPong: boolean;
   delaySliceSync: boolean;
+  delaySaturation?: number;
+  delayDamping?: number;
+  delaySafety?: number;
   rearrangerSlices: number;
   rearrangerSwapCount: number;
   rearrangerChaos: number;

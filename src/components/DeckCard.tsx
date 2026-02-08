@@ -33,6 +33,9 @@ type DeckCardProps = {
   onDelayMixChange: (id: number, value: number) => void;
   onDelayToneChange: (id: number, value: number) => void;
   onDelayPingPongChange: (id: number, value: boolean) => void;
+  onDelaySaturationChange: (id: number, value: number) => void;
+  onDelayDampingChange: (id: number, value: number) => void;
+  onDelaySafetyChange: (id: number, value: number) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
   onVocoderMixChange: (id: number, value: number) => void;
   onVocoderCarrierDeckIdChange: (id: number, value: number | null) => void;
@@ -199,6 +202,9 @@ const DeckCard = ({
   onDelayMixChange,
   onDelayToneChange,
   onDelayPingPongChange,
+  onDelaySaturationChange,
+  onDelayDampingChange,
+  onDelaySafetyChange,
   onDelaySliceSyncChange,
   onVocoderMixChange,
   onVocoderCarrierDeckIdChange,
@@ -786,6 +792,9 @@ const DeckCard = ({
           isDifferent(deck.delayTime, 0.35) ||
           isDifferent(deck.delayFeedback, 0.35) ||
           isDifferent(deck.delayTone, 6000, 1) ||
+          isDifferent(deck.delaySaturation ?? 0, 0) ||
+          isDifferent(deck.delayDamping ?? 0, 0) ||
+          isDifferent(deck.delaySafety ?? 0.35, 0.35) ||
           deck.delayPingPong ||
           deck.delaySliceSync
         ),
@@ -829,7 +838,7 @@ const DeckCard = ({
     pitch: "Pitch: semitone shift for key matching or creative detune.",
     vocoder:
       "Vocoder: this deck is the carrier; select another deck as the modulator envelope source.",
-    delay: "Delay: time, feedback, tone, mix, and ping-pong echo.",
+    delay: "Delay: time, feedback, tone, saturation, damping, safety, mix, and ping-pong echo.",
     rearranger:
       "Rearranger: Auto Slice detects transient boundaries. Delete Quiet removes low-energy spans in the loop. You can also click waveform between boundaries to add slices; hold Shift and click a slice to destructively remove that slice audio.",
     stretch: "Stretch: offline Paulstretch render with phase/width/tilt/scatter controls.",
@@ -1996,7 +2005,7 @@ const DeckCard = ({
                 className="knob--compact"
                 label="Feedback"
                 min={0}
-                max={0.95}
+                max={0.99}
                 step={0.01}
                 value={deck.delayFeedback}
                 defaultValue={0.35}
@@ -2015,6 +2024,42 @@ const DeckCard = ({
                 labelTitle="Low-pass filter inside the feedback path. Lower = darker repeats."
                 onChange={(next) => onDelayToneChange(deck.id, next)}
                 formatValue={(value, fine) => `${value.toFixed(fine ? 1 : 0)} Hz`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Saturation"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delaySaturation ?? 0}
+                defaultValue={0}
+                labelTitle="Drive soft-clipping in the feedback path to tame peaks and add harmonic grit."
+                onChange={(next) => onDelaySaturationChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Damping"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delayDamping ?? 0}
+                defaultValue={0}
+                labelTitle="Extra high-frequency damping per repeat for smoother, less brittle tails."
+                onChange={(next) => onDelayDampingChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Safety"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delaySafety ?? 0}
+                defaultValue={0}
+                labelTitle="Limiter-style soft clamp on delayed return to keep high-feedback loops musical."
+                onChange={(next) => onDelaySafetyChange(deck.id, next)}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
             </div>
             <div className="deck__delay-options deck__fx-footer">

@@ -13,7 +13,13 @@ import {
   type RearrangerPingPongNodes,
 } from "./rearrangerPingPong";
 import { createLimiter, createSoftClipper } from "./clipper";
-import { normalizeDelayParams } from "./effects/delay";
+import {
+  createSoftClipCurve,
+  mapDelayDampingToCutoff,
+  mapDelaySaturationDrive,
+  mapDelaySafetyDrive,
+  normalizeDelayParams,
+} from "./effects/delay";
 import {
   hasActiveParametricEq,
   normalizeParametricEqBands,
@@ -68,6 +74,17 @@ type DeckNodes = {
   delayFeedbackR: GainNode;
   delayToneL: BiquadFilterNode;
   delayToneR: BiquadFilterNode;
+  delayDampingL: BiquadFilterNode;
+  delayDampingR: BiquadFilterNode;
+  delaySaturationDriveL: GainNode;
+  delaySaturationDriveR: GainNode;
+  delaySaturationShapeL: WaveShaperNode;
+  delaySaturationShapeR: WaveShaperNode;
+  delaySaturationOutL: GainNode;
+  delaySaturationOutR: GainNode;
+  delaySafetyDrive: GainNode;
+  delaySafetyShape: WaveShaperNode;
+  delaySafetyOut: GainNode;
   delayPingPong: boolean;
   delayActive: boolean;
   vocoderRouted: boolean;
@@ -134,6 +151,9 @@ const pendingDelayFeedback = new Map<number, number>();
 const pendingDelayMix = new Map<number, number>();
 const pendingDelayTone = new Map<number, number>();
 const pendingDelayPingPong = new Map<number, boolean>();
+const pendingDelaySaturation = new Map<number, number>();
+const pendingDelayDamping = new Map<number, number>();
+const pendingDelaySafety = new Map<number, number>();
 const pendingVocoderMix = new Map<number, number>();
 const pendingVocoderCarrierDeckId = new Map<number, number | null>();
 const pendingVocoderModulatorMonitor = new Map<number, number>();
@@ -205,17 +225,33 @@ const connectDelayFeedback = (nodes: DeckNodes, pingPong: boolean) => {
   nodes.delayFeedbackR.disconnect();
   nodes.delayToneL.disconnect();
   nodes.delayToneR.disconnect();
+  nodes.delayDampingL.disconnect();
+  nodes.delayDampingR.disconnect();
+  nodes.delaySaturationDriveL.disconnect();
+  nodes.delaySaturationDriveR.disconnect();
+  nodes.delaySaturationShapeL.disconnect();
+  nodes.delaySaturationShapeR.disconnect();
+  nodes.delaySaturationOutL.disconnect();
+  nodes.delaySaturationOutR.disconnect();
 
   nodes.delayL.connect(nodes.delayFeedbackL);
   nodes.delayR.connect(nodes.delayFeedbackR);
   nodes.delayFeedbackL.connect(nodes.delayToneL);
   nodes.delayFeedbackR.connect(nodes.delayToneR);
+  nodes.delayToneL.connect(nodes.delayDampingL);
+  nodes.delayToneR.connect(nodes.delayDampingR);
+  nodes.delayDampingL.connect(nodes.delaySaturationDriveL);
+  nodes.delayDampingR.connect(nodes.delaySaturationDriveR);
+  nodes.delaySaturationDriveL.connect(nodes.delaySaturationShapeL);
+  nodes.delaySaturationDriveR.connect(nodes.delaySaturationShapeR);
+  nodes.delaySaturationShapeL.connect(nodes.delaySaturationOutL);
+  nodes.delaySaturationShapeR.connect(nodes.delaySaturationOutR);
   if (pingPong) {
-    nodes.delayToneL.connect(nodes.delayR);
-    nodes.delayToneR.connect(nodes.delayL);
+    nodes.delaySaturationOutL.connect(nodes.delayR);
+    nodes.delaySaturationOutR.connect(nodes.delayL);
   } else {
-    nodes.delayToneL.connect(nodes.delayL);
-    nodes.delayToneR.connect(nodes.delayR);
+    nodes.delaySaturationOutL.connect(nodes.delayL);
+    nodes.delaySaturationOutR.connect(nodes.delayR);
   }
   nodes.delayPingPong = pingPong;
 };
@@ -225,11 +261,11 @@ const setDelayRouting = (nodes: DeckNodes, active: boolean) => {
   const source = nodes.vocoderRouted ? nodes.vocoder.output : nodes.postEq;
   if (nodes.delayActive) {
     safeDisconnect(source, nodes.delaySplit);
-    safeDisconnect(nodes.delayMerge, nodes.delayWet);
+    safeDisconnect(nodes.delaySafetyOut, nodes.delayWet);
   }
   if (active) {
     source.connect(nodes.delaySplit);
-    nodes.delayMerge.connect(nodes.delayWet);
+    nodes.delaySafetyOut.connect(nodes.delayWet);
   }
   nodes.delayActive = active;
 };
@@ -409,6 +445,9 @@ const ensureDeckNodes = (
   delayMix: number,
   delayTone: number,
   delayPingPong: boolean,
+  delaySaturation: number,
+  delayDamping: number,
+  delaySafety: number,
   vocoderMix: number,
   vocoderCarrierDeckId: number | null,
   vocoderModulatorMonitor: number,
@@ -425,6 +464,9 @@ const ensureDeckNodes = (
     feedback: delayFeedback,
     mix: delayMix,
     tone: delayTone,
+    saturation: delaySaturation,
+    damping: delayDamping,
+    safety: delaySafety,
     pingPong: delayPingPong,
   });
   let nodes = deckNodes.get(deckId);
@@ -499,8 +541,21 @@ const ensureDeckNodes = (
     const delayFeedbackR = context.createGain();
     const delayToneL = context.createBiquadFilter();
     const delayToneR = context.createBiquadFilter();
+    const delayDampingL = context.createBiquadFilter();
+    const delayDampingR = context.createBiquadFilter();
+    const delaySaturationDriveL = context.createGain();
+    const delaySaturationDriveR = context.createGain();
+    const delaySaturationShapeL = context.createWaveShaper();
+    const delaySaturationShapeR = context.createWaveShaper();
+    const delaySaturationOutL = context.createGain();
+    const delaySaturationOutR = context.createGain();
+    const delaySafetyDrive = context.createGain();
+    const delaySafetyShape = context.createWaveShaper();
+    const delaySafetyOut = context.createGain();
     delayToneL.type = "lowpass";
     delayToneR.type = "lowpass";
+    delayDampingL.type = "lowpass";
+    delayDampingR.type = "lowpass";
     const nextDelayTime = pendingDelayTime.get(deckId) ?? normalizedDelay.time;
     delayL.delayTime.value = nextDelayTime;
     delayR.delayTime.value = nextDelayTime;
@@ -510,6 +565,26 @@ const ensureDeckNodes = (
     const nextDelayTone = pendingDelayTone.get(deckId) ?? normalizedDelay.tone;
     delayToneL.frequency.value = nextDelayTone;
     delayToneR.frequency.value = nextDelayTone;
+    const nextDelayDamping = pendingDelayDamping.get(deckId) ?? normalizedDelay.damping;
+    const nextDampingCutoff = mapDelayDampingToCutoff(nextDelayDamping);
+    delayDampingL.frequency.value = nextDampingCutoff;
+    delayDampingR.frequency.value = nextDampingCutoff;
+    const nextDelaySaturation = pendingDelaySaturation.get(deckId) ?? normalizedDelay.saturation;
+    const nextSaturationDrive = mapDelaySaturationDrive(nextDelaySaturation);
+    delaySaturationDriveL.gain.value = nextSaturationDrive;
+    delaySaturationDriveR.gain.value = nextSaturationDrive;
+    delaySaturationShapeL.curve = createSoftClipCurve(nextSaturationDrive);
+    delaySaturationShapeR.curve = createSoftClipCurve(nextSaturationDrive);
+    delaySaturationShapeL.oversample = "2x";
+    delaySaturationShapeR.oversample = "2x";
+    delaySaturationOutL.gain.value = 1 / nextSaturationDrive;
+    delaySaturationOutR.gain.value = 1 / nextSaturationDrive;
+    const nextDelaySafety = pendingDelaySafety.get(deckId) ?? normalizedDelay.safety;
+    const nextSafetyDrive = mapDelaySafetyDrive(nextDelaySafety);
+    delaySafetyDrive.gain.value = nextSafetyDrive;
+    delaySafetyShape.curve = createSoftClipCurve(nextSafetyDrive);
+    delaySafetyShape.oversample = "2x";
+    delaySafetyOut.gain.value = 1 / nextSafetyDrive;
     const nextDelayMix = pendingDelayMix.get(deckId) ?? normalizedDelay.mix;
     delayWet.gain.value = nextDelayMix;
     delayDry.gain.value = 1 - nextDelayMix;
@@ -589,6 +664,9 @@ const ensureDeckNodes = (
     delaySplit.connect(delayR, 1);
     delayL.connect(delayMerge, 0, 0);
     delayR.connect(delayMerge, 0, 1);
+    delayMerge.connect(delaySafetyDrive);
+    delaySafetyDrive.connect(delaySafetyShape);
+    delaySafetyShape.connect(delaySafetyOut);
     delayWet.connect(deckGain);
     delayDry.connect(deckGain);
     deckGain.connect(limiter);
@@ -619,6 +697,17 @@ const ensureDeckNodes = (
       delayFeedbackR,
       delayToneL,
       delayToneR,
+      delayDampingL,
+      delayDampingR,
+      delaySaturationDriveL,
+      delaySaturationDriveR,
+      delaySaturationShapeL,
+      delaySaturationShapeR,
+      delaySaturationOutL,
+      delaySaturationOutR,
+      delaySafetyDrive,
+      delaySafetyShape,
+      delaySafetyOut,
       delayPingPong: !nextDelayPingPong,
       delayActive: false,
       vocoderRouted: true,
@@ -688,6 +777,20 @@ const ensureDeckNodes = (
     nodes.delayFeedbackR.gain.value = normalizedDelay.feedback;
     nodes.delayToneL.frequency.value = normalizedDelay.tone;
     nodes.delayToneR.frequency.value = normalizedDelay.tone;
+    const dampingCutoff = mapDelayDampingToCutoff(normalizedDelay.damping);
+    nodes.delayDampingL.frequency.value = dampingCutoff;
+    nodes.delayDampingR.frequency.value = dampingCutoff;
+    const saturationDrive = mapDelaySaturationDrive(normalizedDelay.saturation);
+    nodes.delaySaturationDriveL.gain.value = saturationDrive;
+    nodes.delaySaturationDriveR.gain.value = saturationDrive;
+    nodes.delaySaturationShapeL.curve = createSoftClipCurve(saturationDrive);
+    nodes.delaySaturationShapeR.curve = createSoftClipCurve(saturationDrive);
+    nodes.delaySaturationOutL.gain.value = 1 / saturationDrive;
+    nodes.delaySaturationOutR.gain.value = 1 / saturationDrive;
+    const safetyDrive = mapDelaySafetyDrive(normalizedDelay.safety);
+    nodes.delaySafetyDrive.gain.value = safetyDrive;
+    nodes.delaySafetyShape.curve = createSoftClipCurve(safetyDrive);
+    nodes.delaySafetyOut.gain.value = 1 / safetyDrive;
     nodes.delayWet.gain.value = normalizedDelay.mix;
     nodes.delayDry.gain.value = 1 - normalizedDelay.mix;
     nodes.vocoderMix = pendingVocoderMix.get(deckId) ?? vocoderMix;
@@ -756,6 +859,9 @@ const ensureDeckNodes = (
   pendingDelayMix.delete(deckId);
   pendingDelayTone.delete(deckId);
   pendingDelayPingPong.delete(deckId);
+  pendingDelaySaturation.delete(deckId);
+  pendingDelayDamping.delete(deckId);
+  pendingDelaySafety.delete(deckId);
   pendingVocoderMix.delete(deckId);
   pendingVocoderCarrierDeckId.delete(deckId);
   pendingVocoderModulatorMonitor.delete(deckId);
@@ -793,6 +899,9 @@ export const playDeckBuffer = (
   delayMix: number,
   delayTone: number,
   delayPingPong: boolean,
+  delaySaturation: number,
+  delayDamping: number,
+  delaySafety: number,
   vocoderMix: number,
   vocoderCarrierDeckId: number | null,
   vocoderModulatorMonitor: number,
@@ -828,6 +937,9 @@ export const playDeckBuffer = (
     delayMix,
     delayTone,
     delayPingPong,
+    delaySaturation,
+    delayDamping,
+    delaySafety,
     vocoderMix,
     vocoderCarrierDeckId,
     vocoderModulatorMonitor,
@@ -1188,6 +1300,50 @@ export const setDeckDelayPingPongValue = (deckId: number, value: boolean) => {
   }
 };
 
+export const setDeckDelaySaturationValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ saturation: value }).saturation;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    const drive = mapDelaySaturationDrive(normalized);
+    nodes.delaySaturationDriveL.gain.value = drive;
+    nodes.delaySaturationDriveR.gain.value = drive;
+    nodes.delaySaturationShapeL.curve = createSoftClipCurve(drive);
+    nodes.delaySaturationShapeR.curve = createSoftClipCurve(drive);
+    nodes.delaySaturationOutL.gain.value = 1 / drive;
+    nodes.delaySaturationOutR.gain.value = 1 / drive;
+    pendingDelaySaturation.delete(deckId);
+  } else {
+    pendingDelaySaturation.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelayDampingValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ damping: value }).damping;
+  const cutoff = mapDelayDampingToCutoff(normalized);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delayDampingL.frequency.value = cutoff;
+    nodes.delayDampingR.frequency.value = cutoff;
+    pendingDelayDamping.delete(deckId);
+  } else {
+    pendingDelayDamping.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelaySafetyValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ safety: value }).safety;
+  const drive = mapDelaySafetyDrive(normalized);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delaySafetyDrive.gain.value = drive;
+    nodes.delaySafetyShape.curve = createSoftClipCurve(drive);
+    nodes.delaySafetyOut.gain.value = 1 / drive;
+    pendingDelaySafety.delete(deckId);
+  } else {
+    pendingDelaySafety.set(deckId, normalized);
+  }
+};
+
 export const setDeckVocoderMixValue = (deckId: number, value: number) => {
   const normalized = Math.min(Math.max(value, 0), 1);
   const nodes = deckNodes.get(deckId);
@@ -1400,6 +1556,17 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.delayFeedbackR.disconnect();
     nodes.delayToneL.disconnect();
     nodes.delayToneR.disconnect();
+    nodes.delayDampingL.disconnect();
+    nodes.delayDampingR.disconnect();
+    nodes.delaySaturationDriveL.disconnect();
+    nodes.delaySaturationDriveR.disconnect();
+    nodes.delaySaturationShapeL.disconnect();
+    nodes.delaySaturationShapeR.disconnect();
+    nodes.delaySaturationOutL.disconnect();
+    nodes.delaySaturationOutR.disconnect();
+    nodes.delaySafetyDrive.disconnect();
+    nodes.delaySafetyShape.disconnect();
+    nodes.delaySafetyOut.disconnect();
     disposeChannelVocoder(nodes.vocoder);
     nodes.postEq.disconnect();
     nodes.gain.disconnect();
@@ -1433,6 +1600,9 @@ export const removeDeckNodes = (deckId: number) => {
   pendingDelayMix.delete(deckId);
   pendingDelayTone.delete(deckId);
   pendingDelayPingPong.delete(deckId);
+  pendingDelaySaturation.delete(deckId);
+  pendingDelayDamping.delete(deckId);
+  pendingDelaySafety.delete(deckId);
   pendingVocoderMix.delete(deckId);
   pendingVocoderCarrierDeckId.delete(deckId);
   pendingVocoderModulatorMonitor.delete(deckId);

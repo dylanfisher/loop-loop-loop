@@ -39,6 +39,9 @@ const DEFAULT_DELAY_MIX = 0;
 const DEFAULT_DELAY_TONE = 6000;
 const DEFAULT_DELAY_PINGPONG = false;
 const DEFAULT_DELAY_SLICE_SYNC = false;
+const DEFAULT_DELAY_SATURATION = 0;
+const DEFAULT_DELAY_DAMPING = 0;
+const DEFAULT_DELAY_SAFETY = 0;
 const DEFAULT_VOCODER_MIX = 0;
 const DEFAULT_VOCODER_CARRIER_DECK_ID: number | null = null;
 const DEFAULT_VOCODER_MODULATOR_MONITOR = 0;
@@ -251,6 +254,9 @@ const useDecks = () => {
       delayTone: DEFAULT_DELAY_TONE,
       delayPingPong: DEFAULT_DELAY_PINGPONG,
       delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
+      delaySaturation: DEFAULT_DELAY_SATURATION,
+      delayDamping: DEFAULT_DELAY_DAMPING,
+      delaySafety: DEFAULT_DELAY_SAFETY,
       rearrangerSlices: DEFAULT_REARRANGER_SLICES,
       rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
       rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -291,6 +297,9 @@ const useDecks = () => {
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
+    setDeckDelaySaturation,
+    setDeckDelayDamping,
+    setDeckDelaySafety,
     setDeckVocoderMix,
     setDeckVocoderCarrierDeckId,
     setDeckVocoderModulatorMonitor,
@@ -421,6 +430,9 @@ const useDecks = () => {
         delayTone: number;
         delayPingPong: boolean;
         delaySliceSync?: boolean;
+        delaySaturation?: number;
+        delayDamping?: number;
+        delaySafety?: number;
       }
     ) => {
       const targets = getFilterTargets(settings.djFilter);
@@ -450,6 +462,12 @@ const useDecks = () => {
       setDeckDelayMix(deckId, settings.delayMix);
       setDeckDelayTone(deckId, settings.delayTone);
       setDeckDelayPingPong(deckId, settings.delayPingPong);
+      setDeckDelaySaturation(
+        deckId,
+        settings.delaySaturation ?? DEFAULT_DELAY_SATURATION
+      );
+      setDeckDelayDamping(deckId, settings.delayDamping ?? DEFAULT_DELAY_DAMPING);
+      setDeckDelaySafety(deckId, settings.delaySafety ?? DEFAULT_DELAY_SAFETY);
       setDeckPlaybackRate(deckId, clampPlaybackRate(1 + settings.tempoOffset / 100));
     },
     [
@@ -458,6 +476,9 @@ const useDecks = () => {
       setDeckDelayFeedback,
       setDeckDelayMix,
       setDeckDelayPingPong,
+      setDeckDelaySaturation,
+      setDeckDelayDamping,
+      setDeckDelaySafety,
       setDeckDelayTime,
       setDeckDelayTone,
       setDeckEqMode,
@@ -959,6 +980,9 @@ const useDecks = () => {
         setDeckDelayMix(deck.id, deck.delayMix);
         setDeckDelayTone(deck.id, deck.delayTone);
         setDeckDelayPingPong(deck.id, deck.delayPingPong);
+        setDeckDelaySaturation(deck.id, deck.delaySaturation ?? DEFAULT_DELAY_SATURATION);
+        setDeckDelayDamping(deck.id, deck.delayDamping ?? DEFAULT_DELAY_DAMPING);
+        setDeckDelaySafety(deck.id, deck.delaySafety ?? DEFAULT_DELAY_SAFETY);
         setDeckVocoderMix(deck.id, deck.vocoderMix);
         setDeckVocoderCarrierDeckId(deck.id, deck.vocoderCarrierDeckId);
         setDeckVocoderModulatorMonitor(deck.id, deck.vocoderModulatorMonitor);
@@ -1026,6 +1050,9 @@ const useDecks = () => {
           deck.delayMix,
           deck.delayTone,
           deck.delayPingPong,
+          deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+          deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+          deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
           deck.vocoderMix,
           deck.vocoderCarrierDeckId,
           deck.vocoderModulatorMonitor,
@@ -1067,6 +1094,9 @@ const useDecks = () => {
       setDeckDelayMix,
       setDeckDelayTone,
       setDeckDelayPingPong,
+      setDeckDelaySaturation,
+      setDeckDelayDamping,
+      setDeckDelaySafety,
       setDeckVocoderMix,
       setDeckVocoderCarrierDeckId,
       setDeckVocoderModulatorMonitor,
@@ -1347,6 +1377,9 @@ const useDecks = () => {
         delayTone: DEFAULT_DELAY_TONE,
         delayPingPong: DEFAULT_DELAY_PINGPONG,
         delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
+        delaySaturation: DEFAULT_DELAY_SATURATION,
+        delayDamping: DEFAULT_DELAY_DAMPING,
+        delaySafety: DEFAULT_DELAY_SAFETY,
         rearrangerSlices: DEFAULT_REARRANGER_SLICES,
         rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
         rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -1428,6 +1461,9 @@ const useDecks = () => {
             delayTone: DEFAULT_DELAY_TONE,
             delayPingPong: DEFAULT_DELAY_PINGPONG,
             delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
+            delaySaturation: DEFAULT_DELAY_SATURATION,
+            delayDamping: DEFAULT_DELAY_DAMPING,
+            delaySafety: DEFAULT_DELAY_SAFETY,
             rearrangerSlices: DEFAULT_REARRANGER_SLICES,
             rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
             rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -1508,6 +1544,9 @@ const useDecks = () => {
     const nextDelayTone = clipSettings?.delayTone ?? DEFAULT_DELAY_TONE;
     const nextDelayPingPong = clipSettings?.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
     const nextDelaySliceSync = clipSettings?.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC;
+    const nextDelaySaturation = clipSettings?.delaySaturation ?? DEFAULT_DELAY_SATURATION;
+    const nextDelayDamping = clipSettings?.delayDamping ?? DEFAULT_DELAY_DAMPING;
+    const nextDelaySafety = clipSettings?.delaySafety ?? DEFAULT_DELAY_SAFETY;
     const nextVocoderMix = clipSettings?.vocoderMix ?? DEFAULT_VOCODER_MIX;
     const nextVocoderCarrierDeckId =
       clipSettings?.vocoderCarrierDeckId ?? DEFAULT_VOCODER_CARRIER_DECK_ID;
@@ -1623,6 +1662,9 @@ const useDecks = () => {
         delay:
           currentPanels.delay ||
           nextDelayMix > FX_ACTIVE_EPSILON ||
+          nextDelaySaturation > FX_ACTIVE_EPSILON ||
+          nextDelayDamping > FX_ACTIVE_EPSILON ||
+          !approxEqual(nextDelaySafety, DEFAULT_DELAY_SAFETY) ||
           nextDelaySliceSync,
         rearranger:
           currentPanels.rearranger ||
@@ -1671,6 +1713,9 @@ const useDecks = () => {
       delayTone: nextDelayTone,
       delayPingPong: nextDelayPingPong,
       delaySliceSync: nextDelaySliceSync,
+      delaySaturation: nextDelaySaturation,
+      delayDamping: nextDelayDamping,
+      delaySafety: nextDelaySafety,
     });
     if (clipSettings?.automation) {
       applyAutomationSnapshots(id, clipSettings.automation, {
@@ -1739,6 +1784,9 @@ const useDecks = () => {
       delayTone: nextDelayTone,
       delayPingPong: nextDelayPingPong,
       delaySliceSync: nextDelaySliceSync,
+      delaySaturation: nextDelaySaturation,
+      delayDamping: nextDelayDamping,
+      delaySafety: nextDelaySafety,
       rearrangerSlices: nextRearrangerSlices,
       rearrangerSwapCount: nextRearrangerSwapCount,
       rearrangerChaos: nextRearrangerChaos,
@@ -1761,6 +1809,9 @@ const useDecks = () => {
     setDeckDelayMix(id, nextDelayMix);
     setDeckDelayTone(id, nextDelayTone);
     setDeckDelayPingPong(id, nextDelayPingPong);
+    setDeckDelaySaturation(id, nextDelaySaturation);
+    setDeckDelayDamping(id, nextDelayDamping);
+    setDeckDelaySafety(id, nextDelaySafety);
     setDeckVocoderMix(id, nextVocoderMix);
     setDeckVocoderCarrierDeckId(id, nextVocoderCarrierDeckId);
     setDeckVocoderModulatorMonitor(id, nextVocoderModulatorMonitor);
@@ -1823,6 +1874,9 @@ const useDecks = () => {
         delayTone: nextDelayTone,
         delayPingPong: nextDelayPingPong,
         delaySliceSync: nextDelaySliceSync,
+        delaySaturation: nextDelaySaturation,
+        delayDamping: nextDelayDamping,
+        delaySafety: nextDelaySafety,
         rearrangerSlices: nextRearrangerSlices,
       rearrangerSwapCount: nextRearrangerSwapCount,
       rearrangerChaos: nextRearrangerChaos,
@@ -1876,6 +1930,9 @@ const useDecks = () => {
           nextDelayMix,
           nextDelayTone,
           nextDelayPingPong,
+          nextDelaySaturation,
+          nextDelayDamping,
+          nextDelaySafety,
           nextVocoderMix,
           nextVocoderCarrierDeckId,
           nextVocoderModulatorMonitor,
@@ -1949,6 +2006,9 @@ const useDecks = () => {
       deck.delayMix,
       deck.delayTone,
       deck.delayPingPong,
+      deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+      deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+      deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
       deck.vocoderMix,
       deck.vocoderCarrierDeckId,
       deck.vocoderModulatorMonitor,
@@ -2079,6 +2139,9 @@ const useDecks = () => {
         deck.delayMix,
         deck.delayTone,
         deck.delayPingPong,
+        deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+        deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+        deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
         deck.vocoderMix,
         deck.vocoderCarrierDeckId,
         deck.vocoderModulatorMonitor,
@@ -2218,7 +2281,7 @@ const useDecks = () => {
   };
 
   const setDeckDelayFeedbackValue = (id: number, value: number) => {
-    const clamped = Math.min(Math.max(value, 0), 0.95);
+    const clamped = Math.min(Math.max(value, 0), 0.99);
     setDeckDelayFeedback(id, clamped);
     updateDeck(id, { delayFeedback: clamped }, false);
   };
@@ -2238,6 +2301,24 @@ const useDecks = () => {
   const setDeckDelayPingPongValue = (id: number, value: boolean) => {
     setDeckDelayPingPong(id, value);
     updateDeck(id, { delayPingPong: value }, false);
+  };
+
+  const setDeckDelaySaturationValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelaySaturation(id, clamped);
+    updateDeck(id, { delaySaturation: clamped }, false);
+  };
+
+  const setDeckDelayDampingValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelayDamping(id, clamped);
+    updateDeck(id, { delayDamping: clamped }, false);
+  };
+
+  const setDeckDelaySafetyValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelaySafety(id, clamped);
+    updateDeck(id, { delaySafety: clamped }, false);
   };
 
   const setDeckVocoderMixValue = (id: number, value: number) => {
@@ -2563,6 +2644,9 @@ const useDecks = () => {
           deck.delayMix,
           deck.delayTone,
           deck.delayPingPong,
+          deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+          deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+          deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
           deck.vocoderMix,
           deck.vocoderCarrierDeckId,
           deck.vocoderModulatorMonitor,
@@ -2687,6 +2771,9 @@ const useDecks = () => {
             deck.delayMix,
             deck.delayTone,
             deck.delayPingPong,
+            deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+            deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+            deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
             deck.vocoderMix,
             deck.vocoderCarrierDeckId,
             deck.vocoderModulatorMonitor,
@@ -2907,6 +2994,9 @@ const useDecks = () => {
       const nextDelayTone = deck.delayTone ?? DEFAULT_DELAY_TONE;
       const nextDelayPingPong = deck.delayPingPong ?? DEFAULT_DELAY_PINGPONG;
       const nextDelaySliceSync = deck.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC;
+      const nextDelaySaturation = deck.delaySaturation ?? DEFAULT_DELAY_SATURATION;
+      const nextDelayDamping = deck.delayDamping ?? DEFAULT_DELAY_DAMPING;
+      const nextDelaySafety = deck.delaySafety ?? DEFAULT_DELAY_SAFETY;
       const nextRearrangerSlices =
         options?.rearrangerSlices ?? deck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES;
       const nextRearrangerSwapCount =
@@ -2994,6 +3084,9 @@ const useDecks = () => {
         delayTone: nextDelayTone,
         delayPingPong: nextDelayPingPong,
         delaySliceSync: nextDelaySliceSync,
+        delaySaturation: nextDelaySaturation,
+        delayDamping: nextDelayDamping,
+        delaySafety: nextDelaySafety,
         rearrangerSlices: nextRearrangerSlices,
         rearrangerSwapCount: nextRearrangerSwapCount,
         rearrangerChaos: nextRearrangerChaos,
@@ -3041,6 +3134,9 @@ const useDecks = () => {
       setDeckDelayMix(id, nextDelayMix);
       setDeckDelayTone(id, nextDelayTone);
       setDeckDelayPingPong(id, nextDelayPingPong);
+      setDeckDelaySaturation(id, nextDelaySaturation);
+      setDeckDelayDamping(id, nextDelayDamping);
+      setDeckDelaySafety(id, nextDelaySafety);
       const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
       setDeckPlaybackRate(id, tempoRatio);
       setDeckLoopParams(id, true, nextLoopStartSeconds, nextLoopEndSeconds);
@@ -3075,6 +3171,9 @@ const useDecks = () => {
           nextDelayMix,
           nextDelayTone,
           nextDelayPingPong,
+          nextDelaySaturation,
+          nextDelayDamping,
+          nextDelaySafety,
           nextVocoderMix,
           nextVocoderCarrierDeckId,
           nextVocoderModulatorMonitor,
@@ -3100,6 +3199,9 @@ const useDecks = () => {
       setDeckDelayFeedback,
       setDeckDelayMix,
       setDeckDelayPingPong,
+      setDeckDelaySaturation,
+      setDeckDelayDamping,
+      setDeckDelaySafety,
       setDeckDelayTime,
       setDeckDelayTone,
       setDeckEqHigh,
@@ -3412,6 +3514,9 @@ const useDecks = () => {
         delayMix: DEFAULT_DELAY_MIX,
         delayTone: DEFAULT_DELAY_TONE,
         delayPingPong: DEFAULT_DELAY_PINGPONG,
+        delaySaturation: DEFAULT_DELAY_SATURATION,
+        delayDamping: DEFAULT_DELAY_DAMPING,
+        delaySafety: DEFAULT_DELAY_SAFETY,
       });
       resetAutomation(
         id,
@@ -3458,6 +3563,9 @@ const useDecks = () => {
           delayTone: DEFAULT_DELAY_TONE,
           delayPingPong: DEFAULT_DELAY_PINGPONG,
           delaySliceSync: DEFAULT_DELAY_SLICE_SYNC,
+          delaySaturation: DEFAULT_DELAY_SATURATION,
+          delayDamping: DEFAULT_DELAY_DAMPING,
+          delaySafety: DEFAULT_DELAY_SAFETY,
           rearrangerSlices: DEFAULT_REARRANGER_SLICES,
           rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
           rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -3600,6 +3708,9 @@ const useDecks = () => {
         delayTone: deck.delayTone,
         delayPingPong: deck.delayPingPong,
         delaySliceSync: deck.delaySliceSync,
+        delaySaturation: deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+        delayDamping: deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+        delaySafety: deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
         rearrangerSlices: deck.rearrangerSlices,
         rearrangerSwapCount: deck.rearrangerSwapCount,
         rearrangerChaos: deck.rearrangerChaos,
@@ -3784,6 +3895,9 @@ const useDecks = () => {
           delayTone: sessionDeck.delayTone ?? DEFAULT_DELAY_TONE,
           delayPingPong: sessionDeck.delayPingPong ?? DEFAULT_DELAY_PINGPONG,
           delaySliceSync: sessionDeck.delaySliceSync ?? DEFAULT_DELAY_SLICE_SYNC,
+          delaySaturation: sessionDeck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+          delayDamping: sessionDeck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+          delaySafety: sessionDeck.delaySafety ?? DEFAULT_DELAY_SAFETY,
           rearrangerSlices:
             sessionDeck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES,
           rearrangerSwapCount:
@@ -3885,6 +3999,9 @@ const useDecks = () => {
     setDeckDelayMix: setDeckDelayMixValue,
     setDeckDelayTone: setDeckDelayToneValue,
     setDeckDelayPingPong: setDeckDelayPingPongValue,
+    setDeckDelaySaturation: setDeckDelaySaturationValue,
+    setDeckDelayDamping: setDeckDelayDampingValue,
+    setDeckDelaySafety: setDeckDelaySafetyValue,
     setDeckVocoderMix: setDeckVocoderMixValue,
     setDeckVocoderCarrierDeckId: setDeckVocoderCarrierDeckIdValue,
     setDeckVocoderModulatorMonitor: setDeckVocoderModulatorMonitorValue,

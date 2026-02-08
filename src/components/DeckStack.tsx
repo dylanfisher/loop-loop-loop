@@ -35,6 +35,9 @@ type DeckStackProps = {
   onDelayMixChange: (id: number, value: number) => void;
   onDelayToneChange: (id: number, value: number) => void;
   onDelayPingPongChange: (id: number, value: boolean) => void;
+  onDelaySaturationChange: (id: number, value: number) => void;
+  onDelayDampingChange: (id: number, value: number) => void;
+  onDelaySafetyChange: (id: number, value: number) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
   onVocoderMixChange: (id: number, value: number) => void;
   onVocoderCarrierDeckIdChange: (id: number, value: number | null) => void;
@@ -158,6 +161,9 @@ const DeckStack = ({
   onDelayMixChange,
   onDelayToneChange,
   onDelayPingPongChange,
+  onDelaySaturationChange,
+  onDelayDampingChange,
+  onDelaySafetyChange,
   onDelaySliceSyncChange,
   onVocoderMixChange,
   onVocoderCarrierDeckIdChange,
@@ -317,6 +323,9 @@ const DeckStack = ({
               onDelayMixChange={onDelayMixChange}
               onDelayToneChange={onDelayToneChange}
               onDelayPingPongChange={onDelayPingPongChange}
+              onDelaySaturationChange={onDelaySaturationChange}
+              onDelayDampingChange={onDelayDampingChange}
+              onDelaySafetyChange={onDelaySafetyChange}
               onDelaySliceSyncChange={onDelaySliceSyncChange}
               onVocoderMixChange={onVocoderMixChange}
               onVocoderCarrierDeckIdChange={onVocoderCarrierDeckIdChange}

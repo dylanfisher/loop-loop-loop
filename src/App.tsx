@@ -625,6 +625,9 @@ const App = () => {
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
+    setDeckDelaySaturation,
+    setDeckDelayDamping,
+    setDeckDelaySafety,
     setDeckVocoderMix,
     setDeckVocoderCarrierDeckId,
     setDeckVocoderModulatorMonitor,
@@ -854,6 +857,9 @@ const App = () => {
         delayTone: deck.delayTone,
         delayPingPong: deck.delayPingPong,
         delaySliceSync: deck.delaySliceSync,
+        delaySaturation: deck.delaySaturation,
+        delayDamping: deck.delayDamping,
+        delaySafety: deck.delaySafety,
         rearrangerSlices: deck.rearrangerSlices,
         rearrangerSwapCount: deck.rearrangerSwapCount,
         rearrangerChaos: deck.rearrangerChaos,
@@ -1188,9 +1194,12 @@ const App = () => {
         ? automationState.get(deck.id)?.pitch?.currentValue
         : deck.pitchShift) ?? deck.pitchShift;
       const delayTime = Math.min(Math.max(deck.delayTime ?? 0.35, 0.01), 1.5);
-      const delayFeedback = Math.min(Math.max(deck.delayFeedback ?? 0.35, 0), 0.95);
+      const delayFeedback = Math.min(Math.max(deck.delayFeedback ?? 0.35, 0), 0.99);
       const delayMix = Math.min(Math.max(deck.delayMix ?? 0, 0), 1);
       const delayTone = Math.min(Math.max(deck.delayTone ?? 6000, 400), 12000);
+      const delaySaturation = Math.min(Math.max(deck.delaySaturation ?? 0, 0), 1);
+      const delayDamping = Math.min(Math.max(deck.delayDamping ?? 0, 0), 1);
+      const delaySafety = Math.min(Math.max(deck.delaySafety ?? 0.35, 0), 1);
       const delayPingPong = deck.delayPingPong ?? false;
       const modulatorOutputGain = getDeckModulatorOutputGain(deck.id);
 
@@ -1337,6 +1346,9 @@ const App = () => {
             feedback: delayFeedback,
             mix: delayMix,
             tone: delayTone,
+            saturation: delaySaturation,
+            damping: delayDamping,
+            safety: delaySafety,
             pingPong: delayPingPong,
           },
         },
@@ -3748,6 +3760,9 @@ const App = () => {
           onDelayMixChange={setDeckDelayMix}
           onDelayToneChange={setDeckDelayTone}
           onDelayPingPongChange={setDeckDelayPingPong}
+          onDelaySaturationChange={setDeckDelaySaturation}
+          onDelayDampingChange={setDeckDelayDamping}
+          onDelaySafetyChange={setDeckDelaySafety}
           onDelaySliceSyncChange={setDeckDelaySliceSync}
           onVocoderMixChange={setDeckVocoderMix}
           onVocoderCarrierDeckIdChange={setDeckVocoderCarrierDeckId}

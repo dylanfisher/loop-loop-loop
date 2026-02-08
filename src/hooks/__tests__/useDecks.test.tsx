@@ -37,6 +37,9 @@ const playBuffer = vi.fn(
     _delayMix?: number,
     _delayTone?: number,
     _delayPingPong?: boolean,
+    _delaySaturation?: number,
+    _delayDamping?: number,
+    _delaySafety?: number,
     _vocoderMix?: number,
     _vocoderCarrierDeckId?: number | null,
     _vocoderModulatorMonitor?: number,
@@ -74,6 +77,9 @@ const setDeckDelayFeedback = vi.fn();
 const setDeckDelayMix = vi.fn();
 const setDeckDelayTone = vi.fn();
 const setDeckDelayPingPong = vi.fn();
+const setDeckDelaySaturation = vi.fn();
+const setDeckDelayDamping = vi.fn();
+const setDeckDelaySafety = vi.fn();
 const setDeckFractalMix = vi.fn();
 const setDeckFractalStructure = vi.fn();
 const setDeckFractalDepth = vi.fn();
@@ -124,6 +130,9 @@ vi.mock("../useAudioEngine", () => ({
     setDeckDelayMix,
     setDeckDelayTone,
     setDeckDelayPingPong,
+    setDeckDelaySaturation,
+    setDeckDelayDamping,
+    setDeckDelaySafety,
     setDeckFractalMix,
     setDeckFractalStructure,
     setDeckFractalDepth,
@@ -176,6 +185,9 @@ describe("useDecks", () => {
     setDeckDelayMix.mockClear();
     setDeckDelayTone.mockClear();
     setDeckDelayPingPong.mockClear();
+    setDeckDelaySaturation.mockClear();
+    setDeckDelayDamping.mockClear();
+    setDeckDelaySafety.mockClear();
     setDeckFractalMix.mockClear();
     setDeckFractalStructure.mockClear();
     setDeckFractalDepth.mockClear();
