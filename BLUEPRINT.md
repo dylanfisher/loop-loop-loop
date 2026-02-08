@@ -154,6 +154,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Audio unlock gate rendering is extracted from `App.tsx` into `src/components/AudioUnlockOverlay.tsx`.
 - `DeckStack` prop assembly/callback wiring is extracted from `App.tsx` into `src/hooks/useDeckStackProps.ts`.
 - Shared DeckCard formatting/default-automation/quiet-preview analysis helpers are extracted into `src/components/deckCardUtils.ts`.
+- DeckCard FX rack rendering is extracted into `src/components/DeckCardFxRack.tsx` to keep `DeckCard.tsx` focused on orchestration and waveform/transport interaction state.
 
 ## Code Structure (Audio Engine Module)
 - `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.

@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DeckFxPanel, DeckState, EqMode, ParametricEqBand } from "../types/deck";
 import type { AutomationParam } from "../types/session";
-import AutomationLane from "./AutomationLane";
-import Knob from "./Knob";
 import Waveform from "./Waveform";
 import AsyncActionButton from "./AsyncActionButton";
-import ParametricEqEditor from "./ParametricEqEditor";
+import DeckCardFxRack from "./DeckCardFxRack";
 import { setPerfCounter } from "../utils/perf";
 import {
   FX_HINTS,
@@ -20,7 +18,7 @@ import {
   isDifferent,
 } from "./deckCardUtils";
 
-type DeckCardProps = {
+export type DeckCardProps = {
   deck: DeckState;
   label: string;
   isActive: boolean;
@@ -1144,1063 +1142,140 @@ const DeckCard = ({
           </div>
         </div>
       </div>
-      <div className="deck__fx">
-        <div className="deck__fx-title">
-          <span>Deck FX</span>
-          <div className="deck__fx-title-actions">
-            <button
-              type="button"
-              className="deck__action deck__fx-title-toggle"
-              onClick={() => onFxResetAll(deck.id)}
-            >
-              Reset FX
-            </button>
-            <button type="button" className="deck__action deck__fx-title-toggle" onClick={toggleAllFxPanels}>
-              {allFxOpen ? "Close All" : "Open All"}
-            </button>
-          </div>
-        </div>
-        <div className="deck__fx-row deck__fx-row--core">
-          <div
-            className={`deck__fx-unit deck__fx-unit--gain ${fxPanelOpen.gain ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.gain}
-              onClick={() => toggleFxPanel("gain")}
-            >
-              {renderFxToggleLabel("gain", "Gain")}
-            </button>
-            <Knob
-              label="Gain"
-              min={0}
-              max={1.5}
-              step={0.01}
-              value={gainValue}
-              defaultValue={0.9}
-              labelTitle="Controls deck output level before the FX chain."
-              onChange={(next) => onGainChange(deck.id, next)}
-              formatValue={(value, fine) => value.toFixed(fine ? 3 : 2)}
-              isAutomated={gainAutomation.active}
-            />
-            <AutomationLane
-              label="Automation"
-              min={0}
-              max={1.5}
-              value={gainValue}
-              samples={gainAutomation.samples}
-              previewSamples={gainAutomation.previewSamples}
-              durationSec={gainAutomation.durationSec}
-              recording={gainAutomation.recording}
-              active={gainAutomation.active}
-              amplitudeScale={gainAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "gain")}
-              onDrawStart={() => onAutomationStart(deck.id, "gain")}
-              onDrawEnd={() => onAutomationStop(deck.id, "gain")}
-              onReset={() => onAutomationReset(deck.id, "gain")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "gain", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "gain", value)
-              }
-              onPreset={(preset) => onAutomationPreset(deck.id, "gain", preset, 0, 1.5)}
-              onInvert={() => onAutomationInvert(deck.id, "gain", 0, 1.5)}
-              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "gain", factor)}
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(deck.id, "gain", factor, 0, 1.5)
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "gain", durationSec)
-              }
-            />
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--filter ${fxPanelOpen.djFilter ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.djFilter}
-              onClick={() => toggleFxPanel("djFilter")}
-            >
-              {renderFxToggleLabel("djFilter", "DJ Filter")}
-            </button>
-            <Knob
-              label="DJ Filter"
-              min={-1}
-              max={1}
-              step={0.01}
-              value={djFilterValue}
-              defaultValue={0}
-              labelTitle="Sweeps between low‑pass and high‑pass. Center is full range."
-              onChange={(next) => onFilterChange(deck.id, next)}
-              formatValue={formatDjFilter}
-              centerSnap={0.03}
-              isAutomated={djAutomation.active}
-            />
-            <AutomationLane
-              label="Automation"
-              min={-1}
-              max={1}
-              value={djFilterValue}
-              samples={djAutomation.samples}
-              previewSamples={djAutomation.previewSamples}
-              durationSec={djAutomation.durationSec}
-              recording={djAutomation.recording}
-              active={djAutomation.active}
-              amplitudeScale={djAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "djFilter")}
-              onDrawStart={() => onAutomationStart(deck.id, "djFilter")}
-              onDrawEnd={() => onAutomationStop(deck.id, "djFilter")}
-              onReset={() => onAutomationReset(deck.id, "djFilter")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "djFilter", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "djFilter", value)
-              }
-              onPreset={(preset) =>
-                onAutomationPreset(deck.id, "djFilter", preset, -1, 1)
-              }
-              onInvert={() => onAutomationInvert(deck.id, "djFilter", -1, 1)}
-              onLengthScale={(factor) =>
-                onAutomationLengthScale(deck.id, "djFilter", factor)
-              }
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(deck.id, "djFilter", factor, -1, 1)
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "djFilter", durationSec)
-              }
-            />
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--filter ${fxPanelOpen.resonance ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.resonance}
-              onClick={() => toggleFxPanel("resonance")}
-            >
-              {renderFxToggleLabel("resonance", "Resonance")}
-            </button>
-            <Knob
-              label="Resonance"
-              min={resonanceMin}
-              max={resonanceMax}
-              step={0.05}
-              value={resonanceDisplayValue}
-              defaultValue={0}
-              labelTitle="Boosts the filter edge. Higher values add more bite and focus."
-              onChange={(next) => onResonanceChange(deck.id, next)}
-              formatValue={(value, fine) => value.toFixed(fine ? 3 : 1)}
-              isAutomated={resonanceAutomation.active}
-            />
-            <AutomationLane
-              label="Automation"
-              min={resonanceMin}
-              max={resonanceMax}
-              value={resonanceDisplayValue}
-              samples={resonanceAutomation.samples}
-              previewSamples={resonanceAutomation.previewSamples}
-              durationSec={resonanceAutomation.durationSec}
-              recording={resonanceAutomation.recording}
-              active={resonanceAutomation.active}
-              amplitudeScale={resonanceAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "resonance")}
-              onDrawStart={() => onAutomationStart(deck.id, "resonance")}
-              onDrawEnd={() => onAutomationStop(deck.id, "resonance")}
-              onReset={() => onAutomationReset(deck.id, "resonance")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "resonance", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "resonance", value)
-              }
-              onPreset={(preset) =>
-                onAutomationPreset(deck.id, "resonance", preset, resonanceMin, resonanceMax)
-              }
-              onInvert={() =>
-                onAutomationInvert(deck.id, "resonance", resonanceMin, resonanceMax)
-              }
-              onLengthScale={(factor) =>
-                onAutomationLengthScale(deck.id, "resonance", factor)
-              }
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(
-                  deck.id,
-                  "resonance",
-                  factor,
-                  resonanceMin,
-                  resonanceMax
-                )
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "resonance", durationSec)
-              }
-            />
-          </div>
-        </div>
-        <div className="deck__fx-row deck__fx-row--single">
-          <div
-            className={`deck__fx-unit deck__fx-unit--balance ${fxPanelOpen.balance ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.balance}
-              onClick={() => toggleFxPanel("balance")}
-            >
-              {renderFxToggleLabel("balance", "Balance")}
-            </button>
-            <Knob
-              label="Balance"
-              min={-1}
-              max={1}
-              step={0.01}
-              value={balanceValue}
-              defaultValue={0}
-              labelTitle="Stereo pan. Left is negative, right is positive."
-              onChange={(next) => onBalanceChange(deck.id, next)}
-              formatValue={(value, fine) => value.toFixed(fine ? 3 : 1)}
-              centerSnap={0.03}
-              isAutomated={balanceAutomation.active}
-            />
-            <AutomationLane
-              label="Automation"
-              min={-1}
-              max={1}
-              value={balanceValue}
-              samples={balanceAutomation.samples}
-              previewSamples={balanceAutomation.previewSamples}
-              durationSec={balanceAutomation.durationSec}
-              recording={balanceAutomation.recording}
-              active={balanceAutomation.active}
-              amplitudeScale={balanceAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "balance")}
-              onDrawStart={() => onAutomationStart(deck.id, "balance")}
-              onDrawEnd={() => onAutomationStop(deck.id, "balance")}
-              onReset={() => onAutomationReset(deck.id, "balance")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "balance", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "balance", value)
-              }
-              onPreset={(preset) => onAutomationPreset(deck.id, "balance", preset, -1, 1)}
-              onInvert={() => onAutomationInvert(deck.id, "balance", -1, 1)}
-              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "balance", factor)}
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(deck.id, "balance", factor, -1, 1)
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "balance", durationSec)
-              }
-            />
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--pitch ${fxPanelOpen.pitch ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.pitch}
-              onClick={() => toggleFxPanel("pitch")}
-            >
-              {renderFxToggleLabel("pitch", "Pitch")}
-            </button>
-            <Knob
-              label="Pitch"
-              min={-24}
-              max={24}
-              step={0.1}
-              value={pitchValue}
-              defaultValue={0}
-              labelTitle="Pitch shift in semitones. Positive raises, negative lowers."
-              onChange={(next) => onPitchShiftChange(deck.id, next)}
-              formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)} st`}
-              centerSnap={0.25}
-              isAutomated={pitchAutomation.active}
-              disabled={deck.tempoPitchSync}
-            />
-            <AutomationLane
-              label="Automation"
-              min={-24}
-              max={24}
-              value={pitchValue}
-              samples={pitchAutomation.samples}
-              previewSamples={pitchAutomation.previewSamples}
-              durationSec={pitchAutomation.durationSec}
-              recording={pitchAutomation.recording}
-              active={pitchAutomation.active}
-              amplitudeScale={pitchAutomation.amplitudeScale}
-              getPlayhead={() => getAutomationPlayhead(deck.id, "pitch")}
-              onDrawStart={() => onAutomationStart(deck.id, "pitch")}
-              onDrawEnd={() => onAutomationStop(deck.id, "pitch")}
-              onReset={() => onAutomationReset(deck.id, "pitch")}
-              onToggleActive={(next) => onAutomationToggle(deck.id, "pitch", next)}
-              onDrawValueChange={(value) =>
-                onAutomationValueChange(deck.id, "pitch", value)
-              }
-              onPreset={(preset) => onAutomationPreset(deck.id, "pitch", preset, -24, 24)}
-              onInvert={() => onAutomationInvert(deck.id, "pitch", -24, 24)}
-              onLengthScale={(factor) => onAutomationLengthScale(deck.id, "pitch", factor)}
-              onAmplitudeScale={(factor) =>
-                onAutomationAmplitudeScale(deck.id, "pitch", factor, -24, 24)
-              }
-              onDurationChange={(durationSec) =>
-                onAutomationDurationChange(deck.id, "pitch", durationSec)
-              }
-              disabled={deck.tempoPitchSync}
-            />
-          </div>
-        </div>
-        <div className="deck__fx-row deck__fx-row--parametric">
-          <div
-            className={`deck__fx-unit deck__fx-unit--parametric deck__fx-unit--span-3 ${fxPanelOpen.parametricEq ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.parametricEq}
-              onClick={() => toggleFxPanel("parametricEq")}
-            >
-              {renderFxToggleLabel("parametricEq", "EQ")}
-            </button>
-            <div className="deck__parametric-controls">
-              <div className="deck__parametric-mode">
-                <span className="deck__fx-unit-title">Mode</span>
-                <div className="deck__parametric-mode-buttons" role="group" aria-label="EQ mode">
-                  <button
-                    type="button"
-                    className={`deck__action ${deck.eqMode === "eq3" ? "is-active" : ""}`.trim()}
-                    aria-pressed={deck.eqMode === "eq3"}
-                    onClick={() => onEqModeChange(deck.id, "eq3")}
-                  >
-                    EQ3
-                  </button>
-                  <button
-                    type="button"
-                    className={`deck__action ${deck.eqMode === "parametric" ? "is-active" : ""}`.trim()}
-                    aria-pressed={deck.eqMode === "parametric"}
-                    onClick={() => onEqModeChange(deck.id, "parametric")}
-                  >
-                    Parametric
-                  </button>
-                </div>
-              </div>
-              {deck.eqMode === "parametric" ? (
-                <ParametricEqEditor
-                  bands={deck.parametricEqBands}
-                  disabled={false}
-                  onChange={commitParametricEqBands}
-                />
-              ) : (
-                <div className="deck__eq3-inline">
-                  <div className="deck__eq3-sections">
-                    <div className="deck__eq3-section">
-                      <Knob
-                        label="Low"
-                        min={-18}
-                        max={18}
-                        step={0.1}
-                        value={eqLowValue}
-                        defaultValue={0}
-                        labelTitle="Low‑shelf EQ. Positive adds bass, negative removes weight."
-                        onChange={(next) => {
-                          activateEq3Mode();
-                          onEqLowChange(deck.id, next);
-                        }}
-                        formatValue={formatEq}
-                        centerSnap={0.25}
-                        isAutomated={eqLowAutomation.active}
-                      />
-                      <AutomationLane
-                        label="Low Auto"
-                        min={-18}
-                        max={18}
-                        value={eqLowValue}
-                        samples={eqLowAutomation.samples}
-                        previewSamples={eqLowAutomation.previewSamples}
-                        durationSec={eqLowAutomation.durationSec}
-                        recording={eqLowAutomation.recording}
-                        active={eqLowAutomation.active}
-                        amplitudeScale={eqLowAutomation.amplitudeScale}
-                        getPlayhead={() => getAutomationPlayhead(deck.id, "eqLow")}
-                        onDrawStart={() => {
-                          activateEq3Mode();
-                          onAutomationStart(deck.id, "eqLow");
-                        }}
-                        onDrawEnd={() => onAutomationStop(deck.id, "eqLow")}
-                        onReset={() => onAutomationReset(deck.id, "eqLow")}
-                        onToggleActive={(next) => {
-                          activateEq3Mode();
-                          onAutomationToggle(deck.id, "eqLow", next);
-                        }}
-                        onDrawValueChange={(value) => {
-                          activateEq3Mode();
-                          onAutomationValueChange(deck.id, "eqLow", value);
-                        }}
-                        onPreset={(preset) => onAutomationPreset(deck.id, "eqLow", preset, -18, 18)}
-                        onInvert={() => onAutomationInvert(deck.id, "eqLow", -18, 18)}
-                        onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqLow", factor)}
-                        onAmplitudeScale={(factor) =>
-                          onAutomationAmplitudeScale(deck.id, "eqLow", factor, -18, 18)
-                        }
-                        onDurationChange={(durationSec) =>
-                          onAutomationDurationChange(deck.id, "eqLow", durationSec)
-                        }
-                      />
-                    </div>
-                    <div className="deck__eq3-section">
-                      <Knob
-                        label="Mid"
-                        min={-18}
-                        max={18}
-                        step={0.1}
-                        value={eqMidValue}
-                        defaultValue={0}
-                        labelTitle="Mid‑band EQ. Boost presence or cut boxiness."
-                        onChange={(next) => {
-                          activateEq3Mode();
-                          onEqMidChange(deck.id, next);
-                        }}
-                        formatValue={formatEq}
-                        centerSnap={0.25}
-                        isAutomated={eqMidAutomation.active}
-                      />
-                      <AutomationLane
-                        label="Mid Auto"
-                        min={-18}
-                        max={18}
-                        value={eqMidValue}
-                        samples={eqMidAutomation.samples}
-                        previewSamples={eqMidAutomation.previewSamples}
-                        durationSec={eqMidAutomation.durationSec}
-                        recording={eqMidAutomation.recording}
-                        active={eqMidAutomation.active}
-                        amplitudeScale={eqMidAutomation.amplitudeScale}
-                        getPlayhead={() => getAutomationPlayhead(deck.id, "eqMid")}
-                        onDrawStart={() => {
-                          activateEq3Mode();
-                          onAutomationStart(deck.id, "eqMid");
-                        }}
-                        onDrawEnd={() => onAutomationStop(deck.id, "eqMid")}
-                        onReset={() => onAutomationReset(deck.id, "eqMid")}
-                        onToggleActive={(next) => {
-                          activateEq3Mode();
-                          onAutomationToggle(deck.id, "eqMid", next);
-                        }}
-                        onDrawValueChange={(value) => {
-                          activateEq3Mode();
-                          onAutomationValueChange(deck.id, "eqMid", value);
-                        }}
-                        onPreset={(preset) => onAutomationPreset(deck.id, "eqMid", preset, -18, 18)}
-                        onInvert={() => onAutomationInvert(deck.id, "eqMid", -18, 18)}
-                        onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqMid", factor)}
-                        onAmplitudeScale={(factor) =>
-                          onAutomationAmplitudeScale(deck.id, "eqMid", factor, -18, 18)
-                        }
-                        onDurationChange={(durationSec) =>
-                          onAutomationDurationChange(deck.id, "eqMid", durationSec)
-                        }
-                      />
-                    </div>
-                    <div className="deck__eq3-section">
-                      <Knob
-                        label="High"
-                        min={-18}
-                        max={18}
-                        step={0.1}
-                        value={eqHighValue}
-                        defaultValue={0}
-                        labelTitle="High‑shelf EQ. Positive adds air, negative tames brightness."
-                        onChange={(next) => {
-                          activateEq3Mode();
-                          onEqHighChange(deck.id, next);
-                        }}
-                        formatValue={formatEq}
-                        centerSnap={0.25}
-                        isAutomated={eqHighAutomation.active}
-                      />
-                      <AutomationLane
-                        label="High Auto"
-                        min={-18}
-                        max={18}
-                        value={eqHighValue}
-                        samples={eqHighAutomation.samples}
-                        previewSamples={eqHighAutomation.previewSamples}
-                        durationSec={eqHighAutomation.durationSec}
-                        recording={eqHighAutomation.recording}
-                        active={eqHighAutomation.active}
-                        amplitudeScale={eqHighAutomation.amplitudeScale}
-                        getPlayhead={() => getAutomationPlayhead(deck.id, "eqHigh")}
-                        onDrawStart={() => {
-                          activateEq3Mode();
-                          onAutomationStart(deck.id, "eqHigh");
-                        }}
-                        onDrawEnd={() => onAutomationStop(deck.id, "eqHigh")}
-                        onReset={() => onAutomationReset(deck.id, "eqHigh")}
-                        onToggleActive={(next) => {
-                          activateEq3Mode();
-                          onAutomationToggle(deck.id, "eqHigh", next);
-                        }}
-                        onDrawValueChange={(value) => {
-                          activateEq3Mode();
-                          onAutomationValueChange(deck.id, "eqHigh", value);
-                        }}
-                        onPreset={(preset) => onAutomationPreset(deck.id, "eqHigh", preset, -18, 18)}
-                        onInvert={() => onAutomationInvert(deck.id, "eqHigh", -18, 18)}
-                        onLengthScale={(factor) => onAutomationLengthScale(deck.id, "eqHigh", factor)}
-                        onAmplitudeScale={(factor) =>
-                          onAutomationAmplitudeScale(deck.id, "eqHigh", factor, -18, 18)
-                        }
-                        onDurationChange={(durationSec) =>
-                          onAutomationDurationChange(deck.id, "eqHigh", durationSec)
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="deck__fx-row deck__fx-row--single">
-          <div
-            className={`deck__fx-unit deck__fx-unit--vocoder deck__fx-unit--span-2 ${fxPanelOpen.vocoder ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.vocoder}
-              onClick={() => toggleFxPanel("vocoder")}
-            >
-              {renderFxToggleLabel("vocoder", "Vocoder")}
-            </button>
-            <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-4">
-              <Knob
-                className="knob--compact"
-                label="Mix"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.vocoderMix}
-                defaultValue={0}
-                labelTitle="Wet/dry mix for deck-to-deck vocoding."
-                onChange={(next) => onVocoderMixChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Monitor"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.vocoderModulatorMonitor}
-                defaultValue={0}
-                labelTitle="Controls how much of the linked modulator deck is audible in the mix. 0 = fully muted."
-                onChange={(next) => onVocoderModulatorMonitorChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Mod Drive"
-                min={0.5}
-                max={10}
-                step={0.01}
-                value={deck.vocoderModDrive}
-                defaultValue={2}
-                labelTitle="Boosts modulator envelope sensitivity for stronger/louder vocoder articulation."
-                onChange={(next) => onVocoderModDriveChange(deck.id, next)}
-                formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)}x`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Bands"
-                min={4}
-                max={24}
-                step={1}
-                value={deck.vocoderBandCount}
-                defaultValue={12}
-                labelTitle="Number of analysis/synthesis bands."
-                onChange={(next) => onVocoderBandCountChange(deck.id, next)}
-                formatValue={(value) => `${Math.round(value)}`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Attack"
-                min={1}
-                max={160}
-                step={1}
-                value={deck.vocoderAttackMs}
-                defaultValue={8}
-                labelTitle="Envelope attack time in milliseconds."
-                onChange={(next) => onVocoderAttackMsChange(deck.id, next)}
-                formatValue={(value) => `${Math.round(value)} ms`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Release"
-                min={1}
-                max={1200}
-                step={1}
-                value={deck.vocoderReleaseMs}
-                defaultValue={5}
-                labelTitle="Envelope release time in milliseconds."
-                onChange={(next) => onVocoderReleaseMsChange(deck.id, next)}
-                formatValue={(value) => `${Math.round(value)} ms`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Phase Rotate"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.vocoderNoiseMix}
-                defaultValue={0}
-                labelTitle="Continuously rotates vocoder band phases in a loop."
-                onChange={(next) => onVocoderPhaseRotateChange(deck.id, next)}
-                formatValue={(value, fine) => {
-                  if (value <= 1e-6) return "Off";
-                  const durationSec = 16 + value * (0.25 - 16);
-                  return `${durationSec.toFixed(fine ? 2 : 1)}s`;
-                }}
-              />
-              <Knob
-                className="knob--compact"
-                label="Gate"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.vocoderGateThreshold}
-                defaultValue={0.5}
-                labelTitle="Envelope gate threshold to suppress low-level chatter."
-                onChange={(next) => onVocoderGateThresholdChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-            </div>
-            <div className="deck__delay-options deck__fx-footer">
-              <label className="deck__delay-toggle" title="Modulator deck used to imprint its envelope onto this deck.">
-                <span>Modulator</span>
-                <select
-                  value={deck.vocoderCarrierDeckId ?? ""}
-                  onChange={(event) => {
-                    const raw = event.target.value;
-                    onVocoderCarrierDeckIdChange(deck.id, raw ? Number(raw) : null);
-                  }}
-                >
-                  <option value="">None</option>
-                  {carrierDeckOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--delay deck__fx-unit--span-2 ${fxPanelOpen.delay ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.delay}
-              onClick={() => toggleFxPanel("delay")}
-            >
-              {renderFxToggleLabel("delay", "Delay")}
-            </button>
-            <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-4">
-              <Knob
-                className="knob--compact"
-                label="Mix"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.delayMix}
-                defaultValue={0}
-                labelTitle="Wet/dry mix. 0 = dry, 1 = fully delayed."
-                onChange={(next) => onDelayMixChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Time"
-                min={0.01}
-                max={1.5}
-                step={0.01}
-                value={deck.delayTime}
-                defaultValue={0.35}
-                labelTitle="Delay time in seconds. Longer values create wider gaps between repeats."
-                onChange={(next) => onDelayTimeChange(deck.id, next)}
-                formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}s`}
-                disabled={deck.delaySliceSync}
-              />
-              <Knob
-                className="knob--compact"
-                label="Feedback"
-                min={0}
-                max={0.99}
-                step={0.01}
-                value={deck.delayFeedback}
-                defaultValue={0.35}
-                labelTitle="Feedback amount. Higher values create more repeats."
-                onChange={(next) => onDelayFeedbackChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Tone"
-                min={400}
-                max={12000}
-                step={100}
-                value={deck.delayTone}
-                defaultValue={6000}
-                labelTitle="Low-pass filter inside the feedback path. Lower = darker repeats."
-                onChange={(next) => onDelayToneChange(deck.id, next)}
-                formatValue={(value, fine) => `${value.toFixed(fine ? 1 : 0)} Hz`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Saturation"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.delaySaturation ?? 0}
-                defaultValue={0}
-                labelTitle="Drive soft-clipping in the feedback path to tame peaks and add harmonic grit."
-                onChange={(next) => onDelaySaturationChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Damping"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.delayDamping ?? 0}
-                defaultValue={0}
-                labelTitle="Extra high-frequency damping per repeat for smoother, less brittle tails."
-                onChange={(next) => onDelayDampingChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Safety"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.delaySafety ?? 0}
-                defaultValue={0}
-                labelTitle="Limiter-style soft clamp on delayed return to keep high-feedback loops musical."
-                onChange={(next) => onDelaySafetyChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-            </div>
-            <div className="deck__delay-options deck__fx-footer">
-              <label
-                className="deck__delay-toggle"
-                title="Cross-feed delay repeats between left and right channels."
-              >
-                <span>Ping Pong</span>
-                <input
-                  type="checkbox"
-                  checked={deck.delayPingPong}
-                  onChange={(event) =>
-                    onDelayPingPongChange(deck.id, event.target.checked)
-                  }
-                />
-              </label>
-              <label
-                className="deck__delay-toggle"
-                title="Match delay time to the currently playing rearranger slice length. When enabled, the Time knob is disabled."
-              >
-                <span>Slice Sync</span>
-                <input
-                  type="checkbox"
-                  checked={deck.delaySliceSync}
-                  onChange={(event) =>
-                    onDelaySliceSyncChange(deck.id, event.target.checked)
-                  }
-                />
-              </label>
-            </div>
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--rearranger deck__fx-unit--span-3 ${fxPanelOpen.rearranger ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.rearranger}
-              onClick={() => toggleFxPanel("rearranger")}
-              title="Toggle Rearranger panel. (R)"
-            >
-              {renderFxToggleLabel("rearranger", "Rearranger")}
-            </button>
-            <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-5">
-              <Knob
-                className="knob--compact"
-                label="Slices"
-                min={0}
-                max={Math.max(64, Math.round(deck.rearrangerSlices || 0))}
-                step={1}
-                value={deck.rearrangerSlices}
-                defaultValue={0}
-                labelTitle="Number of slices. You can also click between waveform boundaries to add slices, or hold Shift and click a slice region to destructively remove it."
-                onChange={handleRearrangerSlicesKnobChange}
-                formatValue={(value) => {
-                  const rounded = Math.round(value);
-                  return rounded <= 0 ? "Off" : `${rounded}`;
-                }}
-              />
-              <Knob
-                className="knob--compact"
-                label="Swaps"
-                min={0}
-                max={Math.max(64, Math.round(deck.rearrangerSlices || 0))}
-                step={1}
-                value={deck.rearrangerSwapCount}
-                defaultValue={0}
-                labelTitle="Number of slices to swap each pass."
-                onChange={(next) => onRearrangerSwapCountChange(deck.id, next)}
-                formatValue={(value) => `${Math.round(value)}`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Chaos"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.rearrangerChaos}
-                defaultValue={0}
-                labelTitle="How far swaps can travel. Low stays local, high can jump anywhere."
-                onChange={(next) => onRearrangerChaosChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Reverse"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.rearrangerReverse}
-                defaultValue={0}
-                labelTitle="Chance each slice is reversed."
-                onChange={(next) => onRearrangerReverseChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Sensitivity"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.rearrangerSensitivity}
-                defaultValue={0.6}
-                labelTitle="Auto Slice sensitivity. Higher values detect quieter/smaller onset changes and create more slices."
-                onChange={(next) => onRearrangerSensitivityChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Quiet Thresh"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.rearrangerQuietThreshold}
-                defaultValue={0.3}
-                labelTitle="Delete Quiet threshold. Higher values classify more of the loop as quiet."
-                onChange={(next) => onRearrangerQuietThresholdChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Slice Fade"
-                min={0}
-                max={12}
-                step={1}
-                value={deck.rearrangerSliceFadeMs}
-                defaultValue={0}
-                labelTitle="Short fades on slice edges to reduce clicks."
-                onChange={(next) => onRearrangerSliceFadeChange(deck.id, next)}
-                formatValue={(value) => `${Math.round(value)} ms`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Slice Delay"
-                min={0}
-                max={5}
-                step={0.01}
-                value={deck.rearrangerSliceDelaySec}
-                defaultValue={0}
-                labelTitle="Simulates a short hold between slices during live playback (non-destructive, FX tails keep processing) and is baked in offline renders."
-                onChange={(next) => onRearrangerSliceDelayChange(deck.id, next)}
-                formatValue={(value) => `${value.toFixed(2)}s`}
-              />
-              <Knob
-                className="knob--compact"
-                label="Ping Pong"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.rearrangerPingPong}
-                defaultValue={0}
-                labelTitle="Alternates slices between left and right. 0 = centered/no processing, 1 = full L/R ping pong."
-                onChange={(next) => onRearrangerPingPongChange(deck.id, next)}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <label
-                className="deck__delay-toggle"
-                title="When enabled, the current loop is rearranged again each time playback wraps to the loop start."
-              >
-                <span>On Loop</span>
-                <input
-                  type="checkbox"
-                  checked={deck.rearrangerAuto}
-                  onChange={(event) => onRearrangerAutoChange(deck.id, event.target.checked)}
-                />
-              </label>
-              <label
-                className="deck__delay-toggle"
-                title="When enabled, changing the Slices knob re-detects slice boundaries from loop transients."
-              >
-                <span>Auto Slice</span>
-                <input
-                  type="checkbox"
-                  checked={Boolean(deck.buffer) && autoSliceEnabled}
-                  disabled={!deck.buffer}
-                  onChange={(event) => handleAutoSliceToggle(event.target.checked)}
-                />
-              </label>
-            </div>
-            <div className="deck__fx-actions deck__fx-footer">
-              <button
-                type="button"
-                className="deck__action"
-                disabled={!deck.buffer}
-                onClick={() => onRearrangerTrimQuiet(deck.id)}
-                onPointerEnter={() => setShowQuietDeletePreview(true)}
-                onPointerLeave={() => setShowQuietDeletePreview(false)}
-                onFocus={() => setShowQuietDeletePreview(true)}
-                onBlur={() => setShowQuietDeletePreview(false)}
-                title="Detect quiet sections in the loop and destructively remove them."
-              >
-                Delete Quiet
-              </button>
-              <AsyncActionButton
-                className="deck__action"
-                disabled={!deck.buffer}
-                idleLabel="Rearrange Loop"
-                busyLabel="Rearranging..."
-                onAction={() => onRearrangeLoop(deck.id)}
-              />
-            </div>
-          </div>
-          <div
-            className={`deck__fx-unit deck__fx-unit--stretch deck__fx-unit--span-2 ${fxPanelOpen.stretch ? "" : "is-collapsed"}`.trim()}
-          >
-            <button
-              type="button"
-              className="deck__fx-unit-toggle"
-              aria-expanded={fxPanelOpen.stretch}
-              onClick={() => toggleFxPanel("stretch")}
-            >
-              {renderFxToggleLabel("stretch", "Stretch")}
-            </button>
-            <div className="deck__stretch-grid">
-              <Knob
-                label="Amount"
-                min={1}
-                max={16}
-                step={0.1}
-                value={deck.stretchRatio}
-                defaultValue={2}
-                labelTitle="Lengthens or shortens the loop. Higher values create longer, slower textures."
-                onChange={(next) => onStretchRatioChange(deck.id, next)}
-                formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}x`}
-              />
-              <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-4">
-                <Knob
-                  className="knob--compact"
-                  label="Phase"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={deck.stretchPhaseRandomness}
-                  defaultValue={0.5}
-                  labelTitle="Controls how random the phase is. Higher values sound more diffuse and airy."
-                  onChange={(next) => onStretchPhaseRandomnessChange(deck.id, next)}
-                  formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-                />
-                <Knob
-                  className="knob--compact"
-                  label="Width"
-                  min={0}
-                  max={2}
-                  step={0.05}
-                  value={deck.stretchStereoWidth}
-                  defaultValue={1}
-                  labelTitle="Stereo width after stretch. 0 = mono, 1 = original width, 2 = wide."
-                  onChange={(next) => onStretchStereoWidthChange(deck.id, next)}
-                  formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}x`}
-                />
-                <Knob
-                  className="knob--compact"
-                  label="Tilt"
-                  min={-18}
-                  max={18}
-                  step={0.1}
-                  value={deck.stretchTiltDb}
-                  defaultValue={0}
-                  labelTitle="Spectral tilt across frequencies. Positive = brighter, negative = darker."
-                  onChange={(next) => onStretchTiltDbChange(deck.id, next)}
-                  formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)} dB`}
-                />
-                <Knob
-                  className="knob--compact"
-                  label="Scatter"
-                  min={1}
-                  max={16}
-                  step={0.05}
-                  value={deck.stretchScatter}
-                  defaultValue={1}
-                  labelTitle="Grain spacing multiplier. Higher = grains farther apart with more space between."
-                  onChange={(next) => onStretchScatterChange(deck.id, next)}
-                  formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}x`}
-                />
-                <Knob
-                  className="knob--compact"
-                  label="Window"
-                  min={1}
-                  max={stretchWindowSizes.length}
-                  step={1}
-                  value={stretchWindowIndex + 1}
-                  defaultValue={stretchWindowSizes.indexOf(16384) + 1}
-                  labelTitle="FFT window size. Larger = smoother, smaller = grainier/clearer transients."
-                  centerSnap={0}
-                  onChange={(next) => {
-                    const index = Math.min(
-                      stretchWindowSizes.length - 1,
-                      Math.max(0, Math.round(next) - 1)
-                    );
-                    onStretchWindowSizeChange(deck.id, stretchWindowSizes[index]);
-                  }}
-                  formatValue={() => `${stretchWindowSizes[stretchWindowIndex] / 1024}k`}
-                />
-              </div>
-            </div>
-            <div className="deck__fx-actions deck__fx-footer">
-              <AsyncActionButton
-                className="deck__action"
-                disabled={!deck.buffer}
-                idleLabel="Stretch Loop"
-                busyLabel="Stretching..."
-                onAction={() => onStretchLoop(deck.id)}
-              />
-              {stretchEstimate ? (
-                <span className="deck__stretch-estimate">{stretchEstimate}</span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </div>
+      <DeckCardFxRack
+        deck={deck}
+        deckProps={{
+          deck,
+          label,
+          isActive,
+          zipDragActive,
+          onActivate,
+          onRemove,
+          onLoadClick,
+          onFileSelected,
+          onPlay,
+          onPause,
+          onStop,
+          onGainChange,
+          onFilterChange,
+          onResonanceChange,
+          onEqLowChange,
+          onEqMidChange,
+          onEqHighChange,
+          onEqModeChange,
+          onParametricEqBandsChange,
+          onDelayTimeChange,
+          onDelayFeedbackChange,
+          onDelayMixChange,
+          onDelayToneChange,
+          onDelayPingPongChange,
+          onDelaySaturationChange,
+          onDelayDampingChange,
+          onDelaySafetyChange,
+          onDelaySliceSyncChange,
+          onVocoderMixChange,
+          onVocoderCarrierDeckIdChange,
+          onVocoderModulatorMonitorChange,
+          onVocoderModDriveChange,
+          onVocoderBandCountChange,
+          onVocoderAttackMsChange,
+          onVocoderReleaseMsChange,
+          onVocoderPhaseRotateChange,
+          onVocoderGateThresholdChange,
+          carrierDeckOptions,
+          vocoderModulatingTargetDeckIds,
+          vocoderModulatingTargets,
+          onDisableDeckVocoder,
+          onDisableDeckVocoders,
+          onBalanceChange,
+          onPitchShiftChange,
+          automation,
+          onAutomationStart,
+          onAutomationStop,
+          onAutomationValueChange,
+          getAutomationPlayhead,
+          onAutomationToggle,
+          onAutomationReset,
+          onAutomationPreset,
+          onAutomationLengthScale,
+          onAutomationAmplitudeScale,
+          onAutomationInvert,
+          onAutomationDurationChange,
+          onSeek,
+          onZoomChange,
+          onLoopChange,
+          onLoopBoundsChange,
+          onLoopBoundsChangeComplete,
+          onTempoOffsetChange,
+          onTempoPitchSyncChange,
+          onDeckWidthOverrideChange,
+          onStretchRatioChange,
+          onStretchWindowSizeChange,
+          onStretchStereoWidthChange,
+          onStretchPhaseRandomnessChange,
+          onStretchTiltDbChange,
+          onStretchScatterChange,
+          onRearrangerSlicesChange,
+          onRearrangerSwapCountChange,
+          onRearrangerChaosChange,
+          onRearrangerReverseChange,
+          onRearrangerSensitivityChange,
+          onRearrangerQuietThresholdChange,
+          onRearrangerSliceFadeChange,
+          onRearrangerSliceDelayChange,
+          onRearrangerPingPongChange,
+          onRearrangerAutoChange,
+          onRearrangerRegionsChange,
+          onRearrangerSliceDelete,
+          onRearrangerAutoSlice,
+          onRearrangerTrimQuiet,
+          onRearrangeLoop,
+          onFxPanelToggle,
+          onFxPanelsToggleAll,
+          onFxResetAll,
+          onStretchLoop,
+          stretchEstimate,
+          onSaveLoopClip,
+          onCropLoop,
+          onDuplicateLoop,
+          getDeckPosition,
+          getDeckPlaybackSnapshot,
+          setFileInputRef,
+        }}
+        fxPanelOpen={fxPanelOpen}
+        allFxOpen={allFxOpen}
+        toggleAllFxPanels={toggleAllFxPanels}
+        toggleFxPanel={toggleFxPanel}
+        renderFxToggleLabel={renderFxToggleLabel}
+        gainValue={gainValue}
+        djFilterValue={djFilterValue}
+        resonanceMin={resonanceMin}
+        resonanceMax={resonanceMax}
+        resonanceDisplayValue={resonanceDisplayValue}
+        eqLowValue={eqLowValue}
+        eqMidValue={eqMidValue}
+        eqHighValue={eqHighValue}
+        balanceValue={balanceValue}
+        pitchValue={pitchValue}
+        gainAutomation={gainAutomation}
+        djAutomation={djAutomation}
+        resonanceAutomation={resonanceAutomation}
+        eqLowAutomation={eqLowAutomation}
+        eqMidAutomation={eqMidAutomation}
+        eqHighAutomation={eqHighAutomation}
+        balanceAutomation={balanceAutomation}
+        pitchAutomation={pitchAutomation}
+        formatDjFilter={formatDjFilter}
+        formatEq={formatEq}
+        activateEq3Mode={activateEq3Mode}
+        commitParametricEqBands={commitParametricEqBands}
+        autoSliceEnabled={autoSliceEnabled}
+        handleAutoSliceToggle={handleAutoSliceToggle}
+        handleRearrangerSlicesKnobChange={handleRearrangerSlicesKnobChange}
+        setShowQuietDeletePreview={setShowQuietDeletePreview}
+        stretchWindowSizes={stretchWindowSizes}
+        stretchWindowIndex={stretchWindowIndex}
+      />
     </div>
   );
 };
