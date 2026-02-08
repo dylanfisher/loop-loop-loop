@@ -133,6 +133,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Audio + deck state in hooks under `src/hooks/` (`useDecks`, `useAudioEngine`).
 - Shared types in `src/types/` (deck state/status).
 - Optional WASM wrappers in `src/utils/` for precompiled DSP kernels.
+- App-level pure helpers are extracted to `src/utils/appHelpers.ts` to keep `App.tsx` focused on orchestration.
+- `useDecks` shared constants/defaults/automation helper types are extracted to `src/hooks/useDecksShared.ts` to keep deck lifecycle/state transitions centralized in the hook body.
 
 ## Code Structure (Audio Engine Module)
 - `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.
