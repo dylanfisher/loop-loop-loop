@@ -3,17 +3,14 @@ import useAudioEngine from "./useAudioEngine";
 import type {
   EqMode,
   ParametricEqBand,
-  DeckFxPanel,
   DeckFxPanelState,
   DeckState,
   DeckStatus,
-  DeckWidthOverride,
 } from "../types/deck";
 import type { AutomationParam, AutomationSnapshot, ClipSettings, DeckSession } from "../types/session";
 import {
   MAX_REARRANGER_SLICES,
   normalizeRearrangerRegionIds,
-  normalizeRearrangerRegions,
 } from "../utils/rearranger";
 import {
   normalizeParametricEqBands,
@@ -23,8 +20,10 @@ import {
   serializeDeckSession,
 } from "./deckSessionSerialization";
 import { createDeckParameterSetters } from "./deckParameterSetters";
+import { createDeckAutomationControls } from "./deckAutomationControls";
+import { createDeckLoopTempoControls } from "./deckLoopTempoControls";
+import { createDeckUiSetters } from "./deckUiSetters";
 import {
-  appendRearrangerBoundary,
   approxEqual,
   AUTOMATION_SAMPLE_RATE,
   AUTOMATION_UI_INTERVAL_MS,
@@ -72,11 +71,7 @@ import {
   DEFAULT_VOCODER_RELEASE_MS,
   FX_ACTIVE_EPSILON,
   MIN_AUTOMATION_DURATION,
-  regionsEqual,
   sanitizeRearrangerRegions,
-  STRETCH_WINDOW_SIZES,
-  TEMPO_SNAP_STEP,
-  TEMPO_SNAP_THRESHOLD,
   toAutomationView,
   type AutomationDeck,
   type AutomationTrack,
@@ -2067,454 +2062,61 @@ const useDecks = () => {
     scheduleDeckRearrangerPan,
   });
 
-
-  const startAutomationRecording = (id: number, param: AutomationParam) => {
-    const deck = decks.find((item) => item.id === id);
-    if (!deck) return;
-    if (param === "pitch" && deck.tempoPitchSync) return;
-    const automation = ensureAutomationDeck(id, deck);
-    const track = automation[param];
-      track.recording = true;
-      track.active = true;
-      track.paused = false;
-      track.pausedPositionSec = 0;
-      track.amplitudeScale = 1;
-    track.recordBuffer = [];
-    track.samples = new Float32Array(0);
-    track.durationSec = 0;
-    track.recordStartMs = performance.now();
-    track.lastSampleMs = track.recordStartMs;
-    track.lastPreviewLength = 0;
-    if (param === "gain") {
-      track.currentValue = deck.gain;
-    } else if (param === "djFilter") {
-      track.currentValue = deck.djFilter;
-    } else if (param === "resonance") {
-      track.currentValue = deck.filterResonance;
-    } else if (param === "eqLow") {
-      track.currentValue = deck.eqLowGain;
-    } else if (param === "eqMid") {
-      track.currentValue = deck.eqMidGain;
-    } else if (param === "eqHigh") {
-      track.currentValue = deck.eqHighGain;
-    } else if (param === "balance") {
-      track.currentValue = deck.balance;
-    } else if (param === "pitch") {
-      track.currentValue = deck.pitchShift;
-    } else {
-      track.currentValue = deck.pitchShift;
-    }
-    updateAutomationView(id);
-    updateAutomationTickEnabled();
-  };
-
-  const stopAutomationRecording = (id: number, param: AutomationParam) => {
-    const automation = automationRef.current.get(id);
-    if (!automation) return;
-    const track = automation[param];
-    if (!track.recording) return;
-    track.recording = false;
-    const duration = track.recordBuffer.length / track.sampleRate;
-    if (duration >= MIN_AUTOMATION_DURATION) {
-      track.samples = new Float32Array(track.recordBuffer);
-      track.durationSec = duration;
-      track.playbackStartMs = performance.now();
-    } else {
-      track.samples = new Float32Array(0);
-      track.durationSec = 0;
-    }
-    track.amplitudeScale = 1;
-    track.recordBuffer = [];
-    track.lastPreviewLength = 0;
-    updateAutomationView(id);
-    updateAutomationTickEnabled();
-  };
-
-  const updateAutomationValue = (id: number, param: AutomationParam, value: number) => {
-    const automation = automationRef.current.get(id);
-    if (!automation) return;
-    const deck = decks.find((item) => item.id === id);
-    if (param === "pitch" && deck?.tempoPitchSync) return;
-    const track = automation[param];
-    track.currentValue = value;
-    if (param === "gain") {
-      setDeckGainValue(id, value);
-    } else if (param === "djFilter") {
-      setDeckFilterValue(id, value);
-    } else if (param === "resonance") {
-      setDeckResonanceValue(id, value);
-    } else if (param === "eqLow") {
-      setDeckEqLowValue(id, value);
-    } else if (param === "eqMid") {
-      setDeckEqMidValue(id, value);
-    } else if (param === "eqHigh") {
-      setDeckEqHighValue(id, value);
-    } else if (param === "balance") {
-      setDeckBalanceValue(id, value);
-    } else if (param === "pitch") {
-      setDeckPitchShiftValue(id, value);
-    } else {
-      setDeckPitchShiftValue(id, value);
-    }
-    if (track.active) {
-      updateAutomationView(id);
-    }
-  };
-
-  const getAutomationPlayhead = (id: number, param: AutomationParam) => {
-    const playheads = automationPlayheadRef.current.get(id);
-    return playheads ? playheads[param] : 0;
-  };
-
-  const toggleAutomationActive = (id: number, param: AutomationParam, next: boolean) => {
-    const automation = automationRef.current.get(id);
-    if (!automation) return;
-    const deck = decks.find((item) => item.id === id);
-    if (param === "pitch" && deck?.tempoPitchSync) return;
-    const track = automation[param];
-    track.active = next;
-    if (next) {
-      track.playbackStartMs = performance.now();
-    }
-    updateAutomationView(id);
-    updateAutomationTickEnabled();
-  };
-
-  const resetAutomationTrack = (id: number, param: AutomationParam) => {
-    const automation = automationRef.current.get(id);
-    if (!automation) return;
-    const track = automation[param];
-    track.samples = new Float32Array(0);
-    track.recordBuffer = [];
-    track.durationSec = 0;
-    track.recording = false;
-    track.active = false;
-    track.paused = false;
-    track.pausedPositionSec = 0;
-    track.amplitudeScale = 1;
-    track.playbackStartMs = 0;
-    track.lastPreviewLength = 0;
-    updateAutomationView(id);
-    updateAutomationTickEnabled();
-  };
+  const {
+    startAutomationRecording,
+    stopAutomationRecording,
+    updateAutomationValue,
+    getAutomationPlayhead,
+    toggleAutomationActive,
+    resetAutomationTrack,
+  } = createDeckAutomationControls({
+    decks,
+    automationRef,
+    automationPlayheadRef,
+    ensureAutomationDeck,
+    updateAutomationView,
+    updateAutomationTickEnabled,
+    setDeckGainValue,
+    setDeckFilterValue,
+    setDeckResonanceValue,
+    setDeckEqLowValue,
+    setDeckEqMidValue,
+    setDeckEqHighValue,
+    setDeckBalanceValue,
+    setDeckPitchShiftValue,
+  });
 
   const setDeckZoomValue = (id: number, value: number) => {
     updateDeck(id, { zoom: value }, false);
   };
 
-  const setDeckLoopValue = (id: number, value: boolean) => {
-    setDecksNoHistory((prev) =>
-      prev.map((deck) => {
-        if (deck.id !== id) return deck;
-        const duration = deck.duration ?? deck.buffer?.duration ?? 0;
-        const nextStart = deck.loopStartSeconds ?? 0;
-        const nextEnd =
-          deck.loopEndSeconds > nextStart + 0.01 ? deck.loopEndSeconds : duration;
-        const nextDeck = {
-          ...deck,
-          loopEnabled: value,
-          loopStartSeconds: nextStart,
-          loopEndSeconds: nextEnd,
-        };
-        if (deck.status !== "playing" || !deck.buffer) {
-          return nextDeck;
-        }
-
-        const currentPosition = getDeckPosition(deck.id);
-        const offsetSeconds =
-          currentPosition !== null ? currentPosition : deck.offsetSeconds ?? 0;
-        const clampedOffset = value
-          ? Math.min(Math.max(offsetSeconds, nextStart), Math.max(nextStart, nextEnd - 0.01))
-          : offsetSeconds;
-        const tempoRatio = getDeckPlaybackRate(deck);
-
-        const filters = getFilterTargets(deck.djFilter);
-        void playBuffer(
-          deck.id,
-          deck.buffer,
-          () => {
-            console.info("Deck ended", { deckId: deck.id, loopEnabled: true });
-            playbackStartRef.current.delete(deck.id);
-            updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
-          },
-          deck.gain,
-          clampedOffset,
-          tempoRatio,
-          value,
-          nextDeck.loopStartSeconds,
-          nextDeck.loopEndSeconds,
-          filters.lowpass,
-          filters.highpass,
-          deck.filterResonance,
-          deck.eqMode,
-          deck.eqLowGain,
-          deck.eqMidGain,
-          deck.eqHighGain,
-          deck.parametricEqBands,
-          deck.delayTime,
-          deck.delayFeedback,
-          deck.delayMix,
-          deck.delayTone,
-          deck.delayPingPong,
-          deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
-          deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
-          deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
-          deck.vocoderMix,
-          deck.vocoderCarrierDeckId,
-          deck.vocoderModulatorMonitor,
-          deck.vocoderModDrive,
-          deck.vocoderBandCount,
-          deck.vocoderBandSpread,
-          deck.vocoderAttackMs,
-          deck.vocoderReleaseMs,
-          deck.vocoderNoiseMix,
-          deck.vocoderGateThreshold,
-          deck.balance,
-          deck.pitchShift
-        );
-
-        const startedAtMs = performance.now();
-        playbackStartRef.current.set(id, startedAtMs);
-        return {
-          ...nextDeck,
-          status: "playing",
-          startedAtMs,
-          offsetSeconds: clampedOffset,
-          duration,
-        };
-      })
-    );
-  };
-
-  const setDeckLoopBounds = (id: number, startSeconds: number, endSeconds: number) => {
-    setDecksNoHistory((prev) =>
-      prev.map((deck) => {
-        if (deck.id !== id || !deck.buffer) return deck;
-        const duration = deck.duration ?? deck.buffer.duration;
-        const minGap = Math.min(0.05, Math.max(0.005, duration * 0.25));
-        const nextStart = Math.min(Math.max(0, startSeconds), duration);
-        const nextEnd = Math.min(Math.max(nextStart + minGap, endSeconds), duration);
-        const prevLoopStart = Math.max(0, deck.loopStartSeconds ?? 0);
-        const prevLoopEnd =
-          deck.loopEndSeconds && deck.loopEndSeconds > prevLoopStart + 0.01
-            ? Math.min(deck.loopEndSeconds, duration)
-            : duration;
-        const prevLoopDuration = Math.max(0.001, prevLoopEnd - prevLoopStart);
-        const nextLoopDuration = Math.max(0.001, nextEnd - nextStart);
-        const nextRearrangerRegions = (() => {
-          if ((deck.rearrangerSlices ?? 0) <= 1) return deck.rearrangerRegions;
-          const normalized = normalizeRearrangerRegions(deck.rearrangerRegions, deck.rearrangerSlices);
-          const remapped = normalized.map((point, index) => {
-            if (index === 0) return 0;
-            if (index === normalized.length - 1) return 1;
-            const absolute = prevLoopStart + point * prevLoopDuration;
-            return Math.min(Math.max((absolute - nextStart) / nextLoopDuration, 0), 1);
-          });
-          for (let i = 1; i < remapped.length; i += 1) {
-            remapped[i] = Math.max(remapped[i], remapped[i - 1]);
-          }
-          for (let i = remapped.length - 2; i >= 0; i -= 1) {
-            remapped[i] = Math.min(remapped[i], remapped[i + 1]);
-          }
-          remapped[0] = 0;
-          remapped[remapped.length - 1] = 1;
-          return remapped;
-        })();
-        if (
-          approxEqual(nextStart, deck.loopStartSeconds ?? 0) &&
-          approxEqual(nextEnd, deck.loopEndSeconds ?? duration) &&
-          regionsEqual(nextRearrangerRegions, deck.rearrangerRegions)
-        ) {
-          return deck;
-        }
-        if (!loopBoundsHistorySnapshotRef.current.has(id)) {
-          loopBoundsHistorySnapshotRef.current.set(id, snapshotDecks(prev));
-        }
-
-        if (deck.status === "playing" && deck.loopEnabled) {
-          const currentPosition = getDeckPosition(deck.id);
-          if (
-            currentPosition !== null &&
-            currentPosition >= nextStart &&
-            currentPosition <= nextEnd
-          ) {
-            setDeckLoopParams(deck.id, true, nextStart, nextEnd);
-            return {
-              ...deck,
-              loopStartSeconds: nextStart,
-              loopEndSeconds: nextEnd,
-              rearrangerRegions: nextRearrangerRegions,
-            };
-          }
-
-          const clampedOffset = Math.min(
-            Math.max(currentPosition ?? nextStart, nextStart),
-            Math.max(nextStart, nextEnd - 0.01)
-          );
-          const filters = getFilterTargets(deck.djFilter);
-          void playBuffer(
-            deck.id,
-            deck.buffer,
-            () => {
-              console.info("Deck ended", { deckId: deck.id, loopEnabled: true });
-              playbackStartRef.current.delete(deck.id);
-              updateDeck(
-                deck.id,
-                { status: "ready", startedAtMs: undefined, offsetSeconds: 0 },
-                false
-              );
-            },
-            deck.gain,
-            clampedOffset,
-            getDeckPlaybackRate(deck),
-            true,
-            nextStart,
-            nextEnd,
-            filters.lowpass,
-            filters.highpass,
-            deck.filterResonance,
-            deck.eqMode,
-            deck.eqLowGain,
-            deck.eqMidGain,
-            deck.eqHighGain,
-            deck.parametricEqBands,
-            deck.delayTime,
-            deck.delayFeedback,
-            deck.delayMix,
-            deck.delayTone,
-            deck.delayPingPong,
-            deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
-            deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
-            deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
-            deck.vocoderMix,
-            deck.vocoderCarrierDeckId,
-            deck.vocoderModulatorMonitor,
-            deck.vocoderModDrive,
-            deck.vocoderBandCount,
-            deck.vocoderBandSpread,
-            deck.vocoderAttackMs,
-            deck.vocoderReleaseMs,
-            deck.vocoderNoiseMix,
-            deck.vocoderGateThreshold,
-            deck.balance,
-            deck.pitchShift
-          );
-          const startedAtMs = performance.now();
-          playbackStartRef.current.set(id, startedAtMs);
-          return {
-            ...deck,
-            loopStartSeconds: nextStart,
-            loopEndSeconds: nextEnd,
-            rearrangerRegions: nextRearrangerRegions,
-            startedAtMs,
-            offsetSeconds: clampedOffset,
-          };
-        }
-
-        if (deck.loopEnabled) {
-          setDeckLoopParams(deck.id, true, nextStart, nextEnd);
-        }
-        return {
-          ...deck,
-          loopStartSeconds: nextStart,
-          loopEndSeconds: nextEnd,
-          rearrangerRegions: nextRearrangerRegions,
-        };
-      })
-    );
-  };
-
-  const commitDeckLoopBoundsHistory = useCallback(
-    (id: number) => {
-      const tryCommit = (attempt: number) => {
-        if (historyDisabledRef.current) return;
-        const snapshot = loopBoundsHistorySnapshotRef.current.get(id);
-        if (!snapshot) {
-          if (attempt === 0) {
-            window.setTimeout(() => tryCommit(1), 0);
-          }
-          return;
-        }
-        loopBoundsHistorySnapshotRef.current.delete(id);
-        recordHistory(snapshot);
-      };
-      tryCommit(0);
-    },
-    [recordHistory]
-  );
-
-  const setDeckTempoOffset = (
-    id: number,
-    value: number,
-    options?: { disableSnap?: boolean }
-  ) => {
-    const safeValue = Number.isFinite(value) ? value : 0;
-    const disableSnap = options?.disableSnap ?? false;
-    let nextValue = safeValue;
-    if (!disableSnap) {
-      const snapped =
-        Math.abs(safeValue) > 100
-          ? safeValue
-          : Math.round(safeValue / TEMPO_SNAP_STEP) * TEMPO_SNAP_STEP;
-      nextValue =
-        Math.abs(safeValue - snapped) <= TEMPO_SNAP_THRESHOLD ? snapped : safeValue;
-    }
-    let nextPitch = 0;
-    let shouldSyncPitch = false;
-    const currentDeck = decks.find((deck) => deck.id === id);
-    setDecksNoHistory((prev) =>
-      prev.map((deck) => {
-        if (deck.id !== id) return deck;
-        shouldSyncPitch = deck.tempoPitchSync;
-        if (shouldSyncPitch) {
-          nextPitch = getTempoSyncedPitch(nextValue);
-          return { ...deck, tempoOffset: nextValue, pitchShift: nextPitch };
-        }
-        return { ...deck, tempoOffset: nextValue };
-      })
-    );
-    setDeckPlaybackRate(id, clampPlaybackRate(1 + nextValue / 100));
-    if (shouldSyncPitch) {
-      setDeckPitchShift(id, nextPitch);
-    }
-    if (currentDeck?.status === "playing") {
-      const position = getDeckPosition(id);
-      if (position !== null) {
-        const startedAtMs = performance.now();
-        playbackStartRef.current.set(id, startedAtMs);
-        updateDeck(id, { offsetSeconds: position, startedAtMs }, false);
-      }
-    }
-  };
-
-  const setDeckTempoPitchSync = (id: number, enabled: boolean) => {
-    let nextPitch = 0;
-    setDecksNoHistory((prev) =>
-      prev.map((deck) => {
-        if (deck.id !== id) return deck;
-        if (enabled) {
-          nextPitch = getTempoSyncedPitch(deck.tempoOffset);
-          return { ...deck, tempoPitchSync: true, pitchShift: nextPitch };
-        }
-        return { ...deck, tempoPitchSync: false };
-      })
-    );
-    if (enabled) {
-      const automation = automationRef.current.get(id);
-      if (automation) {
-        const track = automation.pitch;
-        track.recording = false;
-        track.active = false;
-        track.paused = false;
-        track.pausedPositionSec = 0;
-        track.playbackStartMs = 0;
-        track.lastPreviewLength = 0;
-        updateAutomationView(id);
-        updateAutomationTickEnabled();
-      }
-      setDeckPitchShift(id, nextPitch);
-    }
-  };
+  const {
+    setDeckLoopValue,
+    setDeckLoopBounds,
+    commitDeckLoopBoundsHistory,
+    setDeckTempoOffset,
+    setDeckTempoPitchSync,
+  } = createDeckLoopTempoControls({
+    decks,
+    setDecksNoHistory,
+    setDeckLoopParams,
+    setDeckPlaybackRate,
+    setDeckPitchShift,
+    getDeckPosition,
+    getDeckPlaybackRate,
+    getFilterTargets,
+    getTempoSyncedPitch,
+    playBuffer,
+    updateDeck,
+    playbackStartRef,
+    loopBoundsHistorySnapshotRef,
+    historyDisabledRef,
+    recordHistory,
+    snapshotDecks,
+    automationRef,
+    updateAutomationView,
+    updateAutomationTickEnabled,
+  });
 
   const loadDeckBuffer = useCallback(
     (
@@ -2845,252 +2447,31 @@ const useDecks = () => {
     ]
   );
 
-  const setDeckStretchRatio = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? value : DEFAULT_STRETCH_RATIO;
-    const clamped = Math.min(Math.max(safeValue, 1), 16);
-    updateDeck(id, { stretchRatio: clamped }, false);
-  };
-
-  const setDeckStretchWindowSize = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? Math.floor(value) : DEFAULT_STRETCH_WINDOW_SIZE;
-    const nextValue = STRETCH_WINDOW_SIZES.includes(safeValue)
-      ? safeValue
-      : STRETCH_WINDOW_SIZES.reduce((closest, current) =>
-          Math.abs(current - safeValue) < Math.abs(closest - safeValue) ? current : closest
-        );
-    updateDeck(id, { stretchWindowSize: nextValue }, false);
-  };
-
-  const setDeckStretchStereoWidth = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? value : DEFAULT_STRETCH_STEREO_WIDTH;
-    const clamped = Math.min(Math.max(safeValue, 0), 2);
-    updateDeck(id, { stretchStereoWidth: clamped }, false);
-  };
-
-  const setDeckStretchPhaseRandomness = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? value : DEFAULT_STRETCH_PHASE_RANDOMNESS;
-    const clamped = Math.min(Math.max(safeValue, 0), 1);
-    updateDeck(id, { stretchPhaseRandomness: clamped }, false);
-  };
-
-  const setDeckStretchTiltDb = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? value : DEFAULT_STRETCH_TILT_DB;
-    const clamped = Math.min(Math.max(safeValue, -18), 18);
-    updateDeck(id, { stretchTiltDb: clamped }, false);
-  };
-
-  const setDeckStretchScatter = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? value : DEFAULT_STRETCH_SCATTER;
-    const clamped = Math.min(Math.max(safeValue, 1), 16);
-    updateDeck(id, { stretchScatter: clamped }, false);
-  };
-
-  const setDeckWidthOverride = (id: number, value?: DeckWidthOverride) => {
-    updateDeck(id, { deckWidthOverride: value }, false);
-  };
-
-  const setDeckRearrangerSlices = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? Math.round(value) : DEFAULT_REARRANGER_SLICES;
-    const clamped = Math.min(Math.max(safeValue, 0), MAX_REARRANGER_SLICES);
-    setDecksNoHistory((prev) =>
-      prev.map((deck) => {
-        if (deck.id !== id) return deck;
-        const current = Math.min(
-          Math.max(Math.round(deck.rearrangerSlices || DEFAULT_REARRANGER_SLICES), 0),
-          MAX_REARRANGER_SLICES
-        );
-        if (clamped === current) return deck;
-        const hasManualRegions = deck.rearrangerRegionsManual === true;
-        const customRegions = hasManualRegions
-          ? sanitizeRearrangerRegions(deck.rearrangerRegions)
-          : undefined;
-        const currentIds =
-          deck.rearrangerRegionIds ??
-          Array.from({ length: Math.max(0, current) }, (_, index) => index);
-        if (clamped <= 1) {
-          return {
-            ...deck,
-            rearrangerSlices: clamped,
-            rearrangerRegions: undefined,
-            rearrangerRegionIds: currentIds.slice(0, clamped),
-            rearrangerRegionsManual: false,
-          };
-        }
-        if (!customRegions) {
-          const nextIds =
-            clamped > current
-              ? [
-                  ...currentIds,
-                  ...Array.from({ length: clamped - current }, (_, index) => current + index),
-                ]
-              : currentIds.slice(0, clamped);
-          return {
-            ...deck,
-            rearrangerSlices: clamped,
-            rearrangerRegions: undefined,
-            rearrangerRegionIds: nextIds,
-            rearrangerRegionsManual: false,
-          };
-        }
-        let nextRegions = [...customRegions];
-        const nextIds = [...currentIds];
-        if (nextRegions.length === clamped + 1) {
-          return {
-            ...deck,
-            rearrangerSlices: clamped,
-            rearrangerRegions: nextRegions,
-            rearrangerRegionIds: nextIds.slice(0, clamped),
-            rearrangerRegionsManual: true,
-          };
-        }
-        if (clamped > current) {
-          while (nextRegions.length < clamped + 1) {
-            nextRegions = appendRearrangerBoundary(nextRegions);
-            const maxId = nextIds.reduce((max, id) => Math.max(max, id), -1);
-            nextIds.push(maxId + 1);
-          }
-        } else {
-          while (nextRegions.length > clamped + 1 && nextRegions.length > 3) {
-            nextRegions.splice(nextRegions.length - 2, 1);
-            nextIds.splice(nextIds.length - 1, 1);
-          }
-        }
-        return {
-          ...deck,
-          rearrangerSlices: clamped,
-          rearrangerRegions: nextRegions,
-          rearrangerRegionIds: nextIds.slice(0, clamped),
-          rearrangerRegionsManual: true,
-        };
-      })
-    );
-  };
-
-  const setDeckRearrangerSwapCount = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value)
-      ? Math.round(value)
-      : DEFAULT_REARRANGER_SWAP_COUNT;
-    const clamped = Math.min(Math.max(safeValue, 0), MAX_REARRANGER_SLICES);
-    updateDeck(id, { rearrangerSwapCount: clamped }, false);
-  };
-
-  const setDeckRearrangerChaos = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? value : DEFAULT_REARRANGER_CHAOS;
-    const clamped = Math.min(Math.max(safeValue, 0), 1);
-    updateDeck(id, { rearrangerChaos: clamped }, false);
-  };
-
-  const setDeckRearrangerReverse = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? value : DEFAULT_REARRANGER_REVERSE;
-    const clamped = Math.min(Math.max(safeValue, 0), 1);
-    updateDeck(id, { rearrangerReverse: clamped }, false);
-  };
-
-  const setDeckRearrangerSensitivity = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? value : DEFAULT_REARRANGER_SENSITIVITY;
-    const clamped = Math.min(Math.max(safeValue, 0), 1);
-    updateDeck(id, { rearrangerSensitivity: clamped }, false);
-  };
-
-  const setDeckRearrangerQuietThreshold = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value)
-      ? value
-      : DEFAULT_REARRANGER_QUIET_THRESHOLD;
-    const clamped = Math.min(Math.max(safeValue, 0), 1);
-    updateDeck(id, { rearrangerQuietThreshold: clamped }, false);
-  };
-
-  const setDeckRearrangerSliceFadeMs = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value)
-      ? Math.round(value)
-      : DEFAULT_REARRANGER_SLICE_FADE_MS;
-    const clamped = Math.min(Math.max(safeValue, 0), 12);
-    updateDeck(id, { rearrangerSliceFadeMs: clamped }, false);
-  };
-
-  const setDeckRearrangerSliceDelaySec = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value)
-      ? value
-      : DEFAULT_REARRANGER_SLICE_DELAY_SEC;
-    const clamped = Math.min(Math.max(safeValue, 0), 5);
-    const quantized = Math.round(clamped * 100) / 100;
-    updateDeck(id, { rearrangerSliceDelaySec: quantized }, false);
-  };
-
-  const setDeckRearrangerPingPong = (id: number, value: number) => {
-    const safeValue = Number.isFinite(value) ? value : DEFAULT_REARRANGER_PINGPONG;
-    const clamped = Math.min(Math.max(safeValue, 0), 1);
-    updateDeck(id, { rearrangerPingPong: clamped }, false);
-  };
-
-  const setDeckRearrangerAuto = (id: number, value: boolean) => {
-    updateDeck(id, { rearrangerAuto: value }, false);
-  };
-
-  const setDeckRearrangerRegions = (id: number, regions?: number[]) => {
-    const next = sanitizeRearrangerRegions(regions);
-    const nextSlices = next ? Math.max(0, next.length - 1) : undefined;
-    setDecksNoHistory((prev) =>
-      prev.map((deck) => {
-        if (deck.id !== id) return deck;
-        const slices = nextSlices ?? deck.rearrangerSlices;
-        const currentIds =
-          deck.rearrangerRegionIds ??
-          Array.from({ length: Math.max(0, deck.rearrangerSlices) }, (_, index) => index);
-        const nextIds =
-          slices <= currentIds.length
-            ? currentIds.slice(0, slices)
-            : [
-                ...currentIds,
-                ...Array.from({ length: slices - currentIds.length }, (_, index) => currentIds.length + index),
-              ];
-        return {
-          ...deck,
-          rearrangerSlices: slices,
-          rearrangerRegions: next,
-          rearrangerRegionIds: nextIds,
-          rearrangerRegionsManual: true,
-        };
-      })
-    );
-  };
-
-  const setDeckFxPanelOpen = (id: number, panel: DeckFxPanel, open: boolean) => {
-    setDecksNoHistory((prev) =>
-      prev.map((deck) =>
-        deck.id === id
-          ? { ...deck, fxPanelOpen: { ...withDefaultFxPanelOpen(deck.fxPanelOpen), [panel]: open } }
-          : deck
-      )
-    );
-  };
-
-  const setDeckFxPanelsOpen = (id: number, open: boolean) => {
-    setDecksNoHistory((prev) =>
-      prev.map((deck) =>
-        deck.id === id
-          ? {
-              ...deck,
-              fxPanelOpen: {
-                gain: open,
-                djFilter: open,
-                resonance: open,
-                eqLow: open,
-                eqMid: open,
-                eqHigh: open,
-                parametricEq: open,
-                balance: open,
-                pitch: open,
-                vocoder: open,
-                delay: open,
-                rearranger: open,
-                stretch: open,
-              },
-            }
-          : deck
-      )
-    );
-  };
+  const {
+    setDeckStretchRatio,
+    setDeckStretchWindowSize,
+    setDeckStretchStereoWidth,
+    setDeckStretchPhaseRandomness,
+    setDeckStretchTiltDb,
+    setDeckStretchScatter,
+    setDeckWidthOverride,
+    setDeckRearrangerSlices,
+    setDeckRearrangerSwapCount,
+    setDeckRearrangerChaos,
+    setDeckRearrangerReverse,
+    setDeckRearrangerSensitivity,
+    setDeckRearrangerQuietThreshold,
+    setDeckRearrangerSliceFadeMs,
+    setDeckRearrangerSliceDelaySec,
+    setDeckRearrangerPingPong,
+    setDeckRearrangerAuto,
+    setDeckRearrangerRegions,
+    setDeckFxPanelOpen,
+    setDeckFxPanelsOpen,
+  } = createDeckUiSetters({
+    updateDeck,
+    setDecksNoHistory,
+  });
 
   const resetDeckFx = useCallback(
     (id: number) => {
