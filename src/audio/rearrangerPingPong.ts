@@ -6,6 +6,7 @@ export type RearrangerPingPongConfig = {
   loopEnd: number;
   playbackRate: number;
   regions: number[];
+  sliceDelaySec?: number;
   anchorTime: number;
   anchorPosition: number;
 };
@@ -107,6 +108,7 @@ export const setRearrangerPingPongConfig = (
     loopEnd: Number.isFinite(config.loopEnd) ? config.loopEnd : 0,
     playbackRate: Number.isFinite(config.playbackRate) ? config.playbackRate : 1,
     regions: Array.isArray(config.regions) ? config.regions : [0, 1],
+    sliceDelaySec: Number.isFinite(config.sliceDelaySec) ? config.sliceDelaySec : 0,
     anchorTime: Number.isFinite(config.anchorTime) ? config.anchorTime : 0,
     anchorPosition: Number.isFinite(config.anchorPosition) ? config.anchorPosition : 0,
   });

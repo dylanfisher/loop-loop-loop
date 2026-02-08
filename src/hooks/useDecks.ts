@@ -56,6 +56,7 @@ const DEFAULT_REARRANGER_REVERSE = 0;
 const DEFAULT_REARRANGER_SENSITIVITY = 0.6;
 const DEFAULT_REARRANGER_QUIET_THRESHOLD = 0.3;
 const DEFAULT_REARRANGER_SLICE_FADE_MS = 0;
+const DEFAULT_REARRANGER_SLICE_DELAY_SEC = 0;
 const DEFAULT_REARRANGER_PINGPONG = 0;
 const DEFAULT_REARRANGER_AUTO = false;
 const DEFAULT_RESONANCE = 0;
@@ -257,6 +258,7 @@ const useDecks = () => {
       rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
       rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
       rearrangerSliceFadeMs: DEFAULT_REARRANGER_SLICE_FADE_MS,
+      rearrangerSliceDelaySec: DEFAULT_REARRANGER_SLICE_DELAY_SEC,
       rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
       rearrangerAuto: DEFAULT_REARRANGER_AUTO,
       rearrangerRegionsManual: false,
@@ -1352,6 +1354,7 @@ const useDecks = () => {
         rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
         rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
         rearrangerSliceFadeMs: DEFAULT_REARRANGER_SLICE_FADE_MS,
+        rearrangerSliceDelaySec: DEFAULT_REARRANGER_SLICE_DELAY_SEC,
         rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
         rearrangerAuto: DEFAULT_REARRANGER_AUTO,
         rearrangerRegionsManual: false,
@@ -1432,6 +1435,7 @@ const useDecks = () => {
             rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
             rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
             rearrangerSliceFadeMs: DEFAULT_REARRANGER_SLICE_FADE_MS,
+            rearrangerSliceDelaySec: DEFAULT_REARRANGER_SLICE_DELAY_SEC,
             rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
             rearrangerAuto: DEFAULT_REARRANGER_AUTO,
             rearrangerRegionsManual: false,
@@ -1557,6 +1561,10 @@ const useDecks = () => {
       0,
       Math.min(12, clipSettings?.rearrangerSliceFadeMs ?? DEFAULT_REARRANGER_SLICE_FADE_MS)
     );
+    const nextRearrangerSliceDelaySec = Math.max(
+      0,
+      Math.min(5, clipSettings?.rearrangerSliceDelaySec ?? DEFAULT_REARRANGER_SLICE_DELAY_SEC)
+    );
     const nextRearrangerPingPong = Math.max(
       0,
       Math.min(1, clipSettings?.rearrangerPingPong ?? DEFAULT_REARRANGER_PINGPONG)
@@ -1629,6 +1637,7 @@ const useDecks = () => {
             DEFAULT_REARRANGER_QUIET_THRESHOLD
           ) ||
           !approxEqual(nextRearrangerSliceFadeMs, DEFAULT_REARRANGER_SLICE_FADE_MS) ||
+          !approxEqual(nextRearrangerSliceDelaySec, DEFAULT_REARRANGER_SLICE_DELAY_SEC) ||
           !approxEqual(nextRearrangerPingPong, DEFAULT_REARRANGER_PINGPONG) ||
           (nextRearrangerRegions?.length ?? 0) > 0,
         stretch: currentPanels.stretch || stretchChanged,
@@ -1737,6 +1746,7 @@ const useDecks = () => {
       rearrangerSensitivity: nextRearrangerSensitivity,
       rearrangerQuietThreshold: nextRearrangerQuietThreshold,
       rearrangerSliceFadeMs: nextRearrangerSliceFadeMs,
+      rearrangerSliceDelaySec: nextRearrangerSliceDelaySec,
       rearrangerPingPong: nextRearrangerPingPong,
       rearrangerAuto: nextRearrangerAuto,
       rearrangerRegions: nextRearrangerRegions,
@@ -1820,6 +1830,7 @@ const useDecks = () => {
       rearrangerSensitivity: nextRearrangerSensitivity,
       rearrangerQuietThreshold: nextRearrangerQuietThreshold,
       rearrangerSliceFadeMs: nextRearrangerSliceFadeMs,
+      rearrangerSliceDelaySec: nextRearrangerSliceDelaySec,
       rearrangerPingPong: nextRearrangerPingPong,
       rearrangerAuto: nextRearrangerAuto,
         rearrangerRegions: nextRearrangerRegions,
@@ -2315,6 +2326,16 @@ const useDecks = () => {
     setDeckDelayTime(id, clamped);
   };
 
+  const setDeckPlaybackRateTransient = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 16);
+    setDeckPlaybackRate(id, clamped);
+  };
+
+  const setDeckPlaybackOffsetTransient = (id: number, value: number) => {
+    const clamped = Math.max(0, value);
+    setDeckPlaybackOffset(id, clamped);
+  };
+
   const setDeckRearrangerPanTransient = (id: number, value: number) => {
     const clamped = Math.min(Math.max(value, -1), 1);
     setDeckRearrangerPan(id, clamped);
@@ -2329,6 +2350,7 @@ const useDecks = () => {
       loopEnd: number;
       playbackRate: number;
       regions: number[];
+      sliceDelaySec?: number;
       anchorTime: number;
       anchorPosition: number;
     } | null
@@ -2897,6 +2919,8 @@ const useDecks = () => {
         deck.rearrangerQuietThreshold ?? DEFAULT_REARRANGER_QUIET_THRESHOLD;
       const nextRearrangerSliceFadeMs =
         deck.rearrangerSliceFadeMs ?? DEFAULT_REARRANGER_SLICE_FADE_MS;
+      const nextRearrangerSliceDelaySec =
+        deck.rearrangerSliceDelaySec ?? DEFAULT_REARRANGER_SLICE_DELAY_SEC;
       const nextRearrangerPingPong =
         deck.rearrangerPingPong ?? DEFAULT_REARRANGER_PINGPONG;
       const nextRearrangerAuto = deck.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO;
@@ -2977,6 +3001,7 @@ const useDecks = () => {
         rearrangerSensitivity: nextRearrangerSensitivity,
         rearrangerQuietThreshold: nextRearrangerQuietThreshold,
         rearrangerSliceFadeMs: nextRearrangerSliceFadeMs,
+        rearrangerSliceDelaySec: nextRearrangerSliceDelaySec,
         rearrangerPingPong: nextRearrangerPingPong,
         rearrangerAuto: nextRearrangerAuto,
         rearrangerRegions: nextRearrangerRegions,
@@ -3269,6 +3294,15 @@ const useDecks = () => {
     updateDeck(id, { rearrangerSliceFadeMs: clamped }, false);
   };
 
+  const setDeckRearrangerSliceDelaySec = (id: number, value: number) => {
+    const safeValue = Number.isFinite(value)
+      ? value
+      : DEFAULT_REARRANGER_SLICE_DELAY_SEC;
+    const clamped = Math.min(Math.max(safeValue, 0), 5);
+    const quantized = Math.round(clamped * 100) / 100;
+    updateDeck(id, { rearrangerSliceDelaySec: quantized }, false);
+  };
+
   const setDeckRearrangerPingPong = (id: number, value: number) => {
     const safeValue = Number.isFinite(value) ? value : DEFAULT_REARRANGER_PINGPONG;
     const clamped = Math.min(Math.max(safeValue, 0), 1);
@@ -3431,6 +3465,7 @@ const useDecks = () => {
           rearrangerSensitivity: DEFAULT_REARRANGER_SENSITIVITY,
           rearrangerQuietThreshold: DEFAULT_REARRANGER_QUIET_THRESHOLD,
           rearrangerSliceFadeMs: DEFAULT_REARRANGER_SLICE_FADE_MS,
+          rearrangerSliceDelaySec: DEFAULT_REARRANGER_SLICE_DELAY_SEC,
           rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
           rearrangerAuto: DEFAULT_REARRANGER_AUTO,
           rearrangerRegions: undefined,
@@ -3572,6 +3607,7 @@ const useDecks = () => {
         rearrangerSensitivity: deck.rearrangerSensitivity,
         rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
         rearrangerSliceFadeMs: deck.rearrangerSliceFadeMs,
+        rearrangerSliceDelaySec: deck.rearrangerSliceDelaySec,
         rearrangerPingPong: deck.rearrangerPingPong,
         rearrangerAuto: deck.rearrangerAuto,
         rearrangerRegions: sanitizeRearrangerRegions(deck.rearrangerRegions),
@@ -3763,6 +3799,8 @@ const useDecks = () => {
             DEFAULT_REARRANGER_QUIET_THRESHOLD,
           rearrangerSliceFadeMs:
             sessionDeck.rearrangerSliceFadeMs ?? DEFAULT_REARRANGER_SLICE_FADE_MS,
+          rearrangerSliceDelaySec:
+            sessionDeck.rearrangerSliceDelaySec ?? DEFAULT_REARRANGER_SLICE_DELAY_SEC,
           rearrangerPingPong:
             sessionDeck.rearrangerPingPong ?? DEFAULT_REARRANGER_PINGPONG,
           rearrangerAuto:
@@ -3859,6 +3897,8 @@ const useDecks = () => {
     setDeckVocoderGateThreshold: setDeckVocoderGateThresholdValue,
     setDeckDelaySliceSync: setDeckDelaySliceSyncValue,
     setDeckDelayTimeTransient,
+    setDeckPlaybackRateTransient,
+    setDeckPlaybackOffsetTransient,
     setDeckRearrangerPanTransient,
     setDeckRearrangerPingPongLive,
     clearDeckRearrangerPanAutomationTransient,
@@ -3885,6 +3925,7 @@ const useDecks = () => {
     setDeckRearrangerSensitivity,
     setDeckRearrangerQuietThreshold,
     setDeckRearrangerSliceFadeMs,
+    setDeckRearrangerSliceDelaySec,
     setDeckRearrangerPingPong,
     setDeckRearrangerAuto,
     setDeckRearrangerRegions,

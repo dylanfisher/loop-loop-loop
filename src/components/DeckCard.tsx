@@ -131,6 +131,7 @@ type DeckCardProps = {
   onRearrangerSensitivityChange: (id: number, value: number) => void;
   onRearrangerQuietThresholdChange: (id: number, value: number) => void;
   onRearrangerSliceFadeChange: (id: number, value: number) => void;
+  onRearrangerSliceDelayChange: (id: number, value: number) => void;
   onRearrangerPingPongChange: (id: number, value: number) => void;
   onRearrangerAutoChange: (id: number, value: boolean) => void;
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
@@ -248,6 +249,7 @@ const DeckCard = ({
   onRearrangerSensitivityChange,
   onRearrangerQuietThresholdChange,
   onRearrangerSliceFadeChange,
+  onRearrangerSliceDelayChange,
   onRearrangerPingPongChange,
   onRearrangerAutoChange,
   onRearrangerRegionsChange,
@@ -798,6 +800,7 @@ const DeckCard = ({
         isDifferent(deck.rearrangerSensitivity, 0.6) ||
         isDifferent(deck.rearrangerQuietThreshold, 0.3) ||
         isDifferent(deck.rearrangerSliceFadeMs, 0, 1) ||
+        isDifferent(deck.rearrangerSliceDelaySec, 0) ||
         isDifferent(deck.rearrangerPingPong, 0) ||
         deck.rearrangerAuto ||
         (deck.rearrangerRegions?.length ?? 0) > 0,
@@ -2044,7 +2047,7 @@ const DeckCard = ({
             </div>
           </div>
           <div
-            className={`deck__fx-unit deck__fx-unit--rearranger deck__fx-unit--span-2 ${fxPanelOpen.rearranger ? "" : "is-collapsed"}`.trim()}
+            className={`deck__fx-unit deck__fx-unit--rearranger deck__fx-unit--span-3 ${fxPanelOpen.rearranger ? "" : "is-collapsed"}`.trim()}
           >
             <button
               type="button"
@@ -2055,7 +2058,7 @@ const DeckCard = ({
             >
               {renderFxToggleLabel("rearranger", "Rearranger")}
             </button>
-            <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-4">
+            <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-5">
               <Knob
                 className="knob--compact"
                 label="Slices"
@@ -2142,6 +2145,18 @@ const DeckCard = ({
                 labelTitle="Short fades on slice edges to reduce clicks."
                 onChange={(next) => onRearrangerSliceFadeChange(deck.id, next)}
                 formatValue={(value) => `${Math.round(value)} ms`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Slice Delay"
+                min={0}
+                max={5}
+                step={0.01}
+                value={deck.rearrangerSliceDelaySec}
+                defaultValue={0}
+                labelTitle="Simulates a short hold between slices during live playback (non-destructive, FX tails keep processing) and is baked in offline renders."
+                onChange={(next) => onRearrangerSliceDelayChange(deck.id, next)}
+                formatValue={(value) => `${value.toFixed(2)}s`}
               />
               <Knob
                 className="knob--compact"

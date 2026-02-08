@@ -568,6 +568,18 @@ const App = () => {
   const rearrangeLoopTrackerRef = useRef<Map<number, { lastPosition: number; lastTriggerMs: number }>>(
     new Map()
   );
+  const sliceDelayHoldStateRef = useRef<
+    Map<
+      number,
+      {
+        lastSliceIndex: number;
+        holdEndMs: number;
+        holdSliceIndex: number;
+        heldSliceIndex: number;
+        appliedRate: number;
+      }
+    >
+  >(new Map());
   const delaySliceSyncTrackerRef = useRef<Map<number, number>>(new Map());
   const rearrangerPingPongStateRef = useRef<Map<number, { signature: string }>>(new Map());
   const pendingAutoRearrangeRef = useRef<
@@ -624,6 +636,7 @@ const App = () => {
     setDeckVocoderGateThreshold,
     setDeckDelaySliceSync,
     setDeckDelayTimeTransient,
+    setDeckPlaybackRateTransient,
     setDeckRearrangerPanTransient,
     setDeckRearrangerPingPongLive,
     setDeckPitchShift,
@@ -648,6 +661,7 @@ const App = () => {
     setDeckRearrangerSensitivity,
     setDeckRearrangerQuietThreshold,
     setDeckRearrangerSliceFadeMs,
+    setDeckRearrangerSliceDelaySec,
     setDeckRearrangerPingPong,
     setDeckRearrangerAuto,
     setDeckRearrangerRegions,
@@ -847,6 +861,7 @@ const App = () => {
         rearrangerSensitivity: deck.rearrangerSensitivity,
         rearrangerQuietThreshold: deck.rearrangerQuietThreshold,
         rearrangerSliceFadeMs: deck.rearrangerSliceFadeMs,
+        rearrangerSliceDelaySec: deck.rearrangerSliceDelaySec,
         rearrangerPingPong: deck.rearrangerPingPong,
         rearrangerAuto: deck.rearrangerAuto,
         rearrangerRegions: deck.rearrangerRegions,
@@ -1372,6 +1387,7 @@ const App = () => {
               deck.rearrangerChaos,
               deck.rearrangerReverse,
               deck.rearrangerSliceFadeMs,
+              deck.rearrangerSliceDelaySec,
               durationSec.toFixed(6),
             ].join("|")
           );
@@ -1415,6 +1431,7 @@ const App = () => {
               reverse: deck.rearrangerReverse,
               regions: currentRegions,
               sliceFadeMs: deck.rearrangerSliceFadeMs,
+              sliceDelaySec: deck.rearrangerSliceDelaySec,
             };
             const nextBuffer = rearrangeBufferSegment(
               currentBuffer,
@@ -1425,7 +1442,8 @@ const App = () => {
             );
             currentRegions = deriveRearrangedRegions(rearrangerParams, {
               chaosSeed,
-              segmentSamples: nextBuffer.length,
+              segmentSamples: currentBuffer.length,
+              sampleRate: currentBuffer.sampleRate,
             });
             currentRegionIds = deriveRearrangedRegionIds(
               rearrangerParams,
@@ -2187,6 +2205,7 @@ const App = () => {
     const tick = () => {
       const now = performance.now();
       const tracker = rearrangeLoopTrackerRef.current;
+      const sliceDelayHoldState = sliceDelayHoldStateRef.current;
       const delaySyncTracker = delaySliceSyncTrackerRef.current;
       const pingPongSchedule = rearrangerPingPongStateRef.current;
       const pendingAuto = pendingAutoRearrangeRef.current;
@@ -2195,6 +2214,11 @@ const App = () => {
       tracker.forEach((_, deckId) => {
         if (!activeDecks.has(deckId)) {
           tracker.delete(deckId);
+        }
+      });
+      sliceDelayHoldState.forEach((_, deckId) => {
+        if (!activeDecks.has(deckId)) {
+          sliceDelayHoldState.delete(deckId);
         }
       });
       busyByDeck.forEach((_, deckId) => {
@@ -2221,6 +2245,25 @@ const App = () => {
       decks.forEach((deck) => {
         const snapshot = getDeckPlaybackSnapshot(deck.id);
         const currentPosition = snapshot?.position ?? deck.offsetSeconds ?? 0;
+        const basePlaybackRate = Math.max(0.01, 1 + (deck.tempoOffset ?? 0) / 100);
+        const sliceDelaySec = Math.min(Math.max(deck.rearrangerSliceDelaySec ?? 0, 0), 5);
+        const sliceDelayEnabled = sliceDelaySec >= 0.01;
+        const applySliceDelayRate = (value: number) => {
+          const state = sliceDelayHoldState.get(deck.id);
+          if (state) {
+            if (approxEqual(state.appliedRate, value, 1e-4)) return;
+            state.appliedRate = value;
+          }
+          setDeckPlaybackRateTransient(deck.id, value);
+        };
+        const clearSliceDelayHold = () => {
+          const state = sliceDelayHoldState.get(deck.id);
+          if (!state) return;
+          if (!approxEqual(state.appliedRate, basePlaybackRate, 1e-4)) {
+            setDeckPlaybackRateTransient(deck.id, basePlaybackRate);
+          }
+          sliceDelayHoldState.delete(deck.id);
+        };
         const lastSyncedSlice = delaySyncTracker.get(deck.id) ?? -1;
         const restoreManualDelayTime = () => {
           if (lastSyncedSlice !== -1) {
@@ -2273,14 +2316,100 @@ const App = () => {
           }
         }
         const audioNow = getAudioCurrentTime();
+        if (
+          !sliceDelayEnabled ||
+          deck.status !== "playing" ||
+          !snapshot?.playing ||
+          !snapshot.loopEnabled ||
+          (deck.rearrangerSlices ?? 0) <= 1
+        ) {
+          clearSliceDelayHold();
+        } else {
+          const loopLength = Math.max(0, snapshot.loopEnd - snapshot.loopStart);
+          const regions = normalizeRearrangerRegions(deck.rearrangerRegions, deck.rearrangerSlices);
+          const sliceCount = Math.max(0, regions.length - 1);
+          if (loopLength <= 0.001 || sliceCount <= 1) {
+            clearSliceDelayHold();
+          } else {
+            const clampedPosition = Math.min(
+              snapshot.loopEnd - 1e-6,
+              Math.max(snapshot.loopStart, currentPosition)
+            );
+            const progress = Math.min(
+              1 - 1e-6,
+              Math.max(0, (clampedPosition - snapshot.loopStart) / loopLength)
+            );
+            let sliceIndex = sliceCount - 1;
+            for (let i = 0; i < sliceCount; i += 1) {
+              if (progress >= regions[i] && progress < regions[i + 1]) {
+                sliceIndex = i;
+                break;
+              }
+            }
+            let holdState = sliceDelayHoldState.get(deck.id);
+            if (!holdState) {
+              holdState = {
+                lastSliceIndex: -1,
+                holdEndMs: -1,
+                holdSliceIndex: -1,
+                heldSliceIndex: -1,
+                appliedRate: basePlaybackRate,
+              };
+              sliceDelayHoldState.set(deck.id, holdState);
+            }
+            if (sliceIndex !== holdState.lastSliceIndex) {
+              holdState.lastSliceIndex = sliceIndex;
+              holdState.heldSliceIndex = -1;
+              if (holdState.holdSliceIndex !== sliceIndex) {
+                holdState.holdSliceIndex = -1;
+                holdState.holdEndMs = -1;
+              }
+            }
+            if (holdState.holdSliceIndex === sliceIndex) {
+              if (now < holdState.holdEndMs) {
+                applySliceDelayRate(0);
+              } else {
+                holdState.holdSliceIndex = -1;
+                holdState.holdEndMs = -1;
+                applySliceDelayRate(basePlaybackRate);
+              }
+            } else if (holdState.holdSliceIndex >= 0) {
+              holdState.holdSliceIndex = -1;
+              holdState.holdEndMs = -1;
+              applySliceDelayRate(basePlaybackRate);
+            } else {
+              applySliceDelayRate(basePlaybackRate);
+            }
+
+            if (holdState.holdSliceIndex < 0 && holdState.heldSliceIndex !== sliceIndex) {
+              const sliceStartNorm = regions[sliceIndex] ?? 0;
+              const sliceEndNorm = regions[sliceIndex + 1] ?? 1;
+              const normLength = Math.max(1e-6, sliceEndNorm - sliceStartNorm);
+              const sliceDurationSec = loopLength * normLength;
+              const positionInSliceNorm = Math.min(
+                1,
+                Math.max(0, (progress - sliceStartNorm) / normLength)
+              );
+              const timeUntilSliceEndSec = (1 - positionInSliceNorm) * sliceDurationSec;
+              const holdTriggerWindowSec = Math.min(0.02, Math.max(0.006, sliceDurationSec * 0.5));
+              if (timeUntilSliceEndSec <= holdTriggerWindowSec) {
+                holdState.holdSliceIndex = sliceIndex;
+                holdState.heldSliceIndex = sliceIndex;
+                holdState.holdEndMs = now + sliceDelaySec * 1000;
+                applySliceDelayRate(0);
+              }
+            }
+          }
+        }
         const resetPingPongPan = () => {
           setDeckRearrangerPanTransient(deck.id, 0);
           setDeckRearrangerPingPongLive(deck.id, 0, null);
           pingPongSchedule.delete(deck.id);
         };
         const pingPongAmount = Math.min(Math.max(deck.rearrangerPingPong ?? 0, 0), 1);
+        const hasRearrangerRealtimeFx = pingPongAmount > 1e-3;
         if (
-          pingPongAmount <= 1e-3 ||
+          !hasRearrangerRealtimeFx ||
           deck.status !== "playing" ||
           !snapshot?.playing ||
           !snapshot.loopEnabled ||
@@ -2322,6 +2451,7 @@ const App = () => {
                     loopEnd: snapshot.loopEnd,
                     playbackRate,
                     regions,
+                    sliceDelaySec: 0,
                     anchorTime: audioNow,
                     anchorPosition: clampedPosition,
                   });
@@ -2498,6 +2628,7 @@ const App = () => {
     getAudioCurrentTime,
     getDeckPlaybackSnapshot,
     handleRearrangeLoop,
+    setDeckPlaybackRateTransient,
     setDeckDelayTimeTransient,
     setDeckRearrangerPanTransient,
     setDeckRearrangerPingPongLive,
@@ -3664,6 +3795,7 @@ const App = () => {
           onRearrangerSensitivityChange={setDeckRearrangerSensitivity}
           onRearrangerQuietThresholdChange={setDeckRearrangerQuietThreshold}
           onRearrangerSliceFadeChange={setDeckRearrangerSliceFadeMs}
+          onRearrangerSliceDelayChange={setDeckRearrangerSliceDelaySec}
           onRearrangerPingPongChange={setDeckRearrangerPingPong}
           onRearrangerAutoChange={setDeckRearrangerAuto}
           onRearrangerRegionsChange={setDeckRearrangerRegions}

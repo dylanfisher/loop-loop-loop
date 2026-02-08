@@ -1609,6 +1609,10 @@ input[type="range"]::-moz-focus-outer {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.deck__fx-controls-grid--cols-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .deck__delay-toggle {
   display: grid;
   gap: 6px;

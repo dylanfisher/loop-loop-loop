@@ -69,6 +69,7 @@ export type DeckSession = {
   rearrangerSensitivity?: number;
   rearrangerQuietThreshold?: number;
   rearrangerSliceFadeMs?: number;
+  rearrangerSliceDelaySec?: number;
   rearrangerPingPong?: number;
   rearrangerAuto?: boolean;
   rearrangerRegions?: number[];
@@ -146,6 +147,7 @@ export type ClipSettings = {
   rearrangerSensitivity?: number;
   rearrangerQuietThreshold?: number;
   rearrangerSliceFadeMs?: number;
+  rearrangerSliceDelaySec?: number;
   rearrangerPingPong?: number;
   rearrangerAuto?: boolean;
   rearrangerRegions?: number[];

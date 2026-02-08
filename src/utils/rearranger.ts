@@ -11,6 +11,7 @@ export type RearrangerParams = {
   reverse: number;
   regions?: number[] | null;
   sliceFadeMs?: number;
+  sliceDelaySec?: number;
 };
 
 export type RearrangerSliceMap = {
@@ -23,6 +24,7 @@ export const MAX_REARRANGER_SLICES = 128;
 type RearrangerBuildOptions = {
   chaosSeed?: number;
   segmentSamples?: number;
+  sampleRate?: number;
 };
 
 type RearrangerDetectOptions = {
@@ -50,6 +52,7 @@ const buildEqualRegions = (sliceCount: number) => {
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const DEFAULT_SLICE_FADE_MS = 0;
+const DEFAULT_SLICE_DELAY_SEC = 0;
 
 // Start loading optional wasm backend early; JS path remains authoritative fallback.
 warmupRearrangerWasm();
@@ -77,6 +80,7 @@ export const normalizeRearrangerParams = (params: RearrangerParams): RearrangerP
   reverse: Math.max(0, Math.min(1, params.reverse)),
   regions: normalizeRearrangerRegions(params.regions, params.slices),
   sliceFadeMs: Math.max(0, Math.min(12, params.sliceFadeMs ?? DEFAULT_SLICE_FADE_MS)),
+  sliceDelaySec: Math.max(0, Math.min(5, params.sliceDelaySec ?? DEFAULT_SLICE_DELAY_SEC)),
 });
 
 export const normalizeRearrangerRegionIds = (
@@ -144,8 +148,13 @@ export const rearrangeLoopBuffer = (
   if (normalized.slices <= 1) return source;
   const regions = normalizeRearrangerRegions(normalized.regions, normalized.slices);
   const sliceCount = Math.max(2, regions.length - 1);
+  const sliceDelaySamples = Math.max(
+    0,
+    Math.round(source.sampleRate * (normalized.sliceDelaySec ?? DEFAULT_SLICE_DELAY_SEC))
+  );
+  const totalDelaySamples = Math.max(0, sliceCount - 1) * sliceDelaySamples;
   const output = new AudioBuffer({
-    length: source.length,
+    length: source.length + totalDelaySamples,
     numberOfChannels: source.numberOfChannels,
     sampleRate: source.sampleRate,
   });
@@ -193,6 +202,9 @@ export const rearrangeLoopBuffer = (
       }
     }
     writeHead += srcLen;
+    if (sliceIndex < sliceCount - 1) {
+      writeHead += sliceDelaySamples;
+    }
   }
 
   return output;
@@ -240,8 +252,13 @@ export const rearrangeBufferSegment = (
     Math.min(source.length, Math.round((clampedStartSeconds + Math.max(0.001, durationSeconds)) * sampleRate))
   );
   const segmentLength = Math.max(1, endSample - startSample);
+  const sliceDelaySamples = Math.max(
+    0,
+    Math.round(sampleRate * (normalized.sliceDelaySec ?? DEFAULT_SLICE_DELAY_SEC))
+  );
+  const totalDelaySamples = Math.max(0, sliceCount - 1) * sliceDelaySamples;
   const output = new AudioBuffer({
-    length: segmentLength,
+    length: segmentLength + totalDelaySamples,
     numberOfChannels: source.numberOfChannels,
     sampleRate,
   });
@@ -264,26 +281,28 @@ export const rearrangeBufferSegment = (
     Math.round((sampleRate * (normalized.sliceFadeMs ?? DEFAULT_SLICE_FADE_MS)) / 1000)
   );
 
-  let usedWasm = false;
-  for (let channel = 0; channel < source.numberOfChannels; channel += 1) {
-    const src = source.getChannelData(channel);
-    const wasmOut = tryRearrangeSegmentWasm(
-      src,
-      startsInt,
-      mapSource,
-      mapReversed,
-      startSample,
-      segmentLength,
-      fadeSamples
-    );
-    if (!wasmOut || wasmOut.length !== segmentLength) {
-      usedWasm = false;
-      break;
+  if (sliceDelaySamples <= 0) {
+    let usedWasm = false;
+    for (let channel = 0; channel < source.numberOfChannels; channel += 1) {
+      const src = source.getChannelData(channel);
+      const wasmOut = tryRearrangeSegmentWasm(
+        src,
+        startsInt,
+        mapSource,
+        mapReversed,
+        startSample,
+        segmentLength,
+        fadeSamples
+      );
+      if (!wasmOut || wasmOut.length !== segmentLength) {
+        usedWasm = false;
+        break;
+      }
+      usedWasm = true;
+      output.getChannelData(channel).set(wasmOut);
     }
-    usedWasm = true;
-    output.getChannelData(channel).set(wasmOut);
+    if (usedWasm) return output;
   }
-  if (usedWasm) return output;
 
   for (let sliceIndex = 0; sliceIndex < sliceCount; sliceIndex += 1) {
     const mapping = map[sliceIndex];
@@ -318,6 +337,9 @@ export const rearrangeBufferSegment = (
       }
     }
     writeHead += srcLen;
+    if (sliceIndex < sliceCount - 1) {
+      writeHead += sliceDelaySamples;
+    }
   }
 
   return output;
@@ -342,13 +364,25 @@ export const deriveRearrangedRegions = (
       const srcEnd = starts[entry.sourceIndex + 1] ?? segmentSamples;
       return Math.max(0, srcEnd - srcStart);
     });
-    const total = lengths.reduce((sum, value) => sum + value, 0);
+    const sampleRate = Math.max(0, options?.sampleRate ?? 0);
+    const delaySamples =
+      sampleRate > 0
+        ? Math.max(
+            0,
+            Math.round(sampleRate * (normalized.sliceDelaySec ?? DEFAULT_SLICE_DELAY_SEC))
+          )
+        : 0;
+    const totalDelaySamples = Math.max(0, lengths.length - 1) * delaySamples;
+    const total = lengths.reduce((sum, value) => sum + value, 0) + totalDelaySamples;
     if (total <= 0) return regions;
     const next = new Array<number>(lengths.length + 1);
     next[0] = 0;
     let acc = 0;
     for (let i = 0; i < lengths.length; i += 1) {
       acc += lengths[i];
+      if (i < lengths.length - 1) {
+        acc += delaySamples;
+      }
       next[i + 1] = i === lengths.length - 1 ? 1 : acc / total;
     }
     return next;

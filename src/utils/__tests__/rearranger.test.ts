@@ -99,6 +99,26 @@ describe("rearranger", () => {
     expect(current.length).toBe(initialLength);
   });
 
+  it("inserts silence between slices when slice delay is set", () => {
+    const buffer = new MockAudioBuffer({ length: 8, numberOfChannels: 1, sampleRate: 4 });
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < channel.length; i += 1) {
+      channel[i] = i + 1;
+    }
+
+    const output = rearrangeBufferSegment(buffer as unknown as AudioBuffer, 0, 2, {
+      slices: 2,
+      swapCount: 0,
+      chaos: 0,
+      reverse: 0,
+      sliceFadeMs: 0,
+      sliceDelaySec: 0.5,
+    });
+    const out = (output as unknown as MockAudioBuffer).getChannelData(0);
+    expect(output.length).toBe(10);
+    expect(Array.from(out)).toEqual([1, 2, 3, 4, 0, 0, 5, 6, 7, 8]);
+  });
+
   it("uses custom regions to set non-uniform slice boundaries", () => {
     const regions = normalizeRearrangerRegions([0, 0.1, 0.5, 1], 3);
     expect(regions).toEqual([0, 0.1, 0.5, 1]);
@@ -144,6 +164,21 @@ describe("rearranger", () => {
     expect(next[1]).toBeCloseTo(0.2, 6);
     expect(next[2]).toBeCloseTo(0.8, 6);
     expect(next[3]).toBeCloseTo(1, 6);
+  });
+
+  it("derives region boundaries including slice delay spacing", () => {
+    const next = deriveRearrangedRegions(
+      {
+        slices: 2,
+        swapCount: 0,
+        chaos: 0,
+        reverse: 0,
+        regions: [0, 0.5, 1],
+        sliceDelaySec: 0.5,
+      },
+      { segmentSamples: 8, sampleRate: 4 }
+    );
+    expect(next).toEqual([0, 0.6, 1]);
   });
 
   it("keeps rearranged region boundaries sample-quantized across repeated derives", () => {

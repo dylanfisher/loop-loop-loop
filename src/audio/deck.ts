@@ -1543,7 +1543,7 @@ export const setDeckPlaybackRate = (
   currentTime?: number
 ) => {
   const nodes = deckNodes.get(deckId);
-  const clampedRate = Math.min(Math.max(playbackRate, 0.01), 16);
+  const clampedRate = Math.min(Math.max(playbackRate, 0), 16);
 
   const playback = deckPlayback.get(deckId);
   if (nodes?.source) {
@@ -1553,9 +1553,11 @@ export const setDeckPlaybackRate = (
   }
 
   if (playback && currentTime !== undefined) {
-    const elapsed = playback.playing ? Math.max(0, currentTime - playback.startTime) : 0;
+    const position = playback.playing
+      ? getDeckPlaybackPosition(deckId, currentTime)
+      : playback.offsetSeconds;
     const nextOffset = Math.min(
-      playback.offsetSeconds + elapsed * playback.playbackRate,
+      Math.max(0, position ?? playback.offsetSeconds),
       playback.duration
     );
     deckPlayback.set(deckId, {

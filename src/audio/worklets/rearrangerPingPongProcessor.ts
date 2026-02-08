@@ -7,6 +7,7 @@ type PingPongConfigMessage = {
   loopEnd: number;
   playbackRate: number;
   regions: number[];
+  sliceDelaySec: number;
   anchorTime: number;
   anchorPosition: number;
 };
@@ -46,8 +47,11 @@ class RearrangerPingPongProcessor extends AudioWorkletProcessor {
   private loopEnd = 0;
   private playbackRate = 1;
   private regions: number[] = [0, 1];
+  private sliceDelaySec = 0;
   private anchorTime = 0;
   private anchorPosition = 0;
+  private readonly edgeFadeSec = 0.004;
+  private readonly minAudibleSliceSec = 0.005;
 
   constructor() {
     super();
@@ -68,6 +72,11 @@ class RearrangerPingPongProcessor extends AudioWorkletProcessor {
         16
       );
       this.regions = toSafeRegions(Array.isArray(message.regions) ? message.regions : [0, 1]);
+      this.sliceDelaySec = clamp(
+        Number.isFinite(message.sliceDelaySec) ? message.sliceDelaySec : 0,
+        0,
+        5
+      );
       this.anchorTime = Number.isFinite(message.anchorTime) ? message.anchorTime : currentTime;
       this.anchorPosition = Number.isFinite(message.anchorPosition) ? message.anchorPosition : this.loopStart;
     };
@@ -95,7 +104,9 @@ class RearrangerPingPongProcessor extends AudioWorkletProcessor {
       const leftIn = inL?.[i] ?? 0;
       const rightIn = inR?.[i] ?? 0;
       const amount = clamp(amountParam.length === 1 ? amountParam[0] ?? 0 : amountParam[i] ?? 0, 0, 1);
-      if (!active || amount <= 0.0001) {
+      const hasPingPong = amount > 0.0001;
+      const hasSliceDelay = this.sliceDelaySec > 0.0001;
+      if (!active || (!hasPingPong && !hasSliceDelay)) {
         outL[i] = leftIn;
         if (output.length > 1) {
           outR[i] = rightIn;
@@ -116,13 +127,43 @@ class RearrangerPingPongProcessor extends AudioWorkletProcessor {
           break;
         }
       }
+      let gateGain = 1;
+      if (hasSliceDelay) {
+        const sliceStart = (this.regions[sliceIndex] ?? 0) * loopLength;
+        const sliceEnd = (this.regions[sliceIndex + 1] ?? 1) * loopLength;
+        const sliceDuration = Math.max(0, sliceEnd - sliceStart);
+        const maxDelay = Math.max(0, sliceDuration - this.minAudibleSliceSec);
+        const delayWindow = Math.min(this.sliceDelaySec, maxDelay);
+        const offsetInSlice = Math.max(0, wrapped - sliceStart);
+        const holdStart = Math.max(0, sliceDuration - delayWindow);
+        if (delayWindow > 0.000001) {
+          if (offsetInSlice >= holdStart) {
+            gateGain = 0;
+          } else {
+            const fadeSec = Math.min(this.edgeFadeSec, Math.max(0.0005, sliceDuration * 0.25));
+            if (offsetInSlice < fadeSec) {
+              gateGain = Math.min(gateGain, offsetInSlice / fadeSec);
+            }
+            if (offsetInSlice > holdStart - fadeSec) {
+              gateGain = Math.min(gateGain, (holdStart - offsetInSlice) / fadeSec);
+            }
+          }
+        }
+      }
+      if (gateGain <= 0.0001) {
+        outL[i] = 0;
+        if (output.length > 1) {
+          outR[i] = 0;
+        }
+        continue;
+      }
       const pan = (sliceIndex % 2 === 0 ? -1 : 1) * amount;
       const angle = (pan + 1) * 0.25 * Math.PI;
       const leftGain = Math.cos(angle);
       const rightGain = Math.sin(angle);
-      outL[i] = leftIn * leftGain;
+      outL[i] = leftIn * leftGain * gateGain;
       if (output.length > 1) {
-        outR[i] = rightIn * rightGain;
+        outR[i] = rightIn * rightGain * gateGain;
       }
     }
 
