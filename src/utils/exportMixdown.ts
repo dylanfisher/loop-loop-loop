@@ -114,6 +114,49 @@ export const renderMixdownBlob = async ({
     return source;
   };
 
+  const createSliceDelayedLoopBuffer = (
+    deck: DeckState,
+    loopStart: number,
+    loopEnd: number
+  ) => {
+    if (!deck.buffer) return null;
+    const sliceCount = Math.max(0, Math.round(deck.rearrangerSlices ?? 0));
+    const sliceDelaySec = Math.min(Math.max(deck.rearrangerSliceDelaySec ?? 0, 0), 5);
+    if (sliceCount <= 1 || sliceDelaySec < 0.01) return null;
+    // Export path: add a tiny minimum fade when slice delay inserts silence to avoid clicks.
+    const effectiveSliceFadeMs = Math.max(deck.rearrangerSliceFadeMs ?? 0, 1);
+    const startSample = Math.max(
+      0,
+      Math.min(deck.buffer.length - 1, Math.round(loopStart * deck.buffer.sampleRate))
+    );
+    const endSample = Math.max(
+      startSample + 1,
+      Math.min(deck.buffer.length, Math.round(loopEnd * deck.buffer.sampleRate))
+    );
+    const segmentSamples = Math.max(1, endSample - startSample);
+    const loopSegment = trimBufferLeadingSamples(
+      offline,
+      deck.buffer,
+      startSample,
+      segmentSamples
+    );
+    return rearrangeBufferSegment(
+      loopSegment,
+      0,
+      loopSegment.duration,
+      {
+        slices: deck.rearrangerSlices,
+        swapCount: 0,
+        chaos: 0,
+        reverse: 0,
+        regions: deck.rearrangerRegions,
+        sliceFadeMs: effectiveSliceFadeMs,
+        sliceDelaySec: deck.rearrangerSliceDelaySec,
+      },
+      { chaosSeed: 0 }
+    );
+  };
+
   const getDeckModulatorOutputGain = (deckId: number) => {
     let isLinkedAsModulator = false;
     let monitorGain = 0;
@@ -168,6 +211,10 @@ export const renderMixdownBlob = async ({
       deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
         ? deck.loopEndSeconds
         : deck.buffer.duration;
+    const sliceDelayedLoopBuffer =
+      deck.loopEnabled && loopEnd > loopStart + 0.01
+        ? createSliceDelayedLoopBuffer(deck, loopStart, loopEnd)
+        : null;
     const pingPongAmount = Math.min(Math.max(deck.rearrangerPingPong ?? 0, 0), 1);
 
     const deckInput = offline.createGain();
@@ -345,7 +392,11 @@ export const renderMixdownBlob = async ({
             durationSec.toFixed(6),
           ].join("|")
         );
-        let currentBuffer = loopSegment;
+        const effectiveSliceFadeMs =
+          (deck.rearrangerSliceDelaySec ?? 0) >= 0.01
+            ? Math.max(deck.rearrangerSliceFadeMs ?? 0, 1)
+            : (deck.rearrangerSliceFadeMs ?? 0);
+        let currentBuffer = sliceDelayedLoopBuffer ?? loopSegment;
         let currentRegions = normalizeRearrangerRegions(
           deck.rearrangerRegions,
           deck.rearrangerSlices
@@ -384,7 +435,7 @@ export const renderMixdownBlob = async ({
             chaos: deck.rearrangerChaos,
             reverse: deck.rearrangerReverse,
             regions: currentRegions,
-            sliceFadeMs: deck.rearrangerSliceFadeMs,
+            sliceFadeMs: effectiveSliceFadeMs,
             sliceDelaySec: deck.rearrangerSliceDelaySec,
           };
           const nextBuffer = rearrangeBufferSegment(
@@ -434,7 +485,10 @@ export const renderMixdownBlob = async ({
         return;
       }
       if (pingPongAmount > 0.001 && (deck.rearrangerSlices ?? 0) > 1) {
-        const cycleDurationSec = Math.max(0.001, (loopEnd - loopStart) / tempoRatio);
+        const cycleDurationSec = Math.max(
+          0.001,
+          (sliceDelayedLoopBuffer?.duration ?? (loopEnd - loopStart)) / tempoRatio
+        );
         const loopRegions = normalizeRearrangerRegions(
           deck.rearrangerRegions,
           deck.rearrangerSlices
@@ -454,15 +508,20 @@ export const renderMixdownBlob = async ({
     }
 
     const source = offline.createBufferSource();
-    source.buffer = deck.buffer;
+    source.buffer = sliceDelayedLoopBuffer ?? deck.buffer;
     source.playbackRate.value = tempoRatio;
     source.connect(deckInput);
     if (deck.loopEnabled && loopEnd > loopStart + 0.01) {
       source.loop = true;
-      source.loopStart = Math.max(0, loopStart);
-      source.loopEnd = Math.min(loopEnd, deck.buffer.duration);
+      if (sliceDelayedLoopBuffer) {
+        source.loopStart = 0;
+        source.loopEnd = sliceDelayedLoopBuffer.duration;
+      } else {
+        source.loopStart = Math.max(0, loopStart);
+        source.loopEnd = Math.min(loopEnd, deck.buffer.duration);
+      }
     }
-    source.start(0, Math.max(0, loopStart));
+    source.start(0, sliceDelayedLoopBuffer ? 0 : Math.max(0, loopStart));
   });
 
   const rendered = await offline.startRendering();
