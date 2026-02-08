@@ -147,6 +147,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Active-deck transport/loop/rearranger/zoom keyboard-targeted actions are extracted from `App.tsx` into `src/hooks/useFocusedDeckActions.ts`.
 - Master recording toggle/download flow is extracted from `App.tsx` into `src/hooks/useRecordingManager.ts`.
 - Deck loop editing actions (Stretch, Rearrange, Delete Slice, Auto Slice, Delete Quiet) are extracted from `App.tsx` into `src/hooks/useDeckLoopTools.ts`.
+- Rearranger live runtime scheduling (slice-delay holds, delay-sync, ping-pong scheduling, auto-loop precompute/retrigger) is extracted from `App.tsx` into `src/hooks/useRearrangerRuntime.ts`.
 - Offline mixdown rendering pipeline is extracted from `App.tsx` into `src/utils/exportMixdown.ts`, keeping `App.tsx` focused on export UI state and download orchestration.
 
 ## Code Structure (Audio Engine Module)
