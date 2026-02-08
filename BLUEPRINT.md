@@ -155,6 +155,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - `DeckStack` prop assembly/callback wiring is extracted from `App.tsx` into `src/hooks/useDeckStackProps.ts`.
 - Shared DeckCard formatting/default-automation/quiet-preview analysis helpers are extracted into `src/components/deckCardUtils.ts`.
 - DeckCard FX rack rendering is extracted into `src/components/DeckCardFxRack.tsx` to keep `DeckCard.tsx` focused on orchestration and waveform/transport interaction state.
+- DeckCard-to-FX-rack prop assembly is extracted into `src/hooks/useDeckCardFxRackProps.ts` so `DeckCard.tsx` avoids duplicated mega-object wiring.
 
 ## Code Structure (Audio Engine Module)
 - `src/audio/engine.ts`: AudioContext lifecycle, master bus, and global FX routing.
