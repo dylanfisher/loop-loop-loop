@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
-import type { DeckFxPanel, DeckState, ParametricEqBand } from "../types/deck";
+import type {
+  DeckFxPanel,
+  DeckState,
+  ParametricEqBand,
+  ParametricEqMotionState,
+} from "../types/deck";
 import AutomationLane from "./AutomationLane";
 import AsyncActionButton from "./AsyncActionButton";
 import Knob from "./Knob";
@@ -37,6 +42,7 @@ type DeckCardFxRackProps = {
   formatEq: (value: number, fine?: boolean) => string;
   activateEq3Mode: () => void;
   commitParametricEqBands: (bands: ParametricEqBand[]) => void;
+  commitParametricEqMotion: (value: ParametricEqMotionState) => void;
   autoSliceEnabled: boolean;
   handleAutoSliceToggle: (enabled: boolean) => void;
   handleRearrangerSlicesKnobChange: (next: number) => void;
@@ -75,6 +81,7 @@ const DeckCardFxRack = ({
   formatEq,
   activateEq3Mode,
   commitParametricEqBands,
+  commitParametricEqMotion,
   autoSliceEnabled,
   handleAutoSliceToggle,
   handleRearrangerSlicesKnobChange,
@@ -488,8 +495,11 @@ const DeckCardFxRack = ({
               {deck.eqMode === "parametric" ? (
                 <ParametricEqEditor
                   bands={deck.parametricEqBands}
+                  motion={deck.parametricEqMotion}
+                  playbackActive={deck.status === "playing"}
                   disabled={false}
                   onChange={commitParametricEqBands}
+                  onMotionChange={commitParametricEqMotion}
                 />
               ) : (
                 <div className="deck__eq3-inline">

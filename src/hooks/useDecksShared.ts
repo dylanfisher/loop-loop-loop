@@ -1,4 +1,10 @@
-import type { DeckFxPanelState, DeckState, EqMode, ParametricEqBand } from "../types/deck";
+import type {
+  DeckFxPanelState,
+  DeckState,
+  EqMode,
+  ParametricEqBand,
+  ParametricEqMotionState,
+} from "../types/deck";
 import { defaultParametricEqBands } from "../audio/effects/parametricEq";
 import { MAX_REARRANGER_SLICES } from "../utils/rearranger";
 
@@ -48,6 +54,13 @@ export const DEFAULT_REARRANGER_PINGPONG = 0;
 export const DEFAULT_REARRANGER_AUTO = false;
 export const DEFAULT_RESONANCE = 0;
 export const DEFAULT_EQ_MODE: EqMode = "eq3";
+export const DEFAULT_PARAMETRIC_EQ_MOTION_CYCLE_SEC = 4;
+export const DEFAULT_PARAMETRIC_EQ_MOTION_STATE: ParametricEqMotionState = {
+  preset: null,
+  cycleSec: DEFAULT_PARAMETRIC_EQ_MOTION_CYCLE_SEC,
+  automationActive: false,
+  targetBandId: null,
+};
 export const EQ_MAX_DB = 18;
 export const FX_ACTIVE_EPSILON = 1e-3;
 
@@ -76,6 +89,20 @@ export const withDefaultFxPanelOpen = (
 
 export const cloneDefaultParametricEqBands = (): ParametricEqBand[] =>
   defaultParametricEqBands().map((band) => ({ ...band }));
+
+export const normalizeParametricEqMotionState = (
+  value?: Partial<ParametricEqMotionState> | null
+): ParametricEqMotionState => ({
+  preset: value?.preset === "sweep" ? "sweep" : null,
+  cycleSec: clamp(
+    Number.isFinite(value?.cycleSec) ? Number(value?.cycleSec) : DEFAULT_PARAMETRIC_EQ_MOTION_CYCLE_SEC,
+    0.25,
+    60
+  ),
+  automationActive:
+    value?.preset === "sweep" ? value?.automationActive === true : false,
+  targetBandId: typeof value?.targetBandId === "string" ? value.targetBandId : null,
+});
 
 export const approxEqual = (a: number, b: number, epsilon = FX_ACTIVE_EPSILON) =>
   Math.abs(a - b) <= epsilon;
@@ -199,6 +226,7 @@ export const buildInitialDecks = (): DeckState[] => [
     eqHighGain: 0,
     eqMode: DEFAULT_EQ_MODE,
     parametricEqBands: cloneDefaultParametricEqBands(),
+    parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
     balance: 0,
     pitchShift: 0,
     vocoderMix: DEFAULT_VOCODER_MIX,

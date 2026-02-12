@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DeckFxPanel, DeckState, EqMode, ParametricEqBand } from "../types/deck";
+import type {
+  DeckFxPanel,
+  DeckState,
+  EqMode,
+  ParametricEqBand,
+  ParametricEqMotionState,
+} from "../types/deck";
 import type { AutomationParam } from "../types/session";
 import Waveform from "./Waveform";
 import AsyncActionButton from "./AsyncActionButton";
@@ -39,6 +45,7 @@ export type DeckCardProps = {
   onEqHighChange: (id: number, value: number) => void;
   onEqModeChange: (id: number, value: EqMode) => void;
   onParametricEqBandsChange: (id: number, bands: ParametricEqBand[]) => void;
+  onParametricEqMotionChange: (id: number, value: ParametricEqMotionState) => void;
   onDelayTimeChange: (id: number, value: number) => void;
   onDelayFeedbackChange: (id: number, value: number) => void;
   onDelayMixChange: (id: number, value: number) => void;
@@ -1119,6 +1126,9 @@ const DeckCard = (props: DeckCardProps) => {
         formatEq={formatEq}
         activateEq3Mode={activateEq3Mode}
         commitParametricEqBands={commitParametricEqBands}
+        commitParametricEqMotion={(value) =>
+          props.onParametricEqMotionChange(deck.id, value)
+        }
         autoSliceEnabled={autoSliceEnabled}
         handleAutoSliceToggle={handleAutoSliceToggle}
         handleRearrangerSlicesKnobChange={handleRearrangerSlicesKnobChange}

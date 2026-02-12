@@ -42,6 +42,7 @@ import {
   DEFAULT_DELAY_TIME,
   DEFAULT_DELAY_TONE,
   DEFAULT_EQ_MODE,
+  DEFAULT_PARAMETRIC_EQ_MOTION_STATE,
   DEFAULT_REARRANGER_AUTO,
   DEFAULT_REARRANGER_CHAOS,
   DEFAULT_REARRANGER_PINGPONG,
@@ -71,6 +72,7 @@ import {
   DEFAULT_VOCODER_RELEASE_MS,
   FX_ACTIVE_EPSILON,
   MIN_AUTOMATION_DURATION,
+  normalizeParametricEqMotionState,
   sanitizeRearrangerRegions,
   toAutomationView,
   type AutomationDeck,
@@ -1165,6 +1167,7 @@ const useDecks = () => {
         eqHighGain: 0,
         eqMode: DEFAULT_EQ_MODE,
         parametricEqBands: cloneDefaultParametricEqBands(),
+        parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
         balance: 0,
         pitchShift: 0,
         vocoderMix: DEFAULT_VOCODER_MIX,
@@ -1249,6 +1252,7 @@ const useDecks = () => {
             eqHighGain: 0,
             eqMode: DEFAULT_EQ_MODE,
             parametricEqBands: cloneDefaultParametricEqBands(),
+            parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
             balance: 0,
             pitchShift: 0,
             vocoderMix: DEFAULT_VOCODER_MIX,
@@ -2193,6 +2197,9 @@ const useDecks = () => {
       const nextParametricEqBands = preserveFxState
         ? normalizeParametricEqBands(deck.parametricEqBands)
         : cloneDefaultParametricEqBands();
+      const nextParametricEqMotion = preserveFxState
+        ? normalizeParametricEqMotionState(deck.parametricEqMotion)
+        : { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE };
       const nextZoom = preserveFxState ? deck.zoom : 1;
       const nextStretchRatio = deck.stretchRatio ?? DEFAULT_STRETCH_RATIO;
       const nextStretchWindowSize = deck.stretchWindowSize ?? DEFAULT_STRETCH_WINDOW_SIZE;
@@ -2267,6 +2274,7 @@ const useDecks = () => {
         eqHighGain: nextEqHigh,
         eqMode: nextEqMode,
         parametricEqBands: nextParametricEqBands,
+        parametricEqMotion: nextParametricEqMotion,
         balance: nextBalance,
         pitchShift: nextPitchShift,
         vocoderMix: nextVocoderMix,
@@ -2473,6 +2481,21 @@ const useDecks = () => {
     setDecksNoHistory,
   });
 
+  const setDeckParametricEqMotion = useCallback(
+    (
+      id: number,
+      value: {
+        preset: "sweep" | null;
+        cycleSec: number;
+        automationActive: boolean;
+        targetBandId: string | null;
+      }
+    ) => {
+      updateDeck(id, { parametricEqMotion: normalizeParametricEqMotionState(value) }, false);
+    },
+    [updateDeck]
+  );
+
   const resetDeckFx = useCallback(
     (id: number) => {
       const deck = decks.find((item) => item.id === id);
@@ -2532,6 +2555,7 @@ const useDecks = () => {
           eqMidGain: 0,
           eqHighGain: 0,
           parametricEqBands: cloneDefaultParametricEqBands(),
+          parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
           balance: 0,
           pitchShift: nextPitchShift,
           vocoderMix: DEFAULT_VOCODER_MIX,
@@ -2753,6 +2777,7 @@ const useDecks = () => {
     setDeckEqHigh: setDeckEqHighValue,
     setDeckEqMode: setDeckEqModeValue,
     setDeckParametricEqBands: setDeckParametricEqBandsValue,
+    setDeckParametricEqMotion,
     setDeckBalance: setDeckBalanceValue,
     setDeckDelayTime: setDeckDelayTimeValue,
     setDeckDelayFeedback: setDeckDelayFeedbackValue,

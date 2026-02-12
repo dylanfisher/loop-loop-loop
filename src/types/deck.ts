@@ -1,6 +1,13 @@
 export type DeckStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 export type EqMode = "eq3" | "parametric";
 export type ParametricEqBandType = "peaking" | "lowshelf" | "highshelf";
+export type ParametricEqMotionPreset = "sweep";
+export type ParametricEqMotionState = {
+  preset: ParametricEqMotionPreset | null;
+  cycleSec: number;
+  automationActive: boolean;
+  targetBandId: string | null;
+};
 export type ParametricEqBand = {
   id: string;
   type: ParametricEqBandType;
@@ -78,6 +85,7 @@ export type DeckState = {
   eqMidGain: number;
   eqHighGain: number;
   parametricEqBands: ParametricEqBand[];
+  parametricEqMotion: ParametricEqMotionState;
   balance: number;
   pitchShift: number;
   vocoderMix: number;

@@ -32,6 +32,7 @@ type UseDeckStackPropsArgs = {
   setDeckEqHigh: (id: number, value: number) => void;
   setDeckEqMode: DeckStackProps["onEqModeChange"];
   setDeckParametricEqBands: DeckStackProps["onParametricEqBandsChange"];
+  setDeckParametricEqMotion: DeckStackProps["onParametricEqMotionChange"];
   setDeckDelayTime: (id: number, value: number) => void;
   setDeckDelayFeedback: (id: number, value: number) => void;
   setDeckDelayMix: (id: number, value: number) => void;
@@ -136,6 +137,7 @@ const useDeckStackProps = ({
   setDeckEqHigh,
   setDeckEqMode,
   setDeckParametricEqBands,
+  setDeckParametricEqMotion,
   setDeckDelayTime,
   setDeckDelayFeedback,
   setDeckDelayMix,
@@ -272,6 +274,7 @@ const useDeckStackProps = ({
     onEqHighChange: setDeckEqHigh,
     onEqModeChange: setDeckEqMode,
     onParametricEqBandsChange: setDeckParametricEqBands,
+    onParametricEqMotionChange: setDeckParametricEqMotion,
     onDelayTimeChange: setDeckDelayTime,
     onDelayFeedbackChange: setDeckDelayFeedback,
     onDelayMixChange: setDeckDelayMix,

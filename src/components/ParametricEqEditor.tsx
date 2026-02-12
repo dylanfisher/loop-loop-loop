@@ -6,7 +6,11 @@ import {
   useEffect,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import type { ParametricEqBand, ParametricEqBandType } from "../types/deck";
+import type {
+  ParametricEqBand,
+  ParametricEqBandType,
+  ParametricEqMotionState,
+} from "../types/deck";
 import { defaultParametricEqBands } from "../audio/effects/parametricEq";
 
 const MIN_FREQ = 20;
@@ -21,8 +25,11 @@ const VIEWBOX_HEIGHT = 320;
 
 type ParametricEqEditorProps = {
   bands: ParametricEqBand[];
+  motion: ParametricEqMotionState;
+  playbackActive?: boolean;
   disabled?: boolean;
   onChange: (bands: ParametricEqBand[]) => void;
+  onMotionChange: (value: ParametricEqMotionState) => void;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -52,19 +59,32 @@ const yToGain = (y: number) => {
 };
 const defaultQForType = (type: ParametricEqBandType) =>
   type === "peaking" ? 1.2 : 0.8;
-type ParametricMotionPreset = "sweep";
 const cloneBands = (input: ParametricEqBand[]) => input.map((band) => ({ ...band }));
 const clampCycleSeconds = (value: number) => clamp(value, 0.25, 60);
+const normalizeMotionState = (value: ParametricEqMotionState): ParametricEqMotionState => ({
+  preset: value.preset === "sweep" ? "sweep" : null,
+  cycleSec: clampCycleSeconds(value.cycleSec),
+  automationActive: value.preset === "sweep" ? value.automationActive === true : false,
+  targetBandId: typeof value.targetBandId === "string" ? value.targetBandId : null,
+});
 
 const createBandId = () => `peq-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
 
 const sortedBands = (bands: ParametricEqBand[]) => [...bands].sort((a, b) => a.frequency - b.frequency);
 
-const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqEditorProps) => {
+const ParametricEqEditor = ({
+  bands,
+  motion,
+  playbackActive = false,
+  disabled = false,
+  onChange,
+  onMotionChange,
+}: ParametricEqEditorProps) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [graphWidth, setGraphWidth] = useState(VIEWBOX_WIDTH);
-  const [motionPreset, setMotionPreset] = useState<ParametricMotionPreset | null>(null);
-  const [motionCycleSec, setMotionCycleSec] = useState(4);
+  const motionState = normalizeMotionState(motion);
+  const motionPreset = motionState.preset;
+  const motionCycleSec = motionState.cycleSec;
   const dragBandIdRef = useRef<string | null>(null);
   const pointerIdRef = useRef<number | null>(null);
   const pointerDownBandIdRef = useRef<string | null>(null);
@@ -78,6 +98,7 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
   const [selectedBandId, setSelectedBandId] = useState<string | null>(bands[0]?.id ?? null);
   const motionBaseBandsRef = useRef<ParametricEqBand[] | null>(null);
   const motionStartMsRef = useRef<number>(0);
+  const wasMotionRunningRef = useRef(false);
   useLayoutEffect(() => {
     const node = svgRef.current;
     if (!node) return undefined;
@@ -102,7 +123,8 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
     () => bands.find((band) => band.id === resolvedSelectedBandId) ?? null,
     [bands, resolvedSelectedBandId]
   );
-  const motionRunning = motionPreset !== null;
+  const motionRunning =
+    motionPreset !== null && motionState.automationActive && playbackActive;
 
   const updateBand = (id: string, updates: Partial<ParametricEqBand>) => {
     onChange(
@@ -127,47 +149,83 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
   const removeBand = (id: string) => {
     const next = bands.filter((band) => band.id !== id);
     onChange(next);
+    if (motionState.targetBandId === id) {
+      onMotionChange({ ...motionState, targetBandId: next[0]?.id ?? null });
+    }
     if (resolvedSelectedBandId === id) {
       setSelectedBandId(next[0]?.id ?? null);
     }
   };
 
   const resetBands = () => {
-    setMotionPreset(null);
+    onMotionChange({
+      ...motionState,
+      preset: null,
+      automationActive: false,
+      targetBandId: null,
+    });
     motionBaseBandsRef.current = null;
+    motionStartMsRef.current = 0;
     const next = defaultParametricEqBands();
     onChange(next);
     setSelectedBandId(next[0]?.id ?? null);
   };
-  const startMotionPreset = (preset: ParametricMotionPreset, startedAtMs: number) => {
-    if (motionPreset === preset) {
+  const startMotionPreset = (
+    preset: NonNullable<ParametricEqMotionState["preset"]>,
+    startedAtMs: number
+  ) => {
+    if (motionPreset === preset && motionState.automationActive) {
       stopMotionPreset();
       return;
     }
     motionBaseBandsRef.current = cloneBands(bands);
     motionStartMsRef.current = startedAtMs;
-    setMotionPreset(preset);
+    onMotionChange({
+      ...motionState,
+      preset,
+      automationActive: true,
+      targetBandId: resolvedSelectedBandId ?? bands[0]?.id ?? null,
+    });
   };
   const stopMotionPreset = () => {
-    setMotionPreset(null);
+    onMotionChange({ ...motionState, preset: null, automationActive: false });
+    motionBaseBandsRef.current = null;
+    motionStartMsRef.current = 0;
   };
   useEffect(() => {
-    if (!motionPreset) return undefined;
+    const nowRunning = motionPreset !== null && motionState.automationActive && playbackActive;
+    if (nowRunning && !wasMotionRunningRef.current) {
+      if (!motionBaseBandsRef.current || motionBaseBandsRef.current.length === 0) {
+        motionBaseBandsRef.current = cloneBands(bands);
+      }
+      motionStartMsRef.current = -1;
+    }
+    wasMotionRunningRef.current = nowRunning;
+  }, [bands, motionPreset, motionState.automationActive, playbackActive]);
+  useEffect(() => {
+    if (!motionPreset || !motionState.automationActive || !playbackActive) return undefined;
     if (!motionBaseBandsRef.current || motionBaseBandsRef.current.length === 0) {
       motionBaseBandsRef.current = cloneBands(bands);
     }
     const intervalId = window.setInterval(() => {
       const baseBands = motionBaseBandsRef.current;
       if (!baseBands || baseBands.length === 0) return;
+      const nowMs = performance.now();
+      if (motionStartMsRef.current < 0) {
+        motionStartMsRef.current = nowMs;
+      }
       const phase =
-        ((performance.now() - motionStartMsRef.current) / 1000 / clampCycleSeconds(motionCycleSec)) %
+        ((nowMs - motionStartMsRef.current) / 1000 / clampCycleSeconds(motionCycleSec)) %
         1;
       const sine = Math.sin(phase * Math.PI * 2);
       const normalizedSine = (sine + 1) * 0.5;
       const nextBands = cloneBands(baseBands);
       if (motionPreset === "sweep") {
-        const targetId = resolvedSelectedBandId ?? nextBands[0]?.id;
-        const index = nextBands.findIndex((band) => band.id === targetId);
+        const targetId = motionState.targetBandId ?? resolvedSelectedBandId ?? nextBands[0]?.id;
+        const index = Math.max(
+          0,
+          nextBands.findIndex((band) => band.id === targetId)
+        );
         if (index >= 0) {
           const current = nextBands[index];
           const octaveSpan = 4;
@@ -180,7 +238,16 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [bands, motionCycleSec, motionPreset, onChange, resolvedSelectedBandId]);
+  }, [
+    bands,
+    motionCycleSec,
+    motionPreset,
+    motionState.automationActive,
+    motionState.targetBandId,
+    onChange,
+    playbackActive,
+    resolvedSelectedBandId,
+  ]);
 
   const addBandAtPoint = (x: number, y: number) => {
     if (bands.length >= MAX_BANDS) return null;
@@ -375,14 +442,24 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
           <button
             type="button"
             className="automation-lane__tool"
-            onClick={() => setMotionCycleSec((value) => clampCycleSeconds(value * 0.5))}
+            onClick={() =>
+              onMotionChange({
+                ...motionState,
+                cycleSec: clampCycleSeconds(motionCycleSec * 0.5),
+              })
+            }
           >
             1/2
           </button>
           <button
             type="button"
             className="automation-lane__tool"
-            onClick={() => setMotionCycleSec((value) => clampCycleSeconds(value * 2))}
+            onClick={() =>
+              onMotionChange({
+                ...motionState,
+                cycleSec: clampCycleSeconds(motionCycleSec * 2),
+              })
+            }
           >
             2x
           </button>
@@ -435,7 +512,11 @@ const ParametricEqEditor = ({ bands, disabled = false, onChange }: ParametricEqE
           <button
             type="button"
             className="deck__action"
-            onClick={() => onChange([])}
+            onClick={() => {
+              stopMotionPreset();
+              onMotionChange({ ...motionState, targetBandId: null });
+              onChange([]);
+            }}
           >
             Clear
           </button>

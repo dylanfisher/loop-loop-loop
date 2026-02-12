@@ -13,6 +13,7 @@ import {
   DEFAULT_DELAY_TIME,
   DEFAULT_DELAY_TONE,
   DEFAULT_EQ_MODE,
+  DEFAULT_PARAMETRIC_EQ_MOTION_STATE,
   DEFAULT_REARRANGER_AUTO,
   DEFAULT_REARRANGER_CHAOS,
   DEFAULT_REARRANGER_PINGPONG,
@@ -41,6 +42,7 @@ import {
   DEFAULT_VOCODER_RELEASE_MS,
   sanitizeRearrangerRegions,
   toAutomationView,
+  normalizeParametricEqMotionState,
   type AutomationDeck,
   type AutomationTrack,
   type AutomationView,
@@ -96,6 +98,7 @@ export const serializeDeckSession = (
   eqMidGain: deck.eqMidGain,
   eqHighGain: deck.eqHighGain,
   parametricEqBands: normalizeParametricEqBands(deck.parametricEqBands),
+  parametricEqMotion: normalizeParametricEqMotionState(deck.parametricEqMotion),
   balance: deck.balance,
   pitchShift: deck.pitchShift,
   vocoderMix: deck.vocoderMix,
@@ -206,6 +209,9 @@ export const hydrateDeckFromSession = (
     eqMidGain: sessionDeck.eqMidGain,
     eqHighGain: sessionDeck.eqHighGain,
     parametricEqBands: normalizeParametricEqBands(sessionDeck.parametricEqBands),
+    parametricEqMotion: normalizeParametricEqMotionState(
+      sessionDeck.parametricEqMotion ?? DEFAULT_PARAMETRIC_EQ_MOTION_STATE
+    ),
     balance: sessionDeck.balance ?? 0,
     pitchShift: sessionDeck.pitchShift ?? 0,
     vocoderMix: sessionDeck.vocoderMix ?? DEFAULT_VOCODER_MIX,
@@ -287,4 +293,3 @@ export const hydrateDeckFromSession = (
     },
   };
 };
-

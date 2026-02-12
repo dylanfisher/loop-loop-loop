@@ -412,6 +412,12 @@ describe("useDecks", () => {
         eqLowGain: -2,
         eqMidGain: 1,
         eqHighGain: 3,
+        parametricEqMotion: {
+          preset: "sweep",
+          cycleSec: 3,
+          automationActive: true,
+          targetBandId: "peq-node-1",
+        },
         balance: -0.25,
         pitchShift: -3,
         offsetSeconds: 1,
@@ -493,6 +499,12 @@ describe("useDecks", () => {
     expect(result.current.decks[0].id).toBe(7);
     expect(result.current.decks[0].status).toBe("paused");
     expect(result.current.decks[0].buffer).toBe(buffer);
+    expect(result.current.decks[0].parametricEqMotion).toEqual({
+      preset: "sweep",
+      cycleSec: 3,
+      automationActive: true,
+      targetBandId: "peq-node-1",
+    });
 
     const automation = result.current.automationState.get(7);
     expect(automation?.djFilter.active).toBe(true);

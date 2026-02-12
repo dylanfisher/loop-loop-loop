@@ -107,6 +107,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Clip session persistence now preserves original clip blob format (for example `audio/webm` from Clip Recorder) instead of re-encoding unchanged clips to WAV on each autosave.
 - Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.
 - Deck UI state is also mirrored immediately to localStorage (lightweight patch) so quick refreshes restore panel state before the next full autosave.
+- Parametric EQ motion state (sweep preset active state + cycle length + targeted sweep node) is persisted per deck in sessions so restored projects resume sweep automation behavior when playback starts.
 - Session WAV encoding (for deck audio and transformed renders) uses a dedicated web worker to reduce main-thread stalls.
 - Welcome panel dismissed state is persisted through autosave, saved sessions, and exported/imported project zips.
 - After the welcome panel is dismissed, it remains hidden across New Session/reset flows and is reopened explicitly from the header `?` shortcut/help control.

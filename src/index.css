@@ -1494,9 +1494,17 @@ input[type="range"]::-moz-focus-outer {
   stroke-width: 1;
 }
 
+body:not([data-theme="dark"]) .peq__grid {
+  stroke: color-mix(in srgb, var(--line) 78%, var(--ink) 22%);
+}
+
 .peq__grid--zero {
   stroke: color-mix(in oklab, var(--accent) 48%, var(--line));
   stroke-width: 1.4;
+}
+
+body:not([data-theme="dark"]) .peq__grid--zero {
+  stroke: color-mix(in oklab, var(--accent) 60%, var(--ink) 28%);
 }
 
 .peq__curve {

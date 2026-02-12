@@ -1,4 +1,4 @@
-import type { DeckFxPanelState, EqMode, ParametricEqBand } from "./deck";
+import type { DeckFxPanelState, EqMode, ParametricEqBand, ParametricEqMotionState } from "./deck";
 
 export type AutomationParam =
   | "gain"
@@ -30,6 +30,7 @@ export type DeckSession = {
   eqMidGain: number;
   eqHighGain: number;
   parametricEqBands?: ParametricEqBand[];
+  parametricEqMotion?: ParametricEqMotionState;
   balance: number;
   pitchShift: number;
   vocoderMix?: number;
