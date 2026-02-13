@@ -5,6 +5,7 @@ import type {
   EqMode,
   ParametricEqBand,
   ParametricEqMotionState,
+  SimpleAutomationParam,
 } from "../types/deck";
 import type { AutomationParam } from "../types/session";
 import Waveform from "./Waveform";
@@ -46,6 +47,14 @@ export type DeckCardProps = {
   onEqModeChange: (id: number, value: EqMode) => void;
   onParametricEqBandsChange: (id: number, bands: ParametricEqBand[]) => void;
   onParametricEqMotionChange: (id: number, value: ParametricEqMotionState) => void;
+  onSimpleAutomationSet: (
+    id: number,
+    param: SimpleAutomationParam,
+    target: number,
+    baseline: number,
+    recording?: { samples: number[]; sampleRate: number; durationSec: number }
+  ) => void;
+  onSimpleAutomationClear: (id: number, param: SimpleAutomationParam) => void;
   onDelayTimeChange: (id: number, value: number) => void;
   onDelayFeedbackChange: (id: number, value: number) => void;
   onDelayMixChange: (id: number, value: number) => void;
@@ -1129,6 +1138,8 @@ const DeckCard = (props: DeckCardProps) => {
         commitParametricEqMotion={(value) =>
           props.onParametricEqMotionChange(deck.id, value)
         }
+        onSimpleAutomationSet={props.onSimpleAutomationSet}
+        onSimpleAutomationClear={props.onSimpleAutomationClear}
         autoSliceEnabled={autoSliceEnabled}
         handleAutoSliceToggle={handleAutoSliceToggle}
         handleRearrangerSlicesKnobChange={handleRearrangerSlicesKnobChange}

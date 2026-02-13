@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { DeckState } from "../types/deck";
+import type { DeckState, SimpleAutomationParam } from "../types/deck";
 import type { DeckStackProps } from "../components/DeckStack";
 import type { AutomationParam } from "../types/session";
 import type { AutomationView } from "./useDecksShared";
@@ -33,6 +33,14 @@ type UseDeckStackPropsArgs = {
   setDeckEqMode: DeckStackProps["onEqModeChange"];
   setDeckParametricEqBands: DeckStackProps["onParametricEqBandsChange"];
   setDeckParametricEqMotion: DeckStackProps["onParametricEqMotionChange"];
+  setDeckSimpleAutomation: (
+    id: number,
+    param: SimpleAutomationParam,
+    target: number,
+    baseline: number,
+    recording?: { samples: number[]; sampleRate: number; durationSec: number }
+  ) => void;
+  clearDeckSimpleAutomation: (id: number, param: SimpleAutomationParam) => void;
   setDeckDelayTime: (id: number, value: number) => void;
   setDeckDelayFeedback: (id: number, value: number) => void;
   setDeckDelayMix: (id: number, value: number) => void;
@@ -138,6 +146,8 @@ const useDeckStackProps = ({
   setDeckEqMode,
   setDeckParametricEqBands,
   setDeckParametricEqMotion,
+  setDeckSimpleAutomation,
+  clearDeckSimpleAutomation,
   setDeckDelayTime,
   setDeckDelayFeedback,
   setDeckDelayMix,
@@ -275,6 +285,8 @@ const useDeckStackProps = ({
     onEqModeChange: setDeckEqMode,
     onParametricEqBandsChange: setDeckParametricEqBands,
     onParametricEqMotionChange: setDeckParametricEqMotion,
+    onSimpleAutomationSet: setDeckSimpleAutomation,
+    onSimpleAutomationClear: clearDeckSimpleAutomation,
     onDelayTimeChange: setDeckDelayTime,
     onDelayFeedbackChange: setDeckDelayFeedback,
     onDelayMixChange: setDeckDelayMix,

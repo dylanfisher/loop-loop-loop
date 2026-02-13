@@ -6,6 +6,7 @@ import type {
   EqMode,
   ParametricEqBand,
   ParametricEqMotionState,
+  SimpleAutomationParam,
 } from "../types/deck";
 import type { AutomationParam } from "../types/session";
 
@@ -37,6 +38,14 @@ export type DeckStackProps = {
   onEqModeChange: (id: number, value: EqMode) => void;
   onParametricEqBandsChange: (id: number, bands: ParametricEqBand[]) => void;
   onParametricEqMotionChange: (id: number, value: ParametricEqMotionState) => void;
+  onSimpleAutomationSet: (
+    id: number,
+    param: SimpleAutomationParam,
+    target: number,
+    baseline: number,
+    recording?: { samples: number[]; sampleRate: number; durationSec: number }
+  ) => void;
+  onSimpleAutomationClear: (id: number, param: SimpleAutomationParam) => void;
   onDelayTimeChange: (id: number, value: number) => void;
   onDelayFeedbackChange: (id: number, value: number) => void;
   onDelayMixChange: (id: number, value: number) => void;
@@ -164,6 +173,8 @@ const DeckStack = ({
   onEqModeChange,
   onParametricEqBandsChange,
   onParametricEqMotionChange,
+  onSimpleAutomationSet,
+  onSimpleAutomationClear,
   onDelayTimeChange,
   onDelayFeedbackChange,
   onDelayMixChange,
@@ -327,6 +338,8 @@ const DeckStack = ({
               onEqModeChange={onEqModeChange}
               onParametricEqBandsChange={onParametricEqBandsChange}
               onParametricEqMotionChange={onParametricEqMotionChange}
+              onSimpleAutomationSet={onSimpleAutomationSet}
+              onSimpleAutomationClear={onSimpleAutomationClear}
               onDelayTimeChange={onDelayTimeChange}
               onDelayFeedbackChange={onDelayFeedbackChange}
               onDelayMixChange={onDelayMixChange}

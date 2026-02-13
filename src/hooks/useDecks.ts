@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import useAudioEngine from "./useAudioEngine";
 import type {
+  DeckSimpleAutomation,
   EqMode,
   ParametricEqBand,
+  SimpleAutomationParam,
   DeckFxPanelState,
   DeckState,
   DeckStatus,
@@ -73,6 +75,8 @@ import {
   FX_ACTIVE_EPSILON,
   MIN_AUTOMATION_DURATION,
   normalizeParametricEqMotionState,
+  normalizeSimpleAutomation,
+  SIMPLE_AUTOMATION_PARAM_LIMITS,
   sanitizeRearrangerRegions,
   toAutomationView,
   type AutomationDeck,
@@ -80,6 +84,13 @@ import {
   type AutomationView,
   withDefaultFxPanelOpen,
 } from "./useDecksShared";
+
+type SimpleAutomationRuntimeTrack = {
+  playbackStartMs: number;
+  paused: boolean;
+  pausedPositionSec: number;
+};
+
 const useDecks = () => {
   const nextDeckId = useRef(2);
   const fileInputRefs = useRef<Map<number, HTMLInputElement | null>>(new Map());
@@ -89,12 +100,19 @@ const useDecks = () => {
   const automationPlayheadRef = useRef<Map<number, Record<AutomationParam, number>>>(new Map());
   const automationUiUpdateRef = useRef<Map<number, number>>(new Map());
   const loadRequestRef = useRef<Map<number, number>>(new Map());
+  const simpleAutomationRuntimeRef = useRef<
+    Map<number, Partial<Record<SimpleAutomationParam, SimpleAutomationRuntimeTrack>>>
+  >(new Map());
   const automationTickEnabledRef = useRef(false);
   const [automationState, setAutomationState] = useState<Map<number, Record<AutomationParam, AutomationView>>>(
     new Map()
   );
   const [automationTickEnabled, setAutomationTickEnabled] = useState(false);
   const [decks, setDecks] = useState<DeckState[]>(buildInitialDecks);
+  const decksRef = useRef<DeckState[]>([]);
+  useEffect(() => {
+    decksRef.current = decks;
+  }, [decks]);
   const {
     decodeFile,
     playBuffer,
@@ -163,6 +181,251 @@ const useDecks = () => {
     return { lowpass: max, highpass: min };
   }, []);
 
+  const evaluateSimpleAutomationValue = useCallback(
+    (
+      entry: {
+        baseline: number;
+        target: number;
+        cycleSec: number;
+        samples?: number[];
+        sampleRate?: number;
+        durationSec?: number;
+      },
+      elapsedSec: number
+    ) => {
+      const samples = entry.samples;
+      const durationSec = entry.durationSec;
+      if (samples && samples.length > 1 && durationSec && durationSec > 0) {
+        const sampleRate = Math.max(5, entry.sampleRate ?? samples.length / durationSec);
+        const positionSec = elapsedSec % durationSec;
+        const index = Math.min(
+          samples.length - 1,
+          Math.max(0, Math.floor(positionSec * sampleRate))
+        );
+        return samples[index] ?? entry.target;
+      }
+      const cycle = Math.max(0.25, entry.cycleSec);
+      const phase = (elapsedSec / cycle) % 1;
+      const shape = (Math.sin(phase * Math.PI * 2) + 1) * 0.5;
+      return entry.baseline + (entry.target - entry.baseline) * shape;
+    },
+    []
+  );
+
+  const ensureSimpleAutomationRuntimeTrack = useCallback(
+    (deckId: number, param: SimpleAutomationParam) => {
+      let deckRuntime = simpleAutomationRuntimeRef.current.get(deckId);
+      if (!deckRuntime) {
+        deckRuntime = {};
+        simpleAutomationRuntimeRef.current.set(deckId, deckRuntime);
+      }
+      let track = deckRuntime[param];
+      if (!track) {
+        track = {
+          playbackStartMs: performance.now(),
+          paused: false,
+          pausedPositionSec: 0,
+        };
+        deckRuntime[param] = track;
+      }
+      return track;
+    },
+    []
+  );
+
+  const applySimpleAutomationValue = useCallback(
+    (deckId: number, param: SimpleAutomationParam, value: number) => {
+      const limits = SIMPLE_AUTOMATION_PARAM_LIMITS[param];
+      const clamped = clamp(value, limits.min, limits.max);
+      const updateDeckValue = <K extends keyof DeckState>(
+        key: K,
+        nextValue: DeckState[K],
+        epsilon = FX_ACTIVE_EPSILON
+      ) => {
+        setDecks((prev) =>
+          prev.map((deck) => {
+            if (deck.id !== deckId) return deck;
+            const current = deck[key];
+            if (typeof current === "number" && typeof nextValue === "number") {
+              if (approxEqual(current, nextValue, epsilon)) return deck;
+            } else if (current === nextValue) {
+              return deck;
+            }
+            return { ...deck, [key]: nextValue };
+          })
+        );
+      };
+      if (param === "delayTime") {
+        setDeckDelayTime(deckId, clamped);
+        updateDeckValue("delayTime", clamped);
+        return;
+      }
+      if (param === "delayFeedback") {
+        setDeckDelayFeedback(deckId, clamped);
+        updateDeckValue("delayFeedback", clamped);
+        return;
+      }
+      if (param === "delayMix") {
+        setDeckDelayMix(deckId, clamped);
+        updateDeckValue("delayMix", clamped);
+        return;
+      }
+      if (param === "delayTone") {
+        setDeckDelayTone(deckId, clamped);
+        updateDeckValue("delayTone", clamped, 0.5);
+        return;
+      }
+      if (param === "delaySaturation") {
+        setDeckDelaySaturation(deckId, clamped);
+        updateDeckValue("delaySaturation", clamped);
+        return;
+      }
+      if (param === "delayDamping") {
+        setDeckDelayDamping(deckId, clamped);
+        updateDeckValue("delayDamping", clamped);
+        return;
+      }
+      if (param === "delaySafety") {
+        setDeckDelaySafety(deckId, clamped);
+        updateDeckValue("delaySafety", clamped);
+        return;
+      }
+      if (param === "vocoderMix") {
+        setDeckVocoderMix(deckId, clamped);
+        updateDeckValue("vocoderMix", clamped);
+        return;
+      }
+      if (param === "vocoderModulatorMonitor") {
+        setDeckVocoderModulatorMonitor(deckId, clamped);
+        updateDeckValue("vocoderModulatorMonitor", clamped);
+        return;
+      }
+      if (param === "vocoderModDrive") {
+        setDeckVocoderModDrive(deckId, clamped);
+        updateDeckValue("vocoderModDrive", clamped);
+        return;
+      }
+      if (param === "vocoderBandCount") {
+        const rounded = Math.round(clamped);
+        setDeckVocoderBandCount(deckId, rounded);
+        updateDeckValue("vocoderBandCount", rounded, 0);
+        return;
+      }
+      if (param === "vocoderBandSpread") {
+        setDeckVocoderBandSpread(deckId, clamped);
+        updateDeckValue("vocoderBandSpread", clamped);
+        return;
+      }
+      if (param === "vocoderAttackMs") {
+        setDeckVocoderAttackMs(deckId, clamped);
+        updateDeckValue("vocoderAttackMs", clamped, 0.5);
+        return;
+      }
+      if (param === "vocoderReleaseMs") {
+        setDeckVocoderReleaseMs(deckId, clamped);
+        updateDeckValue("vocoderReleaseMs", clamped, 0.5);
+        return;
+      }
+      if (param === "vocoderNoiseMix") {
+        setDeckVocoderNoiseMix(deckId, clamped);
+        updateDeckValue("vocoderNoiseMix", clamped);
+        return;
+      }
+      if (param === "vocoderGateThreshold") {
+        setDeckVocoderGateThreshold(deckId, clamped);
+        updateDeckValue("vocoderGateThreshold", clamped);
+        return;
+      }
+      if (param === "rearrangerSwapCount") {
+        const rounded = Math.round(clamped);
+        updateDeckValue("rearrangerSwapCount", rounded, 0);
+        return;
+      }
+      if (param === "rearrangerChaos") {
+        updateDeckValue("rearrangerChaos", clamped);
+        return;
+      }
+      if (param === "rearrangerReverse") {
+        updateDeckValue("rearrangerReverse", clamped);
+        return;
+      }
+      if (param === "rearrangerSliceFadeMs") {
+        const rounded = Math.round(clamped);
+        updateDeckValue("rearrangerSliceFadeMs", rounded, 0);
+        return;
+      }
+      if (param === "rearrangerSliceDelaySec") {
+        updateDeckValue("rearrangerSliceDelaySec", clamped, 0.005);
+        return;
+      }
+      if (param === "rearrangerPingPong") {
+        setDeckRearrangerPingPongAmount(deckId, clamped);
+        updateDeckValue("rearrangerPingPong", clamped);
+      }
+    },
+    [
+      setDeckDelayDamping,
+      setDeckDelayFeedback,
+      setDeckDelayMix,
+      setDeckDelaySafety,
+      setDeckDelaySaturation,
+      setDeckDelayTime,
+      setDeckDelayTone,
+      setDeckVocoderAttackMs,
+      setDeckVocoderBandCount,
+      setDeckVocoderBandSpread,
+      setDeckVocoderGateThreshold,
+      setDeckVocoderMix,
+      setDeckVocoderModDrive,
+      setDeckVocoderModulatorMonitor,
+      setDeckVocoderNoiseMix,
+      setDeckVocoderReleaseMs,
+      setDeckRearrangerPingPongAmount,
+      setDecks,
+    ]
+  );
+
+  const pauseSimpleAutomationDeck = useCallback(
+    (deckId: number) => {
+      const deck = decksRef.current.find((item) => item.id === deckId);
+      if (!deck) return;
+      const deckRuntime = simpleAutomationRuntimeRef.current.get(deckId);
+      if (!deckRuntime) return;
+      const now = performance.now();
+      (Object.keys(deck.simpleAutomation ?? {}) as SimpleAutomationParam[]).forEach((param) => {
+        const entry = deck.simpleAutomation?.[param];
+        if (!entry?.active) return;
+        const track = deckRuntime[param];
+        if (!track || track.paused) return;
+        track.pausedPositionSec = Math.max(0, (now - track.playbackStartMs) / 1000);
+        track.paused = true;
+      });
+    },
+    []
+  );
+
+  const resumeSimpleAutomationDeck = useCallback(
+    (deckId: number) => {
+      const deck = decksRef.current.find((item) => item.id === deckId);
+      if (!deck) return;
+      const now = performance.now();
+      (Object.keys(deck.simpleAutomation ?? {}) as SimpleAutomationParam[]).forEach((param) => {
+        const entry = deck.simpleAutomation?.[param];
+        if (!entry?.active) return;
+        const track = ensureSimpleAutomationRuntimeTrack(deckId, param);
+        if (track.paused) {
+          track.playbackStartMs = now - track.pausedPositionSec * 1000;
+          track.paused = false;
+          return;
+        }
+        if (track.playbackStartMs <= 0) {
+          track.playbackStartMs = now;
+        }
+      });
+    },
+    [ensureSimpleAutomationRuntimeTrack]
+  );
+
   const ensureAutomationDeck = useCallback((deckId: number, deck: DeckState) => {
     let automation = automationRef.current.get(deckId);
     if (!automation) {
@@ -215,11 +478,30 @@ const useDecks = () => {
         }
       });
     });
+    if (!enabled) {
+      enabled = decks.some((deck) =>
+        deck.status === "playing" &&
+        Object.values(deck.simpleAutomation ?? {}).some((entry) => entry?.active)
+      );
+    }
     if (automationTickEnabledRef.current !== enabled) {
       automationTickEnabledRef.current = enabled;
       setAutomationTickEnabled(enabled);
     }
-  }, []);
+  }, [decks]);
+
+  useEffect(() => {
+    updateAutomationTickEnabled();
+  }, [decks, updateAutomationTickEnabled]);
+
+  useEffect(() => {
+    const ids = new Set(decks.map((deck) => deck.id));
+    simpleAutomationRuntimeRef.current.forEach((_, deckId) => {
+      if (!ids.has(deckId)) {
+        simpleAutomationRuntimeRef.current.delete(deckId);
+      }
+    });
+  }, [decks]);
 
   const applyDeckSettingsToEngine = useCallback(
     (
@@ -987,7 +1269,6 @@ const useDecks = () => {
     const intervalId = window.setInterval(() => {
       const now = performance.now();
       const automation = automationRef.current;
-      if (automation.size === 0) return;
       automation.forEach((tracks, deckId) => {
         let hasActive = false;
         let shouldUpdateView = false;
@@ -1083,6 +1364,19 @@ const useDecks = () => {
           }
         }
       });
+
+      decksRef.current.forEach((deck) => {
+        if (deck.status !== "playing") return;
+        (Object.keys(deck.simpleAutomation ?? {}) as SimpleAutomationParam[]).forEach((param) => {
+          const entry = deck.simpleAutomation?.[param];
+          if (!entry?.active) return;
+          const runtime = ensureSimpleAutomationRuntimeTrack(deck.id, param);
+          if (runtime.paused) return;
+          const elapsedSec = Math.max(0, (now - runtime.playbackStartMs) / 1000);
+          const value = evaluateSimpleAutomationValue(entry, elapsedSec);
+          applySimpleAutomationValue(deck.id, param, value);
+        });
+      });
     }, intervalMs);
     return () => {
       window.clearInterval(intervalId);
@@ -1099,6 +1393,9 @@ const useDecks = () => {
     setDeckGain,
     setDeckBalance,
     setDeckPitchShift,
+    evaluateSimpleAutomationValue,
+    applySimpleAutomationValue,
+    ensureSimpleAutomationRuntimeTrack,
     updateAutomationView,
   ]);
 
@@ -1168,6 +1465,7 @@ const useDecks = () => {
         eqMode: DEFAULT_EQ_MODE,
         parametricEqBands: cloneDefaultParametricEqBands(),
         parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
+        simpleAutomation: {},
         balance: 0,
         pitchShift: 0,
         vocoderMix: DEFAULT_VOCODER_MIX,
@@ -1232,6 +1530,7 @@ const useDecks = () => {
       stop(id);
       removeDeckNodes(id);
       playbackStartRef.current.delete(id);
+      simpleAutomationRuntimeRef.current.delete(id);
       automationRef.current.delete(id);
       automationPlayheadRef.current.delete(id);
       setAutomationState((state) => {
@@ -1253,6 +1552,7 @@ const useDecks = () => {
             eqMode: DEFAULT_EQ_MODE,
             parametricEqBands: cloneDefaultParametricEqBands(),
             parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
+            simpleAutomation: {},
             balance: 0,
             pitchShift: 0,
             vocoderMix: DEFAULT_VOCODER_MIX,
@@ -1352,6 +1652,7 @@ const useDecks = () => {
     const nextParametricEqBands = normalizeParametricEqBands(
       clipSettings?.parametricEqBands
     );
+    const nextSimpleAutomation = normalizeSimpleAutomation(clipSettings?.simpleAutomation);
     const nextTempoPitchSync = clipSettings?.tempoPitchSync ?? false;
     const nextStretchRatio = clipSettings?.stretchRatio ?? DEFAULT_STRETCH_RATIO;
     const nextStretchWindowSize =
@@ -1518,6 +1819,7 @@ const useDecks = () => {
       eqHighGain: nextEqHigh,
       eqMode: nextEqMode,
       parametricEqBands: nextParametricEqBands,
+      simpleAutomation: nextSimpleAutomation,
       balance: nextBalance,
       pitchShift: nextPitchShift,
       vocoderMix: nextVocoderMix,
@@ -1578,6 +1880,7 @@ const useDecks = () => {
       eqHighGain: nextEqHigh,
       eqMode: nextEqMode,
       parametricEqBands: nextParametricEqBands,
+      simpleAutomation: nextSimpleAutomation,
       balance: nextBalance,
       pitchShift: nextPitchShift,
       vocoderMix: nextVocoderMix,
@@ -1668,6 +1971,7 @@ const useDecks = () => {
         eqHighGain: nextEqHigh,
         eqMode: nextEqMode,
         parametricEqBands: nextParametricEqBands,
+        simpleAutomation: nextSimpleAutomation,
         balance: nextBalance,
         pitchShift: nextPitchShift,
         vocoderMix: nextVocoderMix,
@@ -1795,6 +2099,7 @@ const useDecks = () => {
     const startedAtMs = performance.now();
     playbackStartRef.current.set(deck.id, startedAtMs);
     resumeAutomationDeck(deck.id);
+    resumeSimpleAutomationDeck(deck.id);
     updateDeck(deck.id, {
       status: "playing",
       startedAtMs,
@@ -1848,6 +2153,7 @@ const useDecks = () => {
     );
     if (deck.status === "paused") {
       resumeAutomationDeck(deck.id);
+      resumeSimpleAutomationDeck(deck.id);
     }
   };
 
@@ -1901,6 +2207,7 @@ const useDecks = () => {
     stop(deck.id);
     playbackStartRef.current.delete(deck.id);
     pauseAutomationDeck(deck.id);
+    pauseSimpleAutomationDeck(deck.id);
     updateDeck(deck.id, {
       status: "paused",
       startedAtMs: undefined,
@@ -1912,6 +2219,7 @@ const useDecks = () => {
     stop(deck.id);
     playbackStartRef.current.delete(deck.id);
     pauseAutomationDeck(deck.id);
+    pauseSimpleAutomationDeck(deck.id);
     const nextStatus: DeckStatus = deck.buffer ? "ready" : "idle";
     updateDeck(
       deck.id,
@@ -2200,6 +2508,9 @@ const useDecks = () => {
       const nextParametricEqMotion = preserveFxState
         ? normalizeParametricEqMotionState(deck.parametricEqMotion)
         : { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE };
+      const nextSimpleAutomation = preserveFxState
+        ? normalizeSimpleAutomation(deck.simpleAutomation)
+        : {};
       const nextZoom = preserveFxState ? deck.zoom : 1;
       const nextStretchRatio = deck.stretchRatio ?? DEFAULT_STRETCH_RATIO;
       const nextStretchWindowSize = deck.stretchWindowSize ?? DEFAULT_STRETCH_WINDOW_SIZE;
@@ -2275,6 +2586,7 @@ const useDecks = () => {
         eqMode: nextEqMode,
         parametricEqBands: nextParametricEqBands,
         parametricEqMotion: nextParametricEqMotion,
+        simpleAutomation: nextSimpleAutomation,
         balance: nextBalance,
         pitchShift: nextPitchShift,
         vocoderMix: nextVocoderMix,
@@ -2496,6 +2808,104 @@ const useDecks = () => {
     [updateDeck]
   );
 
+  const setDeckSimpleAutomation = useCallback(
+    (
+      id: number,
+      param: SimpleAutomationParam,
+      target: number,
+      baseline: number,
+      recording?: {
+        samples: number[];
+        sampleRate: number;
+        durationSec: number;
+      }
+    ) => {
+      const limits = SIMPLE_AUTOMATION_PARAM_LIMITS[param];
+      const deck = decks.find((item) => item.id === id);
+      if (!deck) return;
+      const resolvedBaseline = clamp(baseline, limits.min, limits.max);
+      const resolvedTarget = clamp(target, limits.min, limits.max);
+      const normalizedSamples = Array.isArray(recording?.samples)
+        ? recording!.samples
+            .filter((item) => Number.isFinite(item))
+            .map((item) => clamp(Number(item), limits.min, limits.max))
+        : undefined;
+      const resolvedDurationSec = Number.isFinite(recording?.durationSec)
+        ? clamp(Number(recording?.durationSec), 0.05, 600)
+        : undefined;
+      const resolvedSampleRate = Number.isFinite(recording?.sampleRate)
+        ? clamp(Number(recording?.sampleRate), 5, 240)
+        : undefined;
+      updateDeck(
+        id,
+        {
+          simpleAutomation: {
+            ...(normalizeSimpleAutomation(
+              deck.simpleAutomation
+            ) as DeckSimpleAutomation),
+            [param]: {
+              active: true,
+              baseline: resolvedBaseline,
+              target: resolvedTarget,
+              cycleSec: 4,
+              samples:
+                normalizedSamples && normalizedSamples.length > 1
+                  ? normalizedSamples
+                  : undefined,
+              sampleRate:
+                normalizedSamples && normalizedSamples.length > 1
+                  ? resolvedSampleRate
+                  : undefined,
+              durationSec:
+                normalizedSamples && normalizedSamples.length > 1
+                  ? resolvedDurationSec
+                  : undefined,
+            },
+          },
+        },
+        false
+      );
+      const track = ensureSimpleAutomationRuntimeTrack(id, param);
+      if (deck.status === "playing") {
+        track.playbackStartMs = performance.now();
+        track.paused = false;
+        track.pausedPositionSec = 0;
+      } else {
+        track.playbackStartMs = 0;
+        track.paused = true;
+        track.pausedPositionSec = 0;
+      }
+      applySimpleAutomationValue(id, param, resolvedTarget);
+      updateAutomationTickEnabled();
+    },
+    [
+      applySimpleAutomationValue,
+      decks,
+      ensureSimpleAutomationRuntimeTrack,
+      updateAutomationTickEnabled,
+      updateDeck,
+    ]
+  );
+
+  const clearDeckSimpleAutomation = useCallback(
+    (id: number, param: SimpleAutomationParam) => {
+      const deck = decks.find((item) => item.id === id);
+      if (!deck) return;
+      const next = { ...(normalizeSimpleAutomation(deck.simpleAutomation) as DeckSimpleAutomation) };
+      delete next[param];
+      updateDeck(id, { simpleAutomation: next }, false);
+      const deckRuntime = simpleAutomationRuntimeRef.current.get(id);
+      if (deckRuntime) {
+        delete deckRuntime[param];
+        if (Object.keys(deckRuntime).length === 0) {
+          simpleAutomationRuntimeRef.current.delete(id);
+        }
+      }
+      updateAutomationTickEnabled();
+    },
+    [decks, updateAutomationTickEnabled, updateDeck]
+  );
+
   const resetDeckFx = useCallback(
     (id: number) => {
       const deck = decks.find((item) => item.id === id);
@@ -2556,6 +2966,7 @@ const useDecks = () => {
           eqHighGain: 0,
           parametricEqBands: cloneDefaultParametricEqBands(),
           parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
+          simpleAutomation: {},
           balance: 0,
           pitchShift: nextPitchShift,
           vocoderMix: DEFAULT_VOCODER_MIX,
@@ -2778,6 +3189,8 @@ const useDecks = () => {
     setDeckEqMode: setDeckEqModeValue,
     setDeckParametricEqBands: setDeckParametricEqBandsValue,
     setDeckParametricEqMotion,
+    setDeckSimpleAutomation,
+    clearDeckSimpleAutomation,
     setDeckBalance: setDeckBalanceValue,
     setDeckDelayTime: setDeckDelayTimeValue,
     setDeckDelayFeedback: setDeckDelayFeedbackValue,

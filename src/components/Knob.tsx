@@ -15,10 +15,18 @@ type KnobProps = {
   ariaLabel?: string;
   labelTitle?: string;
   isAutomated?: boolean;
+  isSimpleAutomated?: boolean;
+  onSimpleAutomationSet?: (
+    value: number,
+    baseline: number,
+    recording?: { samples: number[]; sampleRate: number; durationSec: number }
+  ) => void;
+  onSimpleAutomationClear?: () => void;
   disabled?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const SIMPLE_AUTOMATION_CAPTURE_RATE = 30;
 
 const snap = (
   value: number,
@@ -57,12 +65,25 @@ const Knob = ({
   ariaLabel,
   labelTitle,
   isAutomated = false,
+  isSimpleAutomated = false,
+  onSimpleAutomationSet,
+  onSimpleAutomationClear,
   disabled = false,
 }: KnobProps) => {
   const knobRef = useRef<HTMLDivElement | null>(null);
-  const dragState = useRef<{ startX: number; startY: number; startValue: number } | null>(null);
+  const dragState = useRef<{ lastX: number; lastY: number; currentValue: number } | null>(null);
   const pendingValueRef = useRef<number | null>(null);
   const changeRafRef = useRef<number | null>(null);
+  const clearedSimpleAutomationRef = useRef(false);
+  const simpleAutomationArmRef = useRef(false);
+  const simpleAutomationPendingValueRef = useRef<number | null>(null);
+  const simpleAutomationBaselineRef = useRef<number | null>(null);
+  const simpleAutomationCaptureRef = useRef<{
+    startedAtMs: number;
+    samples: number[];
+  } | null>(null);
+  const simpleAutomationCaptureIntervalRef = useRef<number | null>(null);
+  const simpleAutomationCaptureValueRef = useRef<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const [fineMode, setFineMode] = useState(false);
   const range = max - min;
@@ -71,6 +92,7 @@ const Knob = ({
   const display = formatValue
     ? formatValue(value, fineMode)
     : value.toFixed(fineMode ? 3 : 1);
+  const supportsSimpleAutomation = Boolean(onSimpleAutomationSet) && !disabled;
 
   const flushPendingChange = useCallback(() => {
     if (pendingValueRef.current === null) return;
@@ -92,16 +114,30 @@ const Knob = ({
 
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
-      if (!dragState.current) return;
-      const deltaX = event.clientX - dragState.current.startX;
-      const deltaY = event.clientY - dragState.current.startY;
+      const drag = dragState.current;
+      if (!drag) return;
+      const deltaX = event.clientX - drag.lastX;
+      const deltaY = event.clientY - drag.lastY;
       const delta = deltaX - deltaY;
       const isFine = event.shiftKey;
       const sensitivity = isFine ? 0.0008 : 0.006;
-      const next = dragState.current.startValue + delta * sensitivity * range;
+      const next = drag.currentValue + delta * sensitivity * range;
       setFineMode(isFine);
       const effectiveStep = isFine ? step * 0.1 : step;
-      scheduleChange(snap(next, effectiveStep, min, max, defaultValue, centerSnap, !isFine));
+      const resolved = snap(next, effectiveStep, min, max, defaultValue, centerSnap, !isFine);
+      drag.currentValue = resolved;
+      drag.lastX = event.clientX;
+      drag.lastY = event.clientY;
+      if (!event.altKey && isSimpleAutomated && !clearedSimpleAutomationRef.current) {
+        onSimpleAutomationClear?.();
+        clearedSimpleAutomationRef.current = true;
+      }
+      scheduleChange(resolved);
+      if (event.altKey) {
+        simpleAutomationArmRef.current = true;
+        simpleAutomationPendingValueRef.current = resolved;
+        simpleAutomationCaptureValueRef.current = resolved;
+      }
     };
 
     const handleUp = () => {
@@ -110,6 +146,40 @@ const Knob = ({
       flushPendingChange();
       setDragging(false);
       setFineMode(false);
+      if (
+        simpleAutomationArmRef.current &&
+        simpleAutomationPendingValueRef.current !== null
+      ) {
+        const baseline =
+          simpleAutomationBaselineRef.current ?? clamp(defaultValue, min, max);
+        const capture = simpleAutomationCaptureRef.current;
+        const durationSec = capture
+          ? Math.max(0.05, (performance.now() - capture.startedAtMs) / 1000)
+          : 0;
+        const recording =
+          capture && capture.samples.length > 1
+            ? {
+                samples: capture.samples,
+                sampleRate: SIMPLE_AUTOMATION_CAPTURE_RATE,
+                durationSec,
+              }
+            : undefined;
+        onSimpleAutomationSet?.(
+          simpleAutomationPendingValueRef.current,
+          baseline,
+          recording
+        );
+      }
+      simpleAutomationArmRef.current = false;
+      simpleAutomationPendingValueRef.current = null;
+      simpleAutomationBaselineRef.current = null;
+      if (simpleAutomationCaptureIntervalRef.current !== null) {
+        window.clearInterval(simpleAutomationCaptureIntervalRef.current);
+        simpleAutomationCaptureIntervalRef.current = null;
+      }
+      simpleAutomationCaptureValueRef.current = null;
+      simpleAutomationCaptureRef.current = null;
+      clearedSimpleAutomationRef.current = false;
     };
 
     window.addEventListener("pointermove", handleMove);
@@ -120,12 +190,27 @@ const Knob = ({
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
     };
-  }, [centerSnap, defaultValue, max, min, range, scheduleChange, flushPendingChange, step]);
+  }, [
+    centerSnap,
+    defaultValue,
+    max,
+    min,
+    onSimpleAutomationSet,
+    onSimpleAutomationClear,
+    isSimpleAutomated,
+    range,
+    scheduleChange,
+    flushPendingChange,
+    step,
+  ]);
 
   useEffect(() => {
     return () => {
       if (changeRafRef.current !== null) {
         cancelAnimationFrame(changeRafRef.current);
+      }
+      if (simpleAutomationCaptureIntervalRef.current !== null) {
+        window.clearInterval(simpleAutomationCaptureIntervalRef.current);
       }
     };
   }, []);
@@ -134,7 +219,42 @@ const Knob = ({
     if (disabled) return;
     if (!knobRef.current) return;
     knobRef.current.setPointerCapture(event.pointerId);
-    dragState.current = { startX: event.clientX, startY: event.clientY, startValue: value };
+    dragState.current = {
+      lastX: event.clientX,
+      lastY: event.clientY,
+      currentValue: clamp(value, min, max),
+    };
+    clearedSimpleAutomationRef.current = false;
+    simpleAutomationArmRef.current = false;
+    simpleAutomationPendingValueRef.current = null;
+    simpleAutomationBaselineRef.current = event.altKey
+      ? clamp(value, min, max)
+      : null;
+    simpleAutomationCaptureRef.current = event.altKey
+      ? {
+          startedAtMs: performance.now(),
+          samples: [clamp(value, min, max)],
+        }
+      : null;
+    simpleAutomationCaptureValueRef.current = event.altKey
+      ? clamp(value, min, max)
+      : null;
+    if (simpleAutomationCaptureIntervalRef.current !== null) {
+      window.clearInterval(simpleAutomationCaptureIntervalRef.current);
+      simpleAutomationCaptureIntervalRef.current = null;
+    }
+    if (event.altKey) {
+      simpleAutomationCaptureIntervalRef.current = window.setInterval(() => {
+        const capture = simpleAutomationCaptureRef.current;
+        const nextValue = simpleAutomationCaptureValueRef.current;
+        if (!capture || nextValue === null) return;
+        capture.samples.push(nextValue);
+      }, 1000 / SIMPLE_AUTOMATION_CAPTURE_RATE);
+    }
+    if (event.altKey && isSimpleAutomated) {
+      onSimpleAutomationClear?.();
+      clearedSimpleAutomationRef.current = true;
+    }
     setDragging(true);
     setFineMode(event.shiftKey);
   };
@@ -145,6 +265,9 @@ const Knob = ({
     if (event.key === "ArrowRight" || event.key === "ArrowUp") {
       event.preventDefault();
       setFineMode(event.shiftKey);
+      if (isSimpleAutomated) {
+        onSimpleAutomationClear?.();
+      }
       onChange(
         snap(value + fine, fine, min, max, defaultValue, centerSnap, !event.shiftKey)
       );
@@ -152,6 +275,9 @@ const Knob = ({
     if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
       event.preventDefault();
       setFineMode(event.shiftKey);
+      if (isSimpleAutomated) {
+        onSimpleAutomationClear?.();
+      }
       onChange(
         snap(value - fine, fine, min, max, defaultValue, centerSnap, !event.shiftKey)
       );
@@ -165,7 +291,7 @@ const Knob = ({
 
   return (
     <div
-      className={`knob ${isAutomated ? "is-automated" : ""} ${disabled ? "is-disabled" : ""} ${className ?? ""}`.trim()}
+      className={`knob ${isAutomated ? "is-automated" : ""} ${isSimpleAutomated ? "is-simple-automated" : ""} ${supportsSimpleAutomation ? "is-simple-automation-capable" : ""} ${disabled ? "is-disabled" : ""} ${className ?? ""}`.trim()}
     >
       <div className="knob__label" title={labelTitle}>{label}</div>
       <div
@@ -178,11 +304,18 @@ const Knob = ({
         aria-valuenow={value}
         tabIndex={disabled ? -1 : 0}
         onPointerDown={handlePointerDown}
-        onDoubleClick={() => {
+        onDoubleClick={(event) => {
           if (disabled) return;
+          if (onSimpleAutomationClear && event.altKey) {
+            onSimpleAutomationClear();
+            return;
+          }
           dragState.current = null;
           setDragging(false);
           setFineMode(false);
+          if (isSimpleAutomated) {
+            onSimpleAutomationClear?.();
+          }
           onChange(clamp(defaultValue, min, max));
         }}
         onKeyDown={handleKeyDown}

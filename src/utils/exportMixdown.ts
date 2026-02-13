@@ -1,4 +1,4 @@
-import type { DeckState } from "../types/deck";
+import type { DeckState, SimpleAutomationParam } from "../types/deck";
 import { ensurePitchShiftWorklet } from "../audio/pitchShift";
 import { applyPostEqEffectsOffline } from "../audio/effects/postEqPipeline";
 import { applyPitchShiftOffline } from "../audio/effects/pitchShift";
@@ -54,6 +54,38 @@ export const renderMixdownBlob = async ({
   durationSec,
   sessionName,
 }: RenderMixdownArgs): Promise<Blob> => {
+  const resolveSimpleValue = (
+    deck: DeckState,
+    param: SimpleAutomationParam,
+    fallback: number,
+    atSec = 0
+  ) => {
+    const entry = deck.simpleAutomation?.[param];
+    if (!entry?.active) return fallback;
+    if (
+      Array.isArray(entry.samples) &&
+      entry.samples.length > 1 &&
+      Number.isFinite(entry.durationSec) &&
+      (entry.durationSec ?? 0) > 0
+    ) {
+      const durationSec = Math.max(0.05, entry.durationSec ?? 0.05);
+      const sampleRate = Math.max(
+        5,
+        entry.sampleRate ?? entry.samples.length / durationSec
+      );
+      const positionSec = atSec % durationSec;
+      const index = Math.min(
+        entry.samples.length - 1,
+        Math.max(0, Math.floor(positionSec * sampleRate))
+      );
+      return entry.samples[index] ?? fallback;
+    }
+    const cycle = Math.max(0.25, entry.cycleSec);
+    const phase = (atSec / cycle) % 1;
+    const shape = (Math.sin(phase * Math.PI * 2) + 1) * 0.5;
+    return entry.baseline + (entry.target - entry.baseline) * shape;
+  };
+
   const activeDecks = decks.filter((deck) => deck.buffer);
   if (activeDecks.length === 0) {
     throw new Error("NO_ACTIVE_DECKS");
@@ -117,14 +149,19 @@ export const renderMixdownBlob = async ({
   const createSliceDelayedLoopBuffer = (
     deck: DeckState,
     loopStart: number,
-    loopEnd: number
+    loopEnd: number,
+    sliceDelaySecOverride?: number,
+    sliceFadeMsOverride?: number
   ) => {
     if (!deck.buffer) return null;
     const sliceCount = Math.max(0, Math.round(deck.rearrangerSlices ?? 0));
-    const sliceDelaySec = Math.min(Math.max(deck.rearrangerSliceDelaySec ?? 0, 0), 5);
+    const sliceDelaySec = Math.min(
+      Math.max(sliceDelaySecOverride ?? deck.rearrangerSliceDelaySec ?? 0, 0),
+      5
+    );
     if (sliceCount <= 1 || sliceDelaySec < 0.01) return null;
     // Export path: add a tiny minimum fade when slice delay inserts silence to avoid clicks.
-    const effectiveSliceFadeMs = Math.max(deck.rearrangerSliceFadeMs ?? 0, 1);
+    const effectiveSliceFadeMs = Math.max(sliceFadeMsOverride ?? deck.rearrangerSliceFadeMs ?? 0, 1);
     const startSample = Math.max(
       0,
       Math.min(deck.buffer.length - 1, Math.round(loopStart * deck.buffer.sampleRate))
@@ -151,7 +188,7 @@ export const renderMixdownBlob = async ({
         reverse: 0,
         regions: deck.rearrangerRegions,
         sliceFadeMs: effectiveSliceFadeMs,
-        sliceDelaySec: deck.rearrangerSliceDelaySec,
+        sliceDelaySec,
       },
       { chaosSeed: 0 }
     );
@@ -179,13 +216,13 @@ export const renderMixdownBlob = async ({
     const pitchValue = (automationState.get(deck.id)?.pitch?.active
       ? automationState.get(deck.id)?.pitch?.currentValue
       : deck.pitchShift) ?? deck.pitchShift;
-    const delayTime = Math.min(Math.max(deck.delayTime ?? 0.35, 0.01), 1.5);
-    const delayFeedback = Math.min(Math.max(deck.delayFeedback ?? 0.35, 0), 0.99);
-    const delayMix = Math.min(Math.max(deck.delayMix ?? 0, 0), 1);
-    const delayTone = Math.min(Math.max(deck.delayTone ?? 6000, 400), 12000);
-    const delaySaturation = Math.min(Math.max(deck.delaySaturation ?? 0, 0), 1);
-    const delayDamping = Math.min(Math.max(deck.delayDamping ?? 0, 0), 1);
-    const delaySafety = Math.min(Math.max(deck.delaySafety ?? 0.35, 0), 1);
+    const delayTime = Math.min(Math.max(resolveSimpleValue(deck, "delayTime", deck.delayTime ?? 0.35), 0.01), 1.5);
+    const delayFeedback = Math.min(Math.max(resolveSimpleValue(deck, "delayFeedback", deck.delayFeedback ?? 0.35), 0), 0.99);
+    const delayMix = Math.min(Math.max(resolveSimpleValue(deck, "delayMix", deck.delayMix ?? 0), 0), 1);
+    const delayTone = Math.min(Math.max(resolveSimpleValue(deck, "delayTone", deck.delayTone ?? 6000), 400), 12000);
+    const delaySaturation = Math.min(Math.max(resolveSimpleValue(deck, "delaySaturation", deck.delaySaturation ?? 0), 0), 1);
+    const delayDamping = Math.min(Math.max(resolveSimpleValue(deck, "delayDamping", deck.delayDamping ?? 0), 0), 1);
+    const delaySafety = Math.min(Math.max(resolveSimpleValue(deck, "delaySafety", deck.delaySafety ?? 0.35), 0), 1);
     const delayPingPong = deck.delayPingPong ?? false;
     const modulatorOutputGain = getDeckModulatorOutputGain(deck.id);
 
@@ -211,11 +248,44 @@ export const renderMixdownBlob = async ({
       deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
         ? deck.loopEndSeconds
         : deck.buffer.duration;
+    const rearrangerSliceFadeMs = Math.round(
+      Math.min(
+        Math.max(resolveSimpleValue(deck, "rearrangerSliceFadeMs", deck.rearrangerSliceFadeMs ?? 0), 0),
+        12
+      )
+    );
+    const rearrangerSliceDelaySec = Math.min(
+      Math.max(resolveSimpleValue(deck, "rearrangerSliceDelaySec", deck.rearrangerSliceDelaySec ?? 0), 0),
+      5
+    );
     const sliceDelayedLoopBuffer =
       deck.loopEnabled && loopEnd > loopStart + 0.01
-        ? createSliceDelayedLoopBuffer(deck, loopStart, loopEnd)
+        ? createSliceDelayedLoopBuffer(
+            deck,
+            loopStart,
+            loopEnd,
+            rearrangerSliceDelaySec,
+            rearrangerSliceFadeMs
+          )
         : null;
-    const pingPongAmount = Math.min(Math.max(deck.rearrangerPingPong ?? 0, 0), 1);
+    const rearrangerSwapCount = Math.round(
+      Math.min(
+        Math.max(resolveSimpleValue(deck, "rearrangerSwapCount", deck.rearrangerSwapCount ?? 0), 0),
+        Math.max(64, Math.round(deck.rearrangerSlices || 0))
+      )
+    );
+    const rearrangerChaos = Math.min(
+      Math.max(resolveSimpleValue(deck, "rearrangerChaos", deck.rearrangerChaos ?? 0), 0),
+      1
+    );
+    const rearrangerReverse = Math.min(
+      Math.max(resolveSimpleValue(deck, "rearrangerReverse", deck.rearrangerReverse ?? 0), 0),
+      1
+    );
+    const pingPongAmount = Math.min(
+      Math.max(resolveSimpleValue(deck, "rearrangerPingPong", deck.rearrangerPingPong ?? 0), 0),
+      1
+    );
 
     const deckInput = offline.createGain();
     const balancedOut = applyBalanceOffline(offline, deckInput, {
@@ -302,16 +372,17 @@ export const renderMixdownBlob = async ({
     let postFxInput: AudioNode = postEq;
     const hasSelectedVocoderSource =
       deck.vocoderCarrierDeckId !== null && deck.vocoderCarrierDeckId !== deck.id;
-    if (deck.vocoderMix > 1e-3 && hasSelectedVocoderSource) {
+    const vocoderMixValue = Math.min(Math.max(resolveSimpleValue(deck, "vocoderMix", deck.vocoderMix ?? 0), 0), 1);
+    if (vocoderMixValue > 1e-3 && hasSelectedVocoderSource) {
       const vocoder = createChannelVocoder(offline, {
-        mix: deck.vocoderMix,
-        modDrive: deck.vocoderModDrive ?? 2,
-        bandCount: deck.vocoderBandCount,
-        bandSpread: deck.vocoderBandSpread,
-        attackMs: deck.vocoderAttackMs,
-        releaseMs: deck.vocoderReleaseMs,
-        noiseMix: deck.vocoderNoiseMix,
-        gateThreshold: deck.vocoderGateThreshold,
+        mix: vocoderMixValue,
+        modDrive: resolveSimpleValue(deck, "vocoderModDrive", deck.vocoderModDrive ?? 2),
+        bandCount: Math.round(resolveSimpleValue(deck, "vocoderBandCount", deck.vocoderBandCount)),
+        bandSpread: resolveSimpleValue(deck, "vocoderBandSpread", deck.vocoderBandSpread),
+        attackMs: resolveSimpleValue(deck, "vocoderAttackMs", deck.vocoderAttackMs),
+        releaseMs: resolveSimpleValue(deck, "vocoderReleaseMs", deck.vocoderReleaseMs),
+        noiseMix: resolveSimpleValue(deck, "vocoderNoiseMix", deck.vocoderNoiseMix),
+        gateThreshold: resolveSimpleValue(deck, "vocoderGateThreshold", deck.vocoderGateThreshold),
       });
       postEq.connect(vocoder.carrierInput);
       const carrierDeck =
@@ -384,18 +455,18 @@ export const renderMixdownBlob = async ({
             loopEnd.toFixed(6),
             tempoRatio.toFixed(6),
             deck.rearrangerSlices,
-            deck.rearrangerSwapCount,
-            deck.rearrangerChaos,
-            deck.rearrangerReverse,
-            deck.rearrangerSliceFadeMs,
-            deck.rearrangerSliceDelaySec,
+            rearrangerSwapCount,
+            rearrangerChaos,
+            rearrangerReverse,
+            rearrangerSliceFadeMs,
+            rearrangerSliceDelaySec,
             durationSec.toFixed(6),
           ].join("|")
         );
         const effectiveSliceFadeMs =
-          (deck.rearrangerSliceDelaySec ?? 0) >= 0.01
-            ? Math.max(deck.rearrangerSliceFadeMs ?? 0, 1)
-            : (deck.rearrangerSliceFadeMs ?? 0);
+          rearrangerSliceDelaySec >= 0.01
+            ? Math.max(rearrangerSliceFadeMs, 1)
+            : rearrangerSliceFadeMs;
         let currentBuffer = sliceDelayedLoopBuffer ?? loopSegment;
         let currentRegions = normalizeRearrangerRegions(
           deck.rearrangerRegions,
@@ -431,12 +502,12 @@ export const renderMixdownBlob = async ({
           const chaosSeed = seededUnitFloat(cycleSeed) * 1_000_000_000;
           const rearrangerParams = {
             slices: deck.rearrangerSlices,
-            swapCount: deck.rearrangerSwapCount,
-            chaos: deck.rearrangerChaos,
-            reverse: deck.rearrangerReverse,
+            swapCount: rearrangerSwapCount,
+            chaos: rearrangerChaos,
+            reverse: rearrangerReverse,
             regions: currentRegions,
             sliceFadeMs: effectiveSliceFadeMs,
-            sliceDelaySec: deck.rearrangerSliceDelaySec,
+            sliceDelaySec: rearrangerSliceDelaySec,
           };
           const nextBuffer = rearrangeBufferSegment(
             currentBuffer,

@@ -1727,6 +1727,24 @@ body:not([data-theme="dark"]) .peq__grid--zero {
   background: rgba(0, 112, 243, 0.15);
 }
 
+.knob.is-simple-automated .knob__control {
+  border-color: color-mix(in oklab, #ff8a00 60%, var(--line));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, #ff8a00 55%, transparent);
+}
+
+.knob.is-simple-automated .knob__indicator {
+  stroke: color-mix(in oklab, #ff8a00 75%, var(--ink));
+}
+
+body.mod-alt-held .knob.is-simple-automation-capable:not(.is-simple-automated) .knob__control {
+  border-color: color-mix(in oklab, #ff8a00 30%, var(--line));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, #ff8a00 26%, transparent);
+}
+
+body.mod-alt-held .knob.is-simple-automation-capable:not(.is-simple-automated) .knob__indicator {
+  stroke: color-mix(in oklab, #ff8a00 42%, var(--ink));
+}
+
 .knob__dial {
   width: 54px;
   height: 54px;

@@ -1,9 +1,12 @@
 import type {
+  DeckSimpleAutomation,
   DeckFxPanelState,
   DeckState,
   EqMode,
   ParametricEqBand,
   ParametricEqMotionState,
+  SimpleAutomationParam,
+  SimpleAutomationState,
 } from "../types/deck";
 import { defaultParametricEqBands } from "../audio/effects/parametricEq";
 import { MAX_REARRANGER_SLICES } from "../utils/rearranger";
@@ -61,6 +64,34 @@ export const DEFAULT_PARAMETRIC_EQ_MOTION_STATE: ParametricEqMotionState = {
   automationActive: false,
   targetBandId: null,
 };
+export const DEFAULT_SIMPLE_AUTOMATION_CYCLE_SEC = 4;
+export const SIMPLE_AUTOMATION_PARAM_LIMITS: Record<
+  SimpleAutomationParam,
+  { min: number; max: number }
+> = {
+  delayTime: { min: 0.01, max: 1.5 },
+  delayFeedback: { min: 0, max: 0.99 },
+  delayMix: { min: 0, max: 1 },
+  delayTone: { min: 400, max: 12000 },
+  delaySaturation: { min: 0, max: 1 },
+  delayDamping: { min: 0, max: 1 },
+  delaySafety: { min: 0, max: 1 },
+  vocoderMix: { min: 0, max: 1 },
+  vocoderModulatorMonitor: { min: 0, max: 1 },
+  vocoderModDrive: { min: 0.5, max: 10 },
+  vocoderBandCount: { min: 4, max: 24 },
+  vocoderBandSpread: { min: 0, max: 1 },
+  vocoderAttackMs: { min: 1, max: 160 },
+  vocoderReleaseMs: { min: 1, max: 1200 },
+  vocoderNoiseMix: { min: 0, max: 1 },
+  vocoderGateThreshold: { min: 0, max: 1 },
+  rearrangerSwapCount: { min: 0, max: 64 },
+  rearrangerChaos: { min: 0, max: 1 },
+  rearrangerReverse: { min: 0, max: 1 },
+  rearrangerSliceFadeMs: { min: 0, max: 12 },
+  rearrangerSliceDelaySec: { min: 0, max: 5 },
+  rearrangerPingPong: { min: 0, max: 1 },
+};
 export const EQ_MAX_DB = 18;
 export const FX_ACTIVE_EPSILON = 1e-3;
 
@@ -103,6 +134,60 @@ export const normalizeParametricEqMotionState = (
     value?.preset === "sweep" ? value?.automationActive === true : false,
   targetBandId: typeof value?.targetBandId === "string" ? value.targetBandId : null,
 });
+
+const normalizeSimpleAutomationEntry = (
+  param: SimpleAutomationParam,
+  value: Partial<SimpleAutomationState> | undefined
+): SimpleAutomationState => {
+  const limits = SIMPLE_AUTOMATION_PARAM_LIMITS[param];
+  const samples =
+    Array.isArray(value?.samples)
+      ? value.samples
+          .filter((item) => Number.isFinite(item))
+          .map((item) => clamp(Number(item), limits.min, limits.max))
+      : undefined;
+  const durationSec = Number.isFinite(value?.durationSec)
+    ? clamp(Number(value?.durationSec), 0.05, 600)
+    : undefined;
+  const sampleRate = Number.isFinite(value?.sampleRate)
+    ? clamp(Number(value?.sampleRate), 5, 240)
+    : undefined;
+  return {
+    active: value?.active === true,
+    baseline: clamp(
+      Number.isFinite(value?.baseline) ? Number(value?.baseline) : limits.min,
+      limits.min,
+      limits.max
+    ),
+    target: clamp(
+      Number.isFinite(value?.target) ? Number(value?.target) : limits.max,
+      limits.min,
+      limits.max
+    ),
+    cycleSec: clamp(
+      Number.isFinite(value?.cycleSec) ? Number(value?.cycleSec) : DEFAULT_SIMPLE_AUTOMATION_CYCLE_SEC,
+      0.25,
+      60
+    ),
+    samples: samples && samples.length > 1 ? samples : undefined,
+    sampleRate: samples && samples.length > 1 ? sampleRate : undefined,
+    durationSec: samples && samples.length > 1 ? durationSec : undefined,
+  };
+};
+
+export const normalizeSimpleAutomation = (
+  value?: DeckSimpleAutomation | null
+): DeckSimpleAutomation => {
+  const normalized: DeckSimpleAutomation = {};
+  (Object.keys(SIMPLE_AUTOMATION_PARAM_LIMITS) as SimpleAutomationParam[]).forEach((param) => {
+    const entry = value?.[param];
+    if (!entry) return;
+    const resolved = normalizeSimpleAutomationEntry(param, entry);
+    if (!resolved.active) return;
+    normalized[param] = resolved;
+  });
+  return normalized;
+};
 
 export const approxEqual = (a: number, b: number, epsilon = FX_ACTIVE_EPSILON) =>
   Math.abs(a - b) <= epsilon;
@@ -239,6 +324,7 @@ export const buildInitialDecks = (): DeckState[] => [
     vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
     vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
     vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
+    simpleAutomation: {},
     deckWidthOverride: undefined,
     offsetSeconds: 0,
     zoom: 1,

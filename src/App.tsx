@@ -105,6 +105,8 @@ const App = () => {
     setDeckEqMode,
     setDeckParametricEqBands,
     setDeckParametricEqMotion,
+    setDeckSimpleAutomation,
+    clearDeckSimpleAutomation,
     setDeckBalance,
     setDeckDelayTime,
     setDeckDelayFeedback,
@@ -410,6 +412,41 @@ const App = () => {
     window.dispatchEvent(new Event("themechange"));
   }, [theme]);
 
+  useEffect(() => {
+    const setAltHeld = (held: boolean) => {
+      document.body.classList.toggle("mod-alt-held", held);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey) {
+        setAltHeld(true);
+      }
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (!event.altKey || event.key === "Alt") {
+        setAltHeld(false);
+      }
+    };
+    const handleWindowBlur = () => {
+      setAltHeld(false);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setAltHeld(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleWindowBlur);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      setAltHeld(false);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleWindowBlur);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   const exportMixdown = useCallback(async () => {
     if (exporting) return;
     const exportDurationSec = Math.max(
@@ -532,6 +569,8 @@ const App = () => {
     setDeckEqMode,
     setDeckParametricEqBands,
     setDeckParametricEqMotion,
+    setDeckSimpleAutomation,
+    clearDeckSimpleAutomation,
     setDeckDelayTime,
     setDeckDelayFeedback,
     setDeckDelayMix,

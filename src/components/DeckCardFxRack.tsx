@@ -4,6 +4,7 @@ import type {
   DeckState,
   ParametricEqBand,
   ParametricEqMotionState,
+  SimpleAutomationParam,
 } from "../types/deck";
 import AutomationLane from "./AutomationLane";
 import AsyncActionButton from "./AsyncActionButton";
@@ -43,6 +44,14 @@ type DeckCardFxRackProps = {
   activateEq3Mode: () => void;
   commitParametricEqBands: (bands: ParametricEqBand[]) => void;
   commitParametricEqMotion: (value: ParametricEqMotionState) => void;
+  onSimpleAutomationSet: (
+    deckId: number,
+    param: SimpleAutomationParam,
+    target: number,
+    baseline: number,
+    recording?: { samples: number[]; sampleRate: number; durationSec: number }
+  ) => void;
+  onSimpleAutomationClear: (deckId: number, param: SimpleAutomationParam) => void;
   autoSliceEnabled: boolean;
   handleAutoSliceToggle: (enabled: boolean) => void;
   handleRearrangerSlicesKnobChange: (next: number) => void;
@@ -82,6 +91,8 @@ const DeckCardFxRack = ({
   activateEq3Mode,
   commitParametricEqBands,
   commitParametricEqMotion,
+  onSimpleAutomationSet,
+  onSimpleAutomationClear,
   autoSliceEnabled,
   handleAutoSliceToggle,
   handleRearrangerSlicesKnobChange,
@@ -150,6 +161,9 @@ const DeckCardFxRack = ({
     onStretchLoop,
     stretchEstimate,
   } = deckProps;
+
+  const isSimpleAutomated = (param: SimpleAutomationParam) =>
+    deck.simpleAutomation?.[param]?.active === true;
 
   return (
       <div className="deck__fx">
@@ -695,6 +709,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Wet/dry mix for deck-to-deck vocoding."
                 onChange={(next) => onVocoderMixChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderMix")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderMix", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "vocoderMix")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
@@ -707,6 +726,13 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Controls how much of the linked modulator deck is audible in the mix. 0 = fully muted."
                 onChange={(next) => onVocoderModulatorMonitorChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderModulatorMonitor")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderModulatorMonitor", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() =>
+                  onSimpleAutomationClear(deck.id, "vocoderModulatorMonitor")
+                }
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
@@ -719,6 +745,11 @@ const DeckCardFxRack = ({
                 defaultValue={2}
                 labelTitle="Boosts modulator envelope sensitivity for stronger/louder vocoder articulation."
                 onChange={(next) => onVocoderModDriveChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderModDrive")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderModDrive", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "vocoderModDrive")}
                 formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)}x`}
               />
               <Knob
@@ -731,6 +762,11 @@ const DeckCardFxRack = ({
                 defaultValue={12}
                 labelTitle="Number of analysis/synthesis bands."
                 onChange={(next) => onVocoderBandCountChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderBandCount")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderBandCount", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "vocoderBandCount")}
                 formatValue={(value) => `${Math.round(value)}`}
               />
               <Knob
@@ -743,6 +779,11 @@ const DeckCardFxRack = ({
                 defaultValue={8}
                 labelTitle="Envelope attack time in milliseconds."
                 onChange={(next) => onVocoderAttackMsChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderAttackMs")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderAttackMs", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "vocoderAttackMs")}
                 formatValue={(value) => `${Math.round(value)} ms`}
               />
               <Knob
@@ -755,6 +796,13 @@ const DeckCardFxRack = ({
                 defaultValue={5}
                 labelTitle="Envelope release time in milliseconds."
                 onChange={(next) => onVocoderReleaseMsChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderReleaseMs")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderReleaseMs", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() =>
+                  onSimpleAutomationClear(deck.id, "vocoderReleaseMs")
+                }
                 formatValue={(value) => `${Math.round(value)} ms`}
               />
               <Knob
@@ -767,6 +815,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Continuously rotates vocoder band phases in a loop."
                 onChange={(next) => onVocoderPhaseRotateChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderNoiseMix")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderNoiseMix", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "vocoderNoiseMix")}
                 formatValue={(value, fine) => {
                   if (value <= 1e-6) return "Off";
                   const durationSec = 16 + value * (0.25 - 16);
@@ -783,6 +836,13 @@ const DeckCardFxRack = ({
                 defaultValue={0.5}
                 labelTitle="Envelope gate threshold to suppress low-level chatter."
                 onChange={(next) => onVocoderGateThresholdChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderGateThreshold")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderGateThreshold", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() =>
+                  onSimpleAutomationClear(deck.id, "vocoderGateThreshold")
+                }
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
             </div>
@@ -828,6 +888,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Wet/dry mix. 0 = dry, 1 = fully delayed."
                 onChange={(next) => onDelayMixChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delayMix")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delayMix", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delayMix")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
@@ -840,6 +905,11 @@ const DeckCardFxRack = ({
                 defaultValue={0.35}
                 labelTitle="Delay time in seconds. Longer values create wider gaps between repeats."
                 onChange={(next) => onDelayTimeChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delayTime")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delayTime", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delayTime")}
                 formatValue={(value, fine) => `${value.toFixed(fine ? 3 : 1)}s`}
                 disabled={deck.delaySliceSync}
               />
@@ -853,6 +923,11 @@ const DeckCardFxRack = ({
                 defaultValue={0.35}
                 labelTitle="Feedback amount. Higher values create more repeats."
                 onChange={(next) => onDelayFeedbackChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delayFeedback")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delayFeedback", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delayFeedback")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
@@ -865,6 +940,11 @@ const DeckCardFxRack = ({
                 defaultValue={6000}
                 labelTitle="Low-pass filter inside the feedback path. Lower = darker repeats."
                 onChange={(next) => onDelayToneChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delayTone")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delayTone", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delayTone")}
                 formatValue={(value, fine) => `${value.toFixed(fine ? 1 : 0)} Hz`}
               />
               <Knob
@@ -877,6 +957,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Drive soft-clipping in the feedback path to tame peaks and add harmonic grit."
                 onChange={(next) => onDelaySaturationChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delaySaturation")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delaySaturation", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delaySaturation")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
@@ -889,6 +974,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Extra high-frequency damping per repeat for smoother, less brittle tails."
                 onChange={(next) => onDelayDampingChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delayDamping")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delayDamping", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delayDamping")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
@@ -901,6 +991,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Limiter-style soft clamp on delayed return to keep high-feedback loops musical."
                 onChange={(next) => onDelaySafetyChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delaySafety")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delaySafety", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delaySafety")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
             </div>
@@ -971,6 +1066,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Number of slices to swap each pass."
                 onChange={(next) => onRearrangerSwapCountChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("rearrangerSwapCount")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "rearrangerSwapCount", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "rearrangerSwapCount")}
                 formatValue={(value) => `${Math.round(value)}`}
               />
               <Knob
@@ -983,6 +1083,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="How far swaps can travel. Low stays local, high can jump anywhere."
                 onChange={(next) => onRearrangerChaosChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("rearrangerChaos")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "rearrangerChaos", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "rearrangerChaos")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
@@ -995,6 +1100,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Chance each slice is reversed."
                 onChange={(next) => onRearrangerReverseChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("rearrangerReverse")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "rearrangerReverse", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "rearrangerReverse")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
@@ -1031,6 +1141,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Short fades on slice edges to reduce clicks."
                 onChange={(next) => onRearrangerSliceFadeChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("rearrangerSliceFadeMs")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "rearrangerSliceFadeMs", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "rearrangerSliceFadeMs")}
                 formatValue={(value) => `${Math.round(value)} ms`}
               />
               <Knob
@@ -1043,6 +1158,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Simulates a short hold between slices during live playback (non-destructive, FX tails keep processing) and is baked in offline renders."
                 onChange={(next) => onRearrangerSliceDelayChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("rearrangerSliceDelaySec")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "rearrangerSliceDelaySec", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "rearrangerSliceDelaySec")}
                 formatValue={(value) => `${value.toFixed(2)}s`}
               />
               <Knob
@@ -1055,6 +1175,11 @@ const DeckCardFxRack = ({
                 defaultValue={0}
                 labelTitle="Alternates slices between left and right. 0 = centered/no processing, 1 = full L/R ping pong."
                 onChange={(next) => onRearrangerPingPongChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("rearrangerPingPong")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "rearrangerPingPong", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "rearrangerPingPong")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <label

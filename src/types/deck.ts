@@ -1,6 +1,39 @@
 export type DeckStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 export type EqMode = "eq3" | "parametric";
 export type ParametricEqBandType = "peaking" | "lowshelf" | "highshelf";
+export type SimpleAutomationParam =
+  | "delayTime"
+  | "delayFeedback"
+  | "delayMix"
+  | "delayTone"
+  | "delaySaturation"
+  | "delayDamping"
+  | "delaySafety"
+  | "vocoderMix"
+  | "vocoderModulatorMonitor"
+  | "vocoderModDrive"
+  | "vocoderBandCount"
+  | "vocoderBandSpread"
+  | "vocoderAttackMs"
+  | "vocoderReleaseMs"
+  | "vocoderNoiseMix"
+  | "vocoderGateThreshold"
+  | "rearrangerSwapCount"
+  | "rearrangerChaos"
+  | "rearrangerReverse"
+  | "rearrangerSliceFadeMs"
+  | "rearrangerSliceDelaySec"
+  | "rearrangerPingPong";
+export type SimpleAutomationState = {
+  active: boolean;
+  baseline: number;
+  target: number;
+  cycleSec: number;
+  samples?: number[];
+  sampleRate?: number;
+  durationSec?: number;
+};
+export type DeckSimpleAutomation = Partial<Record<SimpleAutomationParam, SimpleAutomationState>>;
 export type ParametricEqMotionPreset = "sweep";
 export type ParametricEqMotionState = {
   preset: ParametricEqMotionPreset | null;
@@ -98,6 +131,7 @@ export type DeckState = {
   vocoderReleaseMs: number;
   vocoderNoiseMix: number;
   vocoderGateThreshold: number;
+  simpleAutomation: DeckSimpleAutomation;
   deckWidthOverride?: DeckWidthOverride;
   fxPanelOpen: DeckFxPanelState;
 };

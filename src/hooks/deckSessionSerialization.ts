@@ -43,6 +43,7 @@ import {
   sanitizeRearrangerRegions,
   toAutomationView,
   normalizeParametricEqMotionState,
+  normalizeSimpleAutomation,
   type AutomationDeck,
   type AutomationTrack,
   type AutomationView,
@@ -99,6 +100,7 @@ export const serializeDeckSession = (
   eqHighGain: deck.eqHighGain,
   parametricEqBands: normalizeParametricEqBands(deck.parametricEqBands),
   parametricEqMotion: normalizeParametricEqMotionState(deck.parametricEqMotion),
+  simpleAutomation: normalizeSimpleAutomation(deck.simpleAutomation),
   balance: deck.balance,
   pitchShift: deck.pitchShift,
   vocoderMix: deck.vocoderMix,
@@ -212,6 +214,7 @@ export const hydrateDeckFromSession = (
     parametricEqMotion: normalizeParametricEqMotionState(
       sessionDeck.parametricEqMotion ?? DEFAULT_PARAMETRIC_EQ_MOTION_STATE
     ),
+    simpleAutomation: normalizeSimpleAutomation(sessionDeck.simpleAutomation),
     balance: sessionDeck.balance ?? 0,
     pitchShift: sessionDeck.pitchShift ?? 0,
     vocoderMix: sessionDeck.vocoderMix ?? DEFAULT_VOCODER_MIX,

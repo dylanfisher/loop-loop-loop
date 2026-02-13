@@ -202,6 +202,7 @@ const useClipLibrary = ({
         eqHighGain: deck.eqHighGain,
         eqMode: deck.eqMode,
         parametricEqBands: deck.parametricEqBands,
+        simpleAutomation: deck.simpleAutomation,
         balance: deck.balance,
         pitchShift: deck.pitchShift,
         vocoderMix: deck.vocoderMix,
