@@ -22,6 +22,8 @@ const KeyboardShortcutsDialog = ({ open, onClose }: KeyboardShortcutsDialogProps
         <ul className="app__shortcuts-list">
           <li><kbd>Space</kbd> Play/Pause active deck</li>
           <li><kbd>Shift</kbd> + <kbd>Space</kbd> Global Play/Pause</li>
+          <li><kbd>Q</kbd> Hide/show active deck FX panels (restores previous open set)</li>
+          <li><kbd>Shift</kbd> + <kbd>Q</kbd> Close all open FX panels, or open adjusted FX across all decks when none are open</li>
           <li><kbd>R</kbd> Toggle Rearranger panel (active deck)</li>
           <li><kbd>L</kbd> Toggle loop (active deck)</li>
           <li><kbd>Shift</kbd> + <kbd>L</kbd> Reset loop to full file</li>

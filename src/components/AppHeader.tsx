@@ -1,4 +1,4 @@
-import type { ChangeEvent, RefObject } from "react";
+import { useEffect, useState, type ChangeEvent, type RefObject } from "react";
 import AsyncActionButton from "./AsyncActionButton";
 import Knob from "./Knob";
 
@@ -25,7 +25,9 @@ type AppHeaderProps = {
   onAddDeck: () => void;
   onNewSession: () => void;
   onGlobalPlaybackToggle: () => void;
+  onGlobalStopReset: () => void;
   hasActivePlayback: boolean;
+  canGlobalStopReset: boolean;
   recording: boolean;
   savingRecording: boolean;
   onRecordToggle: () => void;
@@ -70,7 +72,9 @@ const AppHeader = ({
   onAddDeck,
   onNewSession,
   onGlobalPlaybackToggle,
+  onGlobalStopReset,
   hasActivePlayback,
+  canGlobalStopReset,
   recording,
   savingRecording,
   onRecordToggle,
@@ -102,7 +106,34 @@ const AppHeader = ({
   exporting,
   exportEstimateLabel,
   onSessionNameChange,
-}: AppHeaderProps) => (
+}: AppHeaderProps) => {
+  const [shiftHeld, setShiftHeld] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setShiftHeld(true);
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setShiftHeld(false);
+    };
+    const handleBlur = () => setShiftHeld(false);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, []);
+
+  const showStopReset = shiftHeld && !hasActivePlayback && canGlobalStopReset;
+  const transportLabel = showStopReset ? "Stop" : hasActivePlayback ? "Pause" : "Play";
+  const transportTitle = showStopReset
+    ? "Stop and reset all paused decks to start"
+    : "Global play/pause (Shift+Space)";
+
+  return (
   <header className="app__header">
     <div className="app__header-row app__header-row--primary">
       <div className="app__brand">Loop Loop Loop</div>
@@ -148,10 +179,10 @@ const AppHeader = ({
         </button>
         <button
           type="button"
-          onClick={onGlobalPlaybackToggle}
-          title="Global play/pause (Shift+Space)"
+          onClick={showStopReset ? onGlobalStopReset : onGlobalPlaybackToggle}
+          title={transportTitle}
         >
-          {hasActivePlayback ? "Pause" : "Play"}
+          {transportLabel}
         </button>
         <button
           type="button"
@@ -354,6 +385,7 @@ const AppHeader = ({
       </div>
     ) : null}
   </header>
-);
+  );
+};
 
 export default AppHeader;

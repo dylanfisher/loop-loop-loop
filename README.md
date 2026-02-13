@@ -95,6 +95,8 @@ Saved audio files use:
 
 - `Space`: Play/Pause active deck
 - `Shift + Space`: Global Play/Pause
+- `Q`: Hide/show FX panels for active deck (restores previous open set)
+- `Shift + Q`: If any deck has open FX panels, close all open panels across decks; if none are open, open adjusted FX panels across all decks
 - `R`: Toggle Rearranger panel (active deck)
 - `L`: Toggle loop (active deck)
 - `Shift + L`: Reset active deck loop to full file
@@ -109,6 +111,9 @@ Saved audio files use:
 - `Cmd/Ctrl + S`: Save session
 - `Cmd/Ctrl + O`: Open session
 - `?`: Toggle keyboard shortcuts panel
+
+Transport note:
+- While holding `Shift`, if all loaded decks are paused, the header transport button switches to **Stop** and resets all decks to start.
 
 ## Session Model
 

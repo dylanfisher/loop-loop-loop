@@ -9,6 +9,8 @@ type UseGlobalKeyboardShortcutsArgs = {
   handleLoadSession: () => Promise<void>;
   handleGlobalPlaybackToggle: () => void;
   handleFocusedDeckPlaybackToggle: () => void;
+  handleFocusedDeckFxVisibilityToggle: () => void;
+  handleAllDecksFxVisibilityToggle: () => void;
   handleFocusedDeckLoopReset: () => void;
   handleFocusedDeckRemove: () => void;
   handleFocusedDeckRearrangerPanelToggle: () => void;
@@ -27,6 +29,8 @@ const useGlobalKeyboardShortcuts = ({
   handleLoadSession,
   handleGlobalPlaybackToggle,
   handleFocusedDeckPlaybackToggle,
+  handleFocusedDeckFxVisibilityToggle,
+  handleAllDecksFxVisibilityToggle,
   handleFocusedDeckLoopReset,
   handleFocusedDeckRemove,
   handleFocusedDeckRearrangerPanelToggle,
@@ -86,6 +90,11 @@ const useGlobalKeyboardShortcuts = ({
       }
 
       if (event.shiftKey) {
+        if (lower === "q") {
+          event.preventDefault();
+          handleAllDecksFxVisibilityToggle();
+          return;
+        }
         if (lower === "l") {
           event.preventDefault();
           handleFocusedDeckLoopReset();
@@ -102,6 +111,11 @@ const useGlobalKeyboardShortcuts = ({
       if (lower === "r") {
         event.preventDefault();
         handleFocusedDeckRearrangerPanelToggle();
+        return;
+      }
+      if (lower === "q") {
+        event.preventDefault();
+        handleFocusedDeckFxVisibilityToggle();
         return;
       }
       if (lower === "l") {
@@ -145,6 +159,8 @@ const useGlobalKeyboardShortcuts = ({
     handleFocusedDeckDuplicate,
     handleFocusedDeckRemove,
     handleFocusedDeckPlaybackToggle,
+    handleFocusedDeckFxVisibilityToggle,
+    handleAllDecksFxVisibilityToggle,
     handleFocusedDeckRearrangerPanelToggle,
     handleFocusedDeckZoom,
     handleLoadSession,

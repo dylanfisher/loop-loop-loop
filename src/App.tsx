@@ -300,6 +300,16 @@ const App = () => {
     (isCurrentProjectBrandNew && !welcomePanelDismissed) || showWelcomePanelOverride;
 
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
+  const canGlobalStopReset =
+    decks.some((deck) => deck.buffer) &&
+    decks.filter((deck) => deck.buffer).every((deck) => deck.status === "paused");
+  const handleGlobalStopReset = useCallback(() => {
+    decks.forEach((deck) => {
+      if (deck.buffer) {
+        stopDeck(deck);
+      }
+    });
+  }, [decks, stopDeck]);
 
   const shouldAnimatePerf = hasActivePlayback || recording;
   const [audioContextState, setAudioContextState] = useState<
@@ -476,6 +486,8 @@ const App = () => {
     handleGlobalPlaybackToggle,
     handleFocusedDeckPlaybackToggle,
     handleFocusedDeckRearrangerPanelToggle,
+    handleFocusedDeckFxVisibilityToggle,
+    handleAllDecksFxVisibilityToggle,
     handleFocusedDeckLoopToggle,
     handleFocusedDeckLoopReset,
     handleFocusedDeckRemove,
@@ -602,6 +614,8 @@ const App = () => {
     handleLoadSession,
     handleGlobalPlaybackToggle,
     handleFocusedDeckPlaybackToggle,
+    handleFocusedDeckFxVisibilityToggle,
+    handleAllDecksFxVisibilityToggle,
     handleFocusedDeckLoopReset,
     handleFocusedDeckRemove,
     handleFocusedDeckRearrangerPanelToggle,
@@ -654,7 +668,9 @@ const App = () => {
         onAddDeck={() => addDeck()}
         onNewSession={handleNewSession}
         onGlobalPlaybackToggle={handleGlobalPlaybackToggle}
+        onGlobalStopReset={handleGlobalStopReset}
         hasActivePlayback={hasActivePlayback}
+        canGlobalStopReset={canGlobalStopReset}
         recording={recording}
         savingRecording={savingRecording}
         onRecordToggle={handleRecordToggle}
