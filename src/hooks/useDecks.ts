@@ -1819,7 +1819,6 @@ const useDecks = () => {
       eqHighGain: nextEqHigh,
       eqMode: nextEqMode,
       parametricEqBands: nextParametricEqBands,
-      simpleAutomation: nextSimpleAutomation,
       balance: nextBalance,
       pitchShift: nextPitchShift,
       vocoderMix: nextVocoderMix,
