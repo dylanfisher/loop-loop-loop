@@ -1457,6 +1457,7 @@ input[type="range"]::-moz-focus-outer {
 .peq {
   display: grid;
   gap: 8px;
+  row-gap: 20px;
 }
 
 .peq.is-disabled {
@@ -1521,6 +1522,16 @@ body:not([data-theme="dark"]) .peq__grid--zero {
   cursor: grab;
 }
 
+.peq__node-spread {
+  fill: none;
+  stroke: color-mix(in oklab, var(--accent) 58%, #ffffff 42%);
+  pointer-events: none;
+}
+
+.peq__node-spread.is-selected {
+  stroke: color-mix(in oklab, var(--accent) 68%, #ffffff 32%);
+}
+
 .peq__node.is-selected {
   stroke-width: 2.2;
   stroke: color-mix(in oklab, var(--accent) 78%, #111 22%);
@@ -1532,8 +1543,23 @@ body:not([data-theme="dark"]) .peq__grid--zero {
 
 .peq__toolbar {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.peq__toolbar-row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.peq__toolbar-left {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -1542,6 +1568,31 @@ body:not([data-theme="dark"]) .peq__grid--zero {
   font-size: 0.56rem;
   letter-spacing: 0.08em;
   color: var(--muted);
+}
+
+.peq__node-selectors {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.peq__node-selector {
+  min-width: 28px;
+  padding: 3px 6px;
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+}
+
+.peq__node-selector.has-jitter {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+.peq__node-selector.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .peq__motion-tools {
@@ -1569,12 +1620,21 @@ body:not([data-theme="dark"]) .peq__grid--zero {
 
 .peq__inspector {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
+  row-gap: 20px;
+  justify-content: flex-start;
   font-size: 0.58rem;
   letter-spacing: 0.08em;
+}
+
+.peq__inspector-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .peq__inspector--empty {

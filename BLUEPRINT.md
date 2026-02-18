@@ -50,6 +50,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Parametric EQ is implemented as a dedicated 5-unit-wide FX panel with a draggable node graph (click-to-add, drag freq/gain, node type/Q controls), while keeping EQ3 available via per-deck EQ mode selection.
+- Parametric EQ nodes include per-node motion controls (`Jitter` + `Spread`) in the inspector to simulate semi-random drag-like movement while playback is running.
 - Deck FX now includes a dedicated Gain unit (first slot) with its own collapsible panel and automation lane; waveform sidebar gain control was removed.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Deck FX includes a Vocoder panel with per-deck mix, modulator-deck selection, modulator monitor level (controls linked modulator deck audibility in the mix), mod-drive sensitivity boost for stronger envelope transfer, and a single `Phase Rotate` control that continuously cycles vocoder band phase offsets.
@@ -107,7 +108,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Clip session persistence now preserves original clip blob format (for example `audio/webm` from Clip Recorder) instead of re-encoding unchanged clips to WAV on each autosave.
 - Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.
 - Deck UI state is also mirrored immediately to localStorage (lightweight patch) so quick refreshes restore panel state before the next full autosave.
-- Parametric EQ motion state (sweep preset active state + cycle length + targeted sweep node) is persisted per deck in sessions so restored projects resume sweep automation behavior when playback starts.
+- Parametric EQ is manual node editing only (sweep motion automation removed).
 - Session WAV encoding (for deck audio and transformed renders) uses a dedicated web worker to reduce main-thread stalls.
 - Welcome panel dismissed state is persisted through autosave, saved sessions, and exported/imported project zips.
 - After the welcome panel is dismissed, it remains hidden across New Session/reset flows and is reopened explicitly from the header `?` shortcut/help control.

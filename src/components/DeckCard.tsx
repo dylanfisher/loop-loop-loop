@@ -1135,9 +1135,6 @@ const DeckCard = (props: DeckCardProps) => {
         formatEq={formatEq}
         activateEq3Mode={activateEq3Mode}
         commitParametricEqBands={commitParametricEqBands}
-        commitParametricEqMotion={(value) =>
-          props.onParametricEqMotionChange(deck.id, value)
-        }
         onSimpleAutomationSet={props.onSimpleAutomationSet}
         onSimpleAutomationClear={props.onSimpleAutomationClear}
         autoSliceEnabled={autoSliceEnabled}

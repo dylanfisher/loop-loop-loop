@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -9,9 +10,10 @@ import {
 import type {
   ParametricEqBand,
   ParametricEqBandType,
-  ParametricEqMotionState,
+  ParametricEqBandWander,
 } from "../types/deck";
 import { defaultParametricEqBands } from "../audio/effects/parametricEq";
+import Knob from "./Knob";
 
 const MIN_FREQ = 20;
 const MAX_FREQ = 20000;
@@ -22,14 +24,14 @@ const MAX_Q = 20;
 const MAX_BANDS = 12;
 const VIEWBOX_WIDTH = 1000;
 const VIEWBOX_HEIGHT = 320;
+const JITTER_DEBOUNCE_MS = 90;
+const SPREAD_DEBOUNCE_MS = 90;
 
 type ParametricEqEditorProps = {
   bands: ParametricEqBand[];
-  motion: ParametricEqMotionState;
   playbackActive?: boolean;
   disabled?: boolean;
   onChange: (bands: ParametricEqBand[]) => void;
-  onMotionChange: (value: ParametricEqMotionState) => void;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -59,13 +61,23 @@ const yToGain = (y: number) => {
 };
 const defaultQForType = (type: ParametricEqBandType) =>
   type === "peaking" ? 1.2 : 0.8;
-const cloneBands = (input: ParametricEqBand[]) => input.map((band) => ({ ...band }));
-const clampCycleSeconds = (value: number) => clamp(value, 0.25, 60);
-const normalizeMotionState = (value: ParametricEqMotionState): ParametricEqMotionState => ({
-  preset: value.preset === "sweep" ? "sweep" : null,
-  cycleSec: clampCycleSeconds(value.cycleSec),
-  automationActive: value.preset === "sweep" ? value.automationActive === true : false,
-  targetBandId: typeof value.targetBandId === "string" ? value.targetBandId : null,
+const clampUnit = (value: number) => clamp(value, 0, 1);
+const ensureWander = (band: ParametricEqBand): ParametricEqBandWander => ({
+  jitter: clampUnit(band.wander?.jitter ?? 0),
+  spread: clampUnit(band.wander?.spread ?? 0),
+  seed: Number.isFinite(band.wander?.seed) ? Number(band.wander?.seed) : Math.random() * Math.PI * 2,
+  baseFrequency: clamp(
+    Number.isFinite(band.wander?.baseFrequency)
+      ? Number(band.wander?.baseFrequency)
+      : band.frequency,
+    MIN_FREQ,
+    MAX_FREQ
+  ),
+  baseGain: clamp(
+    Number.isFinite(band.wander?.baseGain) ? Number(band.wander?.baseGain) : band.gain,
+    MIN_GAIN,
+    MAX_GAIN
+  ),
 });
 
 const createBandId = () => `peq-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -74,17 +86,13 @@ const sortedBands = (bands: ParametricEqBand[]) => [...bands].sort((a, b) => a.f
 
 const ParametricEqEditor = ({
   bands,
-  motion,
   playbackActive = false,
   disabled = false,
   onChange,
-  onMotionChange,
 }: ParametricEqEditorProps) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [graphWidth, setGraphWidth] = useState(VIEWBOX_WIDTH);
-  const motionState = normalizeMotionState(motion);
-  const motionPreset = motionState.preset;
-  const motionCycleSec = motionState.cycleSec;
   const dragBandIdRef = useRef<string | null>(null);
   const pointerIdRef = useRef<number | null>(null);
   const pointerDownBandIdRef = useRef<string | null>(null);
@@ -95,10 +103,21 @@ const ParametricEqEditor = ({
   const nodeDragMovedRef = useRef(false);
   const nodeDragStartXRef = useRef(0);
   const nodeDragStartYRef = useRef(0);
-  const [selectedBandId, setSelectedBandId] = useState<string | null>(bands[0]?.id ?? null);
-  const motionBaseBandsRef = useRef<ParametricEqBand[] | null>(null);
-  const motionStartMsRef = useRef<number>(0);
-  const wasMotionRunningRef = useRef(false);
+  const bandsRef = useRef(bands);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    bandsRef.current = bands;
+  }, [bands]);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+  const [selectedBandId, setSelectedBandId] = useState<string | null>(null);
+  const [jitterDraft, setJitterDraft] = useState<{ bandId: string; value: number } | null>(null);
+  const [spreadDraft, setSpreadDraft] = useState<{ bandId: string; value: number } | null>(null);
+  const jitterDebounceTimeoutRef = useRef<number | null>(null);
+  const pendingJitterRef = useRef<{ bandId: string; value: number } | null>(null);
+  const spreadDebounceTimeoutRef = useRef<number | null>(null);
+  const pendingSpreadRef = useRef<{ bandId: string; value: number } | null>(null);
   useLayoutEffect(() => {
     const node = svgRef.current;
     if (!node) return undefined;
@@ -117,137 +136,220 @@ const ParametricEqEditor = ({
   const resolvedSelectedBandId =
     selectedBandId && bands.some((band) => band.id === selectedBandId)
       ? selectedBandId
-      : bands[0]?.id ?? null;
+      : null;
 
   const selectedBand = useMemo(
     () => bands.find((band) => band.id === resolvedSelectedBandId) ?? null,
     [bands, resolvedSelectedBandId]
   );
-  const motionRunning =
-    motionPreset !== null && motionState.automationActive && playbackActive;
 
-  const updateBand = (id: string, updates: Partial<ParametricEqBand>) => {
-    onChange(
-      bands.map((band) =>
-        band.id === id
-          ? {
-              ...band,
-              ...updates,
-              frequency:
-                updates.frequency === undefined
-                  ? band.frequency
-                  : clamp(updates.frequency, MIN_FREQ, MAX_FREQ),
-              gain:
-                updates.gain === undefined ? band.gain : clamp(updates.gain, MIN_GAIN, MAX_GAIN),
-              q: updates.q === undefined ? band.q : clamp(updates.q, MIN_Q, MAX_Q),
-            }
-          : band
-      )
-    );
-  };
-
-  const removeBand = (id: string) => {
-    const next = bands.filter((band) => band.id !== id);
-    onChange(next);
-    if (motionState.targetBandId === id) {
-      onMotionChange({ ...motionState, targetBandId: next[0]?.id ?? null });
-    }
-    if (resolvedSelectedBandId === id) {
-      setSelectedBandId(next[0]?.id ?? null);
-    }
-  };
-
-  const resetBands = () => {
-    onMotionChange({
-      ...motionState,
-      preset: null,
-      automationActive: false,
-      targetBandId: null,
-    });
-    motionBaseBandsRef.current = null;
-    motionStartMsRef.current = 0;
-    const next = defaultParametricEqBands();
-    onChange(next);
-    setSelectedBandId(next[0]?.id ?? null);
-  };
-  const startMotionPreset = (
-    preset: NonNullable<ParametricEqMotionState["preset"]>,
-    startedAtMs: number
-  ) => {
-    if (motionPreset === preset && motionState.automationActive) {
-      stopMotionPreset();
-      return;
-    }
-    motionBaseBandsRef.current = cloneBands(bands);
-    motionStartMsRef.current = startedAtMs;
-    onMotionChange({
-      ...motionState,
-      preset,
-      automationActive: true,
-      targetBandId: resolvedSelectedBandId ?? bands[0]?.id ?? null,
-    });
-  };
-  const stopMotionPreset = () => {
-    onMotionChange({ ...motionState, preset: null, automationActive: false });
-    motionBaseBandsRef.current = null;
-    motionStartMsRef.current = 0;
-  };
-  useEffect(() => {
-    const nowRunning = motionPreset !== null && motionState.automationActive && playbackActive;
-    if (nowRunning && !wasMotionRunningRef.current) {
-      if (!motionBaseBandsRef.current || motionBaseBandsRef.current.length === 0) {
-        motionBaseBandsRef.current = cloneBands(bands);
+  const applyWanderPatch = useCallback((bandId: string, patch: Partial<ParametricEqBandWander>) => {
+    const sourceBands = bandsRef.current;
+    let changed = false;
+    const next = sourceBands.map((band) => {
+      if (band.id !== bandId) return band;
+      const nextWander = {
+        ...ensureWander(band),
+        ...patch,
+      };
+      const normalized = {
+        ...nextWander,
+        jitter: clampUnit(nextWander.jitter),
+        spread: clampUnit(nextWander.spread),
+      };
+      if (
+        band.wander &&
+        Math.abs((band.wander.jitter ?? 0) - normalized.jitter) <= 1e-4 &&
+        Math.abs((band.wander.spread ?? 0) - normalized.spread) <= 1e-4
+      ) {
+        return band;
       }
-      motionStartMsRef.current = -1;
+      changed = true;
+      return {
+        ...band,
+        wander: normalized,
+      };
+    });
+    if (changed) {
+      onChangeRef.current(next);
     }
-    wasMotionRunningRef.current = nowRunning;
-  }, [bands, motionPreset, motionState.automationActive, playbackActive]);
+  }, []);
+
   useEffect(() => {
-    if (!motionPreset || !motionState.automationActive || !playbackActive) return undefined;
-    if (!motionBaseBandsRef.current || motionBaseBandsRef.current.length === 0) {
-      motionBaseBandsRef.current = cloneBands(bands);
+    return () => {
+      if (jitterDebounceTimeoutRef.current !== null) {
+        window.clearTimeout(jitterDebounceTimeoutRef.current);
+      }
+      if (spreadDebounceTimeoutRef.current !== null) {
+        window.clearTimeout(spreadDebounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (jitterDebounceTimeoutRef.current !== null) {
+      window.clearTimeout(jitterDebounceTimeoutRef.current);
+      jitterDebounceTimeoutRef.current = null;
     }
+    pendingJitterRef.current = null;
+    if (spreadDebounceTimeoutRef.current !== null) {
+      window.clearTimeout(spreadDebounceTimeoutRef.current);
+      spreadDebounceTimeoutRef.current = null;
+    }
+    pendingSpreadRef.current = null;
+  }, [resolvedSelectedBandId]);
+
+  useEffect(() => {
+    const handlePointerDownOutside = (event: PointerEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+      if (container.contains(event.target as Node)) return;
+      setSelectedBandId(null);
+    };
+    window.addEventListener("pointerdown", handlePointerDownOutside);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDownOutside);
+    };
+  }, []);
+  const hasActiveWander = bands.some((band) => {
+    const wander = band.wander;
+    return Boolean(wander && wander.jitter > 0.001 && wander.spread > 0.001);
+  });
+
+  useEffect(() => {
+    if (hasActiveWander) return;
+    let changed = false;
+    const resetBands = bands.map((band) => {
+      const wander = band.wander;
+      if (!wander) return band;
+      const baseFrequency = clamp(wander.baseFrequency, MIN_FREQ, MAX_FREQ);
+      const baseGain = clamp(wander.baseGain, MIN_GAIN, MAX_GAIN);
+      if (
+        Math.abs(band.frequency - baseFrequency) <= 1e-4 &&
+        Math.abs(band.gain - baseGain) <= 1e-4
+      ) {
+        return band;
+      }
+      changed = true;
+      return {
+        ...band,
+        frequency: baseFrequency,
+        gain: baseGain,
+      };
+    });
+    if (changed) {
+      onChange(resetBands);
+    }
+  }, [bands, hasActiveWander, onChange]);
+
+  useEffect(() => {
+    if (!playbackActive || !hasActiveWander) return undefined;
+    const startedAtMs = performance.now();
     const intervalId = window.setInterval(() => {
-      const baseBands = motionBaseBandsRef.current;
-      if (!baseBands || baseBands.length === 0) return;
-      const nowMs = performance.now();
-      if (motionStartMsRef.current < 0) {
-        motionStartMsRef.current = nowMs;
-      }
-      const phase =
-        ((nowMs - motionStartMsRef.current) / 1000 / clampCycleSeconds(motionCycleSec)) %
-        1;
-      const sine = Math.sin(phase * Math.PI * 2);
-      const normalizedSine = (sine + 1) * 0.5;
-      const nextBands = cloneBands(baseBands);
-      if (motionPreset === "sweep") {
-        const targetId = motionState.targetBandId ?? resolvedSelectedBandId ?? nextBands[0]?.id;
-        const index = Math.max(
-          0,
-          nextBands.findIndex((band) => band.id === targetId)
-        );
-        if (index >= 0) {
-          const current = nextBands[index];
-          const octaveSpan = 4;
-          const ratio = Math.pow(2, (normalizedSine * 2 - 1) * octaveSpan);
-          current.frequency = clamp(current.frequency * ratio, MIN_FREQ, MAX_FREQ);
+      if (dragBandIdRef.current) return;
+      const sourceBands = bandsRef.current;
+      const elapsedSec = (performance.now() - startedAtMs) / 1000;
+      let changed = false;
+      const nextBands = sourceBands.map((band) => {
+        const wander = band.wander;
+        if (!wander || wander.jitter <= 0.001 || wander.spread <= 0.001) {
+          return band;
         }
+        const speedHz = 0.08 + wander.jitter * 1.7;
+        const phaseA = elapsedSec * Math.PI * 2 * speedHz + wander.seed;
+        const phaseB = elapsedSec * Math.PI * 2 * (speedHz * 1.37) + wander.seed * 1.91;
+        const freqNoise = (Math.sin(phaseA) + 0.65 * Math.sin(phaseB)) / 1.65;
+        const gainNoise = (
+          Math.sin(phaseA * 0.79 + 1.7) +
+          0.6 * Math.sin(phaseB * 1.11 + 0.2)
+        ) / 1.6;
+        const octaveSpan = 0.08 + wander.spread * 1.1;
+        const gainSpan = 0.5 + wander.spread * 10;
+        const frequency = clamp(
+          wander.baseFrequency * Math.pow(2, freqNoise * octaveSpan),
+          MIN_FREQ,
+          MAX_FREQ
+        );
+        const gain = clamp(wander.baseGain + gainNoise * gainSpan, MIN_GAIN, MAX_GAIN);
+        if (Math.abs(frequency - band.frequency) > 1e-4 || Math.abs(gain - band.gain) > 1e-4) {
+          changed = true;
+          return { ...band, frequency, gain };
+        }
+        return band;
+      });
+      if (changed) {
+        onChangeRef.current(nextBands);
       }
-      onChange(nextBands);
     }, 1000 / 30);
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [
-    bands,
-    motionCycleSec,
-    motionPreset,
-    motionState.automationActive,
-    motionState.targetBandId,
-    onChange,
-    playbackActive,
-    resolvedSelectedBandId,
-  ]);
+  }, [playbackActive, hasActiveWander]);
+
+  const updateBand = useCallback((id: string, updates: Partial<ParametricEqBand>) => {
+    const sourceBands = bandsRef.current;
+    onChangeRef.current(
+      sourceBands.map((band) =>
+        band.id === id
+          ? (() => {
+              const nextFrequency =
+                updates.frequency === undefined
+                  ? band.frequency
+                  : clamp(updates.frequency, MIN_FREQ, MAX_FREQ);
+              const nextGain =
+                updates.gain === undefined ? band.gain : clamp(updates.gain, MIN_GAIN, MAX_GAIN);
+              const nextWander =
+                updates.wander === undefined
+                  ? band.wander
+                  : {
+                      ...ensureWander(band),
+                      ...updates.wander,
+                    };
+              const hasDirectFrequencyUpdate = updates.frequency !== undefined;
+              const hasDirectGainUpdate = updates.gain !== undefined;
+              return {
+                ...band,
+                ...updates,
+                frequency: nextFrequency,
+                gain: nextGain,
+                q: updates.q === undefined ? band.q : clamp(updates.q, MIN_Q, MAX_Q),
+                wander:
+                  nextWander === undefined
+                    ? undefined
+                    : {
+                        ...nextWander,
+                        jitter: clampUnit(nextWander.jitter),
+                        spread: clampUnit(nextWander.spread),
+                        seed: Number.isFinite(nextWander.seed)
+                          ? Number(nextWander.seed)
+                          : ensureWander(band).seed,
+                        baseFrequency: hasDirectFrequencyUpdate
+                          ? nextFrequency
+                          : clamp(nextWander.baseFrequency, MIN_FREQ, MAX_FREQ),
+                        baseGain: hasDirectGainUpdate
+                          ? nextGain
+                          : clamp(nextWander.baseGain, MIN_GAIN, MAX_GAIN),
+                      },
+              };
+            })()
+          : band
+      )
+    );
+  }, []);
+
+  const removeBand = (id: string) => {
+    const next = bands.filter((band) => band.id !== id);
+    onChange(next);
+    if (resolvedSelectedBandId === id) {
+      setSelectedBandId(null);
+    }
+  };
+
+  const resetBands = () => {
+    const next = defaultParametricEqBands();
+    onChange(next);
+    setSelectedBandId(null);
+  };
 
   const addBandAtPoint = (x: number, y: number) => {
     if (bands.length >= MAX_BANDS) return null;
@@ -356,7 +458,7 @@ const ParametricEqEditor = ({
   const gridGains = [-18, -12, -6, 0, 6, 12, 18];
 
   return (
-    <div className={`peq ${disabled ? "is-disabled" : ""}`.trim()}>
+    <div ref={containerRef} className={`peq ${disabled ? "is-disabled" : ""}`.trim()}>
       <svg
         ref={svgRef}
         className="peq__graph"
@@ -393,88 +495,118 @@ const ParametricEqEditor = ({
             .join(" ")}
           className="peq__curve"
         />
-        {sorted.map((band) => (
-          <circle
-            key={band.id}
-            data-band-id={band.id}
-            className={`peq__node ${resolvedSelectedBandId === band.id ? "is-selected" : ""} ${band.enabled ? "" : "is-muted"}`.trim()}
-            cx={freqToX(band.frequency, graphWidth)}
-            cy={gainToY(band.gain)}
-            r={resolvedSelectedBandId === band.id ? 12 : 9}
-            onPointerDown={(event) => handleBandPointerDown(event, band.id)}
-          />
-        ))}
+        {sorted.map((band) => {
+          const nodeX = freqToX(band.frequency, graphWidth);
+          const nodeY = gainToY(band.gain);
+          const isSelected = resolvedSelectedBandId === band.id;
+          const nodeRadius = isSelected ? 12 : 9;
+          const wander = ensureWander(band);
+          const jitter = band.wander ? clampUnit(wander.jitter) : 0;
+          const spread = band.wander ? clampUnit(wander.spread) : 0;
+          const ringRadius = nodeRadius + 2 + spread * 16;
+          const hue = 212 + jitter * 4;
+          const saturation = 72 + jitter * 24;
+          const lightness = 70 - jitter * 18;
+          return (
+            <g key={band.id}>
+              {spread > 0.001 ? (
+                <circle
+                  className={`peq__node-spread ${isSelected ? "is-selected" : ""}`.trim()}
+                  cx={nodeX}
+                  cy={nodeY}
+                  r={ringRadius}
+                  style={{
+                    strokeOpacity: 0.12 + spread * 0.38,
+                    strokeWidth: 0.9 + spread * 1.4,
+                  }}
+                />
+              ) : null}
+              <circle
+                data-band-id={band.id}
+                className={`peq__node ${isSelected ? "is-selected" : ""} ${band.enabled ? "" : "is-muted"}`.trim()}
+                cx={nodeX}
+                cy={nodeY}
+                r={nodeRadius}
+                style={
+                  band.enabled
+                    ? {
+                        fill: `hsl(${hue} ${saturation}% ${lightness}%)`,
+                      }
+                    : undefined
+                }
+                onPointerDown={(event) => handleBandPointerDown(event, band.id)}
+              />
+            </g>
+          );
+        })}
       </svg>
       <div className="peq__toolbar">
         <span className="peq__hint">
           Click graph to add node. Drag node for freq/gain. Double-click or Shift+click node to remove.
         </span>
+        <div className="peq__toolbar-row">
+          <div className="peq__toolbar-left">
+            <button
+              type="button"
+              className="deck__action"
+              disabled={bands.length >= MAX_BANDS}
+              title="Add a new parametric EQ node at the graph center."
+              onClick={() => {
+                addBandAtPoint(graphWidth * 0.5, VIEWBOX_HEIGHT * 0.5);
+              }}
+            >
+              Add Node
+            </button>
+            <button
+              type="button"
+              className="deck__action"
+              disabled={!selectedBand}
+              title="Remove the selected parametric EQ node."
+              onClick={() => {
+                if (!selectedBand) return;
+                removeBand(selectedBand.id);
+              }}
+            >
+              Remove
+            </button>
+          </div>
           <button
             type="button"
             className="deck__action"
-            disabled={bands.length >= MAX_BANDS}
-            onClick={() => {
-              addBandAtPoint(graphWidth * 0.5, VIEWBOX_HEIGHT * 0.5);
-            }}
+            title="Reset parametric EQ nodes to the default set."
+            onClick={resetBands}
           >
-            Add Node
-          </button>
-      </div>
-      <div className="peq__motion-tools">
-        <div className="peq__motion-presets">
-          <button
-            type="button"
-            className={`automation-lane__tool ${motionPreset === "sweep" ? "is-active" : ""}`.trim()}
-            onClick={(event) => startMotionPreset("sweep", event.timeStamp)}
-          >
-            Sweep
-          </button>
-          <button
-            type="button"
-            className="automation-lane__tool"
-            onClick={stopMotionPreset}
-            disabled={!motionRunning}
-          >
-            Stop
+            Reset
           </button>
         </div>
-        <div className="peq__motion-length">
-          <button
-            type="button"
-            className="automation-lane__tool"
-            onClick={() =>
-              onMotionChange({
-                ...motionState,
-                cycleSec: clampCycleSeconds(motionCycleSec * 0.5),
-              })
-            }
-          >
-            1/2
-          </button>
-          <button
-            type="button"
-            className="automation-lane__tool"
-            onClick={() =>
-              onMotionChange({
-                ...motionState,
-                cycleSec: clampCycleSeconds(motionCycleSec * 2),
-              })
-            }
-          >
-            2x
-          </button>
-          <span className="peq__motion-value">{motionCycleSec.toFixed(2)}s</span>
-        </div>
+        {sorted.length > 0 ? (
+          <div className="peq__node-selectors" role="group" aria-label="Select parametric EQ node">
+            {sorted.map((band, index) => (
+              <button
+                key={band.id}
+                type="button"
+                className={`deck__action peq__node-selector ${ensureWander(band).jitter > 0.001 ? "has-jitter" : ""} ${resolvedSelectedBandId === band.id ? "is-active" : ""}`.trim()}
+                title={`Select node ${index + 1}`}
+                aria-pressed={resolvedSelectedBandId === band.id}
+                onClick={() => setSelectedBandId(band.id)}
+              >
+                {index + 1}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
-      {selectedBand ? (
-        <div className="peq__inspector">
+      <div className={`peq__inspector ${selectedBand ? "" : "peq__inspector--empty"}`.trim()}>
+        <div className="peq__inspector-row">
           <label>
             Type
             <select
-              value={selectedBand.type}
-              onChange={(event) =>
-                updateBand(selectedBand.id, { type: event.target.value as ParametricEqBandType })
-              }
+              disabled={!selectedBand}
+              value={selectedBand?.type ?? "peaking"}
+              onChange={(event) => {
+                if (!selectedBand) return;
+                updateBand(selectedBand.id, { type: event.target.value as ParametricEqBandType });
+              }}
             >
               <option value="lowshelf">Low Shelf</option>
               <option value="peaking">Bell</option>
@@ -488,42 +620,102 @@ const ParametricEqEditor = ({
               min={MIN_Q}
               max={MAX_Q}
               step={0.01}
-              value={selectedBand.q}
+              disabled={!selectedBand}
+              value={selectedBand?.q ?? 1.2}
               onDoubleClick={() => {
+                if (!selectedBand) return;
                 updateBand(selectedBand.id, { q: defaultQForType(selectedBand.type) });
               }}
-              onChange={(event) => updateBand(selectedBand.id, { q: Number(event.target.value) })}
+              onChange={(event) => {
+                if (!selectedBand) return;
+                updateBand(selectedBand.id, { q: Number(event.target.value) });
+              }}
             />
           </label>
-          <button
-            type="button"
-            className="deck__action"
-            onClick={() => removeBand(selectedBand.id)}
-          >
-            Remove
-          </button>
-          <button
-            type="button"
-            className="deck__action"
-            onClick={resetBands}
-          >
-            Reset
-          </button>
-          <button
-            type="button"
-            className="deck__action"
-            onClick={() => {
-              stopMotionPreset();
-              onMotionChange({ ...motionState, targetBandId: null });
-              onChange([]);
-            }}
-          >
-            Clear
-          </button>
         </div>
-      ) : (
-        <div className="peq__inspector peq__inspector--empty">No EQ nodes yet.</div>
-      )}
+        <div>
+          <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-5">
+            <Knob
+              className="knob--compact"
+              label="Jitter"
+              min={0}
+              max={1}
+              step={0.01}
+              disabled={!selectedBand}
+              value={
+                selectedBand
+                  ? jitterDraft !== null && jitterDraft.bandId === selectedBand.id
+                    ? jitterDraft.value
+                    : ensureWander(selectedBand).jitter
+                  : 0
+              }
+              defaultValue={0}
+              labelTitle="How erratic and lively this node moves while playing."
+              onChange={(next) => {
+                if (!selectedBand) return;
+                if (!playbackActive) {
+                  setJitterDraft(null);
+                  applyWanderPatch(selectedBand.id, { jitter: next });
+                  return;
+                }
+                setJitterDraft({ bandId: selectedBand.id, value: next });
+                pendingJitterRef.current = { bandId: selectedBand.id, value: next };
+                if (jitterDebounceTimeoutRef.current !== null) {
+                  window.clearTimeout(jitterDebounceTimeoutRef.current);
+                }
+                jitterDebounceTimeoutRef.current = window.setTimeout(() => {
+                  jitterDebounceTimeoutRef.current = null;
+                  const pending = pendingJitterRef.current;
+                  pendingJitterRef.current = null;
+                  if (!pending) return;
+                  applyWanderPatch(pending.bandId, { jitter: pending.value });
+                  setJitterDraft(null);
+                }, JITTER_DEBOUNCE_MS);
+              }}
+              formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+            />
+            <Knob
+              className="knob--compact"
+              label="Spread"
+              min={0}
+              max={1}
+              step={0.01}
+              disabled={!selectedBand}
+              value={
+                selectedBand
+                  ? spreadDraft !== null && spreadDraft.bandId === selectedBand.id
+                    ? spreadDraft.value
+                    : ensureWander(selectedBand).spread
+                  : 0
+              }
+              defaultValue={0}
+              labelTitle="How far this node wanders from its base frequency and gain."
+              onChange={(next) => {
+                if (!selectedBand) return;
+                if (!playbackActive) {
+                  setSpreadDraft(null);
+                  applyWanderPatch(selectedBand.id, { spread: next });
+                  return;
+                }
+                setSpreadDraft({ bandId: selectedBand.id, value: next });
+                pendingSpreadRef.current = { bandId: selectedBand.id, value: next };
+                if (spreadDebounceTimeoutRef.current !== null) {
+                  window.clearTimeout(spreadDebounceTimeoutRef.current);
+                }
+                spreadDebounceTimeoutRef.current = window.setTimeout(() => {
+                  spreadDebounceTimeoutRef.current = null;
+                  const pending = pendingSpreadRef.current;
+                  pendingSpreadRef.current = null;
+                  if (!pending) return;
+                  applyWanderPatch(pending.bandId, { spread: pending.value });
+                  setSpreadDraft(null);
+                }, SPREAD_DEBOUNCE_MS);
+              }}
+              formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

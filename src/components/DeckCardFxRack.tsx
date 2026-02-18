@@ -3,7 +3,6 @@ import type {
   DeckFxPanel,
   DeckState,
   ParametricEqBand,
-  ParametricEqMotionState,
   SimpleAutomationParam,
 } from "../types/deck";
 import AutomationLane from "./AutomationLane";
@@ -43,7 +42,6 @@ type DeckCardFxRackProps = {
   formatEq: (value: number, fine?: boolean) => string;
   activateEq3Mode: () => void;
   commitParametricEqBands: (bands: ParametricEqBand[]) => void;
-  commitParametricEqMotion: (value: ParametricEqMotionState) => void;
   onSimpleAutomationSet: (
     deckId: number,
     param: SimpleAutomationParam,
@@ -90,7 +88,6 @@ const DeckCardFxRack = ({
   formatEq,
   activateEq3Mode,
   commitParametricEqBands,
-  commitParametricEqMotion,
   onSimpleAutomationSet,
   onSimpleAutomationClear,
   autoSliceEnabled,
@@ -480,6 +477,7 @@ const DeckCardFxRack = ({
               type="button"
               className="deck__fx-unit-toggle"
               aria-expanded={fxPanelOpen.parametricEq}
+              title="Toggle Parametric EQ panel."
               onClick={() => toggleFxPanel("parametricEq")}
             >
               {renderFxToggleLabel("parametricEq", "EQ")}
@@ -492,6 +490,7 @@ const DeckCardFxRack = ({
                     type="button"
                     className={`deck__action ${deck.eqMode === "eq3" ? "is-active" : ""}`.trim()}
                     aria-pressed={deck.eqMode === "eq3"}
+                    title="Switch to 3-band EQ mode."
                     onClick={() => onEqModeChange(deck.id, "eq3")}
                   >
                     EQ3
@@ -500,6 +499,7 @@ const DeckCardFxRack = ({
                     type="button"
                     className={`deck__action ${deck.eqMode === "parametric" ? "is-active" : ""}`.trim()}
                     aria-pressed={deck.eqMode === "parametric"}
+                    title="Switch to parametric EQ mode."
                     onClick={() => onEqModeChange(deck.id, "parametric")}
                   >
                     Parametric
@@ -509,11 +509,9 @@ const DeckCardFxRack = ({
               {deck.eqMode === "parametric" ? (
                 <ParametricEqEditor
                   bands={deck.parametricEqBands}
-                  motion={deck.parametricEqMotion}
                   playbackActive={deck.status === "playing"}
                   disabled={false}
                   onChange={commitParametricEqBands}
-                  onMotionChange={commitParametricEqMotion}
                 />
               ) : (
                 <div className="deck__eq3-inline">

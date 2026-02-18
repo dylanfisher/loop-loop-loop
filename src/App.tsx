@@ -519,6 +519,16 @@ const App = () => {
   const handleDeckActivate = useCallback((deckId: number) => {
     setActiveDeckId(deckId);
   }, []);
+  const handleDeckRemoveWithConfirm = useCallback((deckId: number) => {
+    const deck = decks.find((item) => item.id === deckId);
+    if (!deck) return;
+    const label = deck.fileName ? ` "${deck.fileName}"` : "";
+    const confirmed = window.confirm(
+      `Remove deck${label}? This cannot be undone for loaded audio.`
+    );
+    if (!confirmed) return;
+    removeDeck(deckId);
+  }, [decks, removeDeck]);
   const {
     handleGlobalPlaybackToggle,
     handleFocusedDeckPlaybackToggle,
@@ -540,7 +550,7 @@ const App = () => {
     setDeckLoop,
     setDeckLoopBounds,
     commitDeckLoopBoundsHistory,
-    removeDeck,
+    removeDeck: handleDeckRemoveWithConfirm,
     handleCropLoop,
     handleDuplicateLoop,
     setDeckZoom,
@@ -554,7 +564,7 @@ const App = () => {
     scrollToDeckId,
     setScrollToDeckId,
     handleDeckActivate,
-    removeDeck,
+    removeDeck: handleDeckRemoveWithConfirm,
     handleLoadClick,
     handleFileSelected,
     playDeck,

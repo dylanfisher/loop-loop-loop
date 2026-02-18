@@ -92,6 +92,7 @@ const useSessionManager = ({
   const zipDragDepthRef = useRef(0);
   const skipNextAutosaveRef = useRef(0);
   const autosaveReadyRef = useRef(false);
+  const wasAllLoadedDecksPausedRef = useRef(false);
   const applySessionDataRef = useRef<
     ((session: SessionState, blobs: Map<string, Blob>) => Promise<void>) | null
   >(null);
@@ -363,8 +364,35 @@ const useSessionManager = ({
     welcomePanelDismissed,
   ]);
 
+  const saveAutoSessionNow = useCallback(async () => {
+    const { decks: sessionDecks, blobs: deckBlobs } = await encodeDecksForSession();
+    const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
+    const session: SessionState = {
+      version: 1,
+      id: AUTO_SESSION_ID,
+      name: sessionName.trim() || "Untitled",
+      savedAt: Date.now(),
+      masterGain,
+      welcomePanelDismissed,
+      decks: sessionDecks,
+      clips: clipSessions,
+    };
+    await saveSessionState(session, blobs);
+  }, [
+    encodeClipsForSession,
+    encodeDecksForSession,
+    masterGain,
+    sessionName,
+    welcomePanelDismissed,
+  ]);
+
+  const allLoadedDecksPaused =
+    decks.some((deck) => deck.buffer) &&
+    decks.filter((deck) => deck.buffer).every((deck) => deck.status === "paused");
+
   useEffect(() => {
     if (!autosaveReady) return;
+    if (!allLoadedDecksPaused) return;
     if (autosaveTimeoutRef.current) {
       window.clearTimeout(autosaveTimeoutRef.current);
     }
@@ -374,23 +402,11 @@ const useSessionManager = ({
     }
     autosaveTimeoutRef.current = window.setTimeout(async () => {
       try {
-        const { decks: sessionDecks, blobs: deckBlobs } = await encodeDecksForSession();
-        const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
-        const session: SessionState = {
-          version: 1,
-          id: AUTO_SESSION_ID,
-          name: sessionName.trim() || "Untitled",
-          savedAt: Date.now(),
-          masterGain,
-          welcomePanelDismissed,
-          decks: sessionDecks,
-          clips: clipSessions,
-        };
-        await saveSessionState(session, blobs);
+        await saveAutoSessionNow();
       } catch (error) {
         console.error("Autosave failed", error);
       }
-    }, 1200);
+    }, 1000);
     return () => {
       if (autosaveTimeoutRef.current) {
         window.clearTimeout(autosaveTimeoutRef.current);
@@ -398,14 +414,25 @@ const useSessionManager = ({
     };
   }, [
     autosaveReady,
+    allLoadedDecksPaused,
     clips,
     decks,
-    encodeClipsForSession,
-    encodeDecksForSession,
-    masterGain,
-    sessionName,
-    welcomePanelDismissed,
+    saveAutoSessionNow,
   ]);
+
+  useEffect(() => {
+    if (!autosaveReady) return;
+    const wasPaused = wasAllLoadedDecksPausedRef.current;
+    wasAllLoadedDecksPausedRef.current = allLoadedDecksPaused;
+    if (!allLoadedDecksPaused || wasPaused) return;
+    if (autosaveTimeoutRef.current) {
+      window.clearTimeout(autosaveTimeoutRef.current);
+      autosaveTimeoutRef.current = null;
+    }
+    void saveAutoSessionNow().catch((error) => {
+      console.error("Autosave on pause failed", error);
+    });
+  }, [allLoadedDecksPaused, autosaveReady, saveAutoSessionNow]);
 
   const decodeSessionDecks = useCallback(
     async (sessionDecks: DeckSession[], blobs: Map<string, Blob>) => {

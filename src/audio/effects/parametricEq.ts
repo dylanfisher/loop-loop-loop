@@ -44,17 +44,54 @@ export const defaultParametricEqBands = (): ParametricEqBand[] => [
 export const normalizeParametricEqBand = (
   band: Partial<ParametricEqBand>,
   fallbackId: string
-): ParametricEqBand => ({
-  id: band.id || fallbackId,
-  type:
-    band.type === "lowshelf" || band.type === "highshelf" || band.type === "peaking"
-      ? band.type
-      : "peaking",
-  frequency: clamp(Number.isFinite(band.frequency) ? band.frequency! : 1200, MIN_FREQ, MAX_FREQ),
-  gain: clamp(Number.isFinite(band.gain) ? band.gain! : 0, MIN_GAIN_DB, MAX_GAIN_DB),
-  q: clamp(Number.isFinite(band.q) ? band.q! : 1, MIN_Q, MAX_Q),
-  enabled: band.enabled ?? true,
-});
+): ParametricEqBand => {
+  const frequency = clamp(
+    Number.isFinite(band.frequency) ? band.frequency! : 1200,
+    MIN_FREQ,
+    MAX_FREQ
+  );
+  const gain = clamp(Number.isFinite(band.gain) ? band.gain! : 0, MIN_GAIN_DB, MAX_GAIN_DB);
+  const normalized: ParametricEqBand = {
+    id: band.id || fallbackId,
+    type:
+      band.type === "lowshelf" || band.type === "highshelf" || band.type === "peaking"
+        ? band.type
+        : "peaking",
+    frequency,
+    gain,
+    q: clamp(Number.isFinite(band.q) ? band.q! : 1, MIN_Q, MAX_Q),
+    enabled: band.enabled ?? true,
+  };
+  const wander = band.wander;
+  if (wander) {
+    normalized.wander = {
+      jitter: clamp(
+        Number.isFinite(wander.jitter) ? Number(wander.jitter) : 0,
+        0,
+        1
+      ),
+      spread: clamp(
+        Number.isFinite(wander.spread) ? Number(wander.spread) : 0,
+        0,
+        1
+      ),
+      seed: Number.isFinite(wander.seed) ? Number(wander.seed) : Math.random() * Math.PI * 2,
+      baseFrequency: clamp(
+        Number.isFinite(wander.baseFrequency)
+          ? Number(wander.baseFrequency)
+          : frequency,
+        MIN_FREQ,
+        MAX_FREQ
+      ),
+      baseGain: clamp(
+        Number.isFinite(wander.baseGain) ? Number(wander.baseGain) : gain,
+        MIN_GAIN_DB,
+        MAX_GAIN_DB
+      ),
+    };
+  }
+  return normalized;
+};
 
 export const normalizeParametricEqBands = (bands: ParametricEqBand[] | undefined | null) => {
   if (!bands || bands.length === 0) return defaultParametricEqBands();

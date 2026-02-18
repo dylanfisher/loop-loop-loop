@@ -41,6 +41,13 @@ export type ParametricEqMotionState = {
   automationActive: boolean;
   targetBandId: string | null;
 };
+export type ParametricEqBandWander = {
+  jitter: number;
+  spread: number;
+  seed: number;
+  baseFrequency: number;
+  baseGain: number;
+};
 export type ParametricEqBand = {
   id: string;
   type: ParametricEqBandType;
@@ -48,6 +55,7 @@ export type ParametricEqBand = {
   gain: number;
   q: number;
   enabled: boolean;
+  wander?: ParametricEqBandWander;
 };
 
 export type DeckFxPanel =
