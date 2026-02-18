@@ -79,6 +79,7 @@ export type DeckStackProps = {
     options?: { disableSnap?: boolean }
   ) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
+  onDeckIncludeInRecordExportChange: (id: number, value: boolean) => void;
   onDeckWidthOverrideChange: (id: number, value?: "full" | "half") => void;
   onStretchRatioChange: (id: number, value: number) => void;
   onStretchWindowSizeChange: (id: number, value: number) => void;
@@ -204,6 +205,7 @@ const DeckStack = ({
   onLoopBoundsChangeComplete,
   onTempoOffsetChange,
   onTempoPitchSyncChange,
+  onDeckIncludeInRecordExportChange,
   onDeckWidthOverrideChange,
   onStretchRatioChange,
   onStretchWindowSizeChange,
@@ -379,6 +381,7 @@ const DeckStack = ({
               onLoopBoundsChangeComplete={onLoopBoundsChangeComplete}
               onTempoOffsetChange={onTempoOffsetChange}
               onTempoPitchSyncChange={onTempoPitchSyncChange}
+              onDeckIncludeInRecordExportChange={onDeckIncludeInRecordExportChange}
               onDeckWidthOverrideChange={onDeckWidthOverrideChange}
               onStretchRatioChange={onStretchRatioChange}
               onStretchWindowSizeChange={onStretchWindowSizeChange}

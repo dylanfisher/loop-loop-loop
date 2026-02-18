@@ -533,7 +533,10 @@ const useRearrangerRuntime = ({
         cancelAnimationFrame(raf);
         raf = 0;
       }
-      if (document.visibilityState === "hidden") {
+      const shouldUseTimeout =
+        document.visibilityState === "hidden" ||
+        (typeof document.hasFocus === "function" && !document.hasFocus());
+      if (shouldUseTimeout) {
         hiddenTick = window.setTimeout(tick, HIDDEN_TICK_INTERVAL_MS);
       } else {
         raf = requestAnimationFrame(tick);
@@ -544,10 +547,14 @@ const useRearrangerRuntime = ({
       scheduleNextTick();
     };
 
+    window.addEventListener("blur", refreshSchedule, { passive: true });
+    window.addEventListener("focus", refreshSchedule, { passive: true });
     document.addEventListener("visibilitychange", refreshSchedule, { passive: true });
     scheduleNextTick();
 
     return () => {
+      window.removeEventListener("blur", refreshSchedule);
+      window.removeEventListener("focus", refreshSchedule);
       document.removeEventListener("visibilitychange", refreshSchedule);
       if (hiddenTick !== 0) {
         window.clearTimeout(hiddenTick);

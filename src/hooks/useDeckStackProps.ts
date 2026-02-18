@@ -68,6 +68,7 @@ type UseDeckStackPropsArgs = {
   commitDeckLoopBoundsHistory: (id: number) => void;
   setDeckTempoOffset: DeckStackProps["onTempoOffsetChange"];
   setDeckTempoPitchSync: (id: number, value: boolean) => void;
+  setDeckIncludeInRecordExport: (id: number, value: boolean) => void;
   setDeckWidthOverride: (id: number, value?: "full" | "half") => void;
   setDeckStretchRatio: (id: number, value: number) => void;
   setDeckStretchWindowSize: (id: number, value: number) => void;
@@ -175,6 +176,7 @@ const useDeckStackProps = ({
   commitDeckLoopBoundsHistory,
   setDeckTempoOffset,
   setDeckTempoPitchSync,
+  setDeckIncludeInRecordExport,
   setDeckWidthOverride,
   setDeckStretchRatio,
   setDeckStretchWindowSize,
@@ -316,6 +318,7 @@ const useDeckStackProps = ({
     onLoopBoundsChangeComplete: commitDeckLoopBoundsHistory,
     onTempoOffsetChange: setDeckTempoOffset,
     onTempoPitchSyncChange: setDeckTempoPitchSync,
+    onDeckIncludeInRecordExportChange: setDeckIncludeInRecordExport,
     onDeckWidthOverrideChange: setDeckWidthOverride,
     onStretchRatioChange: setDeckStretchRatio,
     onStretchWindowSizeChange: setDeckStretchWindowSize,

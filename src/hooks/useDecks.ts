@@ -150,6 +150,7 @@ const useDecks = () => {
     setDeckVocoderReleaseMs,
     setDeckVocoderNoiseMix,
     setDeckVocoderGateThreshold,
+    setDeckRecordExportSend,
     setDeckPitchShift,
     removeDeck: removeDeckNodes,
     getDeckPosition,
@@ -527,6 +528,7 @@ const useDecks = () => {
         vocoderReleaseMs: number;
         vocoderNoiseMix: number;
         vocoderGateThreshold: number;
+        includeInRecordExport: boolean;
         tempoOffset: number;
         delayTime: number;
         delayFeedback: number;
@@ -561,6 +563,7 @@ const useDecks = () => {
       setDeckVocoderReleaseMs(deckId, settings.vocoderReleaseMs);
       setDeckVocoderNoiseMix(deckId, settings.vocoderNoiseMix);
       setDeckVocoderGateThreshold(deckId, settings.vocoderGateThreshold);
+      setDeckRecordExportSend(deckId, settings.includeInRecordExport);
       setDeckDelayTime(deckId, settings.delayTime);
       setDeckDelayFeedback(deckId, settings.delayFeedback);
       setDeckDelayMix(deckId, settings.delayMix);
@@ -604,6 +607,7 @@ const useDecks = () => {
       setDeckVocoderReleaseMs,
       setDeckVocoderNoiseMix,
       setDeckVocoderGateThreshold,
+      setDeckRecordExportSend,
       setDeckPlaybackRate,
       setDeckResonance,
     ]
@@ -1097,6 +1101,7 @@ const useDecks = () => {
         setDeckVocoderReleaseMs(deck.id, deck.vocoderReleaseMs);
         setDeckVocoderNoiseMix(deck.id, deck.vocoderNoiseMix);
         setDeckVocoderGateThreshold(deck.id, deck.vocoderGateThreshold);
+        setDeckRecordExportSend(deck.id, deck.includeInRecordExport);
         setDeckPitchShift(deck.id, deck.pitchShift);
         setDeckPlaybackRate(deck.id, clampPlaybackRate(1 + deck.tempoOffset / 100));
         setDeckLoopParams(
@@ -1211,6 +1216,7 @@ const useDecks = () => {
       setDeckVocoderReleaseMs,
       setDeckVocoderNoiseMix,
       setDeckVocoderGateThreshold,
+      setDeckRecordExportSend,
       setDeckPitchShift,
       setDeckPlaybackRate,
       setDeckResonance,
@@ -1466,6 +1472,7 @@ const useDecks = () => {
         parametricEqBands: cloneDefaultParametricEqBands(),
         parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
         simpleAutomation: {},
+        includeInRecordExport: true,
         balance: 0,
         pitchShift: 0,
         vocoderMix: DEFAULT_VOCODER_MIX,
@@ -1553,6 +1560,7 @@ const useDecks = () => {
             parametricEqBands: cloneDefaultParametricEqBands(),
             parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
             simpleAutomation: {},
+            includeInRecordExport: true,
             balance: 0,
             pitchShift: 0,
             vocoderMix: DEFAULT_VOCODER_MIX,
@@ -1831,6 +1839,7 @@ const useDecks = () => {
       vocoderReleaseMs: nextVocoderReleaseMs,
       vocoderNoiseMix: nextVocoderNoiseMix,
       vocoderGateThreshold: nextVocoderGateThreshold,
+      includeInRecordExport: currentDeck?.includeInRecordExport ?? true,
       tempoOffset: nextTempoOffset,
       delayTime: nextDelayTime,
       delayFeedback: nextDelayFeedback,
@@ -2662,6 +2671,7 @@ const useDecks = () => {
       setDeckVocoderReleaseMs(id, nextVocoderReleaseMs);
       setDeckVocoderNoiseMix(id, nextVocoderNoiseMix);
       setDeckVocoderGateThreshold(id, nextVocoderGateThreshold);
+      setDeckRecordExportSend(id, nextDeck.includeInRecordExport);
       setDeckDelayTime(id, nextDelayTime);
       setDeckDelayFeedback(id, nextDelayFeedback);
       setDeckDelayMix(id, nextDelayMix);
@@ -2757,6 +2767,7 @@ const useDecks = () => {
       setDeckVocoderReleaseMs,
       setDeckVocoderNoiseMix,
       setDeckVocoderGateThreshold,
+      setDeckRecordExportSend,
       setDeckPlaybackRate,
       setDeckResonance,
       setDecksWithHistory,
@@ -2767,6 +2778,7 @@ const useDecks = () => {
   );
 
   const {
+    setDeckIncludeInRecordExport,
     setDeckStretchRatio,
     setDeckStretchWindowSize,
     setDeckStretchStereoWidth,
@@ -2790,6 +2802,7 @@ const useDecks = () => {
   } = createDeckUiSetters({
     updateDeck,
     setDecksNoHistory,
+    setDeckRecordExportSend,
   });
 
   const setDeckParametricEqMotion = useCallback(
@@ -2933,6 +2946,7 @@ const useDecks = () => {
       vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
       vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
       vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
+      includeInRecordExport: deck.includeInRecordExport,
         tempoOffset: deck.tempoOffset,
         delayTime: DEFAULT_DELAY_TIME,
         delayFeedback: DEFAULT_DELAY_FEEDBACK,
@@ -3111,6 +3125,7 @@ const useDecks = () => {
         );
 
         automationRef.current.set(sessionDeck.id, hydrated.automation);
+        setDeckRecordExportSend(sessionDeck.id, hydrated.deck.includeInRecordExport);
         automationPlayheadRef.current.set(sessionDeck.id, {
           gain: 0,
           djFilter: 0,
@@ -3137,6 +3152,7 @@ const useDecks = () => {
     [
       decks,
       removeDeckNodes,
+      setDeckRecordExportSend,
       setDecksNoHistory,
       stop,
       syncHistoryState,
@@ -3225,6 +3241,7 @@ const useDecks = () => {
     commitDeckLoopBoundsHistory,
     setDeckTempoOffset,
     setDeckTempoPitchSync,
+    setDeckIncludeInRecordExport,
     setDeckWidthOverride,
     setDeckStretchRatio,
     setDeckStretchWindowSize,

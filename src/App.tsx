@@ -138,6 +138,7 @@ const App = () => {
     commitDeckLoopBoundsHistory,
     setDeckTempoOffset,
     setDeckTempoPitchSync,
+    setDeckIncludeInRecordExport,
     setDeckWidthOverride,
     setDeckStretchRatio,
     setDeckStretchWindowSize,
@@ -453,7 +454,9 @@ const App = () => {
       1,
       Math.round(exportMinutes) * 60 + Math.round(exportSeconds)
     );
-    const activeDeckCount = decks.filter((deck) => deck.buffer).length;
+    const activeDeckCount = decks.filter(
+      (deck) => deck.buffer && deck.includeInRecordExport !== false
+    ).length;
     if (activeDeckCount === 0) {
       setSessionStatus("Load at least one deck before exporting.");
       return;
@@ -608,6 +611,7 @@ const App = () => {
     commitDeckLoopBoundsHistory,
     setDeckTempoOffset,
     setDeckTempoPitchSync,
+    setDeckIncludeInRecordExport,
     setDeckWidthOverride,
     setDeckStretchRatio,
     setDeckStretchWindowSize,

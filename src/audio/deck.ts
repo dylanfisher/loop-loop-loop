@@ -52,6 +52,7 @@ type DeckEndedCallback = () => void;
 
 type DeckNodes = {
   gain: GainNode;
+  recordExportSend: GainNode;
   modulatorOutputGain: GainNode;
   balance: StereoPannerNode;
   rearrangerPan: StereoPannerNode;
@@ -164,6 +165,7 @@ const pendingVocoderAttackMs = new Map<number, number>();
 const pendingVocoderReleaseMs = new Map<number, number>();
 const pendingVocoderNoiseMix = new Map<number, number>();
 const pendingVocoderGateThreshold = new Map<number, number>();
+const pendingRecordExportSend = new Map<number, boolean>();
 const vocoderConfig = new Map<
   number,
   { mix: number; carrierDeckId: number | null; modulatorMonitor: number }
@@ -428,6 +430,7 @@ const setParametricRouting = (nodes: DeckNodes, bypassed: boolean) => {
 const ensureDeckNodes = (
   context: AudioContext,
   output: AudioNode,
+  recordExportOutput: AudioNode,
   deckId: number,
   gain: number,
   filterCutoff: number,
@@ -457,7 +460,8 @@ const ensureDeckNodes = (
   vocoderAttackMs: number,
   vocoderReleaseMs: number,
   vocoderNoiseMix: number,
-  vocoderGateThreshold: number
+  vocoderGateThreshold: number,
+  includeInRecordExport: boolean
 ) => {
   const normalizedDelay = normalizeDelayParams({
     time: delayTime,
@@ -637,6 +641,9 @@ const ensureDeckNodes = (
     setChannelVocoderGateThreshold(vocoder, nextVocoderGateThreshold);
     const deckGain = context.createGain();
     deckGain.gain.value = pendingGains.get(deckId) ?? gain;
+    const recordExportSend = context.createGain();
+    recordExportSend.gain.value =
+      (pendingRecordExportSend.get(deckId) ?? includeInRecordExport) ? 1 : 0;
     const clipper = createSoftClipper(context);
     const limiter = createLimiter(context);
     pitchShiftNodes.output.connect(deckHighpass);
@@ -672,9 +679,12 @@ const ensureDeckNodes = (
     deckGain.connect(limiter);
     limiter.connect(clipper);
     clipper.connect(output);
+    clipper.connect(recordExportSend);
+    recordExportSend.connect(recordExportOutput);
     setPitchShift(pitchShiftNodes, pendingPitchShift.get(deckId) ?? pitchShift);
     nodes = {
       gain: deckGain,
+      recordExportSend,
       modulatorOutputGain,
       balance: balanceNode,
       rearrangerPan: rearrangerPanNode,
@@ -835,6 +845,8 @@ const ensureDeckNodes = (
       nodes.vocoderCarrierDeckId,
       nodes.vocoderModulatorMonitor
     );
+    nodes.recordExportSend.gain.value =
+      (pendingRecordExportSend.get(deckId) ?? includeInRecordExport) ? 1 : 0;
     updateVocoderCarrierConnection(deckId);
     connectDelayFeedback(nodes, normalizedDelay.pingPong);
     setDelayRouting(nodes, normalizedDelay.mix > 0);
@@ -872,12 +884,14 @@ const ensureDeckNodes = (
   pendingVocoderReleaseMs.delete(deckId);
   pendingVocoderNoiseMix.delete(deckId);
   pendingVocoderGateThreshold.delete(deckId);
+  pendingRecordExportSend.delete(deckId);
   return nodes;
 };
 
 export const playDeckBuffer = (
   context: AudioContext,
   output: AudioNode,
+  recordExportOutput: AudioNode,
   deckId: number,
   buffer: AudioBuffer,
   gain: number,
@@ -920,6 +934,7 @@ export const playDeckBuffer = (
   const nodes = ensureDeckNodes(
     context,
     output,
+    recordExportOutput,
     deckId,
     gain,
     filterCutoff,
@@ -949,7 +964,8 @@ export const playDeckBuffer = (
     vocoderAttackMs,
     vocoderReleaseMs,
     vocoderNoiseMix,
-    vocoderGateThreshold
+    vocoderGateThreshold,
+    true
   );
 
   const source = context.createBufferSource();
@@ -1521,6 +1537,16 @@ export const setDeckVocoderGateThresholdValue = (deckId: number, value: number) 
   }
 };
 
+export const setDeckRecordExportSendValue = (deckId: number, active: boolean) => {
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.recordExportSend.gain.value = active ? 1 : 0;
+    pendingRecordExportSend.delete(deckId);
+  } else {
+    pendingRecordExportSend.set(deckId, active);
+  }
+};
+
 export const removeDeckNodes = (deckId: number) => {
   if (isDev) {
     console.info("Deck playback removed", {
@@ -1570,6 +1596,7 @@ export const removeDeckNodes = (deckId: number) => {
     disposeChannelVocoder(nodes.vocoder);
     nodes.postEq.disconnect();
     nodes.gain.disconnect();
+    nodes.recordExportSend.disconnect();
     nodes.modulatorOutputGain.disconnect();
     nodes.limiter.disconnect();
     nodes.clipper.disconnect();
@@ -1613,6 +1640,7 @@ export const removeDeckNodes = (deckId: number) => {
   pendingVocoderReleaseMs.delete(deckId);
   pendingVocoderNoiseMix.delete(deckId);
   pendingVocoderGateThreshold.delete(deckId);
+  pendingRecordExportSend.delete(deckId);
   if (configuredCarrierDeckId !== null) {
     applyCarrierMonitorOutputGain(configuredCarrierDeckId);
   }

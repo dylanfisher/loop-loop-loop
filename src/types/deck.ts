@@ -140,6 +140,7 @@ export type DeckState = {
   vocoderNoiseMix: number;
   vocoderGateThreshold: number;
   simpleAutomation: DeckSimpleAutomation;
+  includeInRecordExport: boolean;
   deckWidthOverride?: DeckWidthOverride;
   fxPanelOpen: DeckFxPanelState;
 };

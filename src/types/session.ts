@@ -50,6 +50,7 @@ export type DeckSession = {
   vocoderReleaseMs?: number;
   vocoderNoiseMix?: number;
   vocoderGateThreshold?: number;
+  includeInRecordExport?: boolean;
   deckWidthOverride?: "full" | "half";
   offsetSeconds: number;
   zoom: number;

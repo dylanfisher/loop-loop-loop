@@ -86,7 +86,9 @@ export const renderMixdownBlob = async ({
     return entry.baseline + (entry.target - entry.baseline) * shape;
   };
 
-  const activeDecks = decks.filter((deck) => deck.buffer);
+  const activeDecks = decks.filter(
+    (deck) => deck.buffer && deck.includeInRecordExport !== false
+  );
   if (activeDecks.length === 0) {
     throw new Error("NO_ACTIVE_DECKS");
   }

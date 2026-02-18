@@ -25,9 +25,10 @@ import {
 type Args = {
   updateDeck: (id: number, patch: Partial<DeckState>, recordHistory?: boolean) => void;
   setDecksNoHistory: (updater: (prev: DeckState[]) => DeckState[]) => void;
+  setDeckRecordExportSend: (id: number, active: boolean) => void;
 };
 
-export const createDeckUiSetters = ({ updateDeck, setDecksNoHistory }: Args) => {
+export const createDeckUiSetters = ({ updateDeck, setDecksNoHistory, setDeckRecordExportSend }: Args) => {
   const setDeckStretchRatio = (id: number, value: number) => {
     const safeValue = Number.isFinite(value) ? value : DEFAULT_STRETCH_RATIO;
     const clamped = Math.min(Math.max(safeValue, 1), 16);
@@ -70,6 +71,11 @@ export const createDeckUiSetters = ({ updateDeck, setDecksNoHistory }: Args) => 
 
   const setDeckWidthOverride = (id: number, value?: DeckWidthOverride) => {
     updateDeck(id, { deckWidthOverride: value }, false);
+  };
+
+  const setDeckIncludeInRecordExport = (id: number, active: boolean) => {
+    setDeckRecordExportSend(id, active);
+    updateDeck(id, { includeInRecordExport: active }, false);
   };
 
   const setDeckRearrangerSlices = (id: number, value: number) => {
@@ -276,6 +282,7 @@ export const createDeckUiSetters = ({ updateDeck, setDecksNoHistory }: Args) => 
   };
 
   return {
+    setDeckIncludeInRecordExport,
     setDeckStretchRatio,
     setDeckStretchWindowSize,
     setDeckStretchStereoWidth,
@@ -298,4 +305,3 @@ export const createDeckUiSetters = ({ updateDeck, setDecksNoHistory }: Args) => 
     setDeckFxPanelsOpen,
   };
 };
-

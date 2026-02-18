@@ -37,6 +37,7 @@ import {
   setDeckVocoderReleaseMsValue,
   setDeckVocoderNoiseMixValue,
   setDeckVocoderGateThresholdValue,
+  setDeckRecordExportSendValue,
   setDeckLoopParams,
   setDeckPlaybackOffsetValue,
   setDeckPitchShiftValue,
@@ -137,6 +138,7 @@ type AudioEngine = {
   setDeckVocoderNoiseMix: (deckId: number, value: number) => void;
   setDeckVocoderGateThreshold: (deckId: number, value: number) => void;
   setDeckPitchShift: (deckId: number, value: number) => void;
+  setDeckRecordExportSend: (deckId: number, active: boolean) => void;
   setMasterGain: (value: number) => void;
   removeDeck: (deckId: number) => void;
   getDeckPosition: (deckId: number) => number | null;
@@ -153,6 +155,8 @@ type AudioEngine = {
 
 let audioContext: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let recordExportMix: GainNode | null = null;
+let recordExportMasterGain: GainNode | null = null;
 let masterStreamDest: MediaStreamAudioDestinationNode | null = null;
 let masterGainValue = 0.9;
 
@@ -162,8 +166,12 @@ const ensureContextSync = () => {
     masterGain = audioContext.createGain();
     masterGain.gain.value = masterGainValue;
     masterGain.connect(audioContext.destination);
+    recordExportMix = audioContext.createGain();
+    recordExportMasterGain = audioContext.createGain();
+    recordExportMasterGain.gain.value = masterGainValue;
+    recordExportMix.connect(recordExportMasterGain);
     masterStreamDest = audioContext.createMediaStreamDestination();
-    masterGain.connect(masterStreamDest);
+    recordExportMasterGain.connect(masterStreamDest);
   }
   return audioContext;
 };
@@ -174,8 +182,12 @@ const ensureContext = async () => {
     masterGain = audioContext.createGain();
     masterGain.gain.value = masterGainValue;
     masterGain.connect(audioContext.destination);
+    recordExportMix = audioContext.createGain();
+    recordExportMasterGain = audioContext.createGain();
+    recordExportMasterGain.gain.value = masterGainValue;
+    recordExportMix.connect(recordExportMasterGain);
     masterStreamDest = audioContext.createMediaStreamDestination();
-    masterGain.connect(masterStreamDest);
+    recordExportMasterGain.connect(masterStreamDest);
   }
 
   if (audioContext.state === "suspended") {
@@ -268,9 +280,11 @@ const playBuffer: AudioEngine["playBuffer"] = async (
     }
   }
   const output = masterGain ?? context.destination;
+  const recordOutput = recordExportMix ?? output;
   playDeckBuffer(
     context,
     output,
+    recordOutput,
     deckId,
     buffer,
     gain,
@@ -469,6 +483,13 @@ const setMasterGain = (value: number) => {
   if (masterGain) {
     masterGain.gain.value = nextValue;
   }
+  if (recordExportMasterGain) {
+    recordExportMasterGain.gain.value = nextValue;
+  }
+};
+
+const setDeckRecordExportSend = (deckId: number, active: boolean) => {
+  setDeckRecordExportSendValue(deckId, active);
 };
 
 const removeDeck = (deckId: number) => {
@@ -518,7 +539,15 @@ const getMasterStream = () => {
   const context = ensureContextSync();
   if (!masterStreamDest) {
     masterStreamDest = context.createMediaStreamDestination();
-    masterGain?.connect(masterStreamDest);
+    if (!recordExportMix) {
+      recordExportMix = context.createGain();
+    }
+    if (!recordExportMasterGain) {
+      recordExportMasterGain = context.createGain();
+      recordExportMasterGain.gain.value = masterGainValue;
+      recordExportMix.connect(recordExportMasterGain);
+    }
+    recordExportMasterGain.connect(masterStreamDest);
   }
   return masterStreamDest?.stream ?? null;
 };
@@ -573,6 +602,7 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckVocoderNoiseMix,
     setDeckVocoderGateThreshold,
     setDeckPitchShift,
+    setDeckRecordExportSend,
     setMasterGain,
     removeDeck,
     getDeckPosition,

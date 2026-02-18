@@ -147,6 +147,7 @@ export type DeckCardProps = {
     options?: { disableSnap?: boolean }
   ) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
+  onDeckIncludeInRecordExportChange: (id: number, value: boolean) => void;
   onDeckWidthOverrideChange: (id: number, value?: "full" | "half") => void;
   onStretchRatioChange: (id: number, value: number) => void;
   onStretchWindowSizeChange: (id: number, value: number) => void;
@@ -218,6 +219,7 @@ const DeckCard = (props: DeckCardProps) => {
     onLoopBoundsChangeComplete,
     onTempoOffsetChange,
     onTempoPitchSyncChange,
+    onDeckIncludeInRecordExportChange,
     onDeckWidthOverrideChange,
     onRearrangerSlicesChange,
     onRearrangerAutoChange,
@@ -711,6 +713,21 @@ const DeckCard = (props: DeckCardProps) => {
         <div className="deck__label-row">
           <span className="deck__label">
             <span className="deck__label-text">{label}</span>
+            <button
+              type="button"
+              className={`deck__record-export-toggle ${deck.includeInRecordExport ? "is-active" : "is-inactive"}`.trim()}
+              onClick={() =>
+                onDeckIncludeInRecordExportChange(deck.id, !deck.includeInRecordExport)
+              }
+              title={
+                deck.includeInRecordExport
+                  ? "Included in recording/export pipeline. Click to exclude this deck."
+                  : "Excluded from recording/export pipeline. Click to include this deck."
+              }
+              aria-pressed={deck.includeInRecordExport}
+            >
+              REC
+            </button>
             <button
               type="button"
               className="deck__width-toggle"

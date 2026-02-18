@@ -325,6 +325,7 @@ export const buildInitialDecks = (): DeckState[] => [
     vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
     vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
     simpleAutomation: {},
+    includeInRecordExport: true,
     deckWidthOverride: undefined,
     offsetSeconds: 0,
     zoom: 1,
