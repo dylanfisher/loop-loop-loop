@@ -40,11 +40,11 @@ const snap = (
   if (!step || step <= 0) return clamp(value, min, max);
   const snapped = Math.round((value - min) / step) * step + min;
   const clamped = clamp(snapped, min, max);
-  if (!enableCenterSnap) {
+  if (!enableCenterSnap || centerSnap === undefined) {
     return clamped;
   }
   const snapTarget = clamp(defaultValue, min, max);
-  const tolerance = centerSnap ?? step;
+  const tolerance = centerSnap;
   if (Math.abs(clamped - snapTarget) <= tolerance) {
     return snapTarget;
   }
@@ -71,7 +71,7 @@ const Knob = ({
   disabled = false,
 }: KnobProps) => {
   const knobRef = useRef<HTMLDivElement | null>(null);
-  const dragState = useRef<{ lastX: number; lastY: number; currentValue: number } | null>(null);
+  const dragState = useRef<{ lastX: number; lastY: number; rawValue: number } | null>(null);
   const pendingValueRef = useRef<number | null>(null);
   const changeRafRef = useRef<number | null>(null);
   const clearedSimpleAutomationRef = useRef(false);
@@ -121,11 +121,11 @@ const Knob = ({
       const delta = deltaX - deltaY;
       const isFine = event.shiftKey;
       const sensitivity = isFine ? 0.0008 : 0.006;
-      const next = drag.currentValue + delta * sensitivity * range;
+      const next = drag.rawValue + delta * sensitivity * range;
       setFineMode(isFine);
       const effectiveStep = isFine ? step * 0.1 : step;
       const resolved = snap(next, effectiveStep, min, max, defaultValue, centerSnap, !isFine);
-      drag.currentValue = resolved;
+      drag.rawValue = clamp(next, min, max);
       drag.lastX = event.clientX;
       drag.lastY = event.clientY;
       if (!event.altKey && isSimpleAutomated && !clearedSimpleAutomationRef.current) {
@@ -222,7 +222,7 @@ const Knob = ({
     dragState.current = {
       lastX: event.clientX,
       lastY: event.clientY,
-      currentValue: clamp(value, min, max),
+      rawValue: clamp(value, min, max),
     };
     clearedSimpleAutomationRef.current = false;
     simpleAutomationArmRef.current = false;
