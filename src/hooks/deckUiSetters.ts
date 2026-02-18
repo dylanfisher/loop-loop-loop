@@ -73,7 +73,46 @@ export const createDeckUiSetters = ({ updateDeck, setDecksNoHistory, setDeckReco
     updateDeck(id, { deckWidthOverride: value }, false);
   };
 
-  const setDeckIncludeInRecordExport = (id: number, active: boolean) => {
+  const setDeckIncludeInRecordExport = (
+    id: number,
+    active: boolean,
+    options?: { altKey?: boolean; shiftKey?: boolean }
+  ) => {
+    const altKey = options?.altKey === true;
+    const shiftKey = options?.shiftKey === true;
+    if (altKey && shiftKey) {
+      setDecksNoHistory((prev) => {
+        const hasExcludedDeck = prev.some((deck) => !deck.includeInRecordExport);
+        const nextActive = hasExcludedDeck;
+        prev.forEach((deck) => {
+          setDeckRecordExportSend(deck.id, nextActive);
+        });
+        return prev.map((deck) =>
+          deck.includeInRecordExport === nextActive
+            ? deck
+            : { ...deck, includeInRecordExport: nextActive }
+        );
+      });
+      return;
+    }
+    if (altKey) {
+      setDecksNoHistory((prev) => {
+        const includedDecks = prev.filter((deck) => deck.includeInRecordExport);
+        const isSolo =
+          includedDecks.length === 1 && includedDecks[0]?.id === id;
+        prev.forEach((deck) => {
+          const nextActive = isSolo ? true : deck.id === id;
+          setDeckRecordExportSend(deck.id, nextActive);
+        });
+        return prev.map((deck) => {
+          const nextActive = isSolo ? true : deck.id === id;
+          return deck.includeInRecordExport === nextActive
+            ? deck
+            : { ...deck, includeInRecordExport: nextActive };
+        });
+      });
+      return;
+    }
     setDeckRecordExportSend(id, active);
     updateDeck(id, { includeInRecordExport: active }, false);
   };

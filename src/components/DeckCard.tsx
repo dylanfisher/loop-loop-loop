@@ -147,7 +147,11 @@ export type DeckCardProps = {
     options?: { disableSnap?: boolean }
   ) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
-  onDeckIncludeInRecordExportChange: (id: number, value: boolean) => void;
+  onDeckIncludeInRecordExportChange: (
+    id: number,
+    value: boolean,
+    options?: { altKey?: boolean; shiftKey?: boolean }
+  ) => void;
   onDeckWidthOverrideChange: (id: number, value?: "full" | "half") => void;
   onStretchRatioChange: (id: number, value: number) => void;
   onStretchWindowSizeChange: (id: number, value: number) => void;
@@ -716,13 +720,16 @@ const DeckCard = (props: DeckCardProps) => {
             <button
               type="button"
               className={`deck__record-export-toggle ${deck.includeInRecordExport ? "is-active" : "is-inactive"}`.trim()}
-              onClick={() =>
-                onDeckIncludeInRecordExportChange(deck.id, !deck.includeInRecordExport)
+              onClick={(event) =>
+                onDeckIncludeInRecordExportChange(deck.id, !deck.includeInRecordExport, {
+                  altKey: event.altKey,
+                  shiftKey: event.shiftKey,
+                })
               }
               title={
                 deck.includeInRecordExport
-                  ? "Included in recording/export pipeline. Click to exclude this deck."
-                  : "Excluded from recording/export pipeline. Click to include this deck."
+                  ? "Included in Export Mix. Click to exclude. Alt+Click: make only this deck active for export. Shift+Alt+Click: enable or disable export for all decks."
+                  : "Excluded from Export Mix. Click to include. Alt+Click: make only this deck active for export. Shift+Alt+Click: enable or disable export for all decks."
               }
               aria-pressed={deck.includeInRecordExport}
             >

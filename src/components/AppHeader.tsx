@@ -57,6 +57,7 @@ type AppHeaderProps = {
   onExportSecondsChange: (value: number) => void;
   onExportMix: () => Promise<void>;
   exporting: boolean;
+  hasExportDecks: boolean;
   exportEstimateLabel: string | null;
   onSessionNameChange: (value: string) => void;
 };
@@ -104,6 +105,7 @@ const AppHeader = ({
   onExportSecondsChange,
   onExportMix,
   exporting,
+  hasExportDecks,
   exportEstimateLabel,
   onSessionNameChange,
 }: AppHeaderProps) => {
@@ -369,12 +371,14 @@ const AppHeader = ({
                   </label>
                   <AsyncActionButton
                     onAction={onExportMix}
-                    disabled={exporting}
+                    disabled={exporting || !hasExportDecks}
                     busy={exporting}
                     idleLabel="Export Mix"
                     busyLabel="Exporting..."
                   />
-                  {exportEstimateLabel ? (
+                  {!hasExportDecks ? (
+                    <span className="transport__estimate">No export decks selected</span>
+                  ) : exportEstimateLabel ? (
                     <span className="transport__estimate">{exportEstimateLabel}</span>
                   ) : null}
                 </div>

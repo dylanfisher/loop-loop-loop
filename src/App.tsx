@@ -303,6 +303,9 @@ const App = () => {
     (isCurrentProjectBrandNew && !welcomePanelDismissed) || showWelcomePanelOverride;
 
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
+  const hasExportDecks = decks.some(
+    (deck) => deck.buffer && deck.includeInRecordExport !== false
+  );
   const canGlobalStopReset =
     decks.some((deck) => deck.buffer) &&
     decks.filter((deck) => deck.buffer).every((deck) => deck.status === "paused");
@@ -461,7 +464,7 @@ const App = () => {
       setSessionStatus("Load at least one deck before exporting.");
       return;
     }
-    const estimateSeconds = 2 * (exportDurationSec / 60) * activeDeckCount;
+    const estimateSeconds = 3 * (exportDurationSec / 60) * activeDeckCount;
     setExportEstimateLabel(
       `Approx export: ${formatEstimateDuration(estimateSeconds)}`
     );
@@ -758,6 +761,7 @@ const App = () => {
         onExportSecondsChange={handleExportSecondsChange}
         onExportMix={exportMixdown}
         exporting={exporting}
+        hasExportDecks={hasExportDecks}
         exportEstimateLabel={exportEstimateLabel}
         onSessionNameChange={setSessionName}
       />

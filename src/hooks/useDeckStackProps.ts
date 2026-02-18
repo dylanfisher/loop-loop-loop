@@ -68,7 +68,11 @@ type UseDeckStackPropsArgs = {
   commitDeckLoopBoundsHistory: (id: number) => void;
   setDeckTempoOffset: DeckStackProps["onTempoOffsetChange"];
   setDeckTempoPitchSync: (id: number, value: boolean) => void;
-  setDeckIncludeInRecordExport: (id: number, value: boolean) => void;
+  setDeckIncludeInRecordExport: (
+    id: number,
+    value: boolean,
+    options?: { altKey?: boolean; shiftKey?: boolean }
+  ) => void;
   setDeckWidthOverride: (id: number, value?: "full" | "half") => void;
   setDeckStretchRatio: (id: number, value: number) => void;
   setDeckStretchWindowSize: (id: number, value: number) => void;

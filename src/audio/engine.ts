@@ -171,7 +171,7 @@ const ensureContextSync = () => {
     recordExportMasterGain.gain.value = masterGainValue;
     recordExportMix.connect(recordExportMasterGain);
     masterStreamDest = audioContext.createMediaStreamDestination();
-    recordExportMasterGain.connect(masterStreamDest);
+    masterGain.connect(masterStreamDest);
   }
   return audioContext;
 };
@@ -187,7 +187,7 @@ const ensureContext = async () => {
     recordExportMasterGain.gain.value = masterGainValue;
     recordExportMix.connect(recordExportMasterGain);
     masterStreamDest = audioContext.createMediaStreamDestination();
-    recordExportMasterGain.connect(masterStreamDest);
+    masterGain.connect(masterStreamDest);
   }
 
   if (audioContext.state === "suspended") {
@@ -539,15 +539,7 @@ const getMasterStream = () => {
   const context = ensureContextSync();
   if (!masterStreamDest) {
     masterStreamDest = context.createMediaStreamDestination();
-    if (!recordExportMix) {
-      recordExportMix = context.createGain();
-    }
-    if (!recordExportMasterGain) {
-      recordExportMasterGain = context.createGain();
-      recordExportMasterGain.gain.value = masterGainValue;
-      recordExportMix.connect(recordExportMasterGain);
-    }
-    recordExportMasterGain.connect(masterStreamDest);
+    masterGain?.connect(masterStreamDest);
   }
   return masterStreamDest?.stream ?? null;
 };

@@ -79,7 +79,11 @@ export type DeckStackProps = {
     options?: { disableSnap?: boolean }
   ) => void;
   onTempoPitchSyncChange: (id: number, value: boolean) => void;
-  onDeckIncludeInRecordExportChange: (id: number, value: boolean) => void;
+  onDeckIncludeInRecordExportChange: (
+    id: number,
+    value: boolean,
+    options?: { altKey?: boolean; shiftKey?: boolean }
+  ) => void;
   onDeckWidthOverrideChange: (id: number, value?: "full" | "half") => void;
   onStretchRatioChange: (id: number, value: number) => void;
   onStretchWindowSizeChange: (id: number, value: number) => void;
