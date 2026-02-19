@@ -18,6 +18,7 @@ type UseGlobalKeyboardShortcutsArgs = {
   handleFocusedDeckZoom: (direction: "in" | "out") => void;
   handleFocusedDeckCrop: () => void;
   handleFocusedDeckDuplicate: () => void;
+  onToggleSessionPanel: () => void;
   setShowKeyboardShortcuts: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
@@ -38,6 +39,7 @@ const useGlobalKeyboardShortcuts = ({
   handleFocusedDeckZoom,
   handleFocusedDeckCrop,
   handleFocusedDeckDuplicate,
+  onToggleSessionPanel,
   setShowKeyboardShortcuts,
 }: UseGlobalKeyboardShortcutsArgs) => {
   useEffect(() => {
@@ -143,6 +145,11 @@ const useGlobalKeyboardShortcuts = ({
         handleFocusedDeckDuplicate();
         return;
       }
+      if (lower === "e") {
+        event.preventDefault();
+        onToggleSessionPanel();
+        return;
+      }
       if (lower === "a") {
         event.preventDefault();
         addDeck();
@@ -157,6 +164,7 @@ const useGlobalKeyboardShortcuts = ({
     handleFocusedDeckLoopToggle,
     handleFocusedDeckCrop,
     handleFocusedDeckDuplicate,
+    onToggleSessionPanel,
     handleFocusedDeckRemove,
     handleFocusedDeckPlaybackToggle,
     handleFocusedDeckFxVisibilityToggle,

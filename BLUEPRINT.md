@@ -51,6 +51,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Parametric EQ is implemented as a dedicated 5-unit-wide FX panel with a draggable node graph (click-to-add, drag freq/gain, node type/Q controls), while keeping EQ3 available via per-deck EQ mode selection.
 - Parametric EQ nodes include per-node motion controls (`Jitter` + `Spread`) in the inspector to simulate semi-random drag-like movement while playback is running.
+- Parametric EQ `Jitter`/`Spread` wander is rendered in offline paths as well (Save Loop baked renders and Export Mix) to preserve live/offline behavior parity.
 - Deck FX now includes a dedicated Gain unit (first slot) with its own collapsible panel and automation lane; waveform sidebar gain control was removed.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Deck FX includes a Vocoder panel with per-deck mix, modulator-deck selection, modulator monitor level (controls linked modulator deck audibility in the mix), mod-drive sensitivity boost for stronger envelope transfer, and a single `Phase Rotate` control that continuously cycles vocoder band phase offsets.

@@ -682,6 +682,7 @@ const App = () => {
     handleFocusedDeckZoom,
     handleFocusedDeckCrop,
     handleFocusedDeckDuplicate,
+    onToggleSessionPanel: () => setShowSessionPanel((prev) => !prev),
     setShowKeyboardShortcuts,
   });
 

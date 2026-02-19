@@ -124,7 +124,40 @@ export const applyParametricEqOffline = (
     node.frequency.setValueAtTime(band.frequency, 0);
     node.gain.setValueAtTime(band.enabled ? band.gain : 0, 0);
     node.Q.setValueAtTime(band.q, 0);
-    if (renderDuration > 0) {
+    const wander = band.wander;
+    const wanderActive =
+      Boolean(wander) &&
+      (wander?.jitter ?? 0) > 1e-3 &&
+      (wander?.spread ?? 0) > 1e-3 &&
+      band.enabled &&
+      renderDuration > 0;
+    if (wanderActive && wander) {
+      const sampleRate = 30;
+      const sampleCount = Math.max(2, Math.ceil(renderDuration * sampleRate));
+      const freqCurve = new Float32Array(sampleCount);
+      const gainCurve = new Float32Array(sampleCount);
+      const speedHz = 0.08 + wander.jitter * 1.7;
+      const octaveSpan = 0.08 + wander.spread * 1.1;
+      const gainSpan = 0.5 + wander.spread * 10;
+      for (let i = 0; i < sampleCount; i += 1) {
+        const t = i / sampleRate;
+        const phaseA = t * Math.PI * 2 * speedHz + wander.seed;
+        const phaseB = t * Math.PI * 2 * (speedHz * 1.37) + wander.seed * 1.91;
+        const phaseC = t * Math.PI * 2 * (speedHz * 0.61) + wander.seed * 2.71;
+        const phaseD = t * Math.PI * 2 * (speedHz * 1.11) + wander.seed * 1.13;
+        const freqNoise = Math.sin(phaseA) * 0.62 + Math.sin(phaseB) * 0.38;
+        const gainNoise = Math.sin(phaseC) * 0.58 + Math.sin(phaseD) * 0.42;
+        freqCurve[i] = clamp(
+          wander.baseFrequency * Math.pow(2, freqNoise * octaveSpan),
+          MIN_FREQ,
+          MAX_FREQ
+        );
+        gainCurve[i] = clamp(wander.baseGain + gainNoise * gainSpan, MIN_GAIN_DB, MAX_GAIN_DB);
+      }
+      node.frequency.setValueCurveAtTime(freqCurve, 0, renderDuration);
+      node.gain.setValueCurveAtTime(gainCurve, 0, renderDuration);
+      node.Q.setValueAtTime(band.q, renderDuration);
+    } else if (renderDuration > 0) {
       node.frequency.setValueAtTime(band.frequency, renderDuration);
       node.gain.setValueAtTime(band.enabled ? band.gain : 0, renderDuration);
       node.Q.setValueAtTime(band.q, renderDuration);
