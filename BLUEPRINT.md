@@ -45,6 +45,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Canvas/WebGL for waveform, spectrum, and experimental visual feedback.
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
 - Deck cards support drag-and-drop audio file loading in addition to the file picker.
+- Deck cards support drag-to-reorder in the deck stack (drop before/after target card).
 - Clip Recorder supports drag-and-drop audio import, with drop-target highlighting while files are dragged over it.
 - Clip Recorder supports source-select recording: app master output or user input device (microphone/interface).
 - Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.

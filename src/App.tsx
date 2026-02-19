@@ -90,6 +90,7 @@ const App = () => {
     decks,
     addDeck,
     removeDeck,
+    reorderDecks,
     handleLoadClick,
     handleFileSelected,
     playDeck,
@@ -528,6 +529,9 @@ const App = () => {
   const handleDeckActivate = useCallback((deckId: number) => {
     setActiveDeckId(deckId);
   }, []);
+  const handleAddDeck = useCallback(() => {
+    addDeck({ afterId: activeDeckId ?? undefined });
+  }, [activeDeckId, addDeck]);
   const handleDeckRemoveWithConfirm = useCallback((deckId: number) => {
     const deck = decks.find((item) => item.id === deckId);
     if (!deck) return;
@@ -574,6 +578,7 @@ const App = () => {
     setScrollToDeckId,
     handleDeckActivate,
     removeDeck: handleDeckRemoveWithConfirm,
+    reorderDecks,
     handleLoadClick,
     handleFileSelected,
     playDeck,
@@ -666,7 +671,7 @@ const App = () => {
   });
 
   useGlobalKeyboardShortcuts({
-    addDeck,
+    addDeck: handleAddDeck,
     undo,
     redo,
     handleSaveSession,
@@ -726,7 +731,7 @@ const App = () => {
         canRedo={canRedo}
         onUndo={undo}
         onRedo={redo}
-        onAddDeck={() => addDeck()}
+        onAddDeck={handleAddDeck}
         onNewSession={handleNewSession}
         onGlobalPlaybackToggle={handleGlobalPlaybackToggle}
         onGlobalStopReset={handleGlobalStopReset}

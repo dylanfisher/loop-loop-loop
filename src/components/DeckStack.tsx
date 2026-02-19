@@ -1,5 +1,6 @@
 import DeckCard from "./DeckCard";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { DragEvent as ReactDragEvent } from "react";
 import type {
   DeckFxPanel,
   DeckState,
@@ -19,6 +20,11 @@ export type DeckStackProps = {
   onScrollComplete?: (id: number) => void;
   onDeckActivate: (id: number) => void;
   onRemoveDeck: (id: number) => void;
+  onReorderDecks: (
+    sourceDeckId: number,
+    targetDeckId: number,
+    position?: "before" | "after"
+  ) => void;
   onLoadClick: (id: number) => void;
   onFileSelected: (id: number, file: File | null, options?: {
     gain?: number;
@@ -164,6 +170,7 @@ const DeckStack = ({
   onScrollComplete,
   onDeckActivate,
   onRemoveDeck,
+  onReorderDecks,
   onLoadClick,
   onFileSelected,
   onPlay,
@@ -256,6 +263,11 @@ const DeckStack = ({
   getDeckPlaybackSnapshot,
   setFileInputRef,
 }: DeckStackProps) => {
+  const [draggingDeckId, setDraggingDeckId] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    deckId: number;
+    position: "before" | "after";
+  } | null>(null);
   const layoutClass =
     layoutMode === "two"
       ? "deck-stack__list--two-column"
@@ -312,16 +324,93 @@ const DeckStack = ({
       cancelled = true;
     };
   }, [onScrollComplete, scrollToDeckId]);
+
+  const clearDragState = useCallback(() => {
+    setDraggingDeckId(null);
+    setDropTarget(null);
+  }, []);
+
+  const handleDeckDragStart = useCallback((deckId: number, event: ReactDragEvent<HTMLElement>) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(deckId));
+    const deckNode = deckRefs.current.get(deckId);
+    if (deckNode) {
+      const rect = deckNode.getBoundingClientRect();
+      const offsetX = Number.isFinite(event.clientX) ? event.clientX - rect.left : rect.width / 2;
+      const offsetY = Number.isFinite(event.clientY) ? event.clientY - rect.top : rect.height / 2;
+      event.dataTransfer.setDragImage(
+        deckNode,
+        Math.max(0, Math.min(rect.width, offsetX)),
+        Math.max(0, Math.min(rect.height, offsetY))
+      );
+    }
+    setDraggingDeckId(deckId);
+    setDropTarget(null);
+  }, []);
+
+  const handleDeckDragOver = useCallback(
+    (deckId: number, event: ReactDragEvent<HTMLDivElement>) => {
+      if (draggingDeckId === null || draggingDeckId === deckId) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      const rect = event.currentTarget.getBoundingClientRect();
+      const position: "before" | "after" =
+        layoutMode === "two"
+          ? event.clientX < rect.left + rect.width / 2
+            ? "before"
+            : "after"
+          : event.clientY < rect.top + rect.height / 2
+            ? "before"
+            : "after";
+      setDropTarget((prev) =>
+        prev?.deckId === deckId && prev.position === position ? prev : { deckId, position }
+      );
+    },
+    [draggingDeckId, layoutMode]
+  );
+
+  const handleDeckDrop = useCallback(
+    (deckId: number, event: ReactDragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const textId = event.dataTransfer.getData("text/plain");
+      const sourceDeckId = draggingDeckId ?? Number(textId);
+      if (!Number.isFinite(sourceDeckId)) {
+        clearDragState();
+        return;
+      }
+      const resolvedTarget =
+        dropTarget?.deckId === deckId
+          ? dropTarget
+          : { deckId, position: "before" as const };
+      if (sourceDeckId !== resolvedTarget.deckId) {
+        onReorderDecks(sourceDeckId, resolvedTarget.deckId, resolvedTarget.position);
+      }
+      clearDragState();
+    },
+    [clearDragState, draggingDeckId, dropTarget, onReorderDecks]
+  );
   return (
     <section className="deck-stack">
       <div
         className={`deck-stack__list ${layoutClass} ${decks.length === 1 ? "deck-stack__list--single" : ""}`.trim()}
+        onDragOver={(event) => {
+          if (draggingDeckId === null) return;
+          event.preventDefault();
+        }}
+        onDrop={(event) => {
+          if (draggingDeckId === null) return;
+          event.preventDefault();
+          clearDragState();
+        }}
       >
         {decks.map((deck, index) => (
           <div
             key={deck.id}
             ref={(node) => setDeckRef(deck.id, node)}
-            className={`deck-stack__item ${deck.deckWidthOverride ? `deck-stack__item--width-${deck.deckWidthOverride}` : ""}`.trim()}
+            className={`deck-stack__item ${deck.deckWidthOverride ? `deck-stack__item--width-${deck.deckWidthOverride}` : ""} ${draggingDeckId === deck.id ? "deck-stack__item--dragging" : ""} ${dropTarget?.deckId === deck.id && dropTarget.position === "before" ? "deck-stack__item--drop-before" : ""} ${dropTarget?.deckId === deck.id && dropTarget.position === "after" ? "deck-stack__item--drop-after" : ""}`.trim()}
+            onDragOver={(event) => handleDeckDragOver(deck.id, event)}
+            onDrop={(event) => handleDeckDrop(deck.id, event)}
+            onDragEnd={clearDragState}
           >
             <DeckCard
               deck={deck}
@@ -431,6 +520,7 @@ const DeckStack = ({
               getDeckPosition={getDeckPosition}
               getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}
               setFileInputRef={setFileInputRef}
+              onTitleDragStart={(event) => handleDeckDragStart(deck.id, event)}
             />
           </div>
         ))}

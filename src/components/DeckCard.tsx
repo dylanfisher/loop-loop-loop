@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { DragEvent as ReactDragEvent } from "react";
 import type {
   DeckFxPanel,
   DeckState,
@@ -193,6 +194,7 @@ export type DeckCardProps = {
     playbackRate: number;
   } | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
+  onTitleDragStart?: (event: ReactDragEvent<HTMLElement>) => void;
 };
 
 const DeckCard = (props: DeckCardProps) => {
@@ -238,6 +240,7 @@ const DeckCard = (props: DeckCardProps) => {
     getDeckPosition,
     getDeckPlaybackSnapshot,
     setFileInputRef,
+    onTitleDragStart,
   } = props;
   const deckCardFxRackProps = useDeckCardFxRackProps(props);
   const AUTO_SLICE_THROTTLE_MS = 90;
@@ -716,7 +719,15 @@ const DeckCard = (props: DeckCardProps) => {
       <div className="deck__header">
         <div className="deck__label-row">
           <span className="deck__label">
-            <span className="deck__label-text">{label}</span>
+            <span
+              className="deck__drag-title"
+              draggable
+              onDragStart={(event) => onTitleDragStart?.(event)}
+              title="Drag to reorder deck"
+            >
+              <span className="deck__drag-dots" aria-hidden="true" />
+              <span className="deck__label-text">{label}</span>
+            </span>
             <button
               type="button"
               className={`deck__record-export-toggle ${deck.includeInRecordExport ? "is-active" : "is-inactive"}`.trim()}

@@ -1615,6 +1615,31 @@ const useDecks = () => {
     });
   };
 
+  const reorderDecks = useCallback(
+    (sourceDeckId: number, targetDeckId: number, position: "before" | "after" = "before") => {
+      if (sourceDeckId === targetDeckId) return;
+      setDecksWithHistory((prev) => {
+        const sourceIndex = prev.findIndex((deck) => deck.id === sourceDeckId);
+        const targetIndex = prev.findIndex((deck) => deck.id === targetDeckId);
+        if (sourceIndex < 0 || targetIndex < 0) return prev;
+
+        const next = [...prev];
+        const [moved] = next.splice(sourceIndex, 1);
+        if (!moved) return prev;
+
+        const nextTargetIndex = next.findIndex((deck) => deck.id === targetDeckId);
+        if (nextTargetIndex < 0) return prev;
+        const insertIndex =
+          position === "after"
+            ? Math.min(next.length, nextTargetIndex + 1)
+            : Math.max(0, nextTargetIndex);
+        next.splice(insertIndex, 0, moved);
+        return next;
+      });
+    },
+    [setDecksWithHistory]
+  );
+
   const setFileInputRef = (id: number, node: HTMLInputElement | null) => {
     fileInputRefs.current.set(id, node);
   };
@@ -3222,6 +3247,7 @@ const useDecks = () => {
     decks,
     addDeck,
     removeDeck,
+    reorderDecks,
     handleLoadClick,
     handleFileSelected,
     playDeck,

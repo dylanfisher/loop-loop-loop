@@ -14,6 +14,7 @@ type UseDeckStackPropsArgs = {
   setScrollToDeckId: Dispatch<SetStateAction<number | null>>;
   handleDeckActivate: (deckId: number) => void;
   removeDeck: (id: number) => void;
+  reorderDecks: (sourceDeckId: number, targetDeckId: number, position?: "before" | "after") => void;
   handleLoadClick: (id: number) => void;
   handleFileSelected: (id: number, file: File | null, options?: {
     gain?: number;
@@ -137,6 +138,7 @@ const useDeckStackProps = ({
   setScrollToDeckId,
   handleDeckActivate,
   removeDeck,
+  reorderDecks,
   handleLoadClick,
   handleFileSelected,
   playDeck,
@@ -277,6 +279,7 @@ const useDeckStackProps = ({
     onScrollComplete: handleScrollComplete,
     onDeckActivate: handleDeckActivate,
     onRemoveDeck: removeDeck,
+    onReorderDecks: reorderDecks,
     onLoadClick: handleLoadClick,
     onFileSelected: handleFileSelected,
     onPlay: playDeck,

@@ -725,6 +725,35 @@ body[data-theme="dark"] .welcome-panel__card {
   grid-column: 1 / -1;
 }
 
+.deck-stack__item {
+  position: relative;
+}
+
+.deck-stack__item--dragging {
+  opacity: 0.55;
+}
+
+.deck-stack__item--drop-before::before,
+.deck-stack__item--drop-after::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: color-mix(in oklab, var(--accent) 72%, var(--ink));
+  border-radius: 999px;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.deck-stack__item--drop-before::before {
+  left: -3px;
+}
+
+.deck-stack__item--drop-after::after {
+  right: -3px;
+}
+
 @media (min-width: 900px) {
   .deck-stack__list--two-column {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -784,9 +813,36 @@ body[data-theme="dark"] .welcome-panel__card {
 
 .deck__label {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   min-width: 0;
+}
+
+.deck__drag-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  user-select: none;
+}
+
+.deck__drag-title:active {
+  cursor: grabbing;
+}
+
+.deck-stack__item--dragging .deck__drag-title {
+  cursor: grabbing;
+}
+
+.deck__drag-dots {
+  width: 10px;
+  height: 14px;
+  color: color-mix(in oklab, var(--muted) 85%, var(--ink));
+  background-image: radial-gradient(currentColor 1.1px, transparent 1.1px);
+  background-size: 5px 5px;
+  background-position: 0 0;
+  opacity: 0.8;
+  flex: 0 0 auto;
 }
 
 .deck__width-toggle {

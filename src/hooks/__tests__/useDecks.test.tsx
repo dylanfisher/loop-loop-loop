@@ -249,6 +249,22 @@ describe("useDecks", () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
+  it("reorders decks by source and target ids", () => {
+    const { result } = renderHook(() => useDecks());
+
+    act(() => result.current.addDeck());
+    act(() => result.current.addDeck());
+    const initialOrder = result.current.decks.map((deck) => deck.id);
+    expect(initialOrder).toHaveLength(3);
+
+    const sourceId = initialOrder[0];
+    const targetId = initialOrder[2];
+    act(() => result.current.reorderDecks(sourceId, targetId, "after"));
+
+    const reordered = result.current.decks.map((deck) => deck.id);
+    expect(reordered).toEqual([initialOrder[1], initialOrder[2], initialOrder[0]]);
+  });
+
   it("loads a file and stores buffer + filename", async () => {
     const { result } = renderHook(() => useDecks());
     const deckId = result.current.decks[0].id;
