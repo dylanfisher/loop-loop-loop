@@ -57,6 +57,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Vocoder is bypassed in live/render paths when mix is zero or no modulator source is selected; selecting a modulator source auto-primes mix to 50%, and clearing source sets mix to 0%.
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
 - Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.
+- Header project metadata includes a live `Last saved` timestamp that updates on manual saves and autosaves.
 - Deck cards include a per-deck width override control (force full-width or half-width) next to the deck label.
 - Deck cards include a per-deck export inclusion toggle next to the deck label (enabled by default). When disabled, that deck is excluded from Export Mix offline renders while remaining available for live monitoring/manipulation and master recording capture.
 - Header `Restore + Export` controls open as a full-width inner panel in a dedicated second header row (collapsible toggle in primary row).
@@ -79,7 +80,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Welcome panel includes an `Open a Demo Loop` action that imports `public/example.zip` for immediate first-run exploration.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
-[Header row 1: brand + project + transport/session toggles + layout/theme/master]
+[Header row 1: brand + project + last-saved timestamp + transport/session toggles + layout/theme/master]
 [Header row 2 (collapsible): full-width Restore + Export panel]
 [Welcome panel (new project only, dismissible)]
 [Clip Recorder]
@@ -109,6 +110,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Clip session persistence now preserves original clip blob format (for example `audio/webm` from Clip Recorder) instead of re-encoding unchanged clips to WAV on each autosave.
 - Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.
 - Deck UI state is also mirrored immediately to localStorage (lightweight patch) so quick refreshes restore panel state before the next full autosave.
+- Loading a Clip Rack clip into a deck triggers an immediate autosave write (in addition to paused-state autosave triggers).
 - Parametric EQ is manual node editing only (sweep motion automation removed).
 - Session WAV encoding (for deck audio and transformed renders) uses a dedicated web worker to reduce main-thread stalls.
 - Welcome panel dismissed state is persisted through autosave, saved sessions, and exported/imported project zips.
@@ -120,10 +122,13 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Clip metadata can include per-clip deck settings + automation snapshots to rehydrate FX on load.
 - Save Loop clips always persist FX settings metadata; Clip Rack exposes a per-clip FX badge toggle that controls whether those saved settings are applied when loading the clip into a deck.
 - Save Loop clip audio is always exported from the raw loop slice (unbaked audio); FX settings are stored as metadata and can be selectively applied on clip load via the Clip Rack FX toggle.
+- Save Loop/duplicate clip automation metadata phase-shifts to the captured slice start while preserving the original automation cycle shape/duration (for example Balance automation).
 - Automation lanes support compact preset waveforms and length scaling controls.
+- Stopping a deck (including global Stop) resets lane-automation and simple-automation playheads to `0` so the next playback restart begins from automation start phase.
 - Non-lane Delay/Vocoder/Rearranger knobs support lightweight "simple automation" (Option-drag captures a gesture loop; Option-double-click clears), persisted through sessions/clip FX metadata and read by export/offline paths. Rearranger simple automation currently excludes `Slices`, `Sensitivity`, and `Quiet Thresh`.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
 - Session export/import: zip bundle with `session.json` manifest and audio assets (WAV for decks; clips preserve original format when unchanged).
+- Header `Last saved` readout is sourced from session `savedAt` and refreshed whenever save/autosave writes succeed.
 
 ## Data Flow (High-Level)
 - User/controller events -> UI -> engine API -> AudioWorklet graph.

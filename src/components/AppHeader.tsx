@@ -18,6 +18,7 @@ type AppHeaderProps = {
   debugPerf: boolean;
   perfStats: PerfStats;
   sessionName: string;
+  lastSavedAt: number | null;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -66,6 +67,7 @@ const AppHeader = ({
   debugPerf,
   perfStats,
   sessionName,
+  lastSavedAt,
   canUndo,
   canRedo,
   onUndo,
@@ -134,13 +136,26 @@ const AppHeader = ({
   const transportTitle = showStopReset
     ? "Stop and reset all paused decks to start"
     : "Global play/pause (Shift+Space)";
+  const lastSavedLabel =
+    lastSavedAt === null
+      ? "Last saved: --"
+      : `Last saved: ${new Date(lastSavedAt).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+        })}`;
 
   return (
   <header className="app__header">
     <div className="app__header-row app__header-row--primary">
       <div className="app__brand">Loop Loop Loop</div>
-      <div className="app__project">
-        {sessionName.trim() ? `Project: ${sessionName}` : "Project: Untitled"}
+      <div className="app__project-meta">
+        <div className="app__project">
+          {sessionName.trim() ? `Project: ${sessionName}` : "Project: Untitled"}
+        </div>
+        <div className="app__last-saved">{lastSavedLabel}</div>
       </div>
       {debugPerf ? (
         <div className="perf-panel" aria-live="polite">

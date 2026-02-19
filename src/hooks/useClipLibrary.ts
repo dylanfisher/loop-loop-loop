@@ -3,7 +3,7 @@ import { encodeWav } from "../utils/audio";
 import { buildDerivedDeckName, sliceBufferSegment } from "../utils/appHelpers";
 import type { ClipItem } from "../types/clip";
 import type { DeckState } from "../types/deck";
-import type { ClipSettings } from "../types/session";
+import type { AutomationSnapshot, ClipSettings } from "../types/session";
 
 type UseClipLibraryArgs = {
   decks: DeckState[];
@@ -47,6 +47,7 @@ type UseClipLibraryArgs = {
       rearrangerRegionIds?: number[];
     }
   ) => void;
+  applyDeckFxPanelStatePatch: (patch: Record<number, Partial<DeckState["fxPanelOpen"]>>) => void;
   setActiveDeckId: React.Dispatch<React.SetStateAction<number | null>>;
   setScrollToDeckId: React.Dispatch<React.SetStateAction<number | null>>;
 };
@@ -72,6 +73,7 @@ const useClipLibrary = ({
   addDeck,
   handleFileSelected,
   loadDeckBuffer,
+  applyDeckFxPanelStatePatch,
   setActiveDeckId,
   setScrollToDeckId,
 }: UseClipLibraryArgs): UseClipLibraryResult => {
@@ -173,7 +175,7 @@ const useClipLibrary = ({
   }, []);
 
   const buildClipSettings = useCallback(
-    (deck: DeckState, loopDuration: number): ClipSettings => {
+    (deck: DeckState, loopStartSeconds: number, loopDuration: number): ClipSettings => {
       const automation = automationState.get(deck.id);
       const toSnapshot = (
         track:
@@ -185,13 +187,41 @@ const useClipLibrary = ({
             }
           | undefined,
         fallback: number
-      ) => ({
-        samples: Array.from(track?.samples ?? []),
-        sampleRate: CLIP_AUTOMATION_SAMPLE_RATE,
-        durationSec: track?.durationSec ?? 0,
-        active: track?.active ?? false,
-        currentValue: track?.currentValue ?? fallback,
-      });
+      ): AutomationSnapshot => {
+        const sourceSamples = Array.from(track?.samples ?? []);
+        const sourceDuration = track?.durationSec ?? 0;
+        const hasSource = sourceSamples.length > 0 && sourceDuration > 0;
+        const sourceSampleRate = hasSource
+          ? Math.max(1, sourceSamples.length / sourceDuration)
+          : CLIP_AUTOMATION_SAMPLE_RATE;
+        if (!hasSource) {
+          return {
+            samples: sourceSamples,
+            sampleRate: sourceSampleRate,
+            durationSec: sourceDuration,
+            active: track?.active ?? false,
+            currentValue: track?.currentValue ?? fallback,
+          };
+        }
+        const offsetSeconds =
+          ((loopStartSeconds % sourceDuration) + sourceDuration) % sourceDuration;
+        const offsetIndex = Math.min(
+          sourceSamples.length - 1,
+          Math.max(0, Math.floor(offsetSeconds * sourceSampleRate))
+        );
+        const alignedSamples =
+          offsetIndex === 0
+            ? sourceSamples
+            : [...sourceSamples.slice(offsetIndex), ...sourceSamples.slice(0, offsetIndex)];
+
+        return {
+          samples: alignedSamples,
+          sampleRate: sourceSampleRate,
+          durationSec: sourceDuration,
+          active: track?.active ?? false,
+          currentValue: alignedSamples[0] ?? fallback,
+        };
+      };
 
       return {
         gain: deck.gain,
@@ -271,7 +301,7 @@ const useClipLibrary = ({
       const sliceDuration = Math.max(0.01, loopEnd - loopStart);
       const sliced = sliceBufferSegment(deck.buffer, loopStart, sliceDuration);
       const blob = encodeWav(sliced);
-      const settings = buildClipSettings(deck, sliced.duration);
+      const settings = buildClipSettings(deck, loopStart, sliced.duration);
       return {
         blob,
         durationSec: sliced.duration,
@@ -338,8 +368,21 @@ const useClipLibrary = ({
       await handleFileSelected(newDeckId, file, {
         settings: includeSettings ? clip.settings : undefined,
       });
+      if (deck) {
+        applyDeckFxPanelStatePatch({
+          [newDeckId]: { ...deck.fxPanelOpen },
+        });
+      }
     },
-    [addDeck, decks, handleFileSelected, renderLoopClip, setActiveDeckId, setScrollToDeckId]
+    [
+      addDeck,
+      applyDeckFxPanelStatePatch,
+      decks,
+      handleFileSelected,
+      renderLoopClip,
+      setActiveDeckId,
+      setScrollToDeckId,
+    ]
   );
 
   const handleCropLoop = useCallback(

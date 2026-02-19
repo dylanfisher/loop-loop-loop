@@ -204,6 +204,7 @@ const App = () => {
     addDeck,
     handleFileSelected,
     loadDeckBuffer,
+    applyDeckFxPanelStatePatch,
     setActiveDeckId,
     setScrollToDeckId,
   });
@@ -213,6 +214,7 @@ const App = () => {
     setSessionStatus,
     sessionName,
     setSessionName,
+    lastSavedAt,
     welcomePanelDismissed,
     setWelcomePanelDismissed,
     sessions,
@@ -221,6 +223,7 @@ const App = () => {
     importInputRef,
     zipDragOver,
     markSkipNextAutosave,
+    triggerAutosaveNow,
     handleExportSession,
     handleSaveSession,
     handleLoadSession,
@@ -717,6 +720,7 @@ const App = () => {
         debugPerf={debugPerf}
         perfStats={perfStats}
         sessionName={sessionName}
+        lastSavedAt={lastSavedAt}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={undo}
@@ -780,7 +784,14 @@ const App = () => {
           decks={decks}
           zipDragActive={zipDragOver}
           clips={clips}
-          onLoadClip={handleLoadClipToDeck}
+          onLoadClip={async (deckId, clip) => {
+            await handleLoadClipToDeck(deckId, clip);
+            try {
+              await triggerAutosaveNow();
+            } catch (error) {
+              console.error("Autosave after clip load failed", error);
+            }
+          }}
           onAddClip={addClip}
           onUpdateClip={updateClip}
           onRemoveClip={removeClip}

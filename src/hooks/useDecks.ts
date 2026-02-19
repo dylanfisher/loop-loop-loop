@@ -2187,6 +2187,22 @@ const useDecks = () => {
     updateAutomationView(deckId);
   };
 
+  const resetAutomationDeck = (deckId: number) => {
+    const automation = automationRef.current.get(deckId);
+    if (!automation) return;
+    const playheads = automationPlayheadRef.current.get(deckId);
+    (Object.keys(automation) as AutomationParam[]).forEach((param) => {
+      const track = automation[param];
+      track.playbackStartMs = 0;
+      track.paused = true;
+      track.pausedPositionSec = 0;
+      if (playheads) {
+        playheads[param] = 0;
+      }
+    });
+    updateAutomationView(deckId);
+  };
+
   const resumeAutomationDeck = (deckId: number) => {
     const automation = automationRef.current.get(deckId);
     if (!automation) return;
@@ -2203,6 +2219,22 @@ const useDecks = () => {
       track.pausedPositionSec = 0;
     });
     updateAutomationView(deckId);
+  };
+
+  const resetSimpleAutomationDeck = (deckId: number) => {
+    const deck = decksRef.current.find((item) => item.id === deckId);
+    if (!deck) return;
+    const deckRuntime = simpleAutomationRuntimeRef.current.get(deckId);
+    if (!deckRuntime) return;
+    (Object.keys(deck.simpleAutomation ?? {}) as SimpleAutomationParam[]).forEach((param) => {
+      const entry = deck.simpleAutomation?.[param];
+      if (!entry?.active) return;
+      const track = deckRuntime[param];
+      if (!track) return;
+      track.playbackStartMs = 0;
+      track.paused = true;
+      track.pausedPositionSec = 0;
+    });
   };
 
   const pauseDeck = (deck: DeckState) => {
@@ -2226,8 +2258,8 @@ const useDecks = () => {
   const stopDeck = (deck: DeckState) => {
     stop(deck.id);
     playbackStartRef.current.delete(deck.id);
-    pauseAutomationDeck(deck.id);
-    pauseSimpleAutomationDeck(deck.id);
+    resetAutomationDeck(deck.id);
+    resetSimpleAutomationDeck(deck.id);
     const nextStatus: DeckStatus = deck.buffer ? "ready" : "idle";
     updateDeck(
       deck.id,

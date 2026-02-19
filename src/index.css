@@ -147,6 +147,20 @@ body[data-theme="dark"] .app__header {
   color: var(--muted);
 }
 
+.app__project-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.app__last-saved {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: color-mix(in oklab, var(--muted) 92%, transparent);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
 .app__status {
   font-size: 0.72rem;
   text-transform: uppercase;

@@ -41,6 +41,7 @@ type SessionManagerResult = {
   setSessionStatus: React.Dispatch<React.SetStateAction<string | null>>;
   sessionName: string;
   setSessionName: React.Dispatch<React.SetStateAction<string>>;
+  lastSavedAt: number | null;
   welcomePanelDismissed: boolean;
   setWelcomePanelDismissed: React.Dispatch<React.SetStateAction<boolean>>;
   sessions: SessionMeta[];
@@ -49,6 +50,7 @@ type SessionManagerResult = {
   importInputRef: React.MutableRefObject<HTMLInputElement | null>;
   zipDragOver: boolean;
   markSkipNextAutosave: () => void;
+  triggerAutosaveNow: () => Promise<void>;
   handleExportSession: () => Promise<void>;
   handleSaveSession: () => Promise<void>;
   handleLoadSession: () => Promise<void>;
@@ -80,6 +82,7 @@ const useSessionManager = ({
   const [sessionBusy, setSessionBusy] = useState(false);
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
   const [sessionName, setSessionName] = useState("");
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [welcomePanelDismissed, setWelcomePanelDismissed] = useState(false);
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -92,6 +95,7 @@ const useSessionManager = ({
   const zipDragDepthRef = useRef(0);
   const skipNextAutosaveRef = useRef(0);
   const autosaveReadyRef = useRef(false);
+  const saveAutoSessionNowRef = useRef<(() => Promise<void>) | null>(null);
   const wasAllLoadedDecksPausedRef = useRef(false);
   const applySessionDataRef = useRef<
     ((session: SessionState, blobs: Map<string, Blob>) => Promise<void>) | null
@@ -313,6 +317,7 @@ const useSessionManager = ({
       clipNameRef.current = Math.max(1, maxClipId + 1);
       setMasterGainValue(sessionFile.masterGain ?? 0.9);
       setSessionName(sessionFile.name);
+      setLastSavedAt(sessionFile.savedAt ?? null);
       setWelcomePanelDismissed(
         sessionFile.welcomePanelDismissed ?? !isSessionBrandNew({
           decks: sessionDecks,
@@ -344,6 +349,7 @@ const useSessionManager = ({
         clips: clipSessions,
       };
       await saveSessionState(session, blobs);
+      setLastSavedAt(session.savedAt);
       await refreshSessions();
       setSelectedSessionId(id);
       setSessionName(nextName);
@@ -378,6 +384,7 @@ const useSessionManager = ({
       clips: clipSessions,
     };
     await saveSessionState(session, blobs);
+    setLastSavedAt(session.savedAt);
   }, [
     encodeClipsForSession,
     encodeDecksForSession,
@@ -385,6 +392,7 @@ const useSessionManager = ({
     sessionName,
     welcomePanelDismissed,
   ]);
+  saveAutoSessionNowRef.current = saveAutoSessionNow;
 
   const allLoadedDecksPaused =
     decks.some((deck) => deck.buffer) &&
@@ -511,6 +519,7 @@ const useSessionManager = ({
       }
       if (!loaded) {
         applyDeckFxPanelStatePatch(fxPanelPatch);
+        setLastSavedAt(null);
         autosaveReadyRef.current = true;
         setAutosaveReady(true);
         return;
@@ -522,6 +531,7 @@ const useSessionManager = ({
         return;
       }
       await applySessionDataRef.current?.(loaded.session, loaded.blobs);
+      setLastSavedAt(loaded.session.savedAt);
       applyDeckFxPanelStatePatch(fxPanelPatch);
       autosaveReadyRef.current = true;
       setAutosaveReady(true);
@@ -554,6 +564,7 @@ const useSessionManager = ({
 
       const { session, blobs } = loaded;
       await applySessionData(session, blobs);
+      setLastSavedAt(session.savedAt);
       setSessionStatus(`Loaded "${session.name}".`);
     } catch (error) {
       console.error("Failed to load session", error);
@@ -575,6 +586,7 @@ const useSessionManager = ({
     clipNameRef.current = 1;
     setMasterGainValue(0.9);
     setSessionName("");
+    setLastSavedAt(null);
     setSelectedSessionId(null);
     setSessionStatus(null);
   }, [resetDecks, clipsRef, setClips, clipIdRef, clipNameRef, setMasterGainValue]);
@@ -700,12 +712,25 @@ const useSessionManager = ({
     skipNextAutosaveRef.current += 1;
   }, []);
 
+  const triggerAutosaveNow = useCallback(async () => {
+    if (!autosaveReadyRef.current) return;
+    if (autosaveTimeoutRef.current) {
+      window.clearTimeout(autosaveTimeoutRef.current);
+      autosaveTimeoutRef.current = null;
+    }
+    await new Promise<void>((resolve) => {
+      window.setTimeout(() => resolve(), 0);
+    });
+    await saveAutoSessionNowRef.current?.();
+  }, []);
+
   return {
     sessionBusy,
     sessionStatus,
     setSessionStatus,
     sessionName,
     setSessionName,
+    lastSavedAt,
     welcomePanelDismissed,
     setWelcomePanelDismissed,
     sessions,
@@ -714,6 +739,7 @@ const useSessionManager = ({
     importInputRef,
     zipDragOver,
     markSkipNextAutosave,
+    triggerAutosaveNow,
     handleExportSession,
     handleSaveSession,
     handleLoadSession,
