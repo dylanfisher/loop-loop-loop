@@ -82,6 +82,7 @@ const useRearrangerRuntime = ({
   setDeckRearrangerPanTransient,
   setDeckRearrangerPingPongLive,
 }: UseRearrangerRuntimeArgs) => {
+  const decksRef = useRef<DeckState[]>(decks);
   const rearrangeLoopTrackerRef = useRef<Map<number, { lastPosition: number; lastTriggerMs: number }>>(
     new Map()
   );
@@ -91,12 +92,19 @@ const useRearrangerRuntime = ({
   const pendingAutoRearrangeRef = useRef<Map<number, PendingAutoRearrange>>(new Map());
 
   useEffect(() => {
+    decksRef.current = decks;
+  }, [decks]);
+
+  useEffect(() => {
     if (typeof document === "undefined") {
       return undefined;
     }
+    let disposed = false;
     let raf = 0;
     let hiddenTick = 0;
     const tick = () => {
+      if (disposed) return;
+      const decks = decksRef.current;
       const now = performance.now();
       const tracker = rearrangeLoopTrackerRef.current;
       const sliceDelayHoldState = sliceDelayHoldStateRef.current;
@@ -521,10 +529,12 @@ const useRearrangerRuntime = ({
         });
       });
 
+      if (disposed) return;
       scheduleNextTick();
     };
 
     const scheduleNextTick = () => {
+      if (disposed) return;
       if (hiddenTick !== 0) {
         window.clearTimeout(hiddenTick);
         hiddenTick = 0;
@@ -544,6 +554,7 @@ const useRearrangerRuntime = ({
     };
 
     const refreshSchedule = () => {
+      if (disposed) return;
       scheduleNextTick();
     };
 
@@ -553,6 +564,7 @@ const useRearrangerRuntime = ({
     scheduleNextTick();
 
     return () => {
+      disposed = true;
       window.removeEventListener("blur", refreshSchedule);
       window.removeEventListener("focus", refreshSchedule);
       document.removeEventListener("visibilitychange", refreshSchedule);
@@ -564,7 +576,6 @@ const useRearrangerRuntime = ({
       }
     };
   }, [
-    decks,
     getAudioCurrentTime,
     getDeckPlaybackSnapshot,
     handleRearrangeLoop,
