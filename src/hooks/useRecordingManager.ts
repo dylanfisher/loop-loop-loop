@@ -8,6 +8,34 @@ type UseRecordingManagerArgs = {
   sessionName: string;
 };
 
+const RECORDING_MIME_PREFERENCES = [
+  "audio/webm;codecs=opus",
+  "audio/ogg;codecs=opus",
+  "audio/mp4;codecs=mp4a.40.2",
+  "audio/webm",
+  "audio/ogg",
+  "audio/mp4",
+];
+
+const createBestRecorder = (stream: MediaStream) => {
+  const highQualityOptions: MediaRecorderOptions = {
+    audioBitsPerSecond: 512000,
+  };
+  for (const mimeType of RECORDING_MIME_PREFERENCES) {
+    if (!MediaRecorder.isTypeSupported(mimeType)) continue;
+    try {
+      return new MediaRecorder(stream, { ...highQualityOptions, mimeType });
+    } catch {
+      continue;
+    }
+  }
+  try {
+    return new MediaRecorder(stream, highQualityOptions);
+  } catch {
+    return new MediaRecorder(stream);
+  }
+};
+
 const useRecordingManager = ({
   decodeFile,
   getMasterStream,
@@ -30,7 +58,14 @@ const useRecordingManager = ({
     }
     const stream = getMasterStream();
     if (!stream) return;
-    const recorder = new MediaRecorder(stream);
+    const recorder = createBestRecorder(stream);
+    console.log("[recording] MediaRecorder config", {
+      mimeType: recorder.mimeType || "default",
+      audioBitsPerSecond:
+        Number.isFinite(recorder.audioBitsPerSecond) && recorder.audioBitsPerSecond > 0
+          ? recorder.audioBitsPerSecond
+          : "default",
+    });
     recorderRef.current = recorder;
     recordChunksRef.current = [];
     recorder.ondataavailable = (event) => {

@@ -86,6 +86,11 @@ This allows one clip audio source to be reused in multiple deck contexts.
 - **Input** source: records microphone/interface input
 - Input recordings are named as `Clip N (input)`
 
+### Audio Quality
+- **Export Mix** renders to stereo `WAV` (`16-bit PCM`) at the first active deck buffer sample rate (fallback `44.1 kHz`).
+- **Global Record** captures through browser `MediaRecorder` first (typically compressed/lossy), then converts to stereo `WAV` (`16-bit PCM`) for download.
+- Practical implication: **Export Mix** is the highest-quality output path.
+
 ### Export / Global Recording Filenames
 Saved audio files use:
 - `loop-loop-loop-export_<Project-Name>-M-D-YYYY-H-M-S-AMPM.wav`

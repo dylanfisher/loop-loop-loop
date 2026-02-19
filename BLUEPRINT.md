@@ -99,6 +99,11 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
   - Global recording path (master stream capture)
 - New effects should be added to all four paths in the same change set (or explicitly documented as intentionally excluded).
 
+### Audio Quality (Current)
+- Export Mix outputs stereo `WAV` (`16-bit PCM`) using the first active deck buffer sample rate (fallback `44.1 kHz`).
+- Global recording captures from the master stream via browser `MediaRecorder` (browser codec; typically compressed/lossy) and then converts that capture to stereo `WAV` (`16-bit PCM`) for download.
+- Result: Export Mix is the highest-fidelity output path.
+
 ### File Modularity (Constraint)
 - Keep orchestration files focused on composition and wiring, not deep feature implementations.
 - Prefer splitting by cohesive domain boundaries (for example: recording, session I/O, loop editing, keyboard control) before files become monolithic.
