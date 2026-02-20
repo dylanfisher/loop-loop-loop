@@ -709,6 +709,25 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
     this.zeroFrames = 0;
   }
 
+  private ensureInputRingCapacity(extraSamples = 0) {
+    const unreadSamples = Math.max(0, this.writePos - this.readPos);
+    const required = unreadSamples + Math.max(0, extraSamples) + 1;
+    const current = this.channels[0]?.buffer.length ?? 0;
+    if (required < current) return;
+    let nextSize = Math.max(current, this.winSize * 8);
+    while (nextSize <= required + this.winSize * 2) {
+      nextSize <<= 1;
+    }
+    for (let ch = 0; ch < this.channels.length; ch += 1) {
+      const previous = this.channels[ch].buffer;
+      const next = new Float32Array(nextSize);
+      for (let pos = this.readPos; pos < this.writePos; pos += 1) {
+        next[pos % nextSize] = previous[pos % previous.length];
+      }
+      this.channels[ch].buffer = next;
+    }
+  }
+
   private overlapAdd(
     fft: Float32Array,
     outputAccum: Float32Array,
@@ -858,7 +877,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       this.runFft(fft, 1);
 
       const out = this.outBlock[ch];
-      this.overlapAdd(fft, outputAccum, out, 1);
+      this.overlapAdd(fft, outputAccum, out, this.hopScale);
     }
 
     this.advanceReadPos();
@@ -999,6 +1018,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       const canWriteInput =
         this.maxInputSamples === null || this.inputSamplesWritten < this.maxInputSamples;
       if (canWriteInput) {
+        this.ensureInputRingCapacity(1);
         for (let ch = 0; ch < output.length; ch += 1) {
           const inChannel = input?.[ch];
           const sample = inChannel ? inChannel[i] : 0;

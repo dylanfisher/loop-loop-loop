@@ -127,8 +127,11 @@ const useDeckLoopTools = ({
         const inputSamples = Math.max(1, Math.ceil(sliceDuration * sampleRate * Math.max(1, scatter)));
         const effectiveRatio = Math.min(ratio * scatter, 128);
         const outputSamples = Math.max(1, Math.ceil(sliceDuration * effectiveRatio * sampleRate));
-        const maxSilenceTrimSamples = Math.ceil(0.05 * sampleRate);
-        const length = Math.max(1, outputSamples + maxSilenceTrimSamples + hopOut);
+        const startupTrimBudgetSamples = Math.max(
+          Math.ceil(0.05 * sampleRate),
+          effectiveWindowSize + hopOut
+        );
+        const length = Math.max(1, outputSamples + startupTrimBudgetSamples + hopOut);
         const offline = new OfflineAudioContext(deck.buffer.numberOfChannels, length, sampleRate);
         try {
           await ensurePaulStretchWorklet(offline);
@@ -339,8 +342,12 @@ const useDeckLoopTools = ({
 
         const rendered = await offline.startRendering();
         findTrailingNonSilenceSample(rendered, 1e-4);
-        const silenceTrimSamples = findLeadingSilenceSamples(rendered, maxSilenceTrimSamples, 1e-4);
-        const totalTrim = Math.min(silenceTrimSamples, maxSilenceTrimSamples + hopOut);
+        const silenceTrimSamples = findLeadingSilenceSamples(
+          rendered,
+          startupTrimBudgetSamples,
+          1e-4
+        );
+        const totalTrim = Math.min(silenceTrimSamples, startupTrimBudgetSamples + hopOut);
         const trimmed = trimBufferLeadingSamples(offline, rendered, totalTrim, outputSamples);
         const sourceStartSample = Math.floor(loopStart * sampleRate);
         const sourceLengthSamples = Math.max(1, Math.floor(sliceDuration * sampleRate));
