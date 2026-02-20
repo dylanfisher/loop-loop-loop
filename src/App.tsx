@@ -68,6 +68,7 @@ const App = () => {
   const [scrollToDeckId, setScrollToDeckId] = useState<number | null>(null);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [deckLayoutMode, setDeckLayoutMode] = useState<"single" | "two">("two");
+  const [clipLoadHoverDeckId, setClipLoadHoverDeckId] = useState<number | null>(null);
   const [showSessionPanel, setShowSessionPanel] = useState(false);
   const [showWelcomePanelOverride, setShowWelcomePanelOverride] = useState(false);
   const statusTimeoutRef = useRef<number | null>(null);
@@ -789,6 +790,7 @@ const App = () => {
         <ClipRecorder
           decks={decks}
           zipDragActive={zipDragOver}
+          onLoadDeckHoverChange={setClipLoadHoverDeckId}
           clips={clips}
           onLoadClip={async (deckId, clip) => {
             await handleLoadClipToDeck(deckId, clip);
@@ -802,7 +804,7 @@ const App = () => {
           onUpdateClip={updateClip}
           onRemoveClip={removeClip}
         />
-        <DeckStack {...deckStackProps} />
+        <DeckStack {...deckStackProps} hoveredDeckId={clipLoadHoverDeckId} />
       </main>
       <KeyboardShortcutsDialog
         open={showKeyboardShortcuts}

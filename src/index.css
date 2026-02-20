@@ -783,10 +783,18 @@ body[data-theme="dark"] .welcome-panel__card {
 }
 
 .deck--active {
-  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+  border-color: color-mix(in oklab, var(--accent) 72%, var(--line));
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--accent) 50%, transparent),
+    0 0 0 4px color-mix(in oklab, var(--accent) 14%, transparent),
     0 14px 30px var(--soft-shadow);
+}
+
+.deck--clip-load-hovered {
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--line));
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--accent) 24%, transparent),
+    0 16px 34px var(--soft-shadow);
 }
 
 .deck--drop-target {

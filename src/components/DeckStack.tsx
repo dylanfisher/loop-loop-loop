@@ -16,6 +16,7 @@ export type DeckStackProps = {
   layoutMode: "single" | "two";
   zipDragActive?: boolean;
   activeDeckId: number | null;
+  hoveredDeckId?: number | null;
   scrollToDeckId?: number | null;
   onScrollComplete?: (id: number) => void;
   onDeckActivate: (id: number) => void;
@@ -166,6 +167,7 @@ const DeckStack = ({
   layoutMode,
   zipDragActive = false,
   activeDeckId,
+  hoveredDeckId = null,
   scrollToDeckId,
   onScrollComplete,
   onDeckActivate,
@@ -416,6 +418,7 @@ const DeckStack = ({
               deck={deck}
               label={`Deck ${index + 1}`}
               isActive={activeDeckId === deck.id}
+              isClipLoadHovered={hoveredDeckId === deck.id}
               zipDragActive={zipDragActive}
               onActivate={onDeckActivate}
               onRemove={onRemoveDeck}

@@ -31,6 +31,7 @@ export type DeckCardProps = {
   deck: DeckState;
   label: string;
   isActive: boolean;
+  isClipLoadHovered?: boolean;
   zipDragActive?: boolean;
   onActivate: (id: number) => void;
   onRemove: (id: number) => void;
@@ -202,6 +203,7 @@ const DeckCard = (props: DeckCardProps) => {
     deck,
     label,
     isActive,
+    isClipLoadHovered = false,
     zipDragActive = false,
     onActivate,
     onRemove,
@@ -675,7 +677,7 @@ const DeckCard = (props: DeckCardProps) => {
 
   return (
     <div
-      className={`deck ${deck.deckWidthOverride ? `deck--width-${deck.deckWidthOverride}` : ""} ${isActive ? "deck--active" : ""} ${isFileDragOver && !zipDragActive ? "deck--drop-target" : ""}`.trim()}
+      className={`deck ${deck.deckWidthOverride ? `deck--width-${deck.deckWidthOverride}` : ""} ${isActive ? "deck--active" : ""} ${isClipLoadHovered ? "deck--clip-load-hovered" : ""} ${isFileDragOver && !zipDragActive ? "deck--drop-target" : ""}`.trim()}
       onPointerDownCapture={() => onActivate(deck.id)}
       onFocusCapture={() => onActivate(deck.id)}
       onDragEnter={(event) => {

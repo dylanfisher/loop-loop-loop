@@ -8,6 +8,7 @@ type ClipRecorderProps = {
   decks: DeckState[];
   zipDragActive?: boolean;
   onLoadClip: (deckId: number, clip: ClipItem) => void | Promise<void>;
+  onLoadDeckHoverChange?: (deckId: number | null) => void;
   clips: ClipItem[];
   onAddClip: (
     clip: Omit<ClipItem, "id" | "url" | "name"> & { name?: string }
@@ -22,6 +23,7 @@ const ClipRecorder = ({
   decks,
   zipDragActive = false,
   onLoadClip,
+  onLoadDeckHoverChange,
   clips,
   onAddClip,
   onUpdateClip,
@@ -65,6 +67,10 @@ const ClipRecorder = ({
     window.addEventListener("themechange", handleThemeChange);
     return () => window.removeEventListener("themechange", handleThemeChange);
   }, []);
+
+  useEffect(() => {
+    return () => onLoadDeckHoverChange?.(null);
+  }, [onLoadDeckHoverChange]);
 
   useEffect(() => {
     clips.forEach((clip) => {
@@ -376,6 +382,7 @@ const ClipRecorder = ({
   return (
     <section
       className={`panel clip-rack ${isDragOver && !zipDragActive ? "clip-rack--drop-target" : ""}`.trim()}
+      onMouseLeave={() => onLoadDeckHoverChange?.(null)}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -504,6 +511,10 @@ const ClipRecorder = ({
                       key={deck.id}
                       type="button"
                       onClick={() => void onLoadClip(deck.id, clip)}
+                      onMouseEnter={() => onLoadDeckHoverChange?.(deck.id)}
+                      onMouseLeave={() => onLoadDeckHoverChange?.(null)}
+                      onFocus={() => onLoadDeckHoverChange?.(deck.id)}
+                      onBlur={() => onLoadDeckHoverChange?.(null)}
                       title={`Load clip into deck ${index + 1}`}
                     >
                       {index + 1}
