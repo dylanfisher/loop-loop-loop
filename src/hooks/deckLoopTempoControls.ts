@@ -59,6 +59,7 @@ type Args = {
     vocoderReleaseMs: number,
     vocoderNoiseMix: number,
     vocoderGateThreshold: number,
+    includeInRecordExport: boolean,
     balance: number,
     pitchShift: number
   ) => Promise<void>;
@@ -159,6 +160,7 @@ export const createDeckLoopTempoControls = ({
           deck.vocoderReleaseMs,
           deck.vocoderNoiseMix,
           deck.vocoderGateThreshold,
+          deck.includeInRecordExport,
           deck.balance,
           deck.pitchShift
         );
@@ -285,6 +287,7 @@ export const createDeckLoopTempoControls = ({
             deck.vocoderReleaseMs,
             deck.vocoderNoiseMix,
             deck.vocoderGateThreshold,
+            deck.includeInRecordExport,
             deck.balance,
             deck.pitchShift
           );

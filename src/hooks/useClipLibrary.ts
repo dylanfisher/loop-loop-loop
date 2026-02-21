@@ -389,6 +389,17 @@ const useClipLibrary = ({
     async (deckId: number) => {
       const deck = decks.find((item) => item.id === deckId);
       if (!deck) return;
+      const duration = deck.duration ?? deck.buffer?.duration ?? 0;
+      if (duration > 0) {
+        const epsilon = 0.001;
+        const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+        const loopEnd =
+          deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+            ? Math.min(deck.loopEndSeconds, duration)
+            : duration;
+        const hasFullLoop = loopStart <= epsilon && Math.abs(loopEnd - duration) <= epsilon;
+        if (hasFullLoop) return;
+      }
       const clip = await renderLoopClip(deckId, true);
       if (!clip) return;
       const wasPlaying = deck.status === "playing";

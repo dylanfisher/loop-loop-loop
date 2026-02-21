@@ -19,7 +19,7 @@ const RECORDING_MIME_PREFERENCES = [
 
 const createBestRecorder = (stream: MediaStream) => {
   const highQualityOptions: MediaRecorderOptions = {
-    audioBitsPerSecond: 512000,
+    audioBitsPerSecond: 192000,
   };
   for (const mimeType of RECORDING_MIME_PREFERENCES) {
     if (!MediaRecorder.isTypeSupported(mimeType)) continue;
