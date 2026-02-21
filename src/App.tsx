@@ -77,7 +77,7 @@ const App = () => {
     saveStretchCalibrationState(stretchCalibration);
   }, [stretchCalibration]);
   const {
-    getMasterStream,
+    getRecordStream,
     decodeFile,
     resumeContext,
     suspendContext,
@@ -254,7 +254,7 @@ const App = () => {
   });
   const { recording, savingRecording, handleRecordToggle } = useRecordingManager({
     decodeFile,
-    getMasterStream,
+    getRecordStream,
     sessionName,
   });
   const {

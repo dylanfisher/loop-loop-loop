@@ -4,7 +4,7 @@ import { buildTimestampedAudioFilename } from "../utils/appHelpers";
 
 type UseRecordingManagerArgs = {
   decodeFile: (file: File) => Promise<AudioBuffer>;
-  getMasterStream: () => MediaStream | null;
+  getRecordStream: () => MediaStream | null;
   sessionName: string;
 };
 
@@ -38,7 +38,7 @@ const createBestRecorder = (stream: MediaStream) => {
 
 const useRecordingManager = ({
   decodeFile,
-  getMasterStream,
+  getRecordStream,
   sessionName,
 }: UseRecordingManagerArgs) => {
   const [recording, setRecording] = useState(false);
@@ -56,7 +56,7 @@ const useRecordingManager = ({
       }
       return;
     }
-    const stream = getMasterStream();
+    const stream = getRecordStream();
     if (!stream) return;
     const recorder = createBestRecorder(stream);
     console.log("[recording] MediaRecorder config", {
@@ -121,7 +121,7 @@ const useRecordingManager = ({
     recorder.start(250);
     setSavingRecording(false);
     setRecording(true);
-  }, [decodeFile, getMasterStream, recording, savingRecording, sessionName]);
+  }, [decodeFile, getRecordStream, recording, savingRecording, sessionName]);
 
   return {
     recording,

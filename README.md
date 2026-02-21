@@ -90,6 +90,7 @@ This allows one clip audio source to be reused in multiple deck contexts.
 - **Export Mix** renders to stereo `WAV` (`16-bit PCM`) at the first active deck buffer sample rate (fallback `44.1 kHz`).
 - **Global Record** captures through browser `MediaRecorder` first (typically compressed/lossy), then converts to stereo `WAV` (`16-bit PCM`) for download.
 - Practical implication: **Export Mix** is the highest-quality output path.
+- The per-deck `REC` toggle controls inclusion in both **Export Mix** and **Global Record** capture paths (deck audio still monitors live either way).
 
 ### Export / Global Recording Filenames
 Saved audio files use:

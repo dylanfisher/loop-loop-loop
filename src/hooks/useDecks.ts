@@ -1172,6 +1172,7 @@ const useDecks = () => {
           deck.vocoderReleaseMs,
           deck.vocoderNoiseMix,
           deck.vocoderGateThreshold,
+          deck.includeInRecordExport,
           deck.balance,
           deck.pitchShift
         ).catch((error) => {
@@ -2104,6 +2105,7 @@ const useDecks = () => {
           nextVocoderReleaseMs,
           nextVocoderNoiseMix,
           nextVocoderGateThreshold,
+          currentDeck?.includeInRecordExport ?? true,
           nextBalance,
           nextPitchShift
         );
@@ -2181,6 +2183,7 @@ const useDecks = () => {
       deck.vocoderReleaseMs,
       deck.vocoderNoiseMix,
       deck.vocoderGateThreshold,
+      deck.includeInRecordExport,
       deck.balance,
       deck.pitchShift
     );
@@ -2349,6 +2352,7 @@ const useDecks = () => {
         deck.vocoderReleaseMs,
         deck.vocoderNoiseMix,
         deck.vocoderGateThreshold,
+        deck.includeInRecordExport,
         deck.balance,
         deck.pitchShift
       );
@@ -2784,6 +2788,7 @@ const useDecks = () => {
           nextVocoderReleaseMs,
           nextVocoderNoiseMix,
           nextVocoderGateThreshold,
+          nextDeck.includeInRecordExport,
           nextBalance,
           nextPitchShift
         );

@@ -61,7 +61,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.
 - Header project metadata includes a live `Last saved` timestamp that updates on manual saves and autosaves.
 - Deck cards include a per-deck width override control (force full-width or half-width) next to the deck label.
-- Deck cards include a per-deck export inclusion toggle next to the deck label (enabled by default). When disabled, that deck is excluded from Export Mix offline renders while remaining available for live monitoring/manipulation and master recording capture.
+- Deck cards include a per-deck export inclusion toggle next to the deck label (enabled by default). When disabled, that deck is excluded from Export Mix offline renders and global recording capture, while remaining available for live monitoring/manipulation.
 - Header `Restore + Export` controls open as a full-width inner panel in a dedicated second header row (collapsible toggle in primary row).
 - Rearranger includes an `Auto Slice` checkbox plus sensitivity control; when enabled, changing the `Slices` knob re-runs transient boundary detection (adaptive threshold + minimum spacing) and writes boundaries as manual slice regions.
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.

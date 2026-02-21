@@ -92,6 +92,7 @@ type AudioEngine = {
     vocoderReleaseMs?: number,
     vocoderNoiseMix?: number,
     vocoderGateThreshold?: number,
+    includeInRecordExport?: boolean,
     balance?: number,
     pitchShift?: number
   ) => Promise<void>;
@@ -146,6 +147,7 @@ type AudioEngine = {
   setDeckPlaybackRate: (deckId: number, value: number) => void;
   setDeckPlaybackOffset: (deckId: number, offsetSeconds: number) => void;
   getMasterStream: () => MediaStream | null;
+  getRecordStream: () => MediaStream | null;
   getDeckPlaybackSnapshot: (deckId: number) => import("./deck").DeckPlaybackSnapshot | null;
   getAudioContextState: () => AudioContextState | "uninitialized";
   getCurrentTime: () => number | null;
@@ -158,6 +160,7 @@ let masterGain: GainNode | null = null;
 let recordExportMix: GainNode | null = null;
 let recordExportMasterGain: GainNode | null = null;
 let masterStreamDest: MediaStreamAudioDestinationNode | null = null;
+let recordStreamDest: MediaStreamAudioDestinationNode | null = null;
 let masterGainValue = 0.9;
 
 const ensureContextSync = () => {
@@ -171,7 +174,9 @@ const ensureContextSync = () => {
     recordExportMasterGain.gain.value = masterGainValue;
     recordExportMix.connect(recordExportMasterGain);
     masterStreamDest = audioContext.createMediaStreamDestination();
+    recordStreamDest = audioContext.createMediaStreamDestination();
     masterGain.connect(masterStreamDest);
+    recordExportMasterGain.connect(recordStreamDest);
   }
   return audioContext;
 };
@@ -187,7 +192,9 @@ const ensureContext = async () => {
     recordExportMasterGain.gain.value = masterGainValue;
     recordExportMix.connect(recordExportMasterGain);
     masterStreamDest = audioContext.createMediaStreamDestination();
+    recordStreamDest = audioContext.createMediaStreamDestination();
     masterGain.connect(masterStreamDest);
+    recordExportMasterGain.connect(recordStreamDest);
   }
 
   if (audioContext.state === "suspended") {
@@ -261,6 +268,7 @@ const playBuffer: AudioEngine["playBuffer"] = async (
   vocoderReleaseMs = 5,
   vocoderNoiseMix = 0,
   vocoderGateThreshold = 0.5,
+  includeInRecordExport = true,
   balance = 0,
   pitchShift = 0
 ) => {
@@ -319,6 +327,7 @@ const playBuffer: AudioEngine["playBuffer"] = async (
     vocoderReleaseMs,
     vocoderNoiseMix,
     vocoderGateThreshold,
+    includeInRecordExport,
     balance,
     pitchShift,
     onEnded
@@ -544,6 +553,15 @@ const getMasterStream = () => {
   return masterStreamDest?.stream ?? null;
 };
 
+const getRecordStream = () => {
+  const context = ensureContextSync();
+  if (!recordStreamDest) {
+    recordStreamDest = context.createMediaStreamDestination();
+    recordExportMasterGain?.connect(recordStreamDest);
+  }
+  return recordStreamDest?.stream ?? null;
+};
+
 const getAudioContextState = (): AudioContextState | "uninitialized" => {
   if (!audioContext) return "uninitialized";
   return audioContext.state;
@@ -602,6 +620,7 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckPlaybackRate: updateDeckPlaybackRate,
     setDeckPlaybackOffset: updateDeckPlaybackOffset,
     getMasterStream,
+    getRecordStream,
     getDeckPlaybackSnapshot: getDeckSnapshot,
     getAudioContextState,
     getCurrentTime,

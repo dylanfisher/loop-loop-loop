@@ -926,6 +926,7 @@ export const playDeckBuffer = (
   vocoderReleaseMs: number,
   vocoderNoiseMix: number,
   vocoderGateThreshold: number,
+  includeInRecordExport: boolean,
   balance = defaultBalance,
   pitchShift = defaultPitchShift,
   onEnded?: DeckEndedCallback
@@ -965,7 +966,7 @@ export const playDeckBuffer = (
     vocoderReleaseMs,
     vocoderNoiseMix,
     vocoderGateThreshold,
-    true
+    includeInRecordExport
   );
 
   const source = context.createBufferSource();
