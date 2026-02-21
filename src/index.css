@@ -870,9 +870,13 @@ body[data-theme="dark"] .welcome-panel__card {
 }
 
 .deck__record-export-toggle.is-active {
-  border-color: color-mix(in oklab, var(--accent) 52%, var(--line));
-  background: color-mix(in oklab, var(--accent) 16%, transparent);
-  color: color-mix(in oklab, var(--text) 84%, var(--accent));
+  border-color: color-mix(in oklab, #ff3b30 62%, var(--line));
+  background: color-mix(in oklab, #ff3b30 22%, transparent);
+  color: #111111;
+}
+
+body[data-theme="dark"] .deck__record-export-toggle.is-active {
+  color: #ffffff;
 }
 
 .deck__record-export-toggle.is-inactive {
