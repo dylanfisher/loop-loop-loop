@@ -44,9 +44,9 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Primary UI in React (Vite-based SPA) to maximize ecosystem and AI-assisted development.
 - Canvas/WebGL for waveform, spectrum, and experimental visual feedback.
 - Controller support: Web MIDI, Gamepad, and keyboard/pointer.
-- Deck cards support drag-and-drop audio file loading in addition to the file picker.
+- Deck cards support drag-and-drop audio file loading in addition to the file picker, and non-portable imports are normalized to a portable format on ingest (prefers MP3 via lazy `ffmpeg.wasm` transcode, with WAV fallback) for compatibility.
 - Deck cards support drag-to-reorder in the deck stack (drop before/after target card).
-- Clip Recorder supports drag-and-drop audio import, with drop-target highlighting while files are dragged over it.
+- Clip Recorder supports drag-and-drop audio import, with drop-target highlighting while files are dragged over it. Non-portable import formats (for example `m4a`, `flac`, `aiff`) are normalized on ingest (prefers MP3 via lazy `ffmpeg.wasm` transcode, with WAV fallback) for compatibility, including a decode-failure recovery path for browser-unsupported codecs/containers.
 - Clip Recorder supports source-select recording: app master output or user input device (microphone/interface).
 - Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
@@ -134,7 +134,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Stopping a deck (including global Stop) resets lane-automation and simple-automation playheads to `0` so the next playback restart begins from automation start phase.
 - Non-lane Delay/Vocoder/Rearranger knobs support lightweight "simple automation" (Option-drag captures a gesture loop; Option-double-click clears), persisted through sessions/clip FX metadata and read by export/offline paths. Rearranger simple automation currently excludes `Slices`, `Sensitivity`, and `Quiet Thresh`.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
-- Session export/import: zip bundle with `session.json` manifest and audio assets (WAV for decks; clips preserve original format when unchanged).
+- Session export/import: zip bundle with `session.json` manifest and audio assets (WAV for decks; clips preserve original format when unchanged, except imports normalized to a portable compatibility format during ingest).
 - Header `Last saved` readout is sourced from session `savedAt` and refreshed whenever save/autosave writes succeed.
 
 ## Data Flow (High-Level)

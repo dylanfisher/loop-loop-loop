@@ -84,6 +84,7 @@ import {
   type AutomationView,
   withDefaultFxPanelOpen,
 } from "./useDecksShared";
+import { decodeAndNormalizeImportedAudio, shouldNormalizeImportedAudioFile } from "../utils/audioImport";
 
 type SimpleAutomationRuntimeTrack = {
   playbackStartMs: number;
@@ -1661,6 +1662,7 @@ const useDecks = () => {
     }
   ) => {
     if (!file) return;
+    const importNeedsTranscode = shouldNormalizeImportedAudioFile(file);
 
     const requestId = (loadRequestRef.current.get(id) ?? 0) + 1;
     loadRequestRef.current.set(id, requestId);
@@ -1902,7 +1904,7 @@ const useDecks = () => {
       );
     }
     updateDeck(id, {
-      status: "loading",
+      status: importNeedsTranscode ? "transcoding" : "loading",
       fileName: file.name,
       gain: nextGain,
       startedAtMs: undefined,
@@ -1984,7 +1986,8 @@ const useDecks = () => {
     setDeckVocoderNoiseMix(id, nextVocoderNoiseMix);
     setDeckVocoderGateThreshold(id, nextVocoderGateThreshold);
     try {
-      const buffer = await decodeFile(file);
+      const preparedImport = await decodeAndNormalizeImportedAudio(file, decodeFile);
+      const buffer = preparedImport.buffer;
       if (loadRequestRef.current.get(id) !== requestId) return;
       const duration = Number.isFinite(buffer.duration)
         ? buffer.duration
@@ -1994,6 +1997,7 @@ const useDecks = () => {
         ? Math.min(Math.max(loopStart + 0.01, clipSettings?.loopEndSeconds ?? duration), duration)
         : clipSettings?.loopEndSeconds ?? duration;
       const baseDeck = {
+        fileName: preparedImport.file.name,
         buffer,
         duration,
         gain: nextGain,
@@ -2118,7 +2122,11 @@ const useDecks = () => {
     } catch (error) {
       if (loadRequestRef.current.get(id) !== requestId) return;
       updateDeck(id, { status: "error" }, false);
-      console.error("Failed to decode audio", error);
+      console.error("Failed to import/decode audio", {
+        deckId: id,
+        fileName: file.name,
+        error,
+      });
     }
   };
 

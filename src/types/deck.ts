@@ -1,4 +1,4 @@
-export type DeckStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
+export type DeckStatus = "idle" | "loading" | "transcoding" | "ready" | "playing" | "paused" | "error";
 export type EqMode = "eq3" | "parametric";
 export type ParametricEqBandType = "peaking" | "lowshelf" | "highshelf";
 export type SimpleAutomationParam =

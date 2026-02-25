@@ -3,6 +3,10 @@ import type { DragEvent as ReactDragEvent } from "react";
 import type { DeckState } from "../types/deck";
 import type { ClipItem } from "../types/clip";
 import useAudioEngine from "../hooks/useAudioEngine";
+import {
+  decodeAndNormalizeImportedAudio,
+  shouldNormalizeImportedAudioFile,
+} from "../utils/audioImport";
 
 type ClipRecorderProps = {
   decks: DeckState[];
@@ -18,6 +22,10 @@ type ClipRecorderProps = {
 };
 
 type RecordingSource = "master" | "input";
+type PendingClipImport = {
+  id: number;
+  name: string;
+};
 
 const ClipRecorder = ({
   decks,
@@ -47,6 +55,8 @@ const ClipRecorder = ({
   const dragDepthRef = useRef(0);
   const [previewingClipId, setPreviewingClipId] = useState<number | null>(null);
   const [themeToken, setThemeToken] = useState(0);
+  const [pendingClipImports, setPendingClipImports] = useState<PendingClipImport[]>([]);
+  const pendingClipImportIdRef = useRef(1);
 
   useEffect(() => {
     const previewAudios = previewAudioByClipRef.current;
@@ -327,11 +337,24 @@ const ClipRecorder = ({
     }
     const failed: string[] = [];
     for (const file of files) {
+      const needsTranscode = shouldNormalizeImportedAudioFile(file);
+      const pendingId = needsTranscode ? pendingClipImportIdRef.current++ : null;
+      if (pendingId !== null) {
+        setPendingClipImports((prev) => [
+          ...prev,
+          {
+            id: pendingId,
+            name: file.name.replace(/\.[^.]+$/, ""),
+          },
+        ]);
+      }
       try {
-        const buffer = await decodeFile(file);
+        const preparedImport = await decodeAndNormalizeImportedAudio(file, decodeFile);
+        const buffer = preparedImport.buffer;
+        const importedFile = preparedImport.file;
         onAddClip({
-          name: file.name.replace(/\.[^.]+$/, ""),
-          blob: file,
+          name: importedFile.name.replace(/\.[^.]+$/, ""),
+          blob: importedFile,
           buffer,
           durationSec: buffer.duration,
           gain: 0.9,
@@ -341,6 +364,10 @@ const ClipRecorder = ({
         });
       } catch {
         failed.push(file.name);
+      } finally {
+        if (pendingId !== null) {
+          setPendingClipImports((prev) => prev.filter((clip) => clip.id !== pendingId));
+        }
       }
     }
     if (failed.length > 0) {
@@ -437,104 +464,135 @@ const ClipRecorder = ({
       </div>
       {error ? <div className="clip-rack__error">{error}</div> : null}
       <div className="clip-rack__list">
-        {clips.length === 0 ? (
+        {clips.length === 0 && pendingClipImports.length === 0 ? (
           <div className="clip-rack__empty">No clips yet.</div>
         ) : (
-          clips.map((clip) => (
-            <div
-              key={clip.id}
-              className={`clip-rack__clip ${previewingClipId === clip.id ? "is-playing" : ""}`.trim()}
-            >
-              <div className="clip-rack__clip-info">
-                <span className="clip-rack__clip-name">
-                  <span
-                    className={`clip-rack__clip-preview-label ${previewingClipId === clip.id ? "is-active" : ""}`}
-                  >
-                    Preview
+          <>
+            {pendingClipImports.map((clip) => (
+              <div key={`pending-${clip.id}`} className="clip-rack__clip clip-rack__clip--pending">
+                <div className="clip-rack__clip-info">
+                  <span className="clip-rack__clip-name">
+                    <span className="clip-rack__clip-preview-label">Import</span>
+                    <span className="clip-rack__clip-preview-icon" aria-hidden="true">
+                      …
+                    </span>
+                    <span>{clip.name}</span>
                   </span>
-                  <span
-                    className={`clip-rack__clip-preview-icon ${previewingClipId === clip.id ? "is-active" : ""}`}
-                    aria-hidden="true"
-                  >
-                    ▶
+                  <div className="clip-rack__clip-meta">
+                    <span>Transcoding...</span>
+                  </div>
+                </div>
+                <div className="clip-rack__clip-waveform">
+                  <div className="clip-rack__clip-waveform-hit" aria-hidden="true">
+                    <canvas />
+                  </div>
+                </div>
+                <div className="clip-rack__clip-actions">
+                  <div className="clip-rack__clip-loads">
+                    <span className="clip-rack__clip-loads-title">Load Deck</span>
+                  </div>
+                  <button type="button" disabled>
+                    Transcoding
+                  </button>
+                </div>
+              </div>
+            ))}
+            {clips.map((clip) => (
+              <div
+                key={clip.id}
+                className={`clip-rack__clip ${previewingClipId === clip.id ? "is-playing" : ""}`.trim()}
+              >
+                <div className="clip-rack__clip-info">
+                  <span className="clip-rack__clip-name">
+                    <span
+                      className={`clip-rack__clip-preview-label ${previewingClipId === clip.id ? "is-active" : ""}`}
+                    >
+                      Preview
+                    </span>
+                    <span
+                      className={`clip-rack__clip-preview-icon ${previewingClipId === clip.id ? "is-active" : ""}`}
+                      aria-hidden="true"
+                    >
+                      ▶
+                    </span>
+                    <span>{clip.name}</span>
                   </span>
-                  <span>{clip.name}</span>
-                </span>
-                <div className="clip-rack__clip-meta">
-                  {clip.settings ? (
-                    <button
-                      type="button"
-                      className={`clip-rack__clip-badge ${clip.applyFxSettings ? "is-active" : ""}`.trim()}
-                      title={
-                        clip.applyFxSettings
-                          ? "FX settings will be applied when loading this clip"
-                          : "FX settings metadata is saved, but will not be applied on load"
-                      }
-                      onClick={() =>
-                        onUpdateClip(clip.id, {
-                          applyFxSettings: !clip.applyFxSettings,
-                        })
-                      }
-                    >
-                      FX
-                    </button>
-                  ) : null}
-                  <span>{clip.durationSec.toFixed(1)}s</span>
+                  <div className="clip-rack__clip-meta">
+                    {clip.settings ? (
+                      <button
+                        type="button"
+                        className={`clip-rack__clip-badge ${clip.applyFxSettings ? "is-active" : ""}`.trim()}
+                        title={
+                          clip.applyFxSettings
+                            ? "FX settings will be applied when loading this clip"
+                            : "FX settings metadata is saved, but will not be applied on load"
+                        }
+                        onClick={() =>
+                          onUpdateClip(clip.id, {
+                            applyFxSettings: !clip.applyFxSettings,
+                          })
+                        }
+                      >
+                        FX
+                      </button>
+                    ) : null}
+                    <span>{clip.durationSec.toFixed(1)}s</span>
+                  </div>
                 </div>
-              </div>
-              <div className="clip-rack__clip-waveform">
-                <div
-                  className={`clip-rack__clip-waveform-hit ${previewingClipId === clip.id ? "is-active" : ""}`}
-                  role="button"
-                  tabIndex={0}
-                  title={
-                    previewingClipId === clip.id
-                      ? "Pause clip preview"
-                      : "Play clip preview"
-                  }
-                  onClick={() => toggleClipPreview(clip)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      toggleClipPreview(clip);
+                <div className="clip-rack__clip-waveform">
+                  <div
+                    className={`clip-rack__clip-waveform-hit ${previewingClipId === clip.id ? "is-active" : ""}`}
+                    role="button"
+                    tabIndex={0}
+                    title={
+                      previewingClipId === clip.id
+                        ? "Pause clip preview"
+                        : "Play clip preview"
                     }
-                  }}
-                >
-                  <canvas ref={(node) => setCanvasRef(clip.id, node)} />
+                    onClick={() => toggleClipPreview(clip)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        toggleClipPreview(clip);
+                      }
+                    }}
+                  >
+                    <canvas ref={(node) => setCanvasRef(clip.id, node)} />
+                  </div>
+                </div>
+                <div className="clip-rack__clip-actions">
+                  <div className="clip-rack__clip-loads">
+                    <span className="clip-rack__clip-loads-title">Load Deck</span>
+                    {decks.map((deck, index) => (
+                      <button
+                        key={deck.id}
+                        type="button"
+                        onClick={() => void onLoadClip(deck.id, clip)}
+                        onMouseEnter={() => onLoadDeckHoverChange?.(deck.id)}
+                        onMouseLeave={() => onLoadDeckHoverChange?.(null)}
+                        onFocus={() => onLoadDeckHoverChange?.(deck.id)}
+                        onBlur={() => onLoadDeckHoverChange?.(null)}
+                        title={`Load clip into deck ${index + 1}`}
+                      >
+                        {index + 1}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (previewingClipId === clip.id) {
+                        stopPreview();
+                      }
+                      onRemoveClip(clip.id);
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
-              <div className="clip-rack__clip-actions">
-                <div className="clip-rack__clip-loads">
-                  <span className="clip-rack__clip-loads-title">Load Deck</span>
-                  {decks.map((deck, index) => (
-                    <button
-                      key={deck.id}
-                      type="button"
-                      onClick={() => void onLoadClip(deck.id, clip)}
-                      onMouseEnter={() => onLoadDeckHoverChange?.(deck.id)}
-                      onMouseLeave={() => onLoadDeckHoverChange?.(null)}
-                      onFocus={() => onLoadDeckHoverChange?.(deck.id)}
-                      onBlur={() => onLoadDeckHoverChange?.(null)}
-                      title={`Load clip into deck ${index + 1}`}
-                    >
-                      {index + 1}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (previewingClipId === clip.id) {
-                      stopPreview();
-                    }
-                    onRemoveClip(clip.id);
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
+            ))}
+          </>
         )}
       </div>
     </section>
