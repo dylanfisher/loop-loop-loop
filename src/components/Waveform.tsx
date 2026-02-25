@@ -69,8 +69,6 @@ const buildPeaks = (
     Math.max(0, Math.floor(startSeconds * buffer.sampleRate)),
     Math.max(0, left.length - visibleSamples)
   );
-  const leftGain = Math.SQRT1_2;
-  const rightGain = Math.SQRT1_2;
   const step = Math.max(1 / width, visibleSamples / width);
   const peaks: Array<{ min: number; max: number }> = [];
   const sampleRate = buffer.sampleRate;
@@ -96,7 +94,11 @@ const buildPeaks = (
       startSample + visibleSamples
     );
     for (let j = start; j < end; j += 1) {
-      const sample = right ? left[j] * leftGain + right[j] * rightGain : left[j];
+      const sample = right
+        ? Math.abs(left[j]) >= Math.abs(right[j])
+          ? left[j]
+          : right[j]
+        : left[j];
       lowState = (1 - lowAlpha) * sample + lowAlpha * lowState;
       highLowState = (1 - highAlpha) * sample + highAlpha * highLowState;
       const low = lowState;
@@ -136,8 +138,6 @@ const buildBandPeaks = (
   const left = buffer.getChannelData(0);
   const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
   const sampleRate = buffer.sampleRate;
-  const leftGain = Math.SQRT1_2;
-  const rightGain = Math.SQRT1_2;
   const samplesPerPeak = Math.max(1, Math.floor(sampleRate / peaksPerSecond));
   const totalPeaks = Math.max(1, Math.ceil(left.length / samplesPerPeak));
   const lowMin = new Float32Array(totalPeaks);
@@ -164,7 +164,9 @@ const buildBandPeaks = (
     const end = Math.min(index + samplesPerPeak, left.length);
     for (; index < end; index += 1) {
       const sample = right
-        ? left[index] * leftGain + right[index] * rightGain
+        ? Math.abs(left[index]) >= Math.abs(right[index])
+          ? left[index]
+          : right[index]
         : left[index];
       lowState = (1 - lowAlpha) * sample + lowAlpha * lowState;
       highLowState = (1 - highAlpha) * sample + highAlpha * highLowState;

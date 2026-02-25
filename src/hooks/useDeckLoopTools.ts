@@ -67,6 +67,39 @@ type UseDeckLoopToolsResult = {
   handleTrimQuietRearranger: (deckId: number) => void;
 };
 
+const applyStereoEnergyBalance = (buffer: AudioBuffer, amount: number) => {
+  if (buffer.numberOfChannels < 2) return;
+  const blend = Math.min(Math.max(amount, 0), 1);
+  if (blend <= 0.0001) return;
+  const left = buffer.getChannelData(0);
+  const right = buffer.getChannelData(1);
+  if (left.length === 0 || right.length === 0) return;
+
+  let leftEnergy = 0;
+  let rightEnergy = 0;
+  for (let i = 0; i < left.length; i += 1) {
+    leftEnergy += left[i] * left[i];
+    rightEnergy += right[i] * right[i];
+  }
+  if (leftEnergy <= 1e-12 || rightEnergy <= 1e-12) return;
+
+  const leftRms = Math.sqrt(leftEnergy / left.length);
+  const rightRms = Math.sqrt(rightEnergy / right.length);
+  if (!Number.isFinite(leftRms) || !Number.isFinite(rightRms) || leftRms <= 0 || rightRms <= 0) {
+    return;
+  }
+
+  const targetLeft = Math.min(2, Math.max(0.5, Math.sqrt(rightRms / leftRms)));
+  const targetRight = Math.min(2, Math.max(0.5, Math.sqrt(leftRms / rightRms)));
+  const gainLeft = 1 + (targetLeft - 1) * blend;
+  const gainRight = 1 + (targetRight - 1) * blend;
+
+  for (let i = 0; i < left.length; i += 1) {
+    left[i] *= gainLeft;
+    right[i] *= gainRight;
+  }
+};
+
 const useDeckLoopTools = ({
   decks,
   automationState,
@@ -356,6 +389,13 @@ const useDeckLoopTools = ({
         if (sourceRms > 0 && stretchedRms > 0) {
           const gain = Math.min(4, Math.max(0.25, sourceRms / stretchedRms));
           applyBufferGain(trimmed, gain);
+        }
+        if (trimmed.numberOfChannels > 1) {
+          const widthBiasCorrection = Math.min(
+            1,
+            Math.max(0, Math.abs(1 - stereoWidth)) + 0.15
+          );
+          applyStereoEnergyBalance(trimmed, widthBiasCorrection);
         }
         const name = buildDerivedDeckName(deck.fileName, `Stretch ${ratio.toFixed(1)}x`);
         const wasPlaying = deck.status === "playing";

@@ -778,6 +778,10 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
   private processFrameFromInput(allowZeroPad = false, inputDone = false) {
     const half = this.winSize >> 1;
     const inputLimit = this.maxInputSamples;
+    const sharedStereoRandomPhases =
+      this.channels.length >= 2
+        ? Float32Array.from({ length: half + 1 }, () => Math.random() * 2 * Math.PI)
+        : null;
     let frameEnergy = 0;
     const minFrameEnergy = 1e-3;
     for (let ch = 0; ch < this.channels.length; ch += 1) {
@@ -827,7 +831,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       this.runFft(fft, -1);
 
       let usedWasmBins = false;
-      if (this.overlapAddWasm) {
+      if (this.overlapAddWasm && this.channels.length < 2) {
         usedWasmBins = this.overlapAddWasm.analyzeBins(
           fft,
           magnitudes,
@@ -852,7 +856,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
           magnitudes[i] = smoothed;
           const tiltGain = this.tiltCurve[i] ?? 1;
           const magnTilted = smoothed * tiltGain;
-          const randomPhase = Math.random() * 2 * Math.PI;
+          const randomPhase = sharedStereoRandomPhases?.[i] ?? Math.random() * 2 * Math.PI;
           const phaseRand = blendPhase(phase, randomPhase, this.phaseRandomness);
           fft[2 * i] = magnTilted * Math.cos(phaseRand);
           fft[2 * i + 1] = magnTilted * Math.sin(phaseRand);
@@ -885,6 +889,10 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
 
   private processFrameFromMagnitudes() {
     const half = this.winSize >> 1;
+    const sharedStereoRandomPhases =
+      this.channels.length >= 2
+        ? Float32Array.from({ length: half + 1 }, () => Math.random() * 2 * Math.PI)
+        : null;
     for (let ch = 0; ch < this.channels.length; ch += 1) {
       const channel = this.channels[ch];
       const fft = this.fftWork[ch];
@@ -912,7 +920,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
         fft.fill(0);
       } else {
         let usedWasmBins = false;
-        if (this.overlapAddWasm) {
+        if (this.overlapAddWasm && this.channels.length < 2) {
           usedWasmBins = this.overlapAddWasm.synthesizeBins(
             fft,
             magnitudes,
@@ -928,7 +936,7 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
             const tiltGain = this.tiltCurve[i] ?? 1;
             const magnTilted = magn * tiltGain;
             const phase = phases[i] ?? 0;
-            const randomPhase = Math.random() * 2 * Math.PI;
+            const randomPhase = sharedStereoRandomPhases?.[i] ?? Math.random() * 2 * Math.PI;
             const phaseRand = blendPhase(phase, randomPhase, this.phaseRandomness);
             fft[2 * i] = magnTilted * Math.cos(phaseRand);
             fft[2 * i + 1] = magnTilted * Math.sin(phaseRand);
@@ -1014,6 +1022,9 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
       });
     }
 
+    const applyStereoWidth = output.length >= 2;
+    const stereoWidth = this.stereoWidth;
+
     for (let i = 0; i < output[0].length; i += 1) {
       const canWriteInput =
         this.maxInputSamples === null || this.inputSamplesWritten < this.maxInputSamples;
@@ -1088,6 +1099,14 @@ class PaulStretchProcessor extends AudioWorkletProcessor {
           const index = this.outPos % this.hopOut;
           output[ch][i] = (this.outBlock[ch][index] ?? 0) * fade;
         }
+      }
+      if (applyStereoWidth) {
+        const left = output[0][i] ?? 0;
+        const right = output[1][i] ?? 0;
+        const mid = (left + right) * 0.5;
+        const side = (left - right) * 0.5 * stereoWidth;
+        output[0][i] = mid + side;
+        output[1][i] = mid - side;
       }
       this.outPos += 1;
       this.outputSamplesTotal += 1;
