@@ -990,7 +990,6 @@ const DeckCard = (props: DeckCardProps) => {
           offsetSeconds={deck.offsetSeconds}
           zoom={deck.zoom}
           gain={deck.gain}
-          balance={deck.balance}
           eqLowGain={eqLowValue}
           eqMidGain={eqMidValue}
           eqHighGain={eqHighValue}
