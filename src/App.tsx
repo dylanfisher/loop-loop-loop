@@ -179,6 +179,7 @@ const App = () => {
     getDeckPlaybackSnapshot,
     getAudioCurrentTime,
     getSessionDecks,
+    getDeckUndoRedoHistorySnapshots,
     loadSessionDecks,
     resetDecks,
     undo,
@@ -245,6 +246,7 @@ const App = () => {
     clipNameRef,
     decodeFile,
     getSessionDecks,
+    getDeckUndoRedoHistorySnapshots,
     loadSessionDecks,
     resetDecks,
     masterGain,
@@ -270,6 +272,7 @@ const App = () => {
     loadDeckBuffer,
     getDeckPlaybackSnapshot,
     markSkipNextAutosave,
+    triggerAutosaveNow,
     setDeckRearrangerRegions,
     stretchCalibration,
     setStretchEstimateByDeckId,
@@ -555,6 +558,7 @@ const App = () => {
     handleFocusedDeckCrop,
     handleFocusedDeckDuplicate,
     handleFocusedDeckZoom,
+    handleFocusedDeckWidthToggle,
   } = useFocusedDeckActions({
     decks,
     activeDeckId,
@@ -568,6 +572,7 @@ const App = () => {
     handleCropLoop,
     handleDuplicateLoop,
     setDeckZoom,
+    setDeckWidthOverride,
     zoomSteps: ZOOM_STEPS,
   });
   const deckStackProps = useDeckStackProps({
@@ -688,6 +693,7 @@ const App = () => {
     handleFocusedDeckZoom,
     handleFocusedDeckCrop,
     handleFocusedDeckDuplicate,
+    handleFocusedDeckWidthToggle,
     onToggleSessionPanel: () => setShowSessionPanel((prev) => !prev),
     setShowKeyboardShortcuts,
   });

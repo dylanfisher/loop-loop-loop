@@ -13,11 +13,13 @@ import {
 import { buildFxPanelPatch, loadFxPanelPatch, saveFxPanelPatch } from "../utils/fxPanelState";
 import { createZip, readZip } from "../utils/zip";
 import { encodeWavOffThread } from "../utils/wavWorkerClient";
+import { serializeDeckSession } from "./deckSessionSerialization";
 import {
   inferAudioExtension,
   inferAudioMimeTypeFromPath,
   isSessionBrandNew,
 } from "../utils/appHelpers";
+import type { SessionDeckUndoRedoHistory, SessionFileDeck } from "../types/session";
 
 export type UseSessionManagerArgs = {
   decks: DeckState[];
@@ -27,7 +29,15 @@ export type UseSessionManagerArgs = {
   clipNameRef: React.MutableRefObject<number>;
   decodeFile: (file: File) => Promise<AudioBuffer>;
   getSessionDecks: () => DeckSession[];
-  loadSessionDecks: (sessionDecks: DeckSession[], buffers: Map<number, AudioBuffer | null>) => void;
+  getDeckUndoRedoHistorySnapshots: () => { past: DeckState[][]; future: DeckState[][] };
+  loadSessionDecks: (
+    sessionDecks: DeckSession[],
+    buffers: Map<number, AudioBuffer | null>,
+    options?: {
+      deckUndoRedoHistory?: SessionDeckUndoRedoHistory;
+      historyBuffers?: Map<string, AudioBuffer | null>;
+    }
+  ) => void;
   resetDecks: () => void;
   masterGain: number;
   setMasterGainValue: (value: number) => void;
@@ -72,6 +82,7 @@ const useSessionManager = ({
   clipNameRef,
   decodeFile,
   getSessionDecks,
+  getDeckUndoRedoHistorySnapshots,
   loadSessionDecks,
   resetDecks,
   masterGain,
@@ -115,22 +126,55 @@ const useSessionManager = ({
 
   const encodeDecksForSession = useCallback(async () => {
     const sessionDecks = getSessionDecks();
+    const deckHistorySnapshots = getDeckUndoRedoHistorySnapshots();
     const blobs = new Map<string, Blob>();
+    const deckBlobIds = new WeakMap<AudioBuffer, string>();
+    const currentDeckById = new Map(decks.map((deck) => [deck.id, deck]));
+
+    const encodeDeckAudio = async (buffer: AudioBuffer) => {
+      const existingBlobId = deckBlobIds.get(buffer);
+      if (existingBlobId) return existingBlobId;
+      const wav = await encodeWavOffThread(buffer);
+      const blobId = createSessionBlobId("deck");
+      blobs.set(blobId, wav);
+      deckBlobIds.set(buffer, blobId);
+      return blobId;
+    };
+
+    const encodeDeckSessionWithBuffer = async (
+      deckSession: DeckSession,
+      buffer: AudioBuffer | undefined
+    ): Promise<DeckSession> => {
+      if (!buffer) return deckSession;
+      const wavBlobId = await encodeDeckAudio(buffer);
+      return { ...deckSession, wavBlobId };
+    };
+
     const decksWithBlobs = await Promise.all(
-      sessionDecks.map(async (deckSession) => {
-        const deck = decks.find((item) => item.id === deckSession.id);
-        if (!deck?.buffer) {
-          return deckSession;
-        }
-        const wav = await encodeWavOffThread(deck.buffer);
-        const blobId = createSessionBlobId("deck");
-        blobs.set(blobId, wav);
-        return { ...deckSession, wavBlobId: blobId };
-      })
+      sessionDecks.map((deckSession) =>
+        encodeDeckSessionWithBuffer(deckSession, currentDeckById.get(deckSession.id)?.buffer)
+      )
     );
 
-    return { decks: decksWithBlobs, blobs };
-  }, [decks, getSessionDecks]);
+    const serializeHistorySnapshot = async (snapshot: DeckState[]) => {
+      const serialized = snapshot.map((deck) => serializeDeckSession(deck, undefined));
+      return Promise.all(
+        serialized.map((deckSession, index) =>
+          encodeDeckSessionWithBuffer(deckSession, snapshot[index]?.buffer)
+        )
+      );
+    };
+
+    const deckUndoRedoHistory =
+      deckHistorySnapshots.past.length > 0 || deckHistorySnapshots.future.length > 0
+        ? {
+            past: await Promise.all(deckHistorySnapshots.past.map(serializeHistorySnapshot)),
+            future: await Promise.all(deckHistorySnapshots.future.map(serializeHistorySnapshot)),
+          }
+        : undefined;
+
+    return { decks: decksWithBlobs, deckUndoRedoHistory, blobs };
+  }, [decks, getDeckUndoRedoHistorySnapshots, getSessionDecks]);
 
   const encodeClipsForSession = useCallback(
     async (existingBlobs: Map<string, Blob>) => {
@@ -164,22 +208,33 @@ const useSessionManager = ({
   );
 
   const encodeForExport = useCallback(async () => {
-    const { decks: sessionDecks, blobs: deckBlobs } = await encodeDecksForSession();
+    const {
+      decks: sessionDecks,
+      deckUndoRedoHistory,
+      blobs: deckBlobs,
+    } = await encodeDecksForSession();
     const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
     const nextName = sessionName.trim() || `Session ${new Date().toLocaleString()}`;
+    const toSessionFileDeck = (deck: DeckSession): SessionFileDeck => {
+      const { wavBlobId: _wavBlobId, ...rest } = deck;
+      return {
+        ...rest,
+        wavFile: _wavBlobId ? `audio/deck-blob-${_wavBlobId}.wav` : undefined,
+      };
+    };
     const sessionFile: SessionFileState = {
       version: 1,
       name: nextName,
       savedAt: Date.now(),
       masterGain,
       welcomePanelDismissed,
-      decks: sessionDecks.map((deck) => {
-        const { wavBlobId: _wavBlobId, ...rest } = deck;
-        return {
-          ...rest,
-          wavFile: _wavBlobId ? `audio/deck-${deck.id}.wav` : undefined,
-        };
-      }),
+      decks: sessionDecks.map(toSessionFileDeck),
+      deckUndoRedoHistory: deckUndoRedoHistory
+        ? {
+            past: deckUndoRedoHistory.past.map((snapshot) => snapshot.map(toSessionFileDeck)),
+            future: deckUndoRedoHistory.future.map((snapshot) => snapshot.map(toSessionFileDeck)),
+          }
+        : undefined,
       clips: clipSessions.map((clip) => {
         const { audioBlobId: _audioBlobId, wavBlobId: _wavBlobId, ...rest } = clip;
         const ext = inferAudioExtension(clip.audioMimeType, "wav");
@@ -198,13 +253,28 @@ const useSessionManager = ({
 
     for (const deck of sessionDecks) {
       if (!deck.wavBlobId) continue;
-      const wavFile = `audio/deck-${deck.id}.wav`;
+      const wavFile = `audio/deck-blob-${deck.wavBlobId}.wav`;
       const blob = blobs.get(deck.wavBlobId);
       if (!blob) continue;
       fileEntries.push({
         path: wavFile,
         data: new Uint8Array(await blob.arrayBuffer()),
       });
+    }
+
+    if (deckUndoRedoHistory) {
+      const historyDecks = [...deckUndoRedoHistory.past.flat(), ...deckUndoRedoHistory.future.flat()];
+      for (const deck of historyDecks) {
+        if (!deck.wavBlobId) continue;
+        const wavFile = `audio/deck-blob-${deck.wavBlobId}.wav`;
+        if (fileEntries.some((entry) => entry.path === wavFile)) continue;
+        const blob = blobs.get(deck.wavBlobId);
+        if (!blob) continue;
+        fileEntries.push({
+          path: wavFile,
+          data: new Uint8Array(await blob.arrayBuffer()),
+        });
+      }
     }
 
     for (const clip of clipSessions) {
@@ -283,8 +353,48 @@ const useSessionManager = ({
         ...deck,
         wavBlobId: undefined,
       }));
+      const sessionDeckHistory: SessionDeckUndoRedoHistory | undefined = sessionFile.deckUndoRedoHistory
+        ? {
+            past: sessionFile.deckUndoRedoHistory.past.map((snapshot) =>
+              snapshot.map((deck) => ({
+                ...deck,
+                wavBlobId: deck.wavFile,
+              }))
+            ),
+            future: sessionFile.deckUndoRedoHistory.future.map((snapshot) =>
+              snapshot.map((deck) => ({
+                ...deck,
+                wavBlobId: deck.wavFile,
+              }))
+            ),
+          }
+        : undefined;
+      const historyBuffers = new Map<string, AudioBuffer | null>();
+      if (sessionFile.deckUndoRedoHistory) {
+        const historyDecks = [
+          ...sessionFile.deckUndoRedoHistory.past.flat(),
+          ...sessionFile.deckUndoRedoHistory.future.flat(),
+        ];
+        for (const deck of historyDecks) {
+          if (!deck.wavFile || historyBuffers.has(deck.wavFile)) continue;
+          const data = files.get(deck.wavFile);
+          if (!data) {
+            historyBuffers.set(deck.wavFile, null);
+            continue;
+          }
+          const blob = new Blob([toArrayBuffer(data)], { type: "audio/wav" });
+          const wavFile = new File([blob], deck.fileName ?? `Deck ${deck.id}.wav`, {
+            type: "audio/wav",
+          });
+          const audioBuffer = await decodeFile(wavFile);
+          historyBuffers.set(deck.wavFile, audioBuffer);
+        }
+      }
 
-      loadSessionDecks(sessionDecks, buffers);
+      loadSessionDecks(sessionDecks, buffers, {
+        deckUndoRedoHistory: sessionDeckHistory,
+        historyBuffers,
+      });
 
       clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
       const nextClips: ClipItem[] = [];
@@ -334,7 +444,11 @@ const useSessionManager = ({
     setSessionBusy(true);
     setSessionStatus(null);
     try {
-      const { decks: sessionDecks, blobs: deckBlobs } = await encodeDecksForSession();
+      const {
+        decks: sessionDecks,
+        deckUndoRedoHistory,
+        blobs: deckBlobs,
+      } = await encodeDecksForSession();
       const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
       const nextName = sessionName.trim() || `Session ${new Date().toLocaleString()}`;
       const id = createSessionId();
@@ -346,6 +460,7 @@ const useSessionManager = ({
         masterGain,
         welcomePanelDismissed,
         decks: sessionDecks,
+        deckUndoRedoHistory,
         clips: clipSessions,
       };
       await saveSessionState(session, blobs);
@@ -371,7 +486,11 @@ const useSessionManager = ({
   ]);
 
   const saveAutoSessionNow = useCallback(async () => {
-    const { decks: sessionDecks, blobs: deckBlobs } = await encodeDecksForSession();
+    const {
+      decks: sessionDecks,
+      deckUndoRedoHistory,
+      blobs: deckBlobs,
+    } = await encodeDecksForSession();
     const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
     const session: SessionState = {
       version: 1,
@@ -381,6 +500,7 @@ const useSessionManager = ({
       masterGain,
       welcomePanelDismissed,
       decks: sessionDecks,
+      deckUndoRedoHistory,
       clips: clipSessions,
     };
     await saveSessionState(session, blobs);
@@ -466,10 +586,43 @@ const useSessionManager = ({
     [decodeFile]
   );
 
+  const decodeSessionDeckHistoryBuffers = useCallback(
+    async (
+      deckUndoRedoHistory: SessionDeckUndoRedoHistory | undefined,
+      blobs: Map<string, Blob>
+    ) => {
+      const historyBuffers = new Map<string, AudioBuffer | null>();
+      if (!deckUndoRedoHistory) return historyBuffers;
+      const historyDecks = [...deckUndoRedoHistory.past.flat(), ...deckUndoRedoHistory.future.flat()];
+      for (const deck of historyDecks) {
+        if (!deck.wavBlobId || historyBuffers.has(deck.wavBlobId)) continue;
+        const blob = blobs.get(deck.wavBlobId);
+        if (!blob) {
+          historyBuffers.set(deck.wavBlobId, null);
+          continue;
+        }
+        const file = new File([blob], deck.fileName ?? `Deck ${deck.id}.wav`, {
+          type: blob.type || "audio/wav",
+        });
+        const buffer = await decodeFile(file);
+        historyBuffers.set(deck.wavBlobId, buffer);
+      }
+      return historyBuffers;
+    },
+    [decodeFile]
+  );
+
   const applySessionData = useCallback(
     async (session: SessionState, blobs: Map<string, Blob>) => {
       const buffers = await decodeSessionDecks(session.decks, blobs);
-      loadSessionDecks(session.decks, buffers);
+      const historyBuffers = await decodeSessionDeckHistoryBuffers(
+        session.deckUndoRedoHistory,
+        blobs
+      );
+      loadSessionDecks(session.decks, buffers, {
+        deckUndoRedoHistory: session.deckUndoRedoHistory,
+        historyBuffers,
+      });
 
       clipsRef.current.forEach((clip) => URL.revokeObjectURL(clip.url));
       const nextClips: ClipItem[] = [];
@@ -502,7 +655,16 @@ const useSessionManager = ({
       setSessionName(session.name);
       setWelcomePanelDismissed(session.welcomePanelDismissed ?? !isSessionBrandNew(session));
     },
-    [decodeSessionDecks, loadSessionDecks, clipsRef, setClips, clipIdRef, clipNameRef, setMasterGainValue]
+    [
+      decodeSessionDeckHistoryBuffers,
+      decodeSessionDecks,
+      loadSessionDecks,
+      clipsRef,
+      setClips,
+      clipIdRef,
+      clipNameRef,
+      setMasterGainValue,
+    ]
   );
 
   applySessionDataRef.current = applySessionData;

@@ -183,6 +183,7 @@ export type SessionState = {
   masterGain?: number;
   welcomePanelDismissed?: boolean;
   decks: DeckSession[];
+  deckUndoRedoHistory?: SessionDeckUndoRedoHistory;
   clips: ClipSession[];
 };
 
@@ -194,6 +195,16 @@ export type SessionMeta = {
 
 export type SessionFileDeck = Omit<DeckSession, "wavBlobId"> & {
   wavFile?: string;
+};
+
+export type SessionDeckUndoRedoHistory = {
+  past: DeckSession[][];
+  future: DeckSession[][];
+};
+
+export type SessionFileDeckUndoRedoHistory = {
+  past: SessionFileDeck[][];
+  future: SessionFileDeck[][];
 };
 
 export type SessionFileClip = Omit<ClipSession, "audioBlobId" | "wavBlobId"> & {
@@ -208,5 +219,6 @@ export type SessionFileState = {
   masterGain?: number;
   welcomePanelDismissed?: boolean;
   decks: SessionFileDeck[];
+  deckUndoRedoHistory?: SessionFileDeckUndoRedoHistory;
   clips: SessionFileClip[];
 };

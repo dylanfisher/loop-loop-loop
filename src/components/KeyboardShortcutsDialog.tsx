@@ -29,6 +29,8 @@ const KeyboardShortcutsDialog = ({ open, onClose }: KeyboardShortcutsDialogProps
           <li><kbd>Shift</kbd> + <kbd>L</kbd> Reset loop to full file</li>
           <li><kbd>C</kbd> Crop active deck to loop</li>
           <li><kbd>D</kbd> Duplicate active deck</li>
+          <li><kbd>F</kbd> Toggle active deck width (half/full)</li>
+          <li><kbd>S</kbd> Save session</li>
           <li><kbd>E</kbd> Toggle Restore + Export panel</li>
           <li><kbd>Delete</kbd>/<kbd>Backspace</kbd> Remove active deck</li>
           <li><kbd>=</kbd> Zoom out waveform</li>

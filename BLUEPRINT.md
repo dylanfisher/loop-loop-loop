@@ -135,6 +135,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Non-lane Delay/Vocoder/Rearranger knobs support lightweight "simple automation" (Option-drag captures a gesture loop; Option-double-click clears), persisted through sessions/clip FX metadata and read by export/offline paths. Rearranger simple automation currently excludes `Slices`, `Sensitivity`, and `Quiet Thresh`.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
 - Session export/import: zip bundle with `session.json` manifest and audio assets (WAV for decks; clips preserve original format when unchanged, except imports normalized to a portable compatibility format during ingest).
+- Deck undo/redo history is session-scoped and persisted through autosaves/manual saves plus session zip export/import (including audio blobs needed by historical deck snapshots).
 - Header `Last saved` readout is sourced from session `savedAt` and refreshed whenever save/autosave writes succeed.
 
 ## Data Flow (High-Level)

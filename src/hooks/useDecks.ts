@@ -9,7 +9,13 @@ import type {
   DeckState,
   DeckStatus,
 } from "../types/deck";
-import type { AutomationParam, AutomationSnapshot, ClipSettings, DeckSession } from "../types/session";
+import type {
+  AutomationParam,
+  AutomationSnapshot,
+  ClipSettings,
+  DeckSession,
+  SessionDeckUndoRedoHistory,
+} from "../types/session";
 import {
   MAX_REARRANGER_SLICES,
   normalizeRearrangerRegionIds,
@@ -3171,8 +3177,24 @@ const useDecks = () => {
     );
   }, [decks]);
 
+  const getDeckUndoRedoHistorySnapshots = useCallback(() => {
+    const cloneSnapshots = (snapshots: DeckState[][]) =>
+      snapshots.map((snapshot) => snapshotDecks(snapshot));
+    return {
+      past: cloneSnapshots(historyRef.current.past),
+      future: cloneSnapshots(historyRef.current.future),
+    };
+  }, [snapshotDecks]);
+
   const loadSessionDecks = useCallback(
-    (sessionDecks: DeckSession[], buffers: Map<number, AudioBuffer | null>) => {
+    (
+      sessionDecks: DeckSession[],
+      buffers: Map<number, AudioBuffer | null>,
+      options?: {
+        deckUndoRedoHistory?: SessionDeckUndoRedoHistory;
+        historyBuffers?: Map<string, AudioBuffer | null>;
+      }
+    ) => {
       decks.forEach((deck) => {
         stop(deck.id);
         removeDeckNodes(deck.id);
@@ -3212,8 +3234,26 @@ const useDecks = () => {
         return hydrated.deck;
       });
 
+      const historyBuffers = options?.historyBuffers;
+      const hydrateHistorySnapshot = (snapshot: DeckSession[]) =>
+        snapshotDecks(
+          snapshot.map((sessionDeck) => {
+            const buffer =
+              sessionDeck.wavBlobId && historyBuffers
+                ? (historyBuffers.get(sessionDeck.wavBlobId) ?? undefined)
+                : undefined;
+            return hydrateDeckFromSession(sessionDeck, buffer).deck;
+          })
+        );
+      const restoredHistory = options?.deckUndoRedoHistory
+        ? {
+            past: options.deckUndoRedoHistory.past.map(hydrateHistorySnapshot),
+            future: options.deckUndoRedoHistory.future.map(hydrateHistorySnapshot),
+          }
+        : { past: [], future: [] };
+
       nextDeckId.current = Math.max(2, maxDeckId + 1);
-      historyRef.current = { past: [], future: [] };
+      historyRef.current = restoredHistory;
       syncHistoryState();
       setDecksNoHistory(() => nextDecks);
       setAutomationState(nextAutomationState);
@@ -3224,6 +3264,7 @@ const useDecks = () => {
       removeDeckNodes,
       setDeckRecordExportSend,
       setDecksNoHistory,
+      snapshotDecks,
       stop,
       syncHistoryState,
       updateAutomationTickEnabled,
@@ -3353,6 +3394,7 @@ const useDecks = () => {
     setFileInputRef,
     loadDeckBuffer,
     getSessionDecks,
+    getDeckUndoRedoHistorySnapshots,
     loadSessionDecks,
     resetDecks,
     undo,

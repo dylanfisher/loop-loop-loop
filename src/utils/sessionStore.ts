@@ -82,6 +82,16 @@ export const loadSessionState = async (id: string) => {
   session.decks.forEach((deck) => {
     if (deck.wavBlobId) blobIds.add(deck.wavBlobId);
   });
+  session.deckUndoRedoHistory?.past.forEach((snapshot) => {
+    snapshot.forEach((deck) => {
+      if (deck.wavBlobId) blobIds.add(deck.wavBlobId);
+    });
+  });
+  session.deckUndoRedoHistory?.future.forEach((snapshot) => {
+    snapshot.forEach((deck) => {
+      if (deck.wavBlobId) blobIds.add(deck.wavBlobId);
+    });
+  });
   session.clips.forEach((clip) => {
     if (clip.audioBlobId) blobIds.add(clip.audioBlobId);
     if (clip.wavBlobId) blobIds.add(clip.wavBlobId);

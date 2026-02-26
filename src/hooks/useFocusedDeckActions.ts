@@ -14,6 +14,7 @@ type UseFocusedDeckActionsArgs = {
   handleCropLoop: (deckId: number) => Promise<void>;
   handleDuplicateLoop: (deckId: number, includeSettings: boolean) => Promise<void>;
   setDeckZoom: (deckId: number, zoom: number) => void;
+  setDeckWidthOverride: (deckId: number, value?: "full" | "half") => void;
   zoomSteps: readonly number[];
 };
 
@@ -29,6 +30,7 @@ type FocusedDeckActionsResult = {
   handleFocusedDeckCrop: () => void;
   handleFocusedDeckDuplicate: () => void;
   handleFocusedDeckZoom: (direction: "in" | "out") => void;
+  handleFocusedDeckWidthToggle: () => void;
 };
 
 const useFocusedDeckActions = ({
@@ -44,6 +46,7 @@ const useFocusedDeckActions = ({
   handleCropLoop,
   handleDuplicateLoop,
   setDeckZoom,
+  setDeckWidthOverride,
   zoomSteps,
 }: UseFocusedDeckActionsArgs): FocusedDeckActionsResult => {
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
@@ -258,6 +261,18 @@ const useFocusedDeckActions = ({
     [getActiveDeck, setDeckZoom, zoomSteps]
   );
 
+  const handleFocusedDeckWidthToggle = useCallback(() => {
+    const deck = getActiveDeck();
+    if (!deck) return;
+    const next =
+      deck.deckWidthOverride === "full"
+        ? "half"
+        : deck.deckWidthOverride === "half"
+          ? "full"
+          : "full";
+    setDeckWidthOverride(deck.id, next);
+  }, [getActiveDeck, setDeckWidthOverride]);
+
   return {
     handleGlobalPlaybackToggle,
     handleFocusedDeckPlaybackToggle,
@@ -270,6 +285,7 @@ const useFocusedDeckActions = ({
     handleFocusedDeckCrop,
     handleFocusedDeckDuplicate,
     handleFocusedDeckZoom,
+    handleFocusedDeckWidthToggle,
   };
 };
 

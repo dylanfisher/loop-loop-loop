@@ -46,6 +46,7 @@ type UseDeckLoopToolsArgs = {
   loadDeckBuffer: (deckId: number, buffer: AudioBuffer, options: Record<string, unknown>) => void;
   getDeckPlaybackSnapshot: (deckId: number) => { position?: number } | null | undefined;
   markSkipNextAutosave: () => void;
+  triggerAutosaveNow: () => Promise<void>;
   setDeckRearrangerRegions: (deckId: number, regions: number[]) => void;
   stretchCalibration: ReturnType<typeof loadStretchCalibrationState>;
   setStretchEstimateByDeckId: Dispatch<SetStateAction<Record<number, string>>>;
@@ -106,6 +107,7 @@ const useDeckLoopTools = ({
   loadDeckBuffer,
   getDeckPlaybackSnapshot,
   markSkipNextAutosave,
+  triggerAutosaveNow,
   setDeckRearrangerRegions,
   stretchCalibration,
   setStretchEstimateByDeckId,
@@ -197,6 +199,7 @@ const useDeckLoopTools = ({
         const eqHighTrack = automation?.eqHigh;
         const balanceTrack = automation?.balance;
         const pitchTrack = automation?.pitch;
+        const gainTrack = automation?.gain;
 
         const djFilterValue = djFilterTrack?.active ? djFilterTrack.currentValue : deck.djFilter;
         const resonanceValue = resonanceTrack?.active
@@ -207,6 +210,7 @@ const useDeckLoopTools = ({
         const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
         const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
         const pitchValue = pitchTrack?.active ? pitchTrack.currentValue : deck.pitchShift;
+        const gainValue = gainTrack?.active ? gainTrack.currentValue : deck.gain;
 
         const needsPitch = Math.abs(pitchValue) >= 0.001 || pitchTrack?.active === true;
         const needsFilter =
@@ -223,8 +227,6 @@ const useDeckLoopTools = ({
               eqLowTrack?.active === true ||
               eqMidTrack?.active === true ||
               eqHighTrack?.active === true;
-        const needsGain = !approxEqual(deck.gain, 0.9);
-
         if (needsPitch) {
           try {
             await ensurePitchShiftWorklet(offline);
@@ -233,9 +235,12 @@ const useDeckLoopTools = ({
           }
         }
 
-        const limiterNeeded = needsGain || needsEq || needsFilter || needsPitch;
+        const limiterNeeded = needsEq || needsFilter || needsPitch;
 
         const renderDuration = sliceDuration;
+        // Keep stretch loudness compensation, but only when pitch/EQ are neutral so we
+        // don't undo those timbral changes. Gain is preserved via the target RMS.
+        const shouldAutoNormalizeStretchOutput = !(needsPitch || needsEq);
         let chain: AudioNode = source;
         chain = applyBalanceOffline(offline, chain, {
           balance: balanceValue,
@@ -314,7 +319,7 @@ const useDeckLoopTools = ({
                     }
                   : undefined,
               });
-        chain = applyGainOffline(offline, chain, { gain: deck.gain, bypassAt: 0.9 });
+        chain = applyGainOffline(offline, chain, { gain: gainValue, bypassAt: 0.9 });
         chain = applyMasterProtectOffline(offline, chain, { enabled: limiterNeeded });
         chain.connect(stretchNode, 0, 0);
         keepAlive.connect(stretchNode, 0, 1);
@@ -374,21 +379,33 @@ const useDeckLoopTools = ({
         keepAlive.stop(length / sampleRate);
 
         const rendered = await offline.startRendering();
-        findTrailingNonSilenceSample(rendered, 1e-4);
+        const trimThreshold = 1e-5;
+        const maxStartupTrim = startupTrimBudgetSamples + hopOut;
         const silenceTrimSamples = findLeadingSilenceSamples(
           rendered,
-          startupTrimBudgetSamples,
-          1e-4
+          maxStartupTrim,
+          trimThreshold
         );
-        const totalTrim = Math.min(silenceTrimSamples, startupTrimBudgetSamples + hopOut);
-        const trimmed = trimBufferLeadingSamples(offline, rendered, totalTrim, outputSamples);
-        const sourceStartSample = Math.floor(loopStart * sampleRate);
-        const sourceLengthSamples = Math.max(1, Math.floor(sliceDuration * sampleRate));
-        const sourceRms = computeRms(deck.buffer, sourceStartSample, sourceLengthSamples);
-        const stretchedRms = computeRms(trimmed, 0, trimmed.length);
-        if (sourceRms > 0 && stretchedRms > 0) {
-          const gain = Math.min(4, Math.max(0.25, sourceRms / stretchedRms));
-          applyBufferGain(trimmed, gain);
+        const totalTrim = Math.min(silenceTrimSamples, maxStartupTrim);
+        const trailingNonSilentSample = findTrailingNonSilenceSample(rendered, trimThreshold);
+        const maxTrimmedEnd = Math.min(rendered.length, totalTrim + outputSamples);
+        const trimmedEnd =
+          trailingNonSilentSample >= totalTrim
+            ? Math.min(maxTrimmedEnd, trailingNonSilentSample + 1)
+            : maxTrimmedEnd;
+        const trimmedLength = Math.max(1, trimmedEnd - totalTrim);
+        const trimmed = trimBufferLeadingSamples(offline, rendered, totalTrim, trimmedLength);
+        if (shouldAutoNormalizeStretchOutput) {
+          const sourceStartSample = Math.floor(loopStart * sampleRate);
+          const sourceLengthSamples = Math.max(1, Math.floor(sliceDuration * sampleRate));
+          const sourceRms = computeRms(deck.buffer, sourceStartSample, sourceLengthSamples);
+          const stretchedRms = computeRms(trimmed, 0, trimmed.length);
+          if (sourceRms > 0 && stretchedRms > 0) {
+            const gainRatio = Math.min(4, Math.max(0, gainValue / 0.9));
+            const targetRms = sourceRms * gainRatio;
+            const gain = Math.min(4, Math.max(0.25, targetRms / stretchedRms));
+            applyBufferGain(trimmed, gain);
+          }
         }
         if (trimmed.numberOfChannels > 1) {
           const widthBiasCorrection = Math.min(
@@ -401,6 +418,7 @@ const useDeckLoopTools = ({
         const wasPlaying = deck.status === "playing";
         loadDeckBuffer(deckId, trimmed, { name, autoplay: wasPlaying });
         renderCompleted = true;
+        await triggerAutosaveNow();
       } finally {
         setStretchEstimateByDeckId((prev) => {
           if (!(deckId in prev)) return prev;
@@ -416,7 +434,15 @@ const useDeckLoopTools = ({
         }
       }
     },
-    [automationState, decks, loadDeckBuffer, setStretchCalibration, setStretchEstimateByDeckId, stretchCalibration]
+    [
+      automationState,
+      decks,
+      loadDeckBuffer,
+      setStretchCalibration,
+      setStretchEstimateByDeckId,
+      stretchCalibration,
+      triggerAutosaveNow,
+    ]
   );
 
   const handleRearrangeLoop = useCallback(
