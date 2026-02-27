@@ -260,13 +260,16 @@ export const renderMixdownBlob = async ({
       Math.max(resolveSimpleValue(deck, "rearrangerSliceDelaySec", deck.rearrangerSliceDelaySec ?? 0), 0),
       5
     );
+    // Slice delay in live playback is wall-clock based. Export bakes delay into audio buffers
+    // before playbackRate is applied, so compensate by tempo ratio to keep heard spacing aligned.
+    const rearrangerSliceDelayRenderSec = Math.max(0, rearrangerSliceDelaySec * tempoRatio);
     const sliceDelayedLoopBuffer =
       deck.loopEnabled && loopEnd > loopStart + 0.01
         ? createSliceDelayedLoopBuffer(
             deck,
             loopStart,
             loopEnd,
-            rearrangerSliceDelaySec,
+            rearrangerSliceDelayRenderSec,
             rearrangerSliceFadeMs
           )
         : null;
@@ -509,7 +512,7 @@ export const renderMixdownBlob = async ({
             reverse: rearrangerReverse,
             regions: currentRegions,
             sliceFadeMs: effectiveSliceFadeMs,
-            sliceDelaySec: rearrangerSliceDelaySec,
+            sliceDelaySec: rearrangerSliceDelayRenderSec,
           };
           const nextBuffer = rearrangeBufferSegment(
             currentBuffer,
