@@ -21,8 +21,10 @@ import {
 } from "./rearranger";
 import { hashStringToUint32, seededUnitFloat, trimBufferLeadingSamples } from "./appHelpers";
 import { encodeWavOffThread } from "./wavWorkerClient";
+import { setPerfCounter, setPerfTiming } from "./perf";
 
 const MAX_EXPORT_AUTO_REARRANGE_CYCLES = 4096;
+const EXPORT_PROFILE_ENABLED = import.meta.env.DEV;
 
 type AutomationTrackView = {
   active: boolean;
@@ -54,6 +56,29 @@ export const renderMixdownBlob = async ({
   durationSec,
   sessionName,
 }: RenderMixdownArgs): Promise<Blob> => {
+  const exportStartedAt = performance.now();
+  const timings = new Map<string, number>();
+  const counters = new Map<string, number>();
+  const deckProfiles: Array<{
+    deckId: number;
+    totalMs: number;
+    autoRearrangeMs: number;
+    autoRearrangeCycles: number;
+    hasDelay: boolean;
+    hasVocoder: boolean;
+    loopEnabled: boolean;
+  }> = [];
+  const addTiming = (name: string, deltaMs: number) => {
+    const next = (timings.get(name) ?? 0) + deltaMs;
+    timings.set(name, next);
+    setPerfTiming(`export.${name}`, next);
+  };
+  const incCounter = (name: string, delta = 1) => {
+    const next = (counters.get(name) ?? 0) + delta;
+    counters.set(name, next);
+    setPerfCounter(`export.${name}`, next);
+  };
+
   const resolveSimpleValue = (
     deck: DeckState,
     param: SimpleAutomationParam,
@@ -86,21 +111,56 @@ export const renderMixdownBlob = async ({
     return entry.baseline + (entry.target - entry.baseline) * shape;
   };
 
+  const selectDecksStartedAt = performance.now();
   const activeDecks = decks.filter(
     (deck) => deck.buffer && deck.includeInRecordExport !== false
   );
+  addTiming("selectActiveDecksMs", performance.now() - selectDecksStartedAt);
+  incCounter("activeDecks", activeDecks.length);
   if (activeDecks.length === 0) {
     throw new Error("NO_ACTIVE_DECKS");
   }
 
+  const setupStartedAt = performance.now();
   const sampleRate = activeDecks[0].buffer?.sampleRate ?? 44100;
   const length = Math.max(1, Math.ceil(durationSec * sampleRate));
   const offline = new OfflineAudioContext(2, length, sampleRate);
+  addTiming("setupContextMs", performance.now() - setupStartedAt);
+  setPerfCounter("export.sampleRate", sampleRate);
+  setPerfCounter("export.renderSamples", length);
 
-  try {
-    await ensurePitchShiftWorklet(offline);
-  } catch (error) {
-    console.warn("Pitch shift worklet unavailable for export", error);
+  const exportNeedsPitchWorklet = activeDecks.some((deck) => {
+    const pitchAutomationActive = automationState.get(deck.id)?.pitch?.active === true;
+    const pitchValue = pitchAutomationActive
+      ? automationState.get(deck.id)?.pitch?.currentValue ?? deck.pitchShift
+      : deck.pitchShift;
+    const delayMix = Math.min(
+      Math.max(resolveSimpleValue(deck, "delayMix", deck.delayMix ?? 0), 0),
+      1
+    );
+    const pitchMix = Math.min(
+      Math.max(resolveSimpleValue(deck, "delayRhythmMorph", deck.delayRhythmMorph ?? 0), 0),
+      1
+    );
+    const pitchStep = Math.min(
+      Math.max(resolveSimpleValue(deck, "delayRhythmRateHz", deck.delayRhythmRateHz ?? 0), -12),
+      12
+    );
+    return (
+      Math.abs(pitchValue ?? 0) >= 1e-3 ||
+      pitchAutomationActive ||
+      (delayMix > 1e-3 && pitchMix > 1e-3 && Math.abs(pitchStep) > 1e-3)
+    );
+  });
+  setPerfCounter("export.pitchWorkletNeeded", exportNeedsPitchWorklet ? 1 : 0);
+  if (exportNeedsPitchWorklet) {
+    try {
+      const ensurePitchWorkletStartedAt = performance.now();
+      await ensurePitchShiftWorklet(offline);
+      addTiming("ensurePitchWorkletMs", performance.now() - ensurePitchWorkletStartedAt);
+    } catch (error) {
+      console.warn("Pitch shift worklet unavailable for export", error);
+    }
   }
 
   const masterMix = offline.createGain();
@@ -213,6 +273,9 @@ export const renderMixdownBlob = async ({
   };
 
   activeDecks.forEach((deck) => {
+    const deckStartedAt = performance.now();
+    let deckAutoRearrangeMs = 0;
+    let deckAutoRearrangeCycles = 0;
     if (!deck.buffer) return;
     const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
     const pitchValue = (automationState.get(deck.id)?.pitch?.active
@@ -258,7 +321,22 @@ export const renderMixdownBlob = async ({
       1
     );
     const delayPingPong = deck.delayPingPong ?? false;
+    const hasDelay = delayMix > 1e-3;
     const modulatorOutputGain = getDeckModulatorOutputGain(deck.id);
+    const finalizeDeckProfile = () => {
+      const deckTotalMs = performance.now() - deckStartedAt;
+      deckProfiles.push({
+        deckId: deck.id,
+        totalMs: deckTotalMs,
+        autoRearrangeMs: deckAutoRearrangeMs,
+        autoRearrangeCycles: deckAutoRearrangeCycles,
+        hasDelay,
+        hasVocoder,
+        loopEnabled: deck.loopEnabled && loopEnd > loopStart + 0.01,
+      });
+      addTiming("deckBuildAndScheduleMs", deckTotalMs);
+      addTiming("deckAutoRearrangeMs", deckAutoRearrangeMs);
+    };
 
     const automation = automationState.get(deck.id);
     const djFilterTrack = automation?.djFilter;
@@ -410,6 +488,7 @@ export const renderMixdownBlob = async ({
     const hasSelectedVocoderSource =
       deck.vocoderCarrierDeckId !== null && deck.vocoderCarrierDeckId !== deck.id;
     const vocoderMixValue = Math.min(Math.max(resolveSimpleValue(deck, "vocoderMix", deck.vocoderMix ?? 0), 0), 1);
+    const hasVocoder = vocoderMixValue > 1e-3 && hasSelectedVocoderSource;
     if (vocoderMixValue > 1e-3 && hasSelectedVocoderSource) {
       const vocoder = createChannelVocoder(offline, {
         mix: vocoderMixValue,
@@ -470,6 +549,7 @@ export const renderMixdownBlob = async ({
       const hasAutoLoopRearrange =
         deck.rearrangerAuto && (deck.rearrangerSlices ?? 0) > 1;
       if (hasAutoLoopRearrange) {
+        const autoRearrangeStartedAt = performance.now();
         const startSample = Math.max(
           0,
           Math.min(deck.buffer.length - 1, Math.round(loopStart * deck.buffer.sampleRate))
@@ -561,6 +641,8 @@ export const renderMixdownBlob = async ({
             rearrangerParams,
             { chaosSeed }
           );
+          deckAutoRearrangeCycles += 1;
+          incCounter("autoRearrangeCycles");
           currentRegions = deriveRearrangedRegions(rearrangerParams, {
             chaosSeed,
             segmentSamples: currentBuffer.length,
@@ -598,6 +680,8 @@ export const renderMixdownBlob = async ({
           tail.connect(deckInput);
           tail.start(timelineSec, 0);
         }
+        deckAutoRearrangeMs += performance.now() - autoRearrangeStartedAt;
+        finalizeDeckProfile();
         return;
       }
       if (pingPongAmount > 0.001 && (deck.rearrangerSlices ?? 0) > 1) {
@@ -638,8 +722,41 @@ export const renderMixdownBlob = async ({
       }
     }
     source.start(0, sliceDelayedLoopBuffer ? 0 : Math.max(0, loopStart));
+    finalizeDeckProfile();
   });
 
+  const renderStartedAt = performance.now();
   const rendered = await offline.startRendering();
-  return encodeWavOffThread(rendered);
+  addTiming("offlineRenderMs", performance.now() - renderStartedAt);
+  const encodeStartedAt = performance.now();
+  const blob = await encodeWavOffThread(rendered);
+  addTiming("encodeWavMs", performance.now() - encodeStartedAt);
+  addTiming("totalMs", performance.now() - exportStartedAt);
+
+  if (EXPORT_PROFILE_ENABLED) {
+    const sortedTimings = Array.from(timings.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([phase, ms]) => ({ phase, ms: Number(ms.toFixed(2)) }));
+    const sortedDecks = [...deckProfiles]
+      .sort((a, b) => b.totalMs - a.totalMs)
+      .map((deckProfile) => ({
+        deckId: deckProfile.deckId,
+        totalMs: Number(deckProfile.totalMs.toFixed(2)),
+        autoRearrangeMs: Number(deckProfile.autoRearrangeMs.toFixed(2)),
+        autoRearrangeCycles: deckProfile.autoRearrangeCycles,
+        hasDelay: deckProfile.hasDelay,
+        hasVocoder: deckProfile.hasVocoder,
+        loopEnabled: deckProfile.loopEnabled,
+      }));
+    const countersSummary = Object.fromEntries(counters.entries());
+    console.groupCollapsed(
+      `[export-profile] ${sessionName || "session"} | ${durationSec.toFixed(2)}s | ${activeDecks.length} deck(s)`
+    );
+    console.table(sortedTimings);
+    console.table(sortedDecks);
+    console.info("counters", countersSummary);
+    console.groupEnd();
+  }
+
+  return blob;
 };

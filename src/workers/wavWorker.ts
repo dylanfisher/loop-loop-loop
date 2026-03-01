@@ -8,10 +8,12 @@ type WavEncodeResponse =
   | {
       id: number;
       wavBuffer: ArrayBuffer;
+      encodeMs: number;
     }
   | {
       id: number;
       error: string;
+      encodeMs: number;
     };
 
 const writeString = (view: DataView, offset: number, value: string) => {
@@ -65,14 +67,23 @@ const workerScope = self as unknown as WorkerScope;
 
 workerScope.onmessage = (event: MessageEvent<WavEncodeRequest>) => {
   const { id, sampleRate, channels } = event.data;
+  const startedAt = performance.now();
   try {
     const channelViews = channels.map((channel) => new Float32Array(channel));
     const wavBuffer = encodeWavBuffer(channelViews, sampleRate);
-    const response: WavEncodeResponse = { id, wavBuffer };
+    const response: WavEncodeResponse = {
+      id,
+      wavBuffer,
+      encodeMs: performance.now() - startedAt,
+    };
     workerScope.postMessage(response, [wavBuffer]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "WAV encoding failed";
-    const response: WavEncodeResponse = { id, error: message };
+    const response: WavEncodeResponse = {
+      id,
+      error: message,
+      encodeMs: performance.now() - startedAt,
+    };
     workerScope.postMessage(response);
   }
 };

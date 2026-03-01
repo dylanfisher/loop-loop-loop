@@ -109,12 +109,17 @@ export const createSoftClipCurve = (drive: number, size = 2048) => {
   return curve;
 };
 
+const absCurveCache = new Map<number, Float32Array>();
+
 export const createAbsCurve = (size = 2048) => {
+  const cached = absCurveCache.get(size);
+  if (cached) return cached;
   const curve = new Float32Array(size);
   for (let i = 0; i < size; i += 1) {
     const x = (i / (size - 1)) * 2 - 1;
     curve[i] = Math.abs(x);
   }
+  absCurveCache.set(size, curve);
   return curve;
 };
 
@@ -254,75 +259,90 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
       duckDepth.connect(wetDuckGain.gain);
     }
 
-    const pitchL = createPitchShiftNodes(context);
-    const pitchR = createPitchShiftNodes(context);
     const pitchMix = clamp(params.rhythmMorph, 0, 1);
     const stepSemitones = clamp(params.rhythmRateHz, MIN_PITCH_LADDER_SEMITONES, MAX_PITCH_LADDER_SEMITONES);
-    const canPitchShift = Boolean(pitchL.worklet && pitchR.worklet);
-    if (canPitchShift && pitchMix > 1e-3 && Math.abs(stepSemitones) > 1e-3) {
-      setPitchShift(pitchL, stepSemitones);
-      setPitchShift(pitchR, stepSemitones);
-      pitchL.dryGain.gain.value = 1 - pitchMix;
-      pitchL.wetGain.gain.value = pitchMix;
-      pitchR.dryGain.gain.value = 1 - pitchMix;
-      pitchR.wetGain.gain.value = pitchMix;
-    } else {
-      setPitchShift(pitchL, 0);
-      setPitchShift(pitchR, 0);
-      pitchL.dryGain.gain.value = 1;
-      pitchL.wetGain.gain.value = 0;
-      pitchR.dryGain.gain.value = 1;
-      pitchR.wetGain.gain.value = 0;
+    const pitchShiftRequested = pitchMix > 1e-3 && Math.abs(stepSemitones) > 1e-3;
+    const diffusionAmount = clamp(params.rhythmSwing, 0, 1);
+    const diffusionActive = diffusionAmount > 1e-3;
+    let feedbackInputL: AudioNode = toneL;
+    let feedbackInputR: AudioNode = toneR;
+
+    if (pitchShiftRequested) {
+      const pitchL = createPitchShiftNodes(context);
+      const pitchR = createPitchShiftNodes(context);
+      const canPitchShift = Boolean(pitchL.worklet && pitchR.worklet);
+      if (canPitchShift) {
+        setPitchShift(pitchL, stepSemitones);
+        setPitchShift(pitchR, stepSemitones);
+        pitchL.dryGain.gain.value = 1 - pitchMix;
+        pitchL.wetGain.gain.value = pitchMix;
+        pitchR.dryGain.gain.value = 1 - pitchMix;
+        pitchR.wetGain.gain.value = pitchMix;
+      } else {
+        setPitchShift(pitchL, 0);
+        setPitchShift(pitchR, 0);
+        pitchL.dryGain.gain.value = 1;
+        pitchL.wetGain.gain.value = 0;
+        pitchR.dryGain.gain.value = 1;
+        pitchR.wetGain.gain.value = 0;
+      }
+      toneL.connect(pitchL.input);
+      toneR.connect(pitchR.input);
+      feedbackInputL = pitchL.output;
+      feedbackInputR = pitchR.output;
     }
 
-    const diffusionSettings = mapDelayDiffusionSettings(params.rhythmSwing);
-    const diffusionL1 = context.createBiquadFilter();
-    const diffusionL2 = context.createBiquadFilter();
-    const diffusionR1 = context.createBiquadFilter();
-    const diffusionR2 = context.createBiquadFilter();
-    const diffusionDryL = context.createGain();
-    const diffusionDryR = context.createGain();
-    const diffusionWetL = context.createGain();
-    const diffusionWetR = context.createGain();
-    const diffusionMergeL = context.createGain();
-    const diffusionMergeR = context.createGain();
-    diffusionL1.type = "allpass";
-    diffusionL2.type = "allpass";
-    diffusionR1.type = "allpass";
-    diffusionR2.type = "allpass";
-    diffusionL1.frequency.value = diffusionSettings.frequency;
-    diffusionL2.frequency.value = diffusionSettings.frequency * 1.31;
-    diffusionR1.frequency.value = diffusionSettings.frequency * 1.17;
-    diffusionR2.frequency.value = diffusionSettings.frequency * 1.53;
-    diffusionL1.Q.value = diffusionSettings.q;
-    diffusionL2.Q.value = diffusionSettings.q;
-    diffusionR1.Q.value = diffusionSettings.q;
-    diffusionR2.Q.value = diffusionSettings.q;
-    diffusionDryL.gain.value = diffusionSettings.dry;
-    diffusionDryR.gain.value = diffusionSettings.dry;
-    diffusionWetL.gain.value = diffusionSettings.wet;
-    diffusionWetR.gain.value = diffusionSettings.wet;
+    if (diffusionActive) {
+      const diffusionSettings = mapDelayDiffusionSettings(diffusionAmount);
+      const diffusionL1 = context.createBiquadFilter();
+      const diffusionL2 = context.createBiquadFilter();
+      const diffusionR1 = context.createBiquadFilter();
+      const diffusionR2 = context.createBiquadFilter();
+      const diffusionDryL = context.createGain();
+      const diffusionDryR = context.createGain();
+      const diffusionWetL = context.createGain();
+      const diffusionWetR = context.createGain();
+      const diffusionMergeL = context.createGain();
+      const diffusionMergeR = context.createGain();
+      diffusionL1.type = "allpass";
+      diffusionL2.type = "allpass";
+      diffusionR1.type = "allpass";
+      diffusionR2.type = "allpass";
+      diffusionL1.frequency.value = diffusionSettings.frequency;
+      diffusionL2.frequency.value = diffusionSettings.frequency * 1.31;
+      diffusionR1.frequency.value = diffusionSettings.frequency * 1.17;
+      diffusionR2.frequency.value = diffusionSettings.frequency * 1.53;
+      diffusionL1.Q.value = diffusionSettings.q;
+      diffusionL2.Q.value = diffusionSettings.q;
+      diffusionR1.Q.value = diffusionSettings.q;
+      diffusionR2.Q.value = diffusionSettings.q;
+      diffusionDryL.gain.value = diffusionSettings.dry;
+      diffusionDryR.gain.value = diffusionSettings.dry;
+      diffusionWetL.gain.value = diffusionSettings.wet;
+      diffusionWetR.gain.value = diffusionSettings.wet;
+      feedbackInputL.connect(diffusionDryL);
+      feedbackInputR.connect(diffusionDryR);
+      diffusionDryL.connect(diffusionMergeL);
+      diffusionDryR.connect(diffusionMergeR);
+      feedbackInputL.connect(diffusionL1);
+      feedbackInputR.connect(diffusionR1);
+      diffusionL1.connect(diffusionL2);
+      diffusionR1.connect(diffusionR2);
+      diffusionL2.connect(diffusionWetL);
+      diffusionR2.connect(diffusionWetR);
+      diffusionWetL.connect(diffusionMergeL);
+      diffusionWetR.connect(diffusionMergeR);
+      diffusionMergeL.connect(dampingL);
+      diffusionMergeR.connect(dampingR);
+    } else {
+      feedbackInputL.connect(dampingL);
+      feedbackInputR.connect(dampingR);
+    }
 
     delayL.connect(feedbackL);
     delayR.connect(feedbackR);
     feedbackL.connect(toneL);
     feedbackR.connect(toneR);
-    toneL.connect(pitchL.input);
-    toneR.connect(pitchR.input);
-    pitchL.output.connect(diffusionDryL);
-    pitchR.output.connect(diffusionDryR);
-    diffusionDryL.connect(diffusionMergeL);
-    diffusionDryR.connect(diffusionMergeR);
-    pitchL.output.connect(diffusionL1);
-    pitchR.output.connect(diffusionR1);
-    diffusionL1.connect(diffusionL2);
-    diffusionR1.connect(diffusionR2);
-    diffusionL2.connect(diffusionWetL);
-    diffusionR2.connect(diffusionWetR);
-    diffusionWetL.connect(diffusionMergeL);
-    diffusionWetR.connect(diffusionMergeR);
-    diffusionMergeL.connect(dampingL);
-    diffusionMergeR.connect(dampingR);
     dampingL.connect(saturationDriveL);
     dampingR.connect(saturationDriveR);
     saturationDriveL.connect(saturationShapeL);

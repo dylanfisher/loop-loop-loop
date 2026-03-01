@@ -1,4 +1,5 @@
 import { encodeWav } from "./audio";
+import { setPerfTiming } from "./perf";
 
 type WavEncodeRequest = {
   id: number;
@@ -10,10 +11,12 @@ type WavEncodeResponse =
   | {
       id: number;
       wavBuffer: ArrayBuffer;
+      encodeMs: number;
     }
   | {
       id: number;
       error: string;
+      encodeMs: number;
     };
 
 let worker: Worker | null = null;
@@ -31,6 +34,7 @@ const resolveWorker = () => {
     });
     worker.onmessage = (event: MessageEvent<WavEncodeResponse>) => {
       const response = event.data;
+      setPerfTiming("export.encode.wavWorkerMs", response.encodeMs);
       const request = pending.get(response.id);
       if (!request) return;
       pending.delete(response.id);
@@ -67,14 +71,21 @@ const copyChannels = (buffer: AudioBuffer) => {
 };
 
 export const encodeWavOffThread = async (buffer: AudioBuffer) => {
+  const startedAt = performance.now();
   const activeWorker = resolveWorker();
   if (!activeWorker) {
-    return encodeWav(buffer);
+    const fallbackStartedAt = performance.now();
+    const blob = encodeWav(buffer);
+    setPerfTiming("export.encode.wavFallbackMs", performance.now() - fallbackStartedAt);
+    setPerfTiming("export.encode.totalMs", performance.now() - startedAt);
+    return blob;
   }
   const id = nextRequestId;
   nextRequestId += 1;
+  const copyStartedAt = performance.now();
   const { channels, transferables } = copyChannels(buffer);
-  return new Promise<Blob>((resolve, reject) => {
+  setPerfTiming("export.encode.copyChannelsMs", performance.now() - copyStartedAt);
+  const encoded = await new Promise<Blob>((resolve, reject) => {
     pending.set(id, { resolve, reject });
     const request: WavEncodeRequest = {
       id,
@@ -87,5 +98,12 @@ export const encodeWavOffThread = async (buffer: AudioBuffer) => {
       pending.delete(id);
       reject(error instanceof Error ? error : new Error("Failed to post WAV job"));
     }
-  }).catch(() => encodeWav(buffer));
+  }).catch(() => {
+    const fallbackStartedAt = performance.now();
+    const blob = encodeWav(buffer);
+    setPerfTiming("export.encode.wavFallbackMs", performance.now() - fallbackStartedAt);
+    return blob;
+  });
+  setPerfTiming("export.encode.totalMs", performance.now() - startedAt);
+  return encoded;
 };
