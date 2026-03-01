@@ -35,6 +35,14 @@ export const DEFAULT_DELAY_SLICE_SYNC = false;
 export const DEFAULT_DELAY_SATURATION = 0;
 export const DEFAULT_DELAY_DAMPING = 0;
 export const DEFAULT_DELAY_SAFETY = 0;
+export const DEFAULT_DELAY_RHYTHM_MORPH = 0;
+export const DEFAULT_DELAY_RHYTHM_RATE_HZ = 0;
+export const DEFAULT_DELAY_RHYTHM_SWING = 0;
+export const DEFAULT_DELAY_DUCK_DEPTH = 0;
+export const DEFAULT_DELAY_DUCK_THRESHOLD = 0.2;
+export const DEFAULT_DELAY_DUCK_RESPONSE_MS = 80;
+export const DEFAULT_DELAY_SPECTRAL_MIX = 0;
+export const DEFAULT_DELAY_SPECTRAL_SPREAD = 0.35;
 export const DEFAULT_VOCODER_MIX = 0;
 export const DEFAULT_VOCODER_CARRIER_DECK_ID: number | null = null;
 export const DEFAULT_VOCODER_MODULATOR_MONITOR = 0;
@@ -76,6 +84,14 @@ export const SIMPLE_AUTOMATION_PARAM_LIMITS: Record<
   delaySaturation: { min: 0, max: 1 },
   delayDamping: { min: 0, max: 1 },
   delaySafety: { min: 0, max: 1 },
+  delayRhythmMorph: { min: 0, max: 1 },
+  delayRhythmRateHz: { min: -12, max: 12 },
+  delayRhythmSwing: { min: 0, max: 1 },
+  delayDuckDepth: { min: 0, max: 1 },
+  delayDuckThreshold: { min: 0, max: 1 },
+  delayDuckResponseMs: { min: 8, max: 800 },
+  delaySpectralMix: { min: 0, max: 1 },
+  delaySpectralSpread: { min: 0, max: 1 },
   vocoderMix: { min: 0, max: 1 },
   vocoderModulatorMonitor: { min: 0, max: 1 },
   vocoderModDrive: { min: 0.5, max: 10 },
@@ -349,6 +365,14 @@ export const buildInitialDecks = (): DeckState[] => [
     delaySaturation: DEFAULT_DELAY_SATURATION,
     delayDamping: DEFAULT_DELAY_DAMPING,
     delaySafety: DEFAULT_DELAY_SAFETY,
+    delayRhythmMorph: DEFAULT_DELAY_RHYTHM_MORPH,
+    delayRhythmRateHz: DEFAULT_DELAY_RHYTHM_RATE_HZ,
+    delayRhythmSwing: DEFAULT_DELAY_RHYTHM_SWING,
+    delayDuckDepth: DEFAULT_DELAY_DUCK_DEPTH,
+    delayDuckThreshold: DEFAULT_DELAY_DUCK_THRESHOLD,
+    delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
+    delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
+    delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
     rearrangerSlices: DEFAULT_REARRANGER_SLICES,
     rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
     rearrangerChaos: DEFAULT_REARRANGER_CHAOS,

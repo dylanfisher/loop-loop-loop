@@ -61,6 +61,14 @@ export type DeckStackProps = {
   onDelaySaturationChange: (id: number, value: number) => void;
   onDelayDampingChange: (id: number, value: number) => void;
   onDelaySafetyChange: (id: number, value: number) => void;
+  onDelayRhythmMorphChange: (id: number, value: number) => void;
+  onDelayRhythmRateHzChange: (id: number, value: number) => void;
+  onDelayRhythmSwingChange: (id: number, value: number) => void;
+  onDelayDuckDepthChange: (id: number, value: number) => void;
+  onDelayDuckThresholdChange: (id: number, value: number) => void;
+  onDelayDuckResponseMsChange: (id: number, value: number) => void;
+  onDelaySpectralMixChange: (id: number, value: number) => void;
+  onDelaySpectralSpreadChange: (id: number, value: number) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
   onVocoderMixChange: (id: number, value: number) => void;
   onVocoderCarrierDeckIdChange: (id: number, value: number | null) => void;
@@ -197,6 +205,14 @@ const DeckStack = ({
   onDelaySaturationChange,
   onDelayDampingChange,
   onDelaySafetyChange,
+  onDelayRhythmMorphChange,
+  onDelayRhythmRateHzChange,
+  onDelayRhythmSwingChange,
+  onDelayDuckDepthChange,
+  onDelayDuckThresholdChange,
+  onDelayDuckResponseMsChange,
+  onDelaySpectralMixChange,
+  onDelaySpectralSpreadChange,
   onDelaySliceSyncChange,
   onVocoderMixChange,
   onVocoderCarrierDeckIdChange,
@@ -446,6 +462,14 @@ const DeckStack = ({
               onDelaySaturationChange={onDelaySaturationChange}
               onDelayDampingChange={onDelayDampingChange}
               onDelaySafetyChange={onDelaySafetyChange}
+              onDelayRhythmMorphChange={onDelayRhythmMorphChange}
+              onDelayRhythmRateHzChange={onDelayRhythmRateHzChange}
+              onDelayRhythmSwingChange={onDelayRhythmSwingChange}
+              onDelayDuckDepthChange={onDelayDuckDepthChange}
+              onDelayDuckThresholdChange={onDelayDuckThresholdChange}
+              onDelayDuckResponseMsChange={onDelayDuckResponseMsChange}
+              onDelaySpectralMixChange={onDelaySpectralMixChange}
+              onDelaySpectralSpreadChange={onDelaySpectralSpreadChange}
               onDelaySliceSyncChange={onDelaySliceSyncChange}
               onVocoderMixChange={onVocoderMixChange}
               onVocoderCarrierDeckIdChange={onVocoderCarrierDeckIdChange}

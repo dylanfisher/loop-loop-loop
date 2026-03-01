@@ -28,6 +28,14 @@ type Args = {
   setDeckDelaySaturation: (id: number, value: number) => void;
   setDeckDelayDamping: (id: number, value: number) => void;
   setDeckDelaySafety: (id: number, value: number) => void;
+  setDeckDelayRhythmMorph: (id: number, value: number) => void;
+  setDeckDelayRhythmRateHz: (id: number, value: number) => void;
+  setDeckDelayRhythmSwing: (id: number, value: number) => void;
+  setDeckDelayDuckDepth: (id: number, value: number) => void;
+  setDeckDelayDuckThreshold: (id: number, value: number) => void;
+  setDeckDelayDuckResponseMs: (id: number, value: number) => void;
+  setDeckDelaySpectralMix: (id: number, value: number) => void;
+  setDeckDelaySpectralSpread: (id: number, value: number) => void;
   setDeckVocoderMix: (id: number, value: number) => void;
   setDeckVocoderCarrierDeckId: (id: number, value: number | null) => void;
   setDeckVocoderModulatorMonitor: (id: number, value: number) => void;
@@ -101,6 +109,14 @@ export const createDeckParameterSetters = ({
   setDeckDelaySaturation,
   setDeckDelayDamping,
   setDeckDelaySafety,
+  setDeckDelayRhythmMorph,
+  setDeckDelayRhythmRateHz,
+  setDeckDelayRhythmSwing,
+  setDeckDelayDuckDepth,
+  setDeckDelayDuckThreshold,
+  setDeckDelayDuckResponseMs,
+  setDeckDelaySpectralMix,
+  setDeckDelaySpectralSpread,
   setDeckVocoderMix,
   setDeckVocoderCarrierDeckId,
   setDeckVocoderModulatorMonitor,
@@ -271,6 +287,54 @@ export const createDeckParameterSetters = ({
     updateDeck(id, { delaySafety: clamped }, false);
   };
 
+  const setDeckDelayRhythmMorphValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelayRhythmMorph(id, clamped);
+    updateDeck(id, { delayRhythmMorph: clamped }, false);
+  };
+
+  const setDeckDelayRhythmRateHzValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, -12), 12);
+    setDeckDelayRhythmRateHz(id, clamped);
+    updateDeck(id, { delayRhythmRateHz: clamped }, false);
+  };
+
+  const setDeckDelayRhythmSwingValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelayRhythmSwing(id, clamped);
+    updateDeck(id, { delayRhythmSwing: clamped }, false);
+  };
+
+  const setDeckDelayDuckDepthValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelayDuckDepth(id, clamped);
+    updateDeck(id, { delayDuckDepth: clamped }, false);
+  };
+
+  const setDeckDelayDuckThresholdValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelayDuckThreshold(id, clamped);
+    updateDeck(id, { delayDuckThreshold: clamped }, false);
+  };
+
+  const setDeckDelayDuckResponseMsValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 8), 800);
+    setDeckDelayDuckResponseMs(id, clamped);
+    updateDeck(id, { delayDuckResponseMs: clamped }, false);
+  };
+
+  const setDeckDelaySpectralMixValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelaySpectralMix(id, clamped);
+    updateDeck(id, { delaySpectralMix: clamped }, false);
+  };
+
+  const setDeckDelaySpectralSpreadValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelaySpectralSpread(id, clamped);
+    updateDeck(id, { delaySpectralSpread: clamped }, false);
+  };
+
   const setDeckVocoderMixValue = (id: number, value: number) => {
     const clamped = Math.min(Math.max(value, 0), 1);
     setDeckVocoderMix(id, clamped);
@@ -423,6 +487,14 @@ export const createDeckParameterSetters = ({
     setDeckDelaySaturationValue,
     setDeckDelayDampingValue,
     setDeckDelaySafetyValue,
+    setDeckDelayRhythmMorphValue,
+    setDeckDelayRhythmRateHzValue,
+    setDeckDelayRhythmSwingValue,
+    setDeckDelayDuckDepthValue,
+    setDeckDelayDuckThresholdValue,
+    setDeckDelayDuckResponseMsValue,
+    setDeckDelaySpectralMixValue,
+    setDeckDelaySpectralSpreadValue,
     setDeckVocoderMixValue,
     setDeckVocoderCarrierDeckIdValue,
     setDeckVocoderModulatorMonitorValue,

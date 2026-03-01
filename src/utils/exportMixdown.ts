@@ -225,6 +225,38 @@ export const renderMixdownBlob = async ({
     const delaySaturation = Math.min(Math.max(resolveSimpleValue(deck, "delaySaturation", deck.delaySaturation ?? 0), 0), 1);
     const delayDamping = Math.min(Math.max(resolveSimpleValue(deck, "delayDamping", deck.delayDamping ?? 0), 0), 1);
     const delaySafety = Math.min(Math.max(resolveSimpleValue(deck, "delaySafety", deck.delaySafety ?? 0.35), 0), 1);
+    const delayRhythmMorph = Math.min(
+      Math.max(resolveSimpleValue(deck, "delayRhythmMorph", deck.delayRhythmMorph ?? 0), 0),
+      1
+    );
+    const delayRhythmRateHz = Math.min(
+      Math.max(resolveSimpleValue(deck, "delayRhythmRateHz", deck.delayRhythmRateHz ?? 0), -12),
+      12
+    );
+    const delayRhythmSwing = Math.min(
+      Math.max(resolveSimpleValue(deck, "delayRhythmSwing", deck.delayRhythmSwing ?? 0.5), 0),
+      1
+    );
+    const delayDuckDepth = Math.min(
+      Math.max(resolveSimpleValue(deck, "delayDuckDepth", deck.delayDuckDepth ?? 0), 0),
+      1
+    );
+    const delayDuckThreshold = Math.min(
+      Math.max(resolveSimpleValue(deck, "delayDuckThreshold", deck.delayDuckThreshold ?? 0.2), 0),
+      1
+    );
+    const delayDuckResponseMs = Math.min(
+      Math.max(resolveSimpleValue(deck, "delayDuckResponseMs", deck.delayDuckResponseMs ?? 80), 8),
+      800
+    );
+    const delaySpectralMix = Math.min(
+      Math.max(resolveSimpleValue(deck, "delaySpectralMix", deck.delaySpectralMix ?? 0), 0),
+      1
+    );
+    const delaySpectralSpread = Math.min(
+      Math.max(resolveSimpleValue(deck, "delaySpectralSpread", deck.delaySpectralSpread ?? 0.35), 0),
+      1
+    );
     const delayPingPong = deck.delayPingPong ?? false;
     const modulatorOutputGain = getDeckModulatorOutputGain(deck.id);
 
@@ -415,6 +447,14 @@ export const renderMixdownBlob = async ({
           damping: delayDamping,
           safety: delaySafety,
           pingPong: delayPingPong,
+          rhythmMorph: delayRhythmMorph,
+          rhythmRateHz: delayRhythmRateHz,
+          rhythmSwing: delayRhythmSwing,
+          duckDepth: delayDuckDepth,
+          duckThreshold: delayDuckThreshold,
+          duckResponseMs: delayDuckResponseMs,
+          spectralMix: delaySpectralMix,
+          spectralSpread: delaySpectralSpread,
         },
       },
       "exportMix"

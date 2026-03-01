@@ -9,6 +9,14 @@ export type SimpleAutomationParam =
   | "delaySaturation"
   | "delayDamping"
   | "delaySafety"
+  | "delayRhythmMorph"
+  | "delayRhythmRateHz"
+  | "delayRhythmSwing"
+  | "delayDuckDepth"
+  | "delayDuckThreshold"
+  | "delayDuckResponseMs"
+  | "delaySpectralMix"
+  | "delaySpectralSpread"
   | "vocoderMix"
   | "vocoderModulatorMonitor"
   | "vocoderModDrive"
@@ -106,6 +114,14 @@ export type DeckState = {
   delaySaturation?: number;
   delayDamping?: number;
   delaySafety?: number;
+  delayRhythmMorph?: number;
+  delayRhythmRateHz?: number;
+  delayRhythmSwing?: number;
+  delayDuckDepth?: number;
+  delayDuckThreshold?: number;
+  delayDuckResponseMs?: number;
+  delaySpectralMix?: number;
+  delaySpectralSpread?: number;
   rearrangerSlices: number;
   rearrangerSwapCount: number;
   rearrangerChaos: number;

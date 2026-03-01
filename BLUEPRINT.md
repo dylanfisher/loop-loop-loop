@@ -19,7 +19,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ### DSP Modules
 - Beat/onset detection (WASM or lightweight JS analysis).
-- FX chain: filters, delay (time/feedback/mix/tone + ping-pong plus feedback-loop character controls for saturation/damping/safety), deck-to-deck channel vocoder (modulator deck + carrier deck routing), Loop Rearranger (offline loop slicing/reordering with slices/offset/chaos/reverse controls, draggable colored slice-boundary handles in the waveform, click-between-handles to add a slice at pointer position, Shift+click in the slice zone to destructively remove the clicked slice audio from the deck buffer and shorten duration, and slice-handle click to remove only a divider while preserving audio, plus optional auto-rearrange each loop cycle), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
+- FX chain: filters, delay (time/feedback/mix/tone + ping-pong plus feedback-loop character controls for damping/safety and drive-in-feedback saturation, plus Pitch-Ladder feedback shifting, Diffusion smear, and Spectral 3-band parallel delay branch), deck-to-deck channel vocoder (modulator deck + carrier deck routing), Loop Rearranger (offline loop slicing/reordering with slices/offset/chaos/reverse controls, draggable colored slice-boundary handles in the waveform, click-between-handles to add a slice at pointer position, Shift+click in the slice zone to destructively remove the clicked slice audio from the deck buffer and shorten duration, and slice-handle click to remove only a divider while preserving audio, plus optional auto-rearrange each loop cycle), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
 - Modulation system: LFOs, envelopes, random/stochastic sources.
 
 ## BPM Detection & Control (Planned)
@@ -75,6 +75,10 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Pitch shift phase-vocoder now uses shared FFT from `/wasm/dsp-core.wasm` for forward/inverse STFT steps, with automatic fallback to JS FFT when unavailable.
 - Shared DSP core also exposes reusable window-to-complex and overlap-add kernels used by both Paulstretch and pitch-vocoder hot paths.
 - Delay includes a phase-1 live-only `Slice Sync` mode that retimes delay-time per active rearranger slice boundary during loop playback.
+- Delay includes `Pitch-Ladder` controls (`Pitch Mix`, `Pitch Step`) that shift repeats by fixed semitone intervals per feedback pass.
+- Delay includes `Diffusion` control that inserts all-pass smearing in the feedback path for ambient-style tails.
+- Delay includes `Drive FB` control that saturates the feedback loop so repeats progressively degrade.
+- Delay includes `Spectral` controls (`Spectral Mix`, `Spectral Spread`) that run a parallel 3-band delay branch (low/mid/high with independent time/feedback/pan shaping).
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/crop/duplicate/remove/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.

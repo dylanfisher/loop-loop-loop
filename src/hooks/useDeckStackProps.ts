@@ -50,6 +50,14 @@ type UseDeckStackPropsArgs = {
   setDeckDelaySaturation: (id: number, value: number) => void;
   setDeckDelayDamping: (id: number, value: number) => void;
   setDeckDelaySafety: (id: number, value: number) => void;
+  setDeckDelayRhythmMorph: (id: number, value: number) => void;
+  setDeckDelayRhythmRateHz: (id: number, value: number) => void;
+  setDeckDelayRhythmSwing: (id: number, value: number) => void;
+  setDeckDelayDuckDepth: (id: number, value: number) => void;
+  setDeckDelayDuckThreshold: (id: number, value: number) => void;
+  setDeckDelayDuckResponseMs: (id: number, value: number) => void;
+  setDeckDelaySpectralMix: (id: number, value: number) => void;
+  setDeckDelaySpectralSpread: (id: number, value: number) => void;
   setDeckDelaySliceSync: (id: number, value: boolean) => void;
   setDeckVocoderMix: (id: number, value: number) => void;
   setDeckVocoderCarrierDeckId: (id: number, value: number | null) => void;
@@ -163,6 +171,14 @@ const useDeckStackProps = ({
   setDeckDelaySaturation,
   setDeckDelayDamping,
   setDeckDelaySafety,
+  setDeckDelayRhythmMorph,
+  setDeckDelayRhythmRateHz,
+  setDeckDelayRhythmSwing,
+  setDeckDelayDuckDepth,
+  setDeckDelayDuckThreshold,
+  setDeckDelayDuckResponseMs,
+  setDeckDelaySpectralMix,
+  setDeckDelaySpectralSpread,
   setDeckDelaySliceSync,
   setDeckVocoderMix,
   setDeckVocoderCarrierDeckId,
@@ -304,6 +320,14 @@ const useDeckStackProps = ({
     onDelaySaturationChange: setDeckDelaySaturation,
     onDelayDampingChange: setDeckDelayDamping,
     onDelaySafetyChange: setDeckDelaySafety,
+    onDelayRhythmMorphChange: setDeckDelayRhythmMorph,
+    onDelayRhythmRateHzChange: setDeckDelayRhythmRateHz,
+    onDelayRhythmSwingChange: setDeckDelayRhythmSwing,
+    onDelayDuckDepthChange: setDeckDelayDuckDepth,
+    onDelayDuckThresholdChange: setDeckDelayDuckThreshold,
+    onDelayDuckResponseMsChange: setDeckDelayDuckResponseMs,
+    onDelaySpectralMixChange: setDeckDelaySpectralMix,
+    onDelaySpectralSpreadChange: setDeckDelaySpectralSpread,
     onDelaySliceSyncChange: setDeckDelaySliceSync,
     onVocoderMixChange: setDeckVocoderMix,
     onVocoderCarrierDeckIdChange: setDeckVocoderCarrierDeckId,

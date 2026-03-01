@@ -44,8 +44,16 @@ import {
   DEFAULT_DELAY_FEEDBACK,
   DEFAULT_DELAY_MIX,
   DEFAULT_DELAY_PINGPONG,
+  DEFAULT_DELAY_DUCK_DEPTH,
+  DEFAULT_DELAY_DUCK_RESPONSE_MS,
+  DEFAULT_DELAY_DUCK_THRESHOLD,
+  DEFAULT_DELAY_RHYTHM_MORPH,
+  DEFAULT_DELAY_RHYTHM_RATE_HZ,
+  DEFAULT_DELAY_RHYTHM_SWING,
   DEFAULT_DELAY_SAFETY,
   DEFAULT_DELAY_SATURATION,
+  DEFAULT_DELAY_SPECTRAL_MIX,
+  DEFAULT_DELAY_SPECTRAL_SPREAD,
   DEFAULT_DELAY_SLICE_SYNC,
   DEFAULT_DELAY_TIME,
   DEFAULT_DELAY_TONE,
@@ -147,6 +155,14 @@ const useDecks = () => {
     setDeckDelaySaturation,
     setDeckDelayDamping,
     setDeckDelaySafety,
+    setDeckDelayRhythmMorph,
+    setDeckDelayRhythmRateHz,
+    setDeckDelayRhythmSwing,
+    setDeckDelayDuckDepth,
+    setDeckDelayDuckThreshold,
+    setDeckDelayDuckResponseMs,
+    setDeckDelaySpectralMix,
+    setDeckDelaySpectralSpread,
     setDeckVocoderMix,
     setDeckVocoderCarrierDeckId,
     setDeckVocoderModulatorMonitor,
@@ -298,6 +314,46 @@ const useDecks = () => {
         updateDeckValue("delaySafety", clamped);
         return;
       }
+      if (param === "delayRhythmMorph") {
+        setDeckDelayRhythmMorph(deckId, clamped);
+        updateDeckValue("delayRhythmMorph", clamped);
+        return;
+      }
+      if (param === "delayRhythmRateHz") {
+        setDeckDelayRhythmRateHz(deckId, clamped);
+        updateDeckValue("delayRhythmRateHz", clamped, 0.01);
+        return;
+      }
+      if (param === "delayRhythmSwing") {
+        setDeckDelayRhythmSwing(deckId, clamped);
+        updateDeckValue("delayRhythmSwing", clamped);
+        return;
+      }
+      if (param === "delayDuckDepth") {
+        setDeckDelayDuckDepth(deckId, clamped);
+        updateDeckValue("delayDuckDepth", clamped);
+        return;
+      }
+      if (param === "delayDuckThreshold") {
+        setDeckDelayDuckThreshold(deckId, clamped);
+        updateDeckValue("delayDuckThreshold", clamped);
+        return;
+      }
+      if (param === "delayDuckResponseMs") {
+        setDeckDelayDuckResponseMs(deckId, clamped);
+        updateDeckValue("delayDuckResponseMs", clamped, 0.5);
+        return;
+      }
+      if (param === "delaySpectralMix") {
+        setDeckDelaySpectralMix(deckId, clamped);
+        updateDeckValue("delaySpectralMix", clamped);
+        return;
+      }
+      if (param === "delaySpectralSpread") {
+        setDeckDelaySpectralSpread(deckId, clamped);
+        updateDeckValue("delaySpectralSpread", clamped);
+        return;
+      }
       if (param === "vocoderMix") {
         setDeckVocoderMix(deckId, clamped);
         updateDeckValue("vocoderMix", clamped);
@@ -376,9 +432,17 @@ const useDecks = () => {
       setDeckDelayFeedback,
       setDeckDelayMix,
       setDeckDelaySafety,
+      setDeckDelayDuckDepth,
+      setDeckDelayDuckResponseMs,
+      setDeckDelayDuckThreshold,
       setDeckDelaySaturation,
+      setDeckDelaySpectralMix,
+      setDeckDelaySpectralSpread,
       setDeckDelayTime,
       setDeckDelayTone,
+      setDeckDelayRhythmMorph,
+      setDeckDelayRhythmRateHz,
+      setDeckDelayRhythmSwing,
       setDeckVocoderAttackMs,
       setDeckVocoderBandCount,
       setDeckVocoderBandSpread,
@@ -546,6 +610,14 @@ const useDecks = () => {
         delaySaturation?: number;
         delayDamping?: number;
         delaySafety?: number;
+        delayRhythmMorph?: number;
+        delayRhythmRateHz?: number;
+        delayRhythmSwing?: number;
+        delayDuckDepth?: number;
+        delayDuckThreshold?: number;
+        delayDuckResponseMs?: number;
+        delaySpectralMix?: number;
+        delaySpectralSpread?: number;
       }
     ) => {
       const targets = getFilterTargets(settings.djFilter);
@@ -582,6 +654,20 @@ const useDecks = () => {
       );
       setDeckDelayDamping(deckId, settings.delayDamping ?? DEFAULT_DELAY_DAMPING);
       setDeckDelaySafety(deckId, settings.delaySafety ?? DEFAULT_DELAY_SAFETY);
+      setDeckDelayRhythmMorph(deckId, settings.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH);
+      setDeckDelayRhythmRateHz(deckId, settings.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ);
+      setDeckDelayRhythmSwing(deckId, settings.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING);
+      setDeckDelayDuckDepth(deckId, settings.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH);
+      setDeckDelayDuckThreshold(deckId, settings.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD);
+      setDeckDelayDuckResponseMs(
+        deckId,
+        settings.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS
+      );
+      setDeckDelaySpectralMix(deckId, settings.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX);
+      setDeckDelaySpectralSpread(
+        deckId,
+        settings.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD
+      );
       setDeckPlaybackRate(deckId, clampPlaybackRate(1 + settings.tempoOffset / 100));
     },
     [
@@ -593,6 +679,14 @@ const useDecks = () => {
       setDeckDelaySaturation,
       setDeckDelayDamping,
       setDeckDelaySafety,
+      setDeckDelayRhythmMorph,
+      setDeckDelayRhythmRateHz,
+      setDeckDelayRhythmSwing,
+      setDeckDelayDuckDepth,
+      setDeckDelayDuckThreshold,
+      setDeckDelayDuckResponseMs,
+      setDeckDelaySpectralMix,
+      setDeckDelaySpectralSpread,
       setDeckDelayTime,
       setDeckDelayTone,
       setDeckEqMode,
@@ -1098,6 +1192,20 @@ const useDecks = () => {
         setDeckDelaySaturation(deck.id, deck.delaySaturation ?? DEFAULT_DELAY_SATURATION);
         setDeckDelayDamping(deck.id, deck.delayDamping ?? DEFAULT_DELAY_DAMPING);
         setDeckDelaySafety(deck.id, deck.delaySafety ?? DEFAULT_DELAY_SAFETY);
+        setDeckDelayRhythmMorph(deck.id, deck.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH);
+        setDeckDelayRhythmRateHz(deck.id, deck.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ);
+        setDeckDelayRhythmSwing(deck.id, deck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING);
+        setDeckDelayDuckDepth(deck.id, deck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH);
+        setDeckDelayDuckThreshold(deck.id, deck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD);
+        setDeckDelayDuckResponseMs(
+          deck.id,
+          deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS
+        );
+        setDeckDelaySpectralMix(deck.id, deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX);
+        setDeckDelaySpectralSpread(
+          deck.id,
+          deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD
+        );
         setDeckVocoderMix(deck.id, deck.vocoderMix);
         setDeckVocoderCarrierDeckId(deck.id, deck.vocoderCarrierDeckId);
         setDeckVocoderModulatorMonitor(deck.id, deck.vocoderModulatorMonitor);
@@ -1169,6 +1277,14 @@ const useDecks = () => {
           deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
           deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
           deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
+          deck.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH,
+          deck.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ,
+          deck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING,
+          deck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH,
+          deck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD,
+          deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
+          deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
+          deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
           deck.vocoderMix,
           deck.vocoderCarrierDeckId,
           deck.vocoderModulatorMonitor,
@@ -1214,6 +1330,14 @@ const useDecks = () => {
       setDeckDelaySaturation,
       setDeckDelayDamping,
       setDeckDelaySafety,
+      setDeckDelayRhythmMorph,
+      setDeckDelayRhythmRateHz,
+      setDeckDelayRhythmSwing,
+      setDeckDelayDuckDepth,
+      setDeckDelayDuckThreshold,
+      setDeckDelayDuckResponseMs,
+      setDeckDelaySpectralMix,
+      setDeckDelaySpectralSpread,
       setDeckVocoderMix,
       setDeckVocoderCarrierDeckId,
       setDeckVocoderModulatorMonitor,
@@ -1516,6 +1640,14 @@ const useDecks = () => {
         delaySaturation: DEFAULT_DELAY_SATURATION,
         delayDamping: DEFAULT_DELAY_DAMPING,
         delaySafety: DEFAULT_DELAY_SAFETY,
+        delayRhythmMorph: DEFAULT_DELAY_RHYTHM_MORPH,
+        delayRhythmRateHz: DEFAULT_DELAY_RHYTHM_RATE_HZ,
+        delayRhythmSwing: DEFAULT_DELAY_RHYTHM_SWING,
+        delayDuckDepth: DEFAULT_DELAY_DUCK_DEPTH,
+        delayDuckThreshold: DEFAULT_DELAY_DUCK_THRESHOLD,
+        delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
+        delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
+        delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
         rearrangerSlices: DEFAULT_REARRANGER_SLICES,
         rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
         rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -1604,6 +1736,14 @@ const useDecks = () => {
             delaySaturation: DEFAULT_DELAY_SATURATION,
             delayDamping: DEFAULT_DELAY_DAMPING,
             delaySafety: DEFAULT_DELAY_SAFETY,
+        delayRhythmMorph: DEFAULT_DELAY_RHYTHM_MORPH,
+        delayRhythmRateHz: DEFAULT_DELAY_RHYTHM_RATE_HZ,
+        delayRhythmSwing: DEFAULT_DELAY_RHYTHM_SWING,
+        delayDuckDepth: DEFAULT_DELAY_DUCK_DEPTH,
+        delayDuckThreshold: DEFAULT_DELAY_DUCK_THRESHOLD,
+        delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
+        delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
+        delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
             rearrangerSlices: DEFAULT_REARRANGER_SLICES,
             rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
             rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -1714,6 +1854,16 @@ const useDecks = () => {
     const nextDelaySaturation = clipSettings?.delaySaturation ?? DEFAULT_DELAY_SATURATION;
     const nextDelayDamping = clipSettings?.delayDamping ?? DEFAULT_DELAY_DAMPING;
     const nextDelaySafety = clipSettings?.delaySafety ?? DEFAULT_DELAY_SAFETY;
+    const nextDelayRhythmMorph = clipSettings?.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH;
+    const nextDelayRhythmRateHz = clipSettings?.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ;
+    const nextDelayRhythmSwing = clipSettings?.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING;
+    const nextDelayDuckDepth = clipSettings?.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH;
+    const nextDelayDuckThreshold = clipSettings?.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD;
+    const nextDelayDuckResponseMs =
+      clipSettings?.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS;
+    const nextDelaySpectralMix = clipSettings?.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX;
+    const nextDelaySpectralSpread =
+      clipSettings?.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD;
     const nextVocoderMix = clipSettings?.vocoderMix ?? DEFAULT_VOCODER_MIX;
     const nextVocoderCarrierDeckId =
       clipSettings?.vocoderCarrierDeckId ?? DEFAULT_VOCODER_CARRIER_DECK_ID;
@@ -1832,6 +1982,14 @@ const useDecks = () => {
           nextDelaySaturation > FX_ACTIVE_EPSILON ||
           nextDelayDamping > FX_ACTIVE_EPSILON ||
           !approxEqual(nextDelaySafety, DEFAULT_DELAY_SAFETY) ||
+          nextDelayRhythmMorph > FX_ACTIVE_EPSILON ||
+          !approxEqual(nextDelayRhythmRateHz, DEFAULT_DELAY_RHYTHM_RATE_HZ) ||
+          !approxEqual(nextDelayRhythmSwing, DEFAULT_DELAY_RHYTHM_SWING) ||
+          nextDelayDuckDepth > FX_ACTIVE_EPSILON ||
+          !approxEqual(nextDelayDuckThreshold, DEFAULT_DELAY_DUCK_THRESHOLD) ||
+          !approxEqual(nextDelayDuckResponseMs, DEFAULT_DELAY_DUCK_RESPONSE_MS) ||
+          nextDelaySpectralMix > FX_ACTIVE_EPSILON ||
+          !approxEqual(nextDelaySpectralSpread, DEFAULT_DELAY_SPECTRAL_SPREAD) ||
           nextDelaySliceSync,
         rearranger:
           currentPanels.rearranger ||
@@ -1884,6 +2042,14 @@ const useDecks = () => {
       delaySaturation: nextDelaySaturation,
       delayDamping: nextDelayDamping,
       delaySafety: nextDelaySafety,
+      delayRhythmMorph: nextDelayRhythmMorph,
+      delayRhythmRateHz: nextDelayRhythmRateHz,
+      delayRhythmSwing: nextDelayRhythmSwing,
+      delayDuckDepth: nextDelayDuckDepth,
+      delayDuckThreshold: nextDelayDuckThreshold,
+      delayDuckResponseMs: nextDelayDuckResponseMs,
+      delaySpectralMix: nextDelaySpectralMix,
+      delaySpectralSpread: nextDelaySpectralSpread,
     });
     if (clipSettings?.automation) {
       applyAutomationSnapshots(id, clipSettings.automation, {
@@ -1956,6 +2122,14 @@ const useDecks = () => {
       delaySaturation: nextDelaySaturation,
       delayDamping: nextDelayDamping,
       delaySafety: nextDelaySafety,
+      delayRhythmMorph: nextDelayRhythmMorph,
+      delayRhythmRateHz: nextDelayRhythmRateHz,
+      delayRhythmSwing: nextDelayRhythmSwing,
+      delayDuckDepth: nextDelayDuckDepth,
+      delayDuckThreshold: nextDelayDuckThreshold,
+      delayDuckResponseMs: nextDelayDuckResponseMs,
+      delaySpectralMix: nextDelaySpectralMix,
+      delaySpectralSpread: nextDelaySpectralSpread,
       rearrangerSlices: nextRearrangerSlices,
       rearrangerSwapCount: nextRearrangerSwapCount,
       rearrangerChaos: nextRearrangerChaos,
@@ -1981,6 +2155,14 @@ const useDecks = () => {
     setDeckDelaySaturation(id, nextDelaySaturation);
     setDeckDelayDamping(id, nextDelayDamping);
     setDeckDelaySafety(id, nextDelaySafety);
+    setDeckDelayRhythmMorph(id, nextDelayRhythmMorph);
+    setDeckDelayRhythmRateHz(id, nextDelayRhythmRateHz);
+    setDeckDelayRhythmSwing(id, nextDelayRhythmSwing);
+    setDeckDelayDuckDepth(id, nextDelayDuckDepth);
+    setDeckDelayDuckThreshold(id, nextDelayDuckThreshold);
+    setDeckDelayDuckResponseMs(id, nextDelayDuckResponseMs);
+    setDeckDelaySpectralMix(id, nextDelaySpectralMix);
+    setDeckDelaySpectralSpread(id, nextDelaySpectralSpread);
     setDeckVocoderMix(id, nextVocoderMix);
     setDeckVocoderCarrierDeckId(id, nextVocoderCarrierDeckId);
     setDeckVocoderModulatorMonitor(id, nextVocoderModulatorMonitor);
@@ -2049,6 +2231,14 @@ const useDecks = () => {
         delaySaturation: nextDelaySaturation,
         delayDamping: nextDelayDamping,
         delaySafety: nextDelaySafety,
+        delayRhythmMorph: nextDelayRhythmMorph,
+        delayRhythmRateHz: nextDelayRhythmRateHz,
+        delayRhythmSwing: nextDelayRhythmSwing,
+        delayDuckDepth: nextDelayDuckDepth,
+        delayDuckThreshold: nextDelayDuckThreshold,
+        delayDuckResponseMs: nextDelayDuckResponseMs,
+        delaySpectralMix: nextDelaySpectralMix,
+        delaySpectralSpread: nextDelaySpectralSpread,
         rearrangerSlices: nextRearrangerSlices,
       rearrangerSwapCount: nextRearrangerSwapCount,
       rearrangerChaos: nextRearrangerChaos,
@@ -2105,6 +2295,14 @@ const useDecks = () => {
           nextDelaySaturation,
           nextDelayDamping,
           nextDelaySafety,
+          nextDelayRhythmMorph,
+          nextDelayRhythmRateHz,
+          nextDelayRhythmSwing,
+          nextDelayDuckDepth,
+          nextDelayDuckThreshold,
+          nextDelayDuckResponseMs,
+          nextDelaySpectralMix,
+          nextDelaySpectralSpread,
           nextVocoderMix,
           nextVocoderCarrierDeckId,
           nextVocoderModulatorMonitor,
@@ -2187,7 +2385,15 @@ const useDecks = () => {
       deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
       deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
       deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
-      deck.vocoderMix,
+          deck.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH,
+          deck.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ,
+          deck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING,
+          deck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH,
+          deck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD,
+          deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
+          deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
+          deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
+          deck.vocoderMix,
       deck.vocoderCarrierDeckId,
       deck.vocoderModulatorMonitor,
       deck.vocoderModDrive,
@@ -2356,7 +2562,15 @@ const useDecks = () => {
         deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
         deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
         deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
-        deck.vocoderMix,
+          deck.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH,
+          deck.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ,
+          deck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING,
+          deck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH,
+          deck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD,
+          deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
+          deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
+          deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
+          deck.vocoderMix,
         deck.vocoderCarrierDeckId,
         deck.vocoderModulatorMonitor,
         deck.vocoderModDrive,
@@ -2395,6 +2609,14 @@ const useDecks = () => {
     setDeckDelaySaturationValue,
     setDeckDelayDampingValue,
     setDeckDelaySafetyValue,
+    setDeckDelayRhythmMorphValue,
+    setDeckDelayRhythmRateHzValue,
+    setDeckDelayRhythmSwingValue,
+    setDeckDelayDuckDepthValue,
+    setDeckDelayDuckThresholdValue,
+    setDeckDelayDuckResponseMsValue,
+    setDeckDelaySpectralMixValue,
+    setDeckDelaySpectralSpreadValue,
     setDeckVocoderMixValue,
     setDeckVocoderCarrierDeckIdValue,
     setDeckVocoderModulatorMonitorValue,
@@ -2438,6 +2660,14 @@ const useDecks = () => {
     setDeckDelaySaturation,
     setDeckDelayDamping,
     setDeckDelaySafety,
+    setDeckDelayRhythmMorph,
+    setDeckDelayRhythmRateHz,
+    setDeckDelayRhythmSwing,
+    setDeckDelayDuckDepth,
+    setDeckDelayDuckThreshold,
+    setDeckDelayDuckResponseMs,
+    setDeckDelaySpectralMix,
+    setDeckDelaySpectralSpread,
     setDeckVocoderMix,
     setDeckVocoderCarrierDeckId,
     setDeckVocoderModulatorMonitor,
@@ -2612,6 +2842,14 @@ const useDecks = () => {
       const nextDelaySaturation = deck.delaySaturation ?? DEFAULT_DELAY_SATURATION;
       const nextDelayDamping = deck.delayDamping ?? DEFAULT_DELAY_DAMPING;
       const nextDelaySafety = deck.delaySafety ?? DEFAULT_DELAY_SAFETY;
+      const nextDelayRhythmMorph = deck.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH;
+      const nextDelayRhythmRateHz = deck.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ;
+      const nextDelayRhythmSwing = deck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING;
+      const nextDelayDuckDepth = deck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH;
+      const nextDelayDuckThreshold = deck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD;
+      const nextDelayDuckResponseMs = deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS;
+      const nextDelaySpectralMix = deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX;
+      const nextDelaySpectralSpread = deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD;
       const nextRearrangerSlices =
         options?.rearrangerSlices ?? deck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES;
       const nextRearrangerSwapCount =
@@ -2704,6 +2942,14 @@ const useDecks = () => {
         delaySaturation: nextDelaySaturation,
         delayDamping: nextDelayDamping,
         delaySafety: nextDelaySafety,
+        delayRhythmMorph: nextDelayRhythmMorph,
+        delayRhythmRateHz: nextDelayRhythmRateHz,
+        delayRhythmSwing: nextDelayRhythmSwing,
+        delayDuckDepth: nextDelayDuckDepth,
+        delayDuckThreshold: nextDelayDuckThreshold,
+        delayDuckResponseMs: nextDelayDuckResponseMs,
+        delaySpectralMix: nextDelaySpectralMix,
+        delaySpectralSpread: nextDelaySpectralSpread,
         rearrangerSlices: nextRearrangerSlices,
         rearrangerSwapCount: nextRearrangerSwapCount,
         rearrangerChaos: nextRearrangerChaos,
@@ -2755,6 +3001,14 @@ const useDecks = () => {
       setDeckDelaySaturation(id, nextDelaySaturation);
       setDeckDelayDamping(id, nextDelayDamping);
       setDeckDelaySafety(id, nextDelaySafety);
+      setDeckDelayRhythmMorph(id, nextDelayRhythmMorph);
+      setDeckDelayRhythmRateHz(id, nextDelayRhythmRateHz);
+      setDeckDelayRhythmSwing(id, nextDelayRhythmSwing);
+      setDeckDelayDuckDepth(id, nextDelayDuckDepth);
+      setDeckDelayDuckThreshold(id, nextDelayDuckThreshold);
+      setDeckDelayDuckResponseMs(id, nextDelayDuckResponseMs);
+      setDeckDelaySpectralMix(id, nextDelaySpectralMix);
+      setDeckDelaySpectralSpread(id, nextDelaySpectralSpread);
       const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
       setDeckPlaybackRate(id, tempoRatio);
       setDeckLoopParams(id, true, nextLoopStartSeconds, nextLoopEndSeconds);
@@ -2792,6 +3046,14 @@ const useDecks = () => {
           nextDelaySaturation,
           nextDelayDamping,
           nextDelaySafety,
+          nextDelayRhythmMorph,
+          nextDelayRhythmRateHz,
+          nextDelayRhythmSwing,
+          nextDelayDuckDepth,
+          nextDelayDuckThreshold,
+          nextDelayDuckResponseMs,
+          nextDelaySpectralMix,
+          nextDelaySpectralSpread,
           nextVocoderMix,
           nextVocoderCarrierDeckId,
           nextVocoderModulatorMonitor,
@@ -2821,6 +3083,14 @@ const useDecks = () => {
       setDeckDelaySaturation,
       setDeckDelayDamping,
       setDeckDelaySafety,
+      setDeckDelayRhythmMorph,
+      setDeckDelayRhythmRateHz,
+      setDeckDelayRhythmSwing,
+      setDeckDelayDuckDepth,
+      setDeckDelayDuckThreshold,
+      setDeckDelayDuckResponseMs,
+      setDeckDelaySpectralMix,
+      setDeckDelaySpectralSpread,
       setDeckDelayTime,
       setDeckDelayTone,
       setDeckEqHigh,
@@ -3032,6 +3302,14 @@ const useDecks = () => {
         delaySaturation: DEFAULT_DELAY_SATURATION,
         delayDamping: DEFAULT_DELAY_DAMPING,
         delaySafety: DEFAULT_DELAY_SAFETY,
+        delayRhythmMorph: DEFAULT_DELAY_RHYTHM_MORPH,
+        delayRhythmRateHz: DEFAULT_DELAY_RHYTHM_RATE_HZ,
+        delayRhythmSwing: DEFAULT_DELAY_RHYTHM_SWING,
+        delayDuckDepth: DEFAULT_DELAY_DUCK_DEPTH,
+        delayDuckThreshold: DEFAULT_DELAY_DUCK_THRESHOLD,
+        delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
+        delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
+        delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
       });
       resetAutomation(
         id,
@@ -3083,6 +3361,14 @@ const useDecks = () => {
           delaySaturation: DEFAULT_DELAY_SATURATION,
           delayDamping: DEFAULT_DELAY_DAMPING,
           delaySafety: DEFAULT_DELAY_SAFETY,
+        delayRhythmMorph: DEFAULT_DELAY_RHYTHM_MORPH,
+        delayRhythmRateHz: DEFAULT_DELAY_RHYTHM_RATE_HZ,
+        delayRhythmSwing: DEFAULT_DELAY_RHYTHM_SWING,
+        delayDuckDepth: DEFAULT_DELAY_DUCK_DEPTH,
+        delayDuckThreshold: DEFAULT_DELAY_DUCK_THRESHOLD,
+        delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
+        delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
+        delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
           rearrangerSlices: DEFAULT_REARRANGER_SLICES,
           rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
           rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -3327,6 +3613,14 @@ const useDecks = () => {
     setDeckDelaySaturation: setDeckDelaySaturationValue,
     setDeckDelayDamping: setDeckDelayDampingValue,
     setDeckDelaySafety: setDeckDelaySafetyValue,
+    setDeckDelayRhythmMorph: setDeckDelayRhythmMorphValue,
+    setDeckDelayRhythmRateHz: setDeckDelayRhythmRateHzValue,
+    setDeckDelayRhythmSwing: setDeckDelayRhythmSwingValue,
+    setDeckDelayDuckDepth: setDeckDelayDuckDepthValue,
+    setDeckDelayDuckThreshold: setDeckDelayDuckThresholdValue,
+    setDeckDelayDuckResponseMs: setDeckDelayDuckResponseMsValue,
+    setDeckDelaySpectralMix: setDeckDelaySpectralMixValue,
+    setDeckDelaySpectralSpread: setDeckDelaySpectralSpreadValue,
     setDeckVocoderMix: setDeckVocoderMixValue,
     setDeckVocoderCarrierDeckId: setDeckVocoderCarrierDeckIdValue,
     setDeckVocoderModulatorMonitor: setDeckVocoderModulatorMonitorValue,

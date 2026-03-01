@@ -65,6 +65,14 @@ export type DeckCardProps = {
   onDelaySaturationChange: (id: number, value: number) => void;
   onDelayDampingChange: (id: number, value: number) => void;
   onDelaySafetyChange: (id: number, value: number) => void;
+  onDelayRhythmMorphChange: (id: number, value: number) => void;
+  onDelayRhythmRateHzChange: (id: number, value: number) => void;
+  onDelayRhythmSwingChange: (id: number, value: number) => void;
+  onDelayDuckDepthChange: (id: number, value: number) => void;
+  onDelayDuckThresholdChange: (id: number, value: number) => void;
+  onDelayDuckResponseMsChange: (id: number, value: number) => void;
+  onDelaySpectralMixChange: (id: number, value: number) => void;
+  onDelaySpectralSpreadChange: (id: number, value: number) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
   onVocoderMixChange: (id: number, value: number) => void;
   onVocoderCarrierDeckIdChange: (id: number, value: number | null) => void;
@@ -616,6 +624,14 @@ const DeckCard = (props: DeckCardProps) => {
           isDifferent(deck.delaySaturation ?? 0, 0) ||
           isDifferent(deck.delayDamping ?? 0, 0) ||
           isDifferent(deck.delaySafety ?? 0.35, 0.35) ||
+          isDifferent(deck.delayRhythmMorph ?? 0, 0) ||
+          isDifferent(deck.delayRhythmRateHz ?? 0, 0, 0.01) ||
+          isDifferent(deck.delayRhythmSwing ?? 0, 0) ||
+          isDifferent(deck.delayDuckDepth ?? 0, 0) ||
+          isDifferent(deck.delayDuckThreshold ?? 0.2, 0.2) ||
+          isDifferent(deck.delayDuckResponseMs ?? 80, 80, 0.5) ||
+          isDifferent(deck.delaySpectralMix ?? 0, 0) ||
+          isDifferent(deck.delaySpectralSpread ?? 0.35, 0.35) ||
           deck.delayPingPong ||
           deck.delaySliceSync
         ),

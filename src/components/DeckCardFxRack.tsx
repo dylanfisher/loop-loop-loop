@@ -136,6 +136,11 @@ const DeckCardFxRack = ({
     onDelaySaturationChange,
     onDelayDampingChange,
     onDelaySafetyChange,
+    onDelayRhythmMorphChange,
+    onDelayRhythmRateHzChange,
+    onDelayRhythmSwingChange,
+    onDelaySpectralMixChange,
+    onDelaySpectralSpreadChange,
     onDelayPingPongChange,
     onDelaySliceSyncChange,
     onRearrangerSwapCountChange,
@@ -947,13 +952,13 @@ const DeckCardFxRack = ({
               />
               <Knob
                 className="knob--compact"
-                label="Saturation"
+                label="Drive FB"
                 min={0}
                 max={1}
                 step={0.01}
                 value={deck.delaySaturation ?? 0}
                 defaultValue={0}
-                labelTitle="Drive soft-clipping in the feedback path to tame peaks and add harmonic grit."
+                labelTitle="Drive in the feedback loop so repeats progressively degrade."
                 onChange={(next) => onDelaySaturationChange(deck.id, next)}
                 isSimpleAutomated={isSimpleAutomated("delaySaturation")}
                 onSimpleAutomationSet={(value, baseline, recording) =>
@@ -987,13 +992,98 @@ const DeckCardFxRack = ({
                 step={0.01}
                 value={deck.delaySafety ?? 0}
                 defaultValue={0}
-                labelTitle="Limiter-style soft clamp on delayed return to keep high-feedback loops musical."
+                labelTitle="Safety compressor plus feedback ceiling trim to keep high-feedback loops controlled without added drive."
                 onChange={(next) => onDelaySafetyChange(deck.id, next)}
                 isSimpleAutomated={isSimpleAutomated("delaySafety")}
                 onSimpleAutomationSet={(value, baseline, recording) =>
                   onSimpleAutomationSet(deck.id, "delaySafety", value, baseline, recording)
                 }
                 onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delaySafety")}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Pitch Mix"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delayRhythmMorph ?? 0}
+                defaultValue={0}
+                labelTitle="Blend amount for pitch shifting inside the feedback loop."
+                onChange={(next) => onDelayRhythmMorphChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delayRhythmMorph")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delayRhythmMorph", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delayRhythmMorph")}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Pitch Step"
+                min={-12}
+                max={12}
+                step={0.01}
+                value={deck.delayRhythmRateHz ?? 0}
+                defaultValue={0}
+                labelTitle="Semitone interval applied per repeat (+3, -5, octave, etc.)."
+                onChange={(next) => onDelayRhythmRateHzChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delayRhythmRateHz")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delayRhythmRateHz", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delayRhythmRateHz")}
+                formatValue={(value, fine) => `${value >= 0 ? "+" : ""}${value.toFixed(fine ? 2 : 1)} st`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Diffusion"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delayRhythmSwing ?? 0}
+                defaultValue={0}
+                labelTitle="Adds all-pass diffusion inside the feedback path for smeary ambient tails."
+                onChange={(next) => onDelayRhythmSwingChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delayRhythmSwing")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delayRhythmSwing", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delayRhythmSwing")}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Spectral Mix"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delaySpectralMix ?? 0}
+                defaultValue={0}
+                labelTitle="Blend in 3-band spectral delay branch."
+                onChange={(next) => onDelaySpectralMixChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delaySpectralMix")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delaySpectralMix", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delaySpectralMix")}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Spectral Spread"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delaySpectralSpread ?? 0.35}
+                defaultValue={0.35}
+                labelTitle="Separates spectral band delay times/pans for prism-like repeats."
+                onChange={(next) => onDelaySpectralSpreadChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delaySpectralSpread")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delaySpectralSpread", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delaySpectralSpread")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
             </div>

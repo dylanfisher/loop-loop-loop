@@ -27,6 +27,14 @@ import {
   setDeckDelaySaturationValue,
   setDeckDelayDampingValue,
   setDeckDelaySafetyValue,
+  setDeckDelayRhythmMorphValue,
+  setDeckDelayRhythmRateHzValue,
+  setDeckDelayRhythmSwingValue,
+  setDeckDelayDuckDepthValue,
+  setDeckDelayDuckThresholdValue,
+  setDeckDelayDuckResponseMsValue,
+  setDeckDelaySpectralMixValue,
+  setDeckDelaySpectralSpreadValue,
   setDeckVocoderMixValue,
   setDeckVocoderCarrierDeckIdValue,
   setDeckVocoderModulatorMonitorValue,
@@ -82,6 +90,14 @@ type AudioEngine = {
     delaySaturation?: number,
     delayDamping?: number,
     delaySafety?: number,
+    delayRhythmMorph?: number,
+    delayRhythmRateHz?: number,
+    delayRhythmSwing?: number,
+    delayDuckDepth?: number,
+    delayDuckThreshold?: number,
+    delayDuckResponseMs?: number,
+    delaySpectralMix?: number,
+    delaySpectralSpread?: number,
     vocoderMix?: number,
     vocoderCarrierDeckId?: number | null,
     vocoderModulatorMonitor?: number,
@@ -128,6 +144,14 @@ type AudioEngine = {
   setDeckDelaySaturation: (deckId: number, value: number) => void;
   setDeckDelayDamping: (deckId: number, value: number) => void;
   setDeckDelaySafety: (deckId: number, value: number) => void;
+  setDeckDelayRhythmMorph: (deckId: number, value: number) => void;
+  setDeckDelayRhythmRateHz: (deckId: number, value: number) => void;
+  setDeckDelayRhythmSwing: (deckId: number, value: number) => void;
+  setDeckDelayDuckDepth: (deckId: number, value: number) => void;
+  setDeckDelayDuckThreshold: (deckId: number, value: number) => void;
+  setDeckDelayDuckResponseMs: (deckId: number, value: number) => void;
+  setDeckDelaySpectralMix: (deckId: number, value: number) => void;
+  setDeckDelaySpectralSpread: (deckId: number, value: number) => void;
   setDeckVocoderMix: (deckId: number, value: number) => void;
   setDeckVocoderCarrierDeckId: (deckId: number, value: number | null) => void;
   setDeckVocoderModulatorMonitor: (deckId: number, value: number) => void;
@@ -258,6 +282,14 @@ const playBuffer: AudioEngine["playBuffer"] = async (
   delaySaturation = 0,
   delayDamping = 0,
   delaySafety = 0.35,
+  delayRhythmMorph = 0,
+  delayRhythmRateHz = 0.35,
+  delayRhythmSwing = 0.5,
+  delayDuckDepth = 0,
+  delayDuckThreshold = 0.2,
+  delayDuckResponseMs = 80,
+  delaySpectralMix = 0,
+  delaySpectralSpread = 0.35,
   vocoderMix = 0,
   vocoderCarrierDeckId = null,
   vocoderModulatorMonitor = 0,
@@ -317,6 +349,14 @@ const playBuffer: AudioEngine["playBuffer"] = async (
     delaySaturation,
     delayDamping,
     delaySafety,
+    delayRhythmMorph,
+    delayRhythmRateHz,
+    delayRhythmSwing,
+    delayDuckDepth,
+    delayDuckThreshold,
+    delayDuckResponseMs,
+    delaySpectralMix,
+    delaySpectralSpread,
     vocoderMix,
     vocoderCarrierDeckId,
     vocoderModulatorMonitor,
@@ -440,6 +480,38 @@ const setDeckDelayDamping = (deckId: number, value: number) => {
 
 const setDeckDelaySafety = (deckId: number, value: number) => {
   setDeckDelaySafetyValue(deckId, value);
+};
+
+const setDeckDelayRhythmMorph = (deckId: number, value: number) => {
+  setDeckDelayRhythmMorphValue(deckId, value);
+};
+
+const setDeckDelayRhythmRateHz = (deckId: number, value: number) => {
+  setDeckDelayRhythmRateHzValue(deckId, value);
+};
+
+const setDeckDelayRhythmSwing = (deckId: number, value: number) => {
+  setDeckDelayRhythmSwingValue(deckId, value);
+};
+
+const setDeckDelayDuckDepth = (deckId: number, value: number) => {
+  setDeckDelayDuckDepthValue(deckId, value);
+};
+
+const setDeckDelayDuckThreshold = (deckId: number, value: number) => {
+  setDeckDelayDuckThresholdValue(deckId, value);
+};
+
+const setDeckDelayDuckResponseMs = (deckId: number, value: number) => {
+  setDeckDelayDuckResponseMsValue(deckId, value);
+};
+
+const setDeckDelaySpectralMix = (deckId: number, value: number) => {
+  setDeckDelaySpectralMixValue(deckId, value);
+};
+
+const setDeckDelaySpectralSpread = (deckId: number, value: number) => {
+  setDeckDelaySpectralSpreadValue(deckId, value);
 };
 
 const setDeckVocoderMix = (deckId: number, value: number) => {
@@ -601,6 +673,14 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckDelaySaturation,
     setDeckDelayDamping,
     setDeckDelaySafety,
+    setDeckDelayRhythmMorph,
+    setDeckDelayRhythmRateHz,
+    setDeckDelayRhythmSwing,
+    setDeckDelayDuckDepth,
+    setDeckDelayDuckThreshold,
+    setDeckDelayDuckResponseMs,
+    setDeckDelaySpectralMix,
+    setDeckDelaySpectralSpread,
     setDeckVocoderMix,
     setDeckVocoderCarrierDeckId,
     setDeckVocoderModulatorMonitor,

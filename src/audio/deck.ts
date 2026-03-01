@@ -14,10 +14,15 @@ import {
 } from "./rearrangerPingPong";
 import { createLimiter, createSoftClipper } from "./clipper";
 import {
+  createAbsCurve,
   createSoftClipCurve,
+  createThresholdCurve,
   mapDelayDampingToCutoff,
+  mapDelayDiffusionSettings,
+  mapDelaySafetyFeedbackMultiplier,
+  mapDelaySafetyOutputTrim,
+  mapDuckResponseToFollowerCutoff,
   mapDelaySaturationDrive,
-  mapDelaySafetyDrive,
   normalizeDelayParams,
 } from "./effects/delay";
 import {
@@ -83,9 +88,42 @@ type DeckNodes = {
   delaySaturationShapeR: WaveShaperNode;
   delaySaturationOutL: GainNode;
   delaySaturationOutR: GainNode;
-  delaySafetyDrive: GainNode;
-  delaySafetyShape: WaveShaperNode;
+  delaySafetyCompressor: DynamicsCompressorNode;
   delaySafetyOut: GainNode;
+  delayDuckGain: GainNode;
+  delayDuckRectifier: WaveShaperNode;
+  delayDuckFollower: BiquadFilterNode;
+  delayDuckThreshold: WaveShaperNode;
+  delayDuckDepth: GainNode;
+  delayPitchL: PitchShiftNodes;
+  delayPitchR: PitchShiftNodes;
+  delayDiffusionL1: BiquadFilterNode;
+  delayDiffusionL2: BiquadFilterNode;
+  delayDiffusionR1: BiquadFilterNode;
+  delayDiffusionR2: BiquadFilterNode;
+  delayDiffusionDryL: GainNode;
+  delayDiffusionDryR: GainNode;
+  delayDiffusionWetL: GainNode;
+  delayDiffusionWetR: GainNode;
+  delayDiffusionMergeL: GainNode;
+  delayDiffusionMergeR: GainNode;
+  delayRhythmLfo: OscillatorNode;
+  delayRhythmDepthL: GainNode;
+  delayRhythmDepthR: GainNode;
+  delayRhythmBaseTime: number;
+  delayPitchStepSemitones: number;
+  delayRhythmMorph: number;
+  delayRhythmSwing: number;
+  delayFeedbackValue: number;
+  delaySafetyValue: number;
+  delaySpectralInput: GainNode;
+  delaySpectralDryComp: GainNode;
+  delaySpectralWet: GainNode;
+  delaySpectralFilters: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode];
+  delaySpectralDelays: [DelayNode, DelayNode, DelayNode];
+  delaySpectralFeedback: [GainNode, GainNode, GainNode];
+  delaySpectralTone: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode];
+  delaySpectralPanners: [StereoPannerNode, StereoPannerNode, StereoPannerNode];
   delayPingPong: boolean;
   delayActive: boolean;
   vocoderRouted: boolean;
@@ -155,6 +193,14 @@ const pendingDelayPingPong = new Map<number, boolean>();
 const pendingDelaySaturation = new Map<number, number>();
 const pendingDelayDamping = new Map<number, number>();
 const pendingDelaySafety = new Map<number, number>();
+const pendingDelayRhythmMorph = new Map<number, number>();
+const pendingDelayRhythmRateHz = new Map<number, number>();
+const pendingDelayRhythmSwing = new Map<number, number>();
+const pendingDelayDuckDepth = new Map<number, number>();
+const pendingDelayDuckThreshold = new Map<number, number>();
+const pendingDelayDuckResponseMs = new Map<number, number>();
+const pendingDelaySpectralMix = new Map<number, number>();
+const pendingDelaySpectralSpread = new Map<number, number>();
 const pendingVocoderMix = new Map<number, number>();
 const pendingVocoderCarrierDeckId = new Map<number, number | null>();
 const pendingVocoderModulatorMonitor = new Map<number, number>();
@@ -227,6 +273,18 @@ const connectDelayFeedback = (nodes: DeckNodes, pingPong: boolean) => {
   nodes.delayFeedbackR.disconnect();
   nodes.delayToneL.disconnect();
   nodes.delayToneR.disconnect();
+  nodes.delayPitchL.output.disconnect();
+  nodes.delayPitchR.output.disconnect();
+  nodes.delayDiffusionL1.disconnect();
+  nodes.delayDiffusionL2.disconnect();
+  nodes.delayDiffusionR1.disconnect();
+  nodes.delayDiffusionR2.disconnect();
+  nodes.delayDiffusionDryL.disconnect();
+  nodes.delayDiffusionDryR.disconnect();
+  nodes.delayDiffusionWetL.disconnect();
+  nodes.delayDiffusionWetR.disconnect();
+  nodes.delayDiffusionMergeL.disconnect();
+  nodes.delayDiffusionMergeR.disconnect();
   nodes.delayDampingL.disconnect();
   nodes.delayDampingR.disconnect();
   nodes.delaySaturationDriveL.disconnect();
@@ -240,8 +298,22 @@ const connectDelayFeedback = (nodes: DeckNodes, pingPong: boolean) => {
   nodes.delayR.connect(nodes.delayFeedbackR);
   nodes.delayFeedbackL.connect(nodes.delayToneL);
   nodes.delayFeedbackR.connect(nodes.delayToneR);
-  nodes.delayToneL.connect(nodes.delayDampingL);
-  nodes.delayToneR.connect(nodes.delayDampingR);
+  nodes.delayToneL.connect(nodes.delayPitchL.input);
+  nodes.delayToneR.connect(nodes.delayPitchR.input);
+  nodes.delayPitchL.output.connect(nodes.delayDiffusionDryL);
+  nodes.delayPitchR.output.connect(nodes.delayDiffusionDryR);
+  nodes.delayDiffusionDryL.connect(nodes.delayDiffusionMergeL);
+  nodes.delayDiffusionDryR.connect(nodes.delayDiffusionMergeR);
+  nodes.delayPitchL.output.connect(nodes.delayDiffusionL1);
+  nodes.delayPitchR.output.connect(nodes.delayDiffusionR1);
+  nodes.delayDiffusionL1.connect(nodes.delayDiffusionL2);
+  nodes.delayDiffusionR1.connect(nodes.delayDiffusionR2);
+  nodes.delayDiffusionL2.connect(nodes.delayDiffusionWetL);
+  nodes.delayDiffusionR2.connect(nodes.delayDiffusionWetR);
+  nodes.delayDiffusionWetL.connect(nodes.delayDiffusionMergeL);
+  nodes.delayDiffusionWetR.connect(nodes.delayDiffusionMergeR);
+  nodes.delayDiffusionMergeL.connect(nodes.delayDampingL);
+  nodes.delayDiffusionMergeR.connect(nodes.delayDampingR);
   nodes.delayDampingL.connect(nodes.delaySaturationDriveL);
   nodes.delayDampingR.connect(nodes.delaySaturationDriveR);
   nodes.delaySaturationDriveL.connect(nodes.delaySaturationShapeL);
@@ -258,18 +330,153 @@ const connectDelayFeedback = (nodes: DeckNodes, pingPong: boolean) => {
   nodes.delayPingPong = pingPong;
 };
 
+const updateDelayRhythmModulation = (
+  nodes: DeckNodes,
+  baseTime: number,
+  morph: number,
+  swing: number
+) => {
+  nodes.delayRhythmBaseTime = baseTime;
+  nodes.delayRhythmMorph = morph;
+  nodes.delayRhythmSwing = swing;
+  nodes.delayL.delayTime.value = Math.max(0.01, Math.min(1.5, baseTime));
+  nodes.delayR.delayTime.value = Math.max(0.01, Math.min(1.5, baseTime));
+  nodes.delayRhythmDepthL.gain.value = 0;
+  nodes.delayRhythmDepthR.gain.value = 0;
+
+  const pitchMix = Math.min(Math.max(morph, 0), 1);
+  const stepSemitones = Math.min(Math.max(nodes.delayPitchStepSemitones, -12), 12);
+  const canPitchShift = Boolean(nodes.delayPitchL.worklet && nodes.delayPitchR.worklet);
+  if (canPitchShift && pitchMix > 1e-3 && Math.abs(stepSemitones) > 1e-3) {
+    setPitchShift(nodes.delayPitchL, stepSemitones);
+    setPitchShift(nodes.delayPitchR, stepSemitones);
+    nodes.delayPitchL.dryGain.gain.value = 1 - pitchMix;
+    nodes.delayPitchL.wetGain.gain.value = pitchMix;
+    nodes.delayPitchR.dryGain.gain.value = 1 - pitchMix;
+    nodes.delayPitchR.wetGain.gain.value = pitchMix;
+  } else {
+    setPitchShift(nodes.delayPitchL, 0);
+    setPitchShift(nodes.delayPitchR, 0);
+    nodes.delayPitchL.dryGain.gain.value = 1;
+    nodes.delayPitchL.wetGain.gain.value = 0;
+    nodes.delayPitchR.dryGain.gain.value = 1;
+    nodes.delayPitchR.wetGain.gain.value = 0;
+  }
+
+  const diffusion = mapDelayDiffusionSettings(swing);
+  nodes.delayDiffusionL1.type = "allpass";
+  nodes.delayDiffusionL2.type = "allpass";
+  nodes.delayDiffusionR1.type = "allpass";
+  nodes.delayDiffusionR2.type = "allpass";
+  nodes.delayDiffusionL1.frequency.value = diffusion.frequency;
+  nodes.delayDiffusionL2.frequency.value = diffusion.frequency * 1.31;
+  nodes.delayDiffusionR1.frequency.value = diffusion.frequency * 1.17;
+  nodes.delayDiffusionR2.frequency.value = diffusion.frequency * 1.53;
+  nodes.delayDiffusionL1.Q.value = diffusion.q;
+  nodes.delayDiffusionL2.Q.value = diffusion.q;
+  nodes.delayDiffusionR1.Q.value = diffusion.q;
+  nodes.delayDiffusionR2.Q.value = diffusion.q;
+  nodes.delayDiffusionDryL.gain.value = diffusion.dry;
+  nodes.delayDiffusionDryR.gain.value = diffusion.dry;
+  nodes.delayDiffusionWetL.gain.value = diffusion.wet;
+  nodes.delayDiffusionWetR.gain.value = diffusion.wet;
+};
+
+const updateDelaySpectralSettings = (
+  nodes: DeckNodes,
+  baseTime: number,
+  feedback: number,
+  safety: number,
+  tone: number,
+  spectralMix: number,
+  spectralSpread: number
+) => {
+  const normalizedFeedback = Number.isFinite(feedback) ? feedback : 0;
+  const normalizedSafety = Number.isFinite(safety) ? safety : 0;
+  const feedbackWithSafety =
+    normalizedFeedback * mapDelaySafetyFeedbackMultiplier(normalizedSafety);
+  const spread = Math.min(Math.max(spectralSpread, 0), 1);
+  nodes.delaySpectralDryComp.gain.value = 1 - spectralMix;
+  nodes.delaySpectralWet.gain.value = spectralMix;
+
+  const lowTime = Math.max(0.01, Math.min(1.5, baseTime * (1.3 + spread * 0.9)));
+  const midTime = Math.max(0.01, Math.min(1.5, baseTime));
+  const highTime = Math.max(0.01, Math.min(1.5, baseTime * (0.7 - spread * 0.3)));
+  nodes.delaySpectralDelays[0].delayTime.value = lowTime;
+  nodes.delaySpectralDelays[1].delayTime.value = midTime;
+  nodes.delaySpectralDelays[2].delayTime.value = highTime;
+  nodes.delaySpectralFeedback[0].gain.value = Math.max(
+    0,
+    Math.min(0.99, feedbackWithSafety * (0.95 + spread * 0.04))
+  );
+  nodes.delaySpectralFeedback[1].gain.value = Math.max(0, Math.min(0.99, feedbackWithSafety));
+  nodes.delaySpectralFeedback[2].gain.value = Math.max(
+    0,
+    Math.min(0.99, feedbackWithSafety * (0.85 - spread * 0.1))
+  );
+
+  const panAmount = 0.1 + spread * 0.8;
+  nodes.delaySpectralPanners[0].pan.value = -panAmount;
+  nodes.delaySpectralPanners[1].pan.value = 0;
+  nodes.delaySpectralPanners[2].pan.value = panAmount;
+
+  nodes.delaySpectralTone[0].frequency.value = Math.max(400, Math.min(12000, tone * 0.7));
+  nodes.delaySpectralTone[1].frequency.value = Math.max(400, Math.min(12000, tone));
+  nodes.delaySpectralTone[2].frequency.value = Math.max(400, Math.min(12000, tone * 1.15));
+};
+
+const applyDelayFeedbackSafety = (nodes: DeckNodes, feedback: number, safety: number) => {
+  const normalizedFeedback = Number.isFinite(feedback) ? feedback : 0;
+  const normalizedSafety = Number.isFinite(safety) ? safety : 0;
+  const gain = Math.max(
+    0,
+    Math.min(0.99, normalizedFeedback * mapDelaySafetyFeedbackMultiplier(normalizedSafety))
+  );
+  nodes.delayFeedbackL.gain.value = gain;
+  nodes.delayFeedbackR.gain.value = gain;
+};
+
 const setDelayRouting = (nodes: DeckNodes, active: boolean) => {
   if (nodes.delayActive === active) return;
   const source = nodes.vocoderRouted ? nodes.vocoder.output : nodes.postEq;
   if (nodes.delayActive) {
     safeDisconnect(source, nodes.delaySplit);
-    safeDisconnect(nodes.delaySafetyOut, nodes.delayWet);
+    safeDisconnect(source, nodes.delayDuckRectifier);
+    try {
+      nodes.delayDuckDepth.disconnect(nodes.delayDuckGain.gain);
+    } catch {
+      // ignore when edge is already disconnected
+    }
+    safeDisconnect(nodes.delayDuckGain, nodes.delayWet);
   }
   if (active) {
     source.connect(nodes.delaySplit);
-    nodes.delaySafetyOut.connect(nodes.delayWet);
+    source.connect(nodes.delayDuckRectifier);
+    nodes.delayDuckDepth.connect(nodes.delayDuckGain.gain);
+    nodes.delayDuckGain.connect(nodes.delayWet);
   }
   nodes.delayActive = active;
+};
+
+const applyDelaySafetyCompressor = (
+  compressor: DynamicsCompressorNode,
+  safety: number
+) => {
+  const amount = Math.min(Math.max(safety, 0), 1);
+  if (amount <= 1e-4) {
+    compressor.threshold.value = 0;
+    compressor.knee.value = 0;
+    compressor.ratio.value = 1;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.08;
+    return;
+  }
+  // Tuned to engage audibly across typical loop levels while remaining cleaner than clipping.
+  compressor.threshold.value = -12 - amount * 36;
+  compressor.knee.value = 6 + amount * 24;
+  compressor.ratio.value = 1 + amount * 19;
+  compressor.attack.value = 0.001 + (1 - amount) * 0.004;
+  compressor.release.value = 0.04 + (1 - amount) * 0.12;
 };
 
 const shouldRouteThroughVocoder = (nodes: DeckNodes) =>
@@ -451,6 +658,14 @@ const ensureDeckNodes = (
   delaySaturation: number,
   delayDamping: number,
   delaySafety: number,
+  delayRhythmMorph: number,
+  delayRhythmRateHz: number,
+  delayRhythmSwing: number,
+  delayDuckDepth: number,
+  delayDuckThreshold: number,
+  delayDuckResponseMs: number,
+  delaySpectralMix: number,
+  delaySpectralSpread: number,
   vocoderMix: number,
   vocoderCarrierDeckId: number | null,
   vocoderModulatorMonitor: number,
@@ -472,6 +687,14 @@ const ensureDeckNodes = (
     damping: delayDamping,
     safety: delaySafety,
     pingPong: delayPingPong,
+    rhythmMorph: delayRhythmMorph,
+    rhythmRateHz: delayRhythmRateHz,
+    rhythmSwing: delayRhythmSwing,
+    duckDepth: delayDuckDepth,
+    duckThreshold: delayDuckThreshold,
+    duckResponseMs: delayDuckResponseMs,
+    spectralMix: delaySpectralMix,
+    spectralSpread: delaySpectralSpread,
   });
   let nodes = deckNodes.get(deckId);
   if (!nodes) {
@@ -553,19 +776,97 @@ const ensureDeckNodes = (
     const delaySaturationShapeR = context.createWaveShaper();
     const delaySaturationOutL = context.createGain();
     const delaySaturationOutR = context.createGain();
-    const delaySafetyDrive = context.createGain();
-    const delaySafetyShape = context.createWaveShaper();
+    const delaySafetyCompressor = context.createDynamicsCompressor();
     const delaySafetyOut = context.createGain();
+    const delayDuckGain = context.createGain();
+    const delayDuckRectifier = context.createWaveShaper();
+    const delayDuckFollower = context.createBiquadFilter();
+    const delayDuckThreshold = context.createWaveShaper();
+    const delayDuckDepth = context.createGain();
+    const delayPitchL = createPitchShiftNodes(context);
+    const delayPitchR = createPitchShiftNodes(context);
+    const delayDiffusionL1 = context.createBiquadFilter();
+    const delayDiffusionL2 = context.createBiquadFilter();
+    const delayDiffusionR1 = context.createBiquadFilter();
+    const delayDiffusionR2 = context.createBiquadFilter();
+    const delayDiffusionDryL = context.createGain();
+    const delayDiffusionDryR = context.createGain();
+    const delayDiffusionWetL = context.createGain();
+    const delayDiffusionWetR = context.createGain();
+    const delayDiffusionMergeL = context.createGain();
+    const delayDiffusionMergeR = context.createGain();
+    const delayRhythmLfo = context.createOscillator();
+    const delayRhythmDepthL = context.createGain();
+    const delayRhythmDepthR = context.createGain();
+    const delaySpectralInput = context.createGain();
+    const delaySpectralDryComp = context.createGain();
+    const delaySpectralWet = context.createGain();
+    const delaySpectralFilters: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode] = [
+      context.createBiquadFilter(),
+      context.createBiquadFilter(),
+      context.createBiquadFilter(),
+    ];
+    const delaySpectralDelays: [DelayNode, DelayNode, DelayNode] = [
+      context.createDelay(2.5),
+      context.createDelay(2.5),
+      context.createDelay(2.5),
+    ];
+    const delaySpectralFeedback: [GainNode, GainNode, GainNode] = [
+      context.createGain(),
+      context.createGain(),
+      context.createGain(),
+    ];
+    const delaySpectralTone: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode] = [
+      context.createBiquadFilter(),
+      context.createBiquadFilter(),
+      context.createBiquadFilter(),
+    ];
+    const delaySpectralPanners: [StereoPannerNode, StereoPannerNode, StereoPannerNode] = [
+      context.createStereoPanner(),
+      context.createStereoPanner(),
+      context.createStereoPanner(),
+    ];
     delayToneL.type = "lowpass";
     delayToneR.type = "lowpass";
     delayDampingL.type = "lowpass";
     delayDampingR.type = "lowpass";
+    delayDuckGain.gain.value = 1;
+    delayDuckRectifier.curve = createAbsCurve();
+    delayDuckFollower.type = "lowpass";
+    delayDuckFollower.frequency.value = mapDuckResponseToFollowerCutoff(normalizedDelay.duckResponseMs);
+    delayDuckThreshold.curve = createThresholdCurve(normalizedDelay.duckThreshold);
+    delayDuckDepth.gain.value = -normalizedDelay.duckDepth;
+    delayDiffusionL1.type = "allpass";
+    delayDiffusionL2.type = "allpass";
+    delayDiffusionR1.type = "allpass";
+    delayDiffusionR2.type = "allpass";
+    delayDiffusionDryL.gain.value = 1;
+    delayDiffusionDryR.gain.value = 1;
+    delayDiffusionWetL.gain.value = 0;
+    delayDiffusionWetR.gain.value = 0;
+    delayRhythmLfo.type = "sine";
+    delayRhythmLfo.frequency.value = 0.25;
+    delayRhythmDepthL.gain.value = 0;
+    delayRhythmDepthR.gain.value = 0;
+    delaySpectralFilters[0].type = "lowpass";
+    delaySpectralFilters[0].frequency.value = 320;
+    delaySpectralFilters[0].Q.value = 0.7;
+    delaySpectralFilters[1].type = "bandpass";
+    delaySpectralFilters[1].frequency.value = 1400;
+    delaySpectralFilters[1].Q.value = 0.8;
+    delaySpectralFilters[2].type = "highpass";
+    delaySpectralFilters[2].frequency.value = 3200;
+    delaySpectralFilters[2].Q.value = 0.7;
+    delaySpectralTone.forEach((node) => {
+      node.type = "lowpass";
+    });
     const nextDelayTime = pendingDelayTime.get(deckId) ?? normalizedDelay.time;
-    delayL.delayTime.value = nextDelayTime;
-    delayR.delayTime.value = nextDelayTime;
     const nextDelayFeedback = pendingDelayFeedback.get(deckId) ?? normalizedDelay.feedback;
-    delayFeedbackL.gain.value = nextDelayFeedback;
-    delayFeedbackR.gain.value = nextDelayFeedback;
+    const nextDelaySafety = pendingDelaySafety.get(deckId) ?? normalizedDelay.safety;
+    const nextDelayFeedbackGain =
+      nextDelayFeedback * mapDelaySafetyFeedbackMultiplier(nextDelaySafety);
+    delayFeedbackL.gain.value = nextDelayFeedbackGain;
+    delayFeedbackR.gain.value = nextDelayFeedbackGain;
     const nextDelayTone = pendingDelayTone.get(deckId) ?? normalizedDelay.tone;
     delayToneL.frequency.value = nextDelayTone;
     delayToneR.frequency.value = nextDelayTone;
@@ -583,12 +884,18 @@ const ensureDeckNodes = (
     delaySaturationShapeR.oversample = "2x";
     delaySaturationOutL.gain.value = 1 / nextSaturationDrive;
     delaySaturationOutR.gain.value = 1 / nextSaturationDrive;
-    const nextDelaySafety = pendingDelaySafety.get(deckId) ?? normalizedDelay.safety;
-    const nextSafetyDrive = mapDelaySafetyDrive(nextDelaySafety);
-    delaySafetyDrive.gain.value = nextSafetyDrive;
-    delaySafetyShape.curve = createSoftClipCurve(nextSafetyDrive);
-    delaySafetyShape.oversample = "2x";
-    delaySafetyOut.gain.value = 1 / nextSafetyDrive;
+    applyDelaySafetyCompressor(delaySafetyCompressor, nextDelaySafety);
+    delaySafetyOut.gain.value = mapDelaySafetyOutputTrim(nextDelaySafety);
+    const nextDelayRhythmMorph = pendingDelayRhythmMorph.get(deckId) ?? normalizedDelay.rhythmMorph;
+    const nextDelayRhythmRateHz = pendingDelayRhythmRateHz.get(deckId) ?? normalizedDelay.rhythmRateHz;
+    const nextDelayRhythmSwing = pendingDelayRhythmSwing.get(deckId) ?? normalizedDelay.rhythmSwing;
+    const nextDelayDuckDepth = pendingDelayDuckDepth.get(deckId) ?? normalizedDelay.duckDepth;
+    const nextDelayDuckThreshold = pendingDelayDuckThreshold.get(deckId) ?? normalizedDelay.duckThreshold;
+    const nextDelayDuckResponseMs =
+      pendingDelayDuckResponseMs.get(deckId) ?? normalizedDelay.duckResponseMs;
+    const nextDelaySpectralMix = pendingDelaySpectralMix.get(deckId) ?? normalizedDelay.spectralMix;
+    const nextDelaySpectralSpread =
+      pendingDelaySpectralSpread.get(deckId) ?? normalizedDelay.spectralSpread;
     const nextDelayMix = pendingDelayMix.get(deckId) ?? normalizedDelay.mix;
     delayWet.gain.value = nextDelayMix;
     delayDry.gain.value = 1 - nextDelayMix;
@@ -671,9 +978,29 @@ const ensureDeckNodes = (
     delaySplit.connect(delayR, 1);
     delayL.connect(delayMerge, 0, 0);
     delayR.connect(delayMerge, 0, 1);
-    delayMerge.connect(delaySafetyDrive);
-    delaySafetyDrive.connect(delaySafetyShape);
-    delaySafetyShape.connect(delaySafetyOut);
+    delayMerge.connect(delaySafetyCompressor);
+    delaySafetyCompressor.connect(delaySafetyOut);
+    delaySafetyOut.connect(delaySpectralDryComp);
+    delaySpectralDryComp.connect(delayDuckGain);
+    delaySafetyOut.connect(delaySpectralInput);
+    for (let i = 0; i < delaySpectralFilters.length; i += 1) {
+      delaySpectralInput.connect(delaySpectralFilters[i]);
+      delaySpectralFilters[i].connect(delaySpectralDelays[i]);
+      delaySpectralDelays[i].connect(delaySpectralTone[i]);
+      delaySpectralTone[i].connect(delaySpectralPanners[i]);
+      delaySpectralPanners[i].connect(delaySpectralWet);
+      delaySpectralDelays[i].connect(delaySpectralFeedback[i]);
+      delaySpectralFeedback[i].connect(delaySpectralDelays[i]);
+    }
+    delaySpectralWet.connect(delayDuckGain);
+    delayDuckRectifier.connect(delayDuckFollower);
+    delayDuckFollower.connect(delayDuckThreshold);
+    delayDuckThreshold.connect(delayDuckDepth);
+    delayRhythmLfo.connect(delayRhythmDepthL);
+    delayRhythmLfo.connect(delayRhythmDepthR);
+    delayRhythmDepthL.connect(delayL.delayTime);
+    delayRhythmDepthR.connect(delayR.delayTime);
+    delayRhythmLfo.start();
     delayWet.connect(deckGain);
     delayDry.connect(deckGain);
     deckGain.connect(limiter);
@@ -715,9 +1042,42 @@ const ensureDeckNodes = (
       delaySaturationShapeR,
       delaySaturationOutL,
       delaySaturationOutR,
-      delaySafetyDrive,
-      delaySafetyShape,
+      delaySafetyCompressor,
       delaySafetyOut,
+      delayDuckGain,
+      delayDuckRectifier,
+      delayDuckFollower,
+      delayDuckThreshold,
+      delayDuckDepth,
+      delayPitchL,
+      delayPitchR,
+      delayDiffusionL1,
+      delayDiffusionL2,
+      delayDiffusionR1,
+      delayDiffusionR2,
+      delayDiffusionDryL,
+      delayDiffusionDryR,
+      delayDiffusionWetL,
+      delayDiffusionWetR,
+      delayDiffusionMergeL,
+      delayDiffusionMergeR,
+      delayRhythmLfo,
+      delayRhythmDepthL,
+      delayRhythmDepthR,
+      delayRhythmBaseTime: nextDelayTime,
+      delayPitchStepSemitones: nextDelayRhythmRateHz,
+      delayRhythmMorph: nextDelayRhythmMorph,
+      delayRhythmSwing: nextDelayRhythmSwing,
+      delayFeedbackValue: nextDelayFeedback,
+      delaySafetyValue: nextDelaySafety,
+      delaySpectralInput,
+      delaySpectralDryComp,
+      delaySpectralWet,
+      delaySpectralFilters,
+      delaySpectralDelays,
+      delaySpectralFeedback,
+      delaySpectralTone,
+      delaySpectralPanners,
       delayPingPong: !nextDelayPingPong,
       delayActive: false,
       vocoderRouted: true,
@@ -750,6 +1110,20 @@ const ensureDeckNodes = (
     rearrangerPanNode.connect(rearrangerPingPongNodes.input);
     rearrangerPingPongNodes.output.connect(pitchShiftNodes.input);
     connectDelayFeedback(nodes, nextDelayPingPong);
+    nodes.delayPitchStepSemitones = nextDelayRhythmRateHz;
+    updateDelayRhythmModulation(nodes, nextDelayTime, nextDelayRhythmMorph, nextDelayRhythmSwing);
+    nodes.delayDuckFollower.frequency.value = mapDuckResponseToFollowerCutoff(nextDelayDuckResponseMs);
+    nodes.delayDuckThreshold.curve = createThresholdCurve(nextDelayDuckThreshold);
+    nodes.delayDuckDepth.gain.value = -nextDelayDuckDepth;
+    updateDelaySpectralSettings(
+      nodes,
+      nextDelayTime,
+      nextDelayFeedback,
+      nextDelaySafety,
+      nextDelayTone,
+      nextDelaySpectralMix,
+      nextDelaySpectralSpread
+    );
     setVocoderRouting(nodes, shouldRouteThroughVocoder(nodes));
     setDelayRouting(nodes, nextDelayMix > 0);
     deckNodes.set(deckId, nodes);
@@ -781,10 +1155,9 @@ const ensureDeckNodes = (
       pendingRearrangerPingPongConfig.get(deckId) ?? null
     );
     setPitchShift(nodes.pitchShift, pitchShift);
-    nodes.delayL.delayTime.value = normalizedDelay.time;
-    nodes.delayR.delayTime.value = normalizedDelay.time;
-    nodes.delayFeedbackL.gain.value = normalizedDelay.feedback;
-    nodes.delayFeedbackR.gain.value = normalizedDelay.feedback;
+    nodes.delayFeedbackValue = normalizedDelay.feedback;
+    nodes.delaySafetyValue = normalizedDelay.safety;
+    applyDelayFeedbackSafety(nodes, nodes.delayFeedbackValue, nodes.delaySafetyValue);
     nodes.delayToneL.frequency.value = normalizedDelay.tone;
     nodes.delayToneR.frequency.value = normalizedDelay.tone;
     const dampingCutoff = mapDelayDampingToCutoff(normalizedDelay.damping);
@@ -797,10 +1170,29 @@ const ensureDeckNodes = (
     nodes.delaySaturationShapeR.curve = createSoftClipCurve(saturationDrive);
     nodes.delaySaturationOutL.gain.value = 1 / saturationDrive;
     nodes.delaySaturationOutR.gain.value = 1 / saturationDrive;
-    const safetyDrive = mapDelaySafetyDrive(normalizedDelay.safety);
-    nodes.delaySafetyDrive.gain.value = safetyDrive;
-    nodes.delaySafetyShape.curve = createSoftClipCurve(safetyDrive);
-    nodes.delaySafetyOut.gain.value = 1 / safetyDrive;
+    applyDelaySafetyCompressor(nodes.delaySafetyCompressor, normalizedDelay.safety);
+    nodes.delaySafetyOut.gain.value = mapDelaySafetyOutputTrim(normalizedDelay.safety);
+    nodes.delayPitchStepSemitones = normalizedDelay.rhythmRateHz;
+    updateDelayRhythmModulation(
+      nodes,
+      normalizedDelay.time,
+      normalizedDelay.rhythmMorph,
+      normalizedDelay.rhythmSwing
+    );
+    nodes.delayDuckFollower.frequency.value = mapDuckResponseToFollowerCutoff(
+      normalizedDelay.duckResponseMs
+    );
+    nodes.delayDuckThreshold.curve = createThresholdCurve(normalizedDelay.duckThreshold);
+    nodes.delayDuckDepth.gain.value = -normalizedDelay.duckDepth;
+    updateDelaySpectralSettings(
+      nodes,
+      normalizedDelay.time,
+      normalizedDelay.feedback,
+      normalizedDelay.safety,
+      normalizedDelay.tone,
+      normalizedDelay.spectralMix,
+      normalizedDelay.spectralSpread
+    );
     nodes.delayWet.gain.value = normalizedDelay.mix;
     nodes.delayDry.gain.value = 1 - normalizedDelay.mix;
     nodes.vocoderMix = pendingVocoderMix.get(deckId) ?? vocoderMix;
@@ -874,6 +1266,14 @@ const ensureDeckNodes = (
   pendingDelaySaturation.delete(deckId);
   pendingDelayDamping.delete(deckId);
   pendingDelaySafety.delete(deckId);
+  pendingDelayRhythmMorph.delete(deckId);
+  pendingDelayRhythmRateHz.delete(deckId);
+  pendingDelayRhythmSwing.delete(deckId);
+  pendingDelayDuckDepth.delete(deckId);
+  pendingDelayDuckThreshold.delete(deckId);
+  pendingDelayDuckResponseMs.delete(deckId);
+  pendingDelaySpectralMix.delete(deckId);
+  pendingDelaySpectralSpread.delete(deckId);
   pendingVocoderMix.delete(deckId);
   pendingVocoderCarrierDeckId.delete(deckId);
   pendingVocoderModulatorMonitor.delete(deckId);
@@ -916,6 +1316,14 @@ export const playDeckBuffer = (
   delaySaturation: number,
   delayDamping: number,
   delaySafety: number,
+  delayRhythmMorph: number,
+  delayRhythmRateHz: number,
+  delayRhythmSwing: number,
+  delayDuckDepth: number,
+  delayDuckThreshold: number,
+  delayDuckResponseMs: number,
+  delaySpectralMix: number,
+  delaySpectralSpread: number,
   vocoderMix: number,
   vocoderCarrierDeckId: number | null,
   vocoderModulatorMonitor: number,
@@ -956,6 +1364,14 @@ export const playDeckBuffer = (
     delaySaturation,
     delayDamping,
     delaySafety,
+    delayRhythmMorph,
+    delayRhythmRateHz,
+    delayRhythmSwing,
+    delayDuckDepth,
+    delayDuckThreshold,
+    delayDuckResponseMs,
+    delaySpectralMix,
+    delaySpectralSpread,
     vocoderMix,
     vocoderCarrierDeckId,
     vocoderModulatorMonitor,
@@ -1261,8 +1677,21 @@ export const setDeckDelayTimeValue = (deckId: number, value: number) => {
   const normalized = normalizeDelayParams({ time: value }).time;
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.delayL.delayTime.value = normalized;
-    nodes.delayR.delayTime.value = normalized;
+    updateDelayRhythmModulation(
+      nodes,
+      normalized,
+      nodes.delayRhythmMorph,
+      nodes.delayRhythmSwing
+    );
+    updateDelaySpectralSettings(
+      nodes,
+      normalized,
+      nodes.delayFeedbackValue,
+      nodes.delaySafetyValue,
+      nodes.delayToneL.frequency.value,
+      nodes.delaySpectralWet.gain.value,
+      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+    );
     pendingDelayTime.delete(deckId);
   } else {
     pendingDelayTime.set(deckId, normalized);
@@ -1273,8 +1702,17 @@ export const setDeckDelayFeedbackValue = (deckId: number, value: number) => {
   const normalized = normalizeDelayParams({ feedback: value }).feedback;
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.delayFeedbackL.gain.value = normalized;
-    nodes.delayFeedbackR.gain.value = normalized;
+    nodes.delayFeedbackValue = normalized;
+    applyDelayFeedbackSafety(nodes, nodes.delayFeedbackValue, nodes.delaySafetyValue);
+    updateDelaySpectralSettings(
+      nodes,
+      nodes.delayRhythmBaseTime,
+      nodes.delayFeedbackValue,
+      nodes.delaySafetyValue,
+      nodes.delayToneL.frequency.value,
+      nodes.delaySpectralWet.gain.value,
+      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+    );
     pendingDelayFeedback.delete(deckId);
   } else {
     pendingDelayFeedback.set(deckId, normalized);
@@ -1300,6 +1738,15 @@ export const setDeckDelayToneValue = (deckId: number, value: number) => {
   if (nodes) {
     nodes.delayToneL.frequency.value = normalized;
     nodes.delayToneR.frequency.value = normalized;
+    updateDelaySpectralSettings(
+      nodes,
+      nodes.delayRhythmBaseTime,
+      nodes.delayFeedbackValue,
+      nodes.delaySafetyValue,
+      normalized,
+      nodes.delaySpectralWet.gain.value,
+      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+    );
     pendingDelayTone.delete(deckId);
   } else {
     pendingDelayTone.set(deckId, normalized);
@@ -1349,15 +1796,144 @@ export const setDeckDelayDampingValue = (deckId: number, value: number) => {
 
 export const setDeckDelaySafetyValue = (deckId: number, value: number) => {
   const normalized = normalizeDelayParams({ safety: value }).safety;
-  const drive = mapDelaySafetyDrive(normalized);
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    nodes.delaySafetyDrive.gain.value = drive;
-    nodes.delaySafetyShape.curve = createSoftClipCurve(drive);
-    nodes.delaySafetyOut.gain.value = 1 / drive;
+    nodes.delaySafetyValue = normalized;
+    applyDelayFeedbackSafety(nodes, nodes.delayFeedbackValue, nodes.delaySafetyValue);
+    applyDelaySafetyCompressor(nodes.delaySafetyCompressor, normalized);
+    nodes.delaySafetyOut.gain.value = mapDelaySafetyOutputTrim(normalized);
+    updateDelaySpectralSettings(
+      nodes,
+      nodes.delayRhythmBaseTime,
+      nodes.delayFeedbackValue,
+      nodes.delaySafetyValue,
+      nodes.delayToneL.frequency.value,
+      nodes.delaySpectralWet.gain.value,
+      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+    );
     pendingDelaySafety.delete(deckId);
   } else {
     pendingDelaySafety.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelayRhythmMorphValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ rhythmMorph: value }).rhythmMorph;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateDelayRhythmModulation(
+      nodes,
+      nodes.delayRhythmBaseTime,
+      normalized,
+      nodes.delayRhythmSwing
+    );
+    pendingDelayRhythmMorph.delete(deckId);
+  } else {
+    pendingDelayRhythmMorph.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelayRhythmRateHzValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ rhythmRateHz: value }).rhythmRateHz;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delayPitchStepSemitones = normalized;
+    updateDelayRhythmModulation(
+      nodes,
+      nodes.delayRhythmBaseTime,
+      nodes.delayRhythmMorph,
+      nodes.delayRhythmSwing
+    );
+    pendingDelayRhythmRateHz.delete(deckId);
+  } else {
+    pendingDelayRhythmRateHz.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelayRhythmSwingValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ rhythmSwing: value }).rhythmSwing;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateDelayRhythmModulation(
+      nodes,
+      nodes.delayRhythmBaseTime,
+      nodes.delayRhythmMorph,
+      normalized
+    );
+    pendingDelayRhythmSwing.delete(deckId);
+  } else {
+    pendingDelayRhythmSwing.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelayDuckDepthValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ duckDepth: value }).duckDepth;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delayDuckDepth.gain.value = -normalized;
+    pendingDelayDuckDepth.delete(deckId);
+  } else {
+    pendingDelayDuckDepth.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelayDuckThresholdValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ duckThreshold: value }).duckThreshold;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delayDuckThreshold.curve = createThresholdCurve(normalized);
+    pendingDelayDuckThreshold.delete(deckId);
+  } else {
+    pendingDelayDuckThreshold.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelayDuckResponseMsValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ duckResponseMs: value }).duckResponseMs;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.delayDuckFollower.frequency.value = mapDuckResponseToFollowerCutoff(normalized);
+    pendingDelayDuckResponseMs.delete(deckId);
+  } else {
+    pendingDelayDuckResponseMs.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelaySpectralMixValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ spectralMix: value }).spectralMix;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateDelaySpectralSettings(
+      nodes,
+      nodes.delayRhythmBaseTime,
+      nodes.delayFeedbackValue,
+      nodes.delaySafetyValue,
+      nodes.delayToneL.frequency.value,
+      normalized,
+      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+    );
+    pendingDelaySpectralMix.delete(deckId);
+  } else {
+    pendingDelaySpectralMix.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelaySpectralSpreadValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ spectralSpread: value }).spectralSpread;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateDelaySpectralSettings(
+      nodes,
+      nodes.delayRhythmBaseTime,
+      nodes.delayFeedbackValue,
+      nodes.delaySafetyValue,
+      nodes.delayToneL.frequency.value,
+      nodes.delaySpectralWet.gain.value,
+      normalized
+    );
+    pendingDelaySpectralSpread.delete(deckId);
+  } else {
+    pendingDelaySpectralSpread.set(deckId, normalized);
   }
 };
 
@@ -1591,9 +2167,41 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.delaySaturationShapeR.disconnect();
     nodes.delaySaturationOutL.disconnect();
     nodes.delaySaturationOutR.disconnect();
-    nodes.delaySafetyDrive.disconnect();
-    nodes.delaySafetyShape.disconnect();
+    nodes.delaySafetyCompressor.disconnect();
     nodes.delaySafetyOut.disconnect();
+    nodes.delayDuckGain.disconnect();
+    nodes.delayDuckRectifier.disconnect();
+    nodes.delayDuckFollower.disconnect();
+    nodes.delayDuckThreshold.disconnect();
+    nodes.delayDuckDepth.disconnect();
+    disposePitchShift(nodes.delayPitchL);
+    disposePitchShift(nodes.delayPitchR);
+    nodes.delayDiffusionL1.disconnect();
+    nodes.delayDiffusionL2.disconnect();
+    nodes.delayDiffusionR1.disconnect();
+    nodes.delayDiffusionR2.disconnect();
+    nodes.delayDiffusionDryL.disconnect();
+    nodes.delayDiffusionDryR.disconnect();
+    nodes.delayDiffusionWetL.disconnect();
+    nodes.delayDiffusionWetR.disconnect();
+    nodes.delayDiffusionMergeL.disconnect();
+    nodes.delayDiffusionMergeR.disconnect();
+    nodes.delayRhythmDepthL.disconnect();
+    nodes.delayRhythmDepthR.disconnect();
+    try {
+      nodes.delayRhythmLfo.stop();
+    } catch {
+      // already stopped
+    }
+    nodes.delayRhythmLfo.disconnect();
+    nodes.delaySpectralInput.disconnect();
+    nodes.delaySpectralDryComp.disconnect();
+    nodes.delaySpectralWet.disconnect();
+    nodes.delaySpectralFilters.forEach((node) => node.disconnect());
+    nodes.delaySpectralDelays.forEach((node) => node.disconnect());
+    nodes.delaySpectralFeedback.forEach((node) => node.disconnect());
+    nodes.delaySpectralTone.forEach((node) => node.disconnect());
+    nodes.delaySpectralPanners.forEach((node) => node.disconnect());
     disposeChannelVocoder(nodes.vocoder);
     nodes.postEq.disconnect();
     nodes.gain.disconnect();
@@ -1631,6 +2239,14 @@ export const removeDeckNodes = (deckId: number) => {
   pendingDelaySaturation.delete(deckId);
   pendingDelayDamping.delete(deckId);
   pendingDelaySafety.delete(deckId);
+  pendingDelayRhythmMorph.delete(deckId);
+  pendingDelayRhythmRateHz.delete(deckId);
+  pendingDelayRhythmSwing.delete(deckId);
+  pendingDelayDuckDepth.delete(deckId);
+  pendingDelayDuckThreshold.delete(deckId);
+  pendingDelayDuckResponseMs.delete(deckId);
+  pendingDelaySpectralMix.delete(deckId);
+  pendingDelaySpectralSpread.delete(deckId);
   pendingVocoderMix.delete(deckId);
   pendingVocoderCarrierDeckId.delete(deckId);
   pendingVocoderModulatorMonitor.delete(deckId);
