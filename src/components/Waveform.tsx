@@ -1377,7 +1377,12 @@ const Waveform = ({
         const windowStart = windowStartRef.current;
         const absoluteSeconds = windowStart + progress * visualDuration;
         const resolvedDuration = getResolvedDuration();
-        const clampedProgress = resolvedDuration ? absoluteSeconds / resolvedDuration : progress;
+        const hasActiveLoop = loopEnabled && loopEndSeconds > loopStartSeconds + 0.01;
+        const seekSeconds =
+          hasActiveLoop && absoluteSeconds < loopStartSeconds
+            ? loopStartSeconds
+            : absoluteSeconds;
+        const clampedProgress = resolvedDuration ? seekSeconds / resolvedDuration : progress;
         onSeek(clampedProgress);
       }}
       onPointerDown={(event) => {
