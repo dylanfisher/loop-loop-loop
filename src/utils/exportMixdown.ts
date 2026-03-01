@@ -20,7 +20,11 @@ import {
   rearrangeBufferSegment,
 } from "./rearranger";
 import { hashStringToUint32, seededUnitFloat, trimBufferLeadingSamples } from "./appHelpers";
-import { encodeWavOffThread } from "./wavWorkerClient";
+import {
+  encodeWavOffThread,
+  getLastWavEncodeStats,
+  warmupWavWorker,
+} from "./wavWorkerClient";
 import { setPerfCounter, setPerfTiming } from "./perf";
 
 const MAX_EXPORT_AUTO_REARRANGE_CYCLES = 4096;
@@ -128,6 +132,10 @@ export const renderMixdownBlob = async ({
   addTiming("setupContextMs", performance.now() - setupStartedAt);
   setPerfCounter("export.sampleRate", sampleRate);
   setPerfCounter("export.renderSamples", length);
+  const wavWorkerWarmupStartedAt = performance.now();
+  const wavWorkerAvailable = warmupWavWorker();
+  addTiming("warmupWavWorkerMs", performance.now() - wavWorkerWarmupStartedAt);
+  incCounter("wavWorkerAvailable", wavWorkerAvailable ? 1 : 0);
 
   const exportNeedsPitchWorklet = activeDecks.some((deck) => {
     const pitchAutomationActive = automationState.get(deck.id)?.pitch?.active === true;
@@ -731,6 +739,9 @@ export const renderMixdownBlob = async ({
   const encodeStartedAt = performance.now();
   const blob = await encodeWavOffThread(rendered);
   addTiming("encodeWavMs", performance.now() - encodeStartedAt);
+  const encodeStats = getLastWavEncodeStats();
+  incCounter("wavEncodeUsedWorker", encodeStats.usedWorker ? 1 : 0);
+  incCounter("wavEncodeUsedFallback", encodeStats.usedFallback ? 1 : 0);
   addTiming("totalMs", performance.now() - exportStartedAt);
 
   if (EXPORT_PROFILE_ENABLED) {

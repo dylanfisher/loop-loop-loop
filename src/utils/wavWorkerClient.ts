@@ -1,5 +1,5 @@
 import { encodeWav } from "./audio";
-import { setPerfTiming } from "./perf";
+import { setPerfCounter, setPerfTiming } from "./perf";
 
 type WavEncodeRequest = {
   id: number;
@@ -25,8 +25,11 @@ const pending = new Map<
   number,
   { resolve: (blob: Blob) => void; reject: (error: Error) => void }
 >();
+let lastEncodeUsedWorker = false;
+let lastEncodeUsedFallback = false;
 
 const resolveWorker = () => {
+  const startedAt = performance.now();
   if (worker || typeof Worker === "undefined") return worker;
   try {
     worker = new Worker(new URL("../workers/wavWorker.ts", import.meta.url), {
@@ -54,8 +57,23 @@ const resolveWorker = () => {
   } catch {
     worker = null;
   }
+  setPerfTiming("export.encode.workerInitMs", performance.now() - startedAt);
+  setPerfCounter("export.encode.workerAvailable", worker ? 1 : 0);
   return worker;
 };
+
+export const warmupWavWorker = () => {
+  const startedAt = performance.now();
+  const active = resolveWorker();
+  setPerfTiming("export.encode.workerWarmupMs", performance.now() - startedAt);
+  setPerfCounter("export.encode.workerAvailable", active ? 1 : 0);
+  return Boolean(active);
+};
+
+export const getLastWavEncodeStats = () => ({
+  usedWorker: lastEncodeUsedWorker,
+  usedFallback: lastEncodeUsedFallback,
+});
 
 const copyChannels = (buffer: AudioBuffer) => {
   const channels: ArrayBuffer[] = [];
@@ -74,12 +92,20 @@ export const encodeWavOffThread = async (buffer: AudioBuffer) => {
   const startedAt = performance.now();
   const activeWorker = resolveWorker();
   if (!activeWorker) {
+    lastEncodeUsedWorker = false;
+    lastEncodeUsedFallback = true;
+    setPerfCounter("export.encode.usedWorker", 0);
+    setPerfCounter("export.encode.usedFallback", 1);
     const fallbackStartedAt = performance.now();
     const blob = encodeWav(buffer);
     setPerfTiming("export.encode.wavFallbackMs", performance.now() - fallbackStartedAt);
     setPerfTiming("export.encode.totalMs", performance.now() - startedAt);
     return blob;
   }
+  lastEncodeUsedWorker = true;
+  lastEncodeUsedFallback = false;
+  setPerfCounter("export.encode.usedWorker", 1);
+  setPerfCounter("export.encode.usedFallback", 0);
   const id = nextRequestId;
   nextRequestId += 1;
   const copyStartedAt = performance.now();
@@ -99,6 +125,10 @@ export const encodeWavOffThread = async (buffer: AudioBuffer) => {
       reject(error instanceof Error ? error : new Error("Failed to post WAV job"));
     }
   }).catch(() => {
+    lastEncodeUsedWorker = false;
+    lastEncodeUsedFallback = true;
+    setPerfCounter("export.encode.usedWorker", 0);
+    setPerfCounter("export.encode.usedFallback", 1);
     const fallbackStartedAt = performance.now();
     const blob = encodeWav(buffer);
     setPerfTiming("export.encode.wavFallbackMs", performance.now() - fallbackStartedAt);

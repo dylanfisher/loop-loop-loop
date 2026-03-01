@@ -45,13 +45,14 @@ const encodeWavBuffer = (channels: Float32Array[], sampleRate: number) => {
   writeString(view, 36, "data");
   view.setUint32(40, dataSize, true);
 
-  let offset = 44;
+  const pcm = new Int16Array(arrayBuffer, 44, length * numChannels);
+  let writeIndex = 0;
   for (let i = 0; i < length; i += 1) {
     for (let channel = 0; channel < numChannels; channel += 1) {
       const sample = channels[channel][i] ?? 0;
       const clamped = Math.max(-1, Math.min(1, sample));
-      view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
-      offset += 2;
+      pcm[writeIndex] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+      writeIndex += 1;
     }
   }
 
