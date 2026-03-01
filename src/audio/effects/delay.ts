@@ -109,12 +109,12 @@ export const createSoftClipCurve = (drive: number, size = 2048) => {
   return curve;
 };
 
-const absCurveCache = new Map<number, Float32Array>();
+const absCurveCache = new Map<number, Float32Array<ArrayBuffer>>();
 
-export const createAbsCurve = (size = 2048) => {
+export const createAbsCurve = (size = 2048): Float32Array<ArrayBuffer> => {
   const cached = absCurveCache.get(size);
   if (cached) return cached;
-  const curve = new Float32Array(size);
+  const curve = new Float32Array(new ArrayBuffer(size * Float32Array.BYTES_PER_ELEMENT));
   for (let i = 0; i < size; i += 1) {
     const x = (i / (size - 1)) * 2 - 1;
     curve[i] = Math.abs(x);
