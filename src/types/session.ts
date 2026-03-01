@@ -50,6 +50,7 @@ export type DeckSession = {
   vocoderReleaseMs?: number;
   vocoderNoiseMix?: number;
   vocoderGateThreshold?: number;
+  vocoderPostDelay?: boolean;
   includeInRecordExport?: boolean;
   deckWidthOverride?: "full" | "half";
   offsetSeconds: number;
@@ -116,6 +117,7 @@ export type ClipSession = {
   vocoderReleaseMs?: number;
   vocoderNoiseMix?: number;
   vocoderGateThreshold?: number;
+  vocoderPostDelay?: boolean;
   tempoOffset: number;
   audioBlobId?: string;
   audioMimeType?: string;
@@ -147,6 +149,7 @@ export type ClipSettings = {
   vocoderReleaseMs?: number;
   vocoderNoiseMix?: number;
   vocoderGateThreshold?: number;
+  vocoderPostDelay?: boolean;
   tempoOffset: number;
   tempoPitchSync: boolean;
   stretchRatio: number;

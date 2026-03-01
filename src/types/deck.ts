@@ -155,6 +155,7 @@ export type DeckState = {
   vocoderReleaseMs: number;
   vocoderNoiseMix: number;
   vocoderGateThreshold: number;
+  vocoderPostDelay: boolean;
   simpleAutomation: DeckSimpleAutomation;
   includeInRecordExport: boolean;
   deckWidthOverride?: DeckWidthOverride;

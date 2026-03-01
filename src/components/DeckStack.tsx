@@ -79,6 +79,7 @@ export type DeckStackProps = {
   onVocoderReleaseMsChange: (id: number, value: number) => void;
   onVocoderPhaseRotateChange: (id: number, value: number) => void;
   onVocoderGateThresholdChange: (id: number, value: number) => void;
+  onVocoderPostDelayChange: (id: number, value: boolean) => void;
   onDisableDeckVocoder: (id: number) => void;
   onDisableDeckVocoders: (ids: number[]) => void;
   onBalanceChange: (id: number, value: number) => void;
@@ -223,6 +224,7 @@ const DeckStack = ({
   onVocoderReleaseMsChange,
   onVocoderPhaseRotateChange,
   onVocoderGateThresholdChange,
+  onVocoderPostDelayChange,
   onDisableDeckVocoder,
   onDisableDeckVocoders,
   onBalanceChange,
@@ -480,6 +482,7 @@ const DeckStack = ({
               onVocoderReleaseMsChange={onVocoderReleaseMsChange}
               onVocoderPhaseRotateChange={onVocoderPhaseRotateChange}
               onVocoderGateThresholdChange={onVocoderGateThresholdChange}
+              onVocoderPostDelayChange={onVocoderPostDelayChange}
               onDisableDeckVocoder={onDisableDeckVocoder}
               onDisableDeckVocoders={onDisableDeckVocoders}
               vocoderModulatingTargetDeckIds={

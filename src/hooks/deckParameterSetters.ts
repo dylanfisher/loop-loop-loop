@@ -46,6 +46,7 @@ type Args = {
   setDeckVocoderReleaseMs: (id: number, value: number) => void;
   setDeckVocoderNoiseMix: (id: number, value: number) => void;
   setDeckVocoderGateThreshold: (id: number, value: number) => void;
+  setDeckVocoderPostDelay: (id: number, value: boolean) => void;
   setDeckPlaybackRate: (id: number, value: number) => void;
   setDeckPlaybackOffset: (id: number, value: number) => void;
   setDeckRearrangerPan: (id: number, value: number) => void;
@@ -127,6 +128,7 @@ export const createDeckParameterSetters = ({
   setDeckVocoderReleaseMs,
   setDeckVocoderNoiseMix,
   setDeckVocoderGateThreshold,
+  setDeckVocoderPostDelay,
   setDeckPlaybackRate,
   setDeckPlaybackOffset,
   setDeckRearrangerPan,
@@ -412,6 +414,12 @@ export const createDeckParameterSetters = ({
     updateDeck(id, { vocoderGateThreshold: clamped }, false);
   };
 
+  const setDeckVocoderPostDelayValue = (id: number, value: boolean) => {
+    const normalized = value === true;
+    setDeckVocoderPostDelay(id, normalized);
+    updateDeck(id, { vocoderPostDelay: normalized }, false);
+  };
+
   const setDeckDelaySliceSyncValue = (id: number, value: boolean) => {
     updateDeck(id, { delaySliceSync: value }, false);
   };
@@ -505,6 +513,7 @@ export const createDeckParameterSetters = ({
     setDeckVocoderReleaseMsValue,
     setDeckVocoderNoiseMixValue,
     setDeckVocoderGateThresholdValue,
+    setDeckVocoderPostDelayValue,
     setDeckDelaySliceSyncValue,
     setDeckDelayTimeTransient,
     setDeckPlaybackRateTransient,

@@ -77,7 +77,8 @@ type Args = {
     vocoderGateThreshold: number,
     includeInRecordExport: boolean,
     balance: number,
-    pitchShift: number
+    pitchShift: number,
+    vocoderPostDelay?: boolean
   ) => Promise<void>;
   updateDeck: (id: number, patch: Partial<DeckState>, recordHistory?: boolean) => void;
   playbackStartRef: MutableRefObject<Map<number, number>>;
@@ -186,7 +187,8 @@ export const createDeckLoopTempoControls = ({
           deck.vocoderGateThreshold,
           deck.includeInRecordExport,
           deck.balance,
-          deck.pitchShift
+          deck.pitchShift,
+          deck.vocoderPostDelay
         );
 
         const startedAtMs = performance.now();
@@ -321,7 +323,8 @@ export const createDeckLoopTempoControls = ({
             deck.vocoderGateThreshold,
             deck.includeInRecordExport,
             deck.balance,
-            deck.pitchShift
+            deck.pitchShift,
+            deck.vocoderPostDelay
           );
           const startedAtMs = performance.now();
           playbackStartRef.current.set(id, startedAtMs);

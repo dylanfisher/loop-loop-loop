@@ -113,6 +113,7 @@ const setDeckVocoderAttackMs = vi.fn();
 const setDeckVocoderReleaseMs = vi.fn();
 const setDeckVocoderNoiseMix = vi.fn();
 const setDeckVocoderGateThreshold = vi.fn();
+const setDeckVocoderPostDelay = vi.fn();
 const setDeckRecordExportSend = vi.fn();
 const removeDeck = vi.fn();
 const getDeckPosition = vi.fn(() => null);
@@ -175,6 +176,7 @@ vi.mock("../useAudioEngine", () => ({
     setDeckVocoderReleaseMs,
     setDeckVocoderNoiseMix,
     setDeckVocoderGateThreshold,
+    setDeckVocoderPostDelay,
     setDeckRecordExportSend,
     removeDeck,
     getDeckPosition,
@@ -239,6 +241,7 @@ describe("useDecks", () => {
     setDeckVocoderReleaseMs.mockClear();
     setDeckVocoderNoiseMix.mockClear();
     setDeckVocoderGateThreshold.mockClear();
+    setDeckVocoderPostDelay.mockClear();
     setDeckRecordExportSend.mockClear();
     removeDeck.mockClear();
     getDeckPosition.mockClear();

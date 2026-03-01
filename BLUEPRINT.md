@@ -56,6 +56,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX now includes a dedicated Gain unit (first slot) with its own collapsible panel and automation lane; waveform sidebar gain control was removed.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Deck FX includes a Vocoder panel with per-deck mix, modulator-deck selection, modulator monitor level (controls linked modulator deck audibility in the mix), mod-drive sensitivity boost for stronger envelope transfer, and a single `Phase Rotate` control that continuously cycles vocoder band phase offsets.
+- Vocoder includes a per-deck `Post Delay` routing toggle to switch processing order between `Vocoder -> Delay` (default) and `Delay -> Vocoder` in both live playback and Export Mix offline render.
 - Vocoder is bypassed in live/render paths when mix is zero or no modulator source is selected; selecting a modulator source auto-primes mix to 50%, and clearing source sets mix to 0%.
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
 - Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.

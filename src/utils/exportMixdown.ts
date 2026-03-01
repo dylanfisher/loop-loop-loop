@@ -456,7 +456,7 @@ export const renderMixdownBlob = async ({
           }
         : undefined,
     });
-    let postEq: AudioNode =
+    const postEq: AudioNode =
       deck.eqMode === "parametric"
         ? applyParametricEqOffline(
             offline,
@@ -496,8 +496,9 @@ export const renderMixdownBlob = async ({
     const hasSelectedVocoderSource =
       deck.vocoderCarrierDeckId !== null && deck.vocoderCarrierDeckId !== deck.id;
     const vocoderMixValue = Math.min(Math.max(resolveSimpleValue(deck, "vocoderMix", deck.vocoderMix ?? 0), 0), 1);
+    const vocoderPostDelay = deck.vocoderPostDelay === true;
     const hasVocoder = vocoderMixValue > 1e-3 && hasSelectedVocoderSource;
-    if (vocoderMixValue > 1e-3 && hasSelectedVocoderSource) {
+    if (vocoderMixValue > 1e-3 && hasSelectedVocoderSource && !vocoderPostDelay) {
       const vocoder = createChannelVocoder(offline, {
         mix: vocoderMixValue,
         modDrive: resolveSimpleValue(deck, "vocoderModDrive", deck.vocoderModDrive ?? 2),
@@ -521,7 +522,7 @@ export const renderMixdownBlob = async ({
       setChannelVocoderCarrierActive(vocoder, hasCarrier);
       postFxInput = vocoder.output;
     }
-    postEq = applyPostEqEffectsOffline(
+    let postFx = applyPostEqEffectsOffline(
       offline,
       postFxInput,
       {
@@ -546,7 +547,31 @@ export const renderMixdownBlob = async ({
       },
       "exportMix"
     );
-    const postGain = applyGainOffline(offline, postEq, {
+    if (vocoderMixValue > 1e-3 && hasSelectedVocoderSource && vocoderPostDelay) {
+      const vocoder = createChannelVocoder(offline, {
+        mix: vocoderMixValue,
+        modDrive: resolveSimpleValue(deck, "vocoderModDrive", deck.vocoderModDrive ?? 2),
+        bandCount: Math.round(resolveSimpleValue(deck, "vocoderBandCount", deck.vocoderBandCount)),
+        bandSpread: resolveSimpleValue(deck, "vocoderBandSpread", deck.vocoderBandSpread),
+        attackMs: resolveSimpleValue(deck, "vocoderAttackMs", deck.vocoderAttackMs),
+        releaseMs: resolveSimpleValue(deck, "vocoderReleaseMs", deck.vocoderReleaseMs),
+        noiseMix: resolveSimpleValue(deck, "vocoderNoiseMix", deck.vocoderNoiseMix),
+        gateThreshold: resolveSimpleValue(deck, "vocoderGateThreshold", deck.vocoderGateThreshold),
+      });
+      postFx.connect(vocoder.carrierInput);
+      const carrierDeck =
+        deck.vocoderCarrierDeckId === null || deck.vocoderCarrierDeckId === deck.id
+          ? null
+          : activeDecks.find((candidate) => candidate.id === deck.vocoderCarrierDeckId) ?? null;
+      const carrierSource = carrierDeck ? createCarrierDeckSource(carrierDeck) : null;
+      if (carrierSource) {
+        carrierSource.connect(vocoder.input);
+      }
+      const hasCarrier = carrierSource !== null;
+      setChannelVocoderCarrierActive(vocoder, hasCarrier);
+      postFx = vocoder.output;
+    }
+    const postGain = applyGainOffline(offline, postFx, {
       gain: deck.gain * modulatorOutputGain,
       bypassAt: 0.9,
     });

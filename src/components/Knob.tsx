@@ -333,7 +333,7 @@ const Knob = ({
           />
         </svg>
       </div>
-      <div className="knob__value">
+      <div className="knob__value" title={`${value}`}>
         {display}
         {fineMode ? <span className="knob__fine">Fine</span> : null}
       </div>

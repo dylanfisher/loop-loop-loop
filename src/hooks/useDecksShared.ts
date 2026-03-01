@@ -53,6 +53,7 @@ export const DEFAULT_VOCODER_ATTACK_MS = 8;
 export const DEFAULT_VOCODER_RELEASE_MS = 5;
 export const DEFAULT_VOCODER_NOISE_MIX = 0;
 export const DEFAULT_VOCODER_GATE_THRESHOLD = 0.5;
+export const DEFAULT_VOCODER_POST_DELAY = false;
 export const DEFAULT_REARRANGER_SLICES = 0;
 export const DEFAULT_REARRANGER_SWAP_COUNT = 0;
 export const DEFAULT_REARRANGER_CHAOS = 0;
@@ -340,6 +341,7 @@ export const buildInitialDecks = (): DeckState[] => [
     vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
     vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
     vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
+    vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
     simpleAutomation: {},
     includeInRecordExport: true,
     deckWidthOverride: undefined,

@@ -83,6 +83,7 @@ export type DeckCardProps = {
   onVocoderReleaseMsChange: (id: number, value: number) => void;
   onVocoderPhaseRotateChange: (id: number, value: number) => void;
   onVocoderGateThresholdChange: (id: number, value: number) => void;
+  onVocoderPostDelayChange: (id: number, value: boolean) => void;
   carrierDeckOptions: Array<{ id: number; label: string }>;
   vocoderModulatingTargetDeckIds: number[];
   vocoderModulatingTargets: string[];
@@ -610,7 +611,8 @@ const DeckCard = (props: DeckCardProps) => {
         isDifferent(deck.vocoderAttackMs, 8) ||
         isDifferent(deck.vocoderReleaseMs, 5) ||
         isDifferent(deck.vocoderNoiseMix, 0) ||
-        isDifferent(deck.vocoderGateThreshold, 0.5),
+        isDifferent(deck.vocoderGateThreshold, 0.5) ||
+        deck.vocoderPostDelay,
     },
     delay: {
       automation: false,

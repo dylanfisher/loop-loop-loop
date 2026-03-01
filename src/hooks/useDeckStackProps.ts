@@ -68,6 +68,7 @@ type UseDeckStackPropsArgs = {
   setDeckVocoderReleaseMs: (id: number, value: number) => void;
   setDeckVocoderNoiseMix: (id: number, value: number) => void;
   setDeckVocoderGateThreshold: (id: number, value: number) => void;
+  setDeckVocoderPostDelay: (id: number, value: boolean) => void;
   setDeckBalance: (id: number, value: number) => void;
   setDeckPitchShift: (id: number, value: number) => void;
   seekDeck: (id: number, progress: number) => void;
@@ -189,6 +190,7 @@ const useDeckStackProps = ({
   setDeckVocoderReleaseMs,
   setDeckVocoderNoiseMix,
   setDeckVocoderGateThreshold,
+  setDeckVocoderPostDelay,
   setDeckBalance,
   setDeckPitchShift,
   seekDeck,
@@ -338,6 +340,7 @@ const useDeckStackProps = ({
     onVocoderReleaseMsChange: setDeckVocoderReleaseMs,
     onVocoderPhaseRotateChange: setDeckVocoderNoiseMix,
     onVocoderGateThresholdChange: setDeckVocoderGateThreshold,
+    onVocoderPostDelayChange: setDeckVocoderPostDelay,
     onDisableDeckVocoder: handleDisableDeckVocoder,
     onDisableDeckVocoders: handleDisableDeckVocoders,
     onBalanceChange: setDeckBalance,

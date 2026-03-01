@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { ReactNode } from "react";
 import type {
   DeckFxPanel,
@@ -127,6 +128,7 @@ const DeckCardFxRack = ({
     onVocoderReleaseMsChange,
     onVocoderPhaseRotateChange,
     onVocoderGateThresholdChange,
+    onVocoderPostDelayChange,
     onVocoderCarrierDeckIdChange,
     carrierDeckOptions,
     onDelayMixChange,
@@ -166,6 +168,34 @@ const DeckCardFxRack = ({
 
   const isSimpleAutomated = (param: SimpleAutomationParam) =>
     deck.simpleAutomation?.[param]?.active === true;
+  const lastDelayTapMsRef = useRef<number | null>(null);
+  const delayTapIntervalsRef = useRef<number[]>([]);
+
+  const handleDelayTap = () => {
+    const now = performance.now();
+    const lastTapMs = lastDelayTapMsRef.current;
+
+    if (lastTapMs == null) {
+      lastDelayTapMsRef.current = now;
+      return;
+    }
+
+    const intervalMs = now - lastTapMs;
+    lastDelayTapMsRef.current = now;
+
+    // Reset tap history after long pauses and ignore ultra-fast accidental double-clicks.
+    if (intervalMs > 3000 || intervalMs < 60) {
+      delayTapIntervalsRef.current = [];
+      return;
+    }
+
+    const intervals = [...delayTapIntervalsRef.current, intervalMs].slice(-4);
+    delayTapIntervalsRef.current = intervals;
+
+    const averageIntervalMs = intervals.reduce((sum, value) => sum + value, 0) / intervals.length;
+    const delayTimeSec = Math.min(Math.max(averageIntervalMs / 1000, 0.01), 1.5);
+    onDelayTimeChange(deck.id, delayTimeSec);
+  };
 
   return (
       <div className="deck__fx">
@@ -867,6 +897,19 @@ const DeckCardFxRack = ({
                   ))}
                 </select>
               </label>
+              <label
+                className="deck__delay-toggle"
+                title="Process vocoder after delay so delayed signal is vocoded instead of delaying the vocoded signal."
+              >
+                <span>Post Delay</span>
+                <input
+                  type="checkbox"
+                  checked={deck.vocoderPostDelay}
+                  onChange={(event) =>
+                    onVocoderPostDelayChange(deck.id, event.target.checked)
+                  }
+                />
+              </label>
             </div>
           </div>
           <div
@@ -1088,6 +1131,14 @@ const DeckCardFxRack = ({
               />
             </div>
             <div className="deck__delay-options deck__fx-footer">
+              <button
+                type="button"
+                className="deck__action deck__delay-tap"
+                onClick={handleDelayTap}
+                title="Tap repeatedly to set delay time from your tap interval."
+              >
+                Tap
+              </button>
               <label
                 className="deck__delay-toggle"
                 title="Cross-feed delay repeats between left and right channels."

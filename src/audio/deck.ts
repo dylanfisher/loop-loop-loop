@@ -125,6 +125,7 @@ type DeckNodes = {
   delaySpectralTone: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode];
   delaySpectralPanners: [StereoPannerNode, StereoPannerNode, StereoPannerNode];
   delayPingPong: boolean;
+  delayInputUsesVocoder: boolean;
   delayActive: boolean;
   vocoderRouted: boolean;
   vocoder: ChannelVocoderNodes;
@@ -138,8 +139,10 @@ type DeckNodes = {
   vocoderReleaseMs: number;
   vocoderNoiseMix: number;
   vocoderGateThreshold: number;
+  vocoderPostDelay: boolean;
   vocoderCarrierConnectedDeckId: number | null;
   vocoderCarrierSource?: AudioBufferSourceNode;
+  postDelaySum: GainNode;
   postEq: GainNode;
   clipper: WaveShaperNode;
   limiter: DynamicsCompressorNode;
@@ -211,6 +214,7 @@ const pendingVocoderAttackMs = new Map<number, number>();
 const pendingVocoderReleaseMs = new Map<number, number>();
 const pendingVocoderNoiseMix = new Map<number, number>();
 const pendingVocoderGateThreshold = new Map<number, number>();
+const pendingVocoderPostDelay = new Map<number, boolean>();
 const pendingRecordExportSend = new Map<number, boolean>();
 const vocoderConfig = new Map<
   number,
@@ -436,12 +440,17 @@ const applyDelayFeedbackSafety = (nodes: DeckNodes, feedback: number, safety: nu
   nodes.delayFeedbackR.gain.value = gain;
 };
 
+const getDelayRoutingSource = (nodes: DeckNodes) =>
+  nodes.vocoderRouted && !nodes.vocoderPostDelay ? nodes.vocoder.output : nodes.postEq;
+
 const setDelayRouting = (nodes: DeckNodes, active: boolean) => {
   if (nodes.delayActive === active) return;
-  const source = nodes.vocoderRouted ? nodes.vocoder.output : nodes.postEq;
+  const previousSource = nodes.delayInputUsesVocoder ? nodes.vocoder.output : nodes.postEq;
+  const source = getDelayRoutingSource(nodes);
+  const nextUsesVocoder = nodes.vocoderRouted && !nodes.vocoderPostDelay;
   if (nodes.delayActive) {
-    safeDisconnect(source, nodes.delaySplit);
-    safeDisconnect(source, nodes.delayDuckRectifier);
+    safeDisconnect(previousSource, nodes.delaySplit);
+    safeDisconnect(previousSource, nodes.delayDuckRectifier);
     try {
       nodes.delayDuckDepth.disconnect(nodes.delayDuckGain.gain);
     } catch {
@@ -455,6 +464,7 @@ const setDelayRouting = (nodes: DeckNodes, active: boolean) => {
     nodes.delayDuckDepth.connect(nodes.delayDuckGain.gain);
     nodes.delayDuckGain.connect(nodes.delayWet);
   }
+  nodes.delayInputUsesVocoder = nextUsesVocoder;
   nodes.delayActive = active;
 };
 
@@ -489,15 +499,32 @@ const setVocoderRouting = (nodes: DeckNodes, active: boolean) => {
     setDelayRouting(nodes, false);
   }
   if (nodes.vocoderRouted) {
-    safeDisconnect(nodes.postEq, nodes.vocoder.carrierInput);
-    safeDisconnect(nodes.vocoder.output, nodes.delayDry);
+    if (nodes.vocoderPostDelay) {
+      safeDisconnect(nodes.postDelaySum, nodes.vocoder.carrierInput);
+      safeDisconnect(nodes.vocoder.output, nodes.gain);
+    } else {
+      safeDisconnect(nodes.postEq, nodes.vocoder.carrierInput);
+      safeDisconnect(nodes.vocoder.output, nodes.delayDry);
+    }
   } else {
     safeDisconnect(nodes.postEq, nodes.delayDry);
+    if (nodes.vocoderPostDelay) {
+      safeDisconnect(nodes.postDelaySum, nodes.gain);
+    }
   }
   if (active) {
-    nodes.postEq.connect(nodes.vocoder.carrierInput);
-    nodes.vocoder.output.connect(nodes.delayDry);
+    if (nodes.vocoderPostDelay) {
+      safeDisconnect(nodes.postDelaySum, nodes.gain);
+      nodes.postDelaySum.connect(nodes.vocoder.carrierInput);
+      nodes.vocoder.output.connect(nodes.gain);
+    } else {
+      nodes.postEq.connect(nodes.vocoder.carrierInput);
+      nodes.vocoder.output.connect(nodes.delayDry);
+    }
   } else {
+    if (nodes.vocoderPostDelay) {
+      nodes.postDelaySum.connect(nodes.gain);
+    }
     nodes.postEq.connect(nodes.delayDry);
   }
   nodes.vocoderRouted = active;
@@ -676,6 +703,7 @@ const ensureDeckNodes = (
   vocoderReleaseMs: number,
   vocoderNoiseMix: number,
   vocoderGateThreshold: number,
+  vocoderPostDelay: boolean,
   includeInRecordExport: boolean
 ) => {
   const normalizedDelay = normalizeDelayParams({
@@ -927,6 +955,7 @@ const ensureDeckNodes = (
     const nextVocoderGateThreshold = normalizeVocoderGateThreshold(
       pendingVocoderGateThreshold.get(deckId) ?? vocoderGateThreshold
     );
+    const nextVocoderPostDelay = pendingVocoderPostDelay.get(deckId) ?? vocoderPostDelay;
     const postEq = context.createGain();
     const vocoder = createChannelVocoder(context, {
       mix: nextVocoderMix,
@@ -948,6 +977,7 @@ const ensureDeckNodes = (
     setChannelVocoderGateThreshold(vocoder, nextVocoderGateThreshold);
     const deckGain = context.createGain();
     deckGain.gain.value = pendingGains.get(deckId) ?? gain;
+    const postDelaySum = context.createGain();
     const recordExportSend = context.createGain();
     recordExportSend.gain.value =
       (pendingRecordExportSend.get(deckId) ?? includeInRecordExport) ? 1 : 0;
@@ -972,8 +1002,7 @@ const ensureDeckNodes = (
       parametricEq[i].connect(parametricEq[i + 1]);
     }
     parametricEq[parametricEq.length - 1].connect(postEq);
-    postEq.connect(vocoder.carrierInput);
-    vocoder.output.connect(delayDry);
+    postEq.connect(delayDry);
     delaySplit.connect(delayL, 0);
     delaySplit.connect(delayR, 1);
     delayL.connect(delayMerge, 0, 0);
@@ -1001,8 +1030,9 @@ const ensureDeckNodes = (
     delayRhythmDepthL.connect(delayL.delayTime);
     delayRhythmDepthR.connect(delayR.delayTime);
     delayRhythmLfo.start();
-    delayWet.connect(deckGain);
-    delayDry.connect(deckGain);
+    delayWet.connect(postDelaySum);
+    delayDry.connect(postDelaySum);
+    postDelaySum.connect(deckGain);
     deckGain.connect(limiter);
     limiter.connect(clipper);
     clipper.connect(output);
@@ -1079,8 +1109,9 @@ const ensureDeckNodes = (
       delaySpectralTone,
       delaySpectralPanners,
       delayPingPong: !nextDelayPingPong,
+      delayInputUsesVocoder: false,
       delayActive: false,
-      vocoderRouted: true,
+      vocoderRouted: false,
       vocoder,
       vocoderMix: nextVocoderMix,
       vocoderCarrierDeckId: nextVocoderCarrierDeckId,
@@ -1092,7 +1123,9 @@ const ensureDeckNodes = (
       vocoderReleaseMs: nextVocoderReleaseMs,
       vocoderNoiseMix: nextVocoderNoiseMix,
       vocoderGateThreshold: nextVocoderGateThreshold,
+      vocoderPostDelay: nextVocoderPostDelay,
       vocoderCarrierConnectedDeckId: null,
+      postDelaySum,
       postEq,
       clipper,
       limiter,
@@ -1104,6 +1137,9 @@ const ensureDeckNodes = (
       nextVocoderCarrierDeckId,
       nextVocoderModulatorMonitor
     );
+    if (nextVocoderPostDelay) {
+      safeDisconnect(nodes.postDelaySum, nodes.gain);
+    }
     setParametricRouting(nodes, !parametricActive);
     modulatorOutputGain.connect(balanceNode);
     balanceNode.connect(rearrangerPanNode);
@@ -1225,6 +1261,10 @@ const ensureDeckNodes = (
       pendingVocoderGateThreshold.get(deckId) ?? vocoderGateThreshold
     );
     setChannelVocoderGateThreshold(nodes.vocoder, nodes.vocoderGateThreshold);
+    setDeckVocoderPostDelayValue(
+      deckId,
+      pendingVocoderPostDelay.get(deckId) ?? vocoderPostDelay
+    );
     nodes.vocoderCarrierDeckId =
       pendingVocoderCarrierDeckId.get(deckId) ?? vocoderCarrierDeckId;
     nodes.vocoderModulatorMonitor = normalizeVocoderModulatorMonitor(
@@ -1284,6 +1324,7 @@ const ensureDeckNodes = (
   pendingVocoderReleaseMs.delete(deckId);
   pendingVocoderNoiseMix.delete(deckId);
   pendingVocoderGateThreshold.delete(deckId);
+  pendingVocoderPostDelay.delete(deckId);
   pendingRecordExportSend.delete(deckId);
   return nodes;
 };
@@ -1337,6 +1378,7 @@ export const playDeckBuffer = (
   includeInRecordExport: boolean,
   balance = defaultBalance,
   pitchShift = defaultPitchShift,
+  vocoderPostDelay = false,
   onEnded?: DeckEndedCallback
 ) => {
   stopDeckPlayback(deckId, true);
@@ -1382,6 +1424,7 @@ export const playDeckBuffer = (
     vocoderReleaseMs,
     vocoderNoiseMix,
     vocoderGateThreshold,
+    vocoderPostDelay,
     includeInRecordExport
   );
 
@@ -2114,6 +2157,39 @@ export const setDeckVocoderGateThresholdValue = (deckId: number, value: number) 
   }
 };
 
+export const setDeckVocoderPostDelayValue = (deckId: number, value: boolean) => {
+  const normalized = value === true;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    if (nodes.vocoderPostDelay !== normalized) {
+      const wasActive = shouldRouteThroughVocoder(nodes);
+      if (wasActive) {
+        setVocoderRouting(nodes, false);
+      }
+      nodes.vocoderPostDelay = normalized;
+      if (wasActive) {
+        setVocoderRouting(nodes, true);
+      } else {
+        safeDisconnect(nodes.postEq, nodes.delayDry);
+        if (normalized) {
+          safeDisconnect(nodes.postDelaySum, nodes.gain);
+          safeDisconnect(nodes.postDelaySum, nodes.vocoder.carrierInput);
+          safeDisconnect(nodes.vocoder.output, nodes.gain);
+          nodes.postEq.connect(nodes.delayDry);
+          nodes.postDelaySum.connect(nodes.gain);
+        } else {
+          safeDisconnect(nodes.postDelaySum, nodes.gain);
+          nodes.postEq.connect(nodes.delayDry);
+          nodes.postDelaySum.connect(nodes.gain);
+        }
+      }
+    }
+    pendingVocoderPostDelay.delete(deckId);
+  } else {
+    pendingVocoderPostDelay.set(deckId, normalized);
+  }
+};
+
 export const setDeckRecordExportSendValue = (deckId: number, active: boolean) => {
   const nodes = deckNodes.get(deckId);
   if (nodes) {
@@ -2204,6 +2280,7 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.delaySpectralPanners.forEach((node) => node.disconnect());
     disposeChannelVocoder(nodes.vocoder);
     nodes.postEq.disconnect();
+    nodes.postDelaySum.disconnect();
     nodes.gain.disconnect();
     nodes.recordExportSend.disconnect();
     nodes.modulatorOutputGain.disconnect();
@@ -2257,6 +2334,7 @@ export const removeDeckNodes = (deckId: number) => {
   pendingVocoderReleaseMs.delete(deckId);
   pendingVocoderNoiseMix.delete(deckId);
   pendingVocoderGateThreshold.delete(deckId);
+  pendingVocoderPostDelay.delete(deckId);
   pendingRecordExportSend.delete(deckId);
   if (configuredCarrierDeckId !== null) {
     applyCarrierMonitorOutputGain(configuredCarrierDeckId);

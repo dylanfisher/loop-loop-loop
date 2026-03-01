@@ -1806,6 +1806,10 @@ body:not([data-theme="dark"]) .peq__grid--zero {
   flex-wrap: wrap;
 }
 
+.deck__delay-tap {
+  align-self: center;
+}
+
 .deck__fx-footer {
   margin-top: 10px;
 }

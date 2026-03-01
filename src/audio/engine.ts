@@ -45,6 +45,7 @@ import {
   setDeckVocoderReleaseMsValue,
   setDeckVocoderNoiseMixValue,
   setDeckVocoderGateThresholdValue,
+  setDeckVocoderPostDelayValue,
   setDeckRecordExportSendValue,
   setDeckLoopParams,
   setDeckPlaybackOffsetValue,
@@ -110,7 +111,8 @@ type AudioEngine = {
     vocoderGateThreshold?: number,
     includeInRecordExport?: boolean,
     balance?: number,
-    pitchShift?: number
+    pitchShift?: number,
+    vocoderPostDelay?: boolean
   ) => Promise<void>;
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
@@ -162,6 +164,7 @@ type AudioEngine = {
   setDeckVocoderReleaseMs: (deckId: number, value: number) => void;
   setDeckVocoderNoiseMix: (deckId: number, value: number) => void;
   setDeckVocoderGateThreshold: (deckId: number, value: number) => void;
+  setDeckVocoderPostDelay: (deckId: number, value: boolean) => void;
   setDeckPitchShift: (deckId: number, value: number) => void;
   setDeckRecordExportSend: (deckId: number, active: boolean) => void;
   setMasterGain: (value: number) => void;
@@ -302,7 +305,8 @@ const playBuffer: AudioEngine["playBuffer"] = async (
   vocoderGateThreshold = 0.5,
   includeInRecordExport = true,
   balance = 0,
-  pitchShift = 0
+  pitchShift = 0,
+  vocoderPostDelay = false
 ) => {
   const context = await ensureContext();
   try {
@@ -370,6 +374,7 @@ const playBuffer: AudioEngine["playBuffer"] = async (
     includeInRecordExport,
     balance,
     pitchShift,
+    vocoderPostDelay,
     onEnded
   );
 };
@@ -554,6 +559,10 @@ const setDeckVocoderGateThreshold = (deckId: number, value: number) => {
   setDeckVocoderGateThresholdValue(deckId, value);
 };
 
+const setDeckVocoderPostDelay = (deckId: number, value: boolean) => {
+  setDeckVocoderPostDelayValue(deckId, value);
+};
+
 const setDeckPitchShift = (deckId: number, value: number) => {
   setDeckPitchShiftValue(deckId, value);
 };
@@ -691,6 +700,7 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckVocoderReleaseMs,
     setDeckVocoderNoiseMix,
     setDeckVocoderGateThreshold,
+    setDeckVocoderPostDelay,
     setDeckPitchShift,
     setDeckRecordExportSend,
     setMasterGain,
