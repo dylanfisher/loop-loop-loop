@@ -109,6 +109,11 @@ const setDeckVocoderModulatorMonitor = vi.fn();
 const setDeckVocoderModDrive = vi.fn();
 const setDeckVocoderBandCount = vi.fn();
 const setDeckVocoderBandSpread = vi.fn();
+const setDeckVocoderVocalCharacter = vi.fn();
+const setDeckVocoderFormantShift = vi.fn();
+const setDeckVocoderConsonantBoost = vi.fn();
+const setDeckVocoderPreEmphasis = vi.fn();
+const setDeckVocoderTightness = vi.fn();
 const setDeckVocoderAttackMs = vi.fn();
 const setDeckVocoderReleaseMs = vi.fn();
 const setDeckVocoderNoiseMix = vi.fn();
@@ -172,6 +177,11 @@ vi.mock("../useAudioEngine", () => ({
     setDeckVocoderModDrive,
     setDeckVocoderBandCount,
     setDeckVocoderBandSpread,
+    setDeckVocoderVocalCharacter,
+    setDeckVocoderFormantShift,
+    setDeckVocoderConsonantBoost,
+    setDeckVocoderPreEmphasis,
+    setDeckVocoderTightness,
     setDeckVocoderAttackMs,
     setDeckVocoderReleaseMs,
     setDeckVocoderNoiseMix,
@@ -237,6 +247,11 @@ describe("useDecks", () => {
     setDeckVocoderModDrive.mockClear();
     setDeckVocoderBandCount.mockClear();
     setDeckVocoderBandSpread.mockClear();
+    setDeckVocoderVocalCharacter.mockClear();
+    setDeckVocoderFormantShift.mockClear();
+    setDeckVocoderConsonantBoost.mockClear();
+    setDeckVocoderPreEmphasis.mockClear();
+    setDeckVocoderTightness.mockClear();
     setDeckVocoderAttackMs.mockClear();
     setDeckVocoderReleaseMs.mockClear();
     setDeckVocoderNoiseMix.mockClear();

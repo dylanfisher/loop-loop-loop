@@ -124,6 +124,10 @@ const DeckCardFxRack = ({
     onVocoderModulatorMonitorChange,
     onVocoderModDriveChange,
     onVocoderBandCountChange,
+    onVocoderVocalCharacterChange,
+    onVocoderFormantShiftChange,
+    onVocoderPreEmphasisChange,
+    onVocoderTightnessChange,
     onVocoderAttackMsChange,
     onVocoderReleaseMsChange,
     onVocoderPhaseRotateChange,
@@ -801,6 +805,82 @@ const DeckCardFxRack = ({
                 }
                 onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "vocoderBandCount")}
                 formatValue={(value) => `${Math.round(value)}`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Vocal Character"
+                min={0}
+                max={3}
+                step={0.01}
+                value={deck.vocoderVocalCharacter}
+                defaultValue={1}
+                labelTitle="Controls formant emphasis intensity. Higher values exaggerate vowel-like vocal articulation."
+                onChange={(next) => onVocoderVocalCharacterChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderVocalCharacter")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderVocalCharacter", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() =>
+                  onSimpleAutomationClear(deck.id, "vocoderVocalCharacter")
+                }
+                formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)}x`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Formant Shift"
+                min={-12}
+                max={12}
+                step={0.1}
+                value={deck.vocoderFormantShift}
+                defaultValue={0}
+                labelTitle="Shifts vocoder formants up/down in semitones for brighter or darker vocal color."
+                onChange={(next) => onVocoderFormantShiftChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderFormantShift")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderFormantShift", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() =>
+                  onSimpleAutomationClear(deck.id, "vocoderFormantShift")
+                }
+                formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)} st`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Pre-Emphasis"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.vocoderPreEmphasis}
+                defaultValue={0.45}
+                labelTitle="Brightens the modulator before envelope extraction to improve intelligibility."
+                onChange={(next) => onVocoderPreEmphasisChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderPreEmphasis")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderPreEmphasis", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() =>
+                  onSimpleAutomationClear(deck.id, "vocoderPreEmphasis")
+                }
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Tightness"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.vocoderTightness}
+                defaultValue={0.35}
+                labelTitle="Shortens envelope attack/release for sharper, speech-like articulation."
+                onChange={(next) => onVocoderTightnessChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("vocoderTightness")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "vocoderTightness", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() =>
+                  onSimpleAutomationClear(deck.id, "vocoderTightness")
+                }
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
               <Knob
                 className="knob--compact"

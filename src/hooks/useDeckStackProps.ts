@@ -64,6 +64,11 @@ type UseDeckStackPropsArgs = {
   setDeckVocoderModulatorMonitor: (id: number, value: number) => void;
   setDeckVocoderModDrive: (id: number, value: number) => void;
   setDeckVocoderBandCount: (id: number, value: number) => void;
+  setDeckVocoderVocalCharacter: (id: number, value: number) => void;
+  setDeckVocoderFormantShift: (id: number, value: number) => void;
+  setDeckVocoderConsonantBoost: (id: number, value: number) => void;
+  setDeckVocoderPreEmphasis: (id: number, value: number) => void;
+  setDeckVocoderTightness: (id: number, value: number) => void;
   setDeckVocoderAttackMs: (id: number, value: number) => void;
   setDeckVocoderReleaseMs: (id: number, value: number) => void;
   setDeckVocoderNoiseMix: (id: number, value: number) => void;
@@ -186,6 +191,11 @@ const useDeckStackProps = ({
   setDeckVocoderModulatorMonitor,
   setDeckVocoderModDrive,
   setDeckVocoderBandCount,
+  setDeckVocoderVocalCharacter,
+  setDeckVocoderFormantShift,
+  setDeckVocoderConsonantBoost,
+  setDeckVocoderPreEmphasis,
+  setDeckVocoderTightness,
   setDeckVocoderAttackMs,
   setDeckVocoderReleaseMs,
   setDeckVocoderNoiseMix,
@@ -262,12 +272,22 @@ const useDeckStackProps = ({
       setDeckVocoderCarrierDeckId(id, null);
       setDeckVocoderModulatorMonitor(id, 0);
       setDeckVocoderModDrive(id, 2);
+      setDeckVocoderVocalCharacter(id, 1);
+      setDeckVocoderFormantShift(id, 0);
+      setDeckVocoderConsonantBoost(id, 0);
+      setDeckVocoderPreEmphasis(id, 0.45);
+      setDeckVocoderTightness(id, 0.35);
     },
     [
       setDeckVocoderCarrierDeckId,
       setDeckVocoderMix,
       setDeckVocoderModDrive,
       setDeckVocoderModulatorMonitor,
+      setDeckVocoderVocalCharacter,
+      setDeckVocoderFormantShift,
+      setDeckVocoderConsonantBoost,
+      setDeckVocoderPreEmphasis,
+      setDeckVocoderTightness,
     ]
   );
 
@@ -278,6 +298,11 @@ const useDeckStackProps = ({
         setDeckVocoderCarrierDeckId(id, null);
         setDeckVocoderModulatorMonitor(id, 0);
         setDeckVocoderModDrive(id, 2);
+        setDeckVocoderVocalCharacter(id, 1);
+        setDeckVocoderFormantShift(id, 0);
+        setDeckVocoderConsonantBoost(id, 0);
+        setDeckVocoderPreEmphasis(id, 0.45);
+        setDeckVocoderTightness(id, 0.35);
       });
     },
     [
@@ -285,6 +310,11 @@ const useDeckStackProps = ({
       setDeckVocoderMix,
       setDeckVocoderModDrive,
       setDeckVocoderModulatorMonitor,
+      setDeckVocoderVocalCharacter,
+      setDeckVocoderFormantShift,
+      setDeckVocoderConsonantBoost,
+      setDeckVocoderPreEmphasis,
+      setDeckVocoderTightness,
     ]
   );
 
@@ -336,6 +366,11 @@ const useDeckStackProps = ({
     onVocoderModulatorMonitorChange: setDeckVocoderModulatorMonitor,
     onVocoderModDriveChange: setDeckVocoderModDrive,
     onVocoderBandCountChange: setDeckVocoderBandCount,
+    onVocoderVocalCharacterChange: setDeckVocoderVocalCharacter,
+    onVocoderFormantShiftChange: setDeckVocoderFormantShift,
+    onVocoderConsonantBoostChange: setDeckVocoderConsonantBoost,
+    onVocoderPreEmphasisChange: setDeckVocoderPreEmphasis,
+    onVocoderTightnessChange: setDeckVocoderTightness,
     onVocoderAttackMsChange: setDeckVocoderAttackMs,
     onVocoderReleaseMsChange: setDeckVocoderReleaseMs,
     onVocoderPhaseRotateChange: setDeckVocoderNoiseMix,

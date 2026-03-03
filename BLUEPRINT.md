@@ -56,6 +56,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX now includes a dedicated Gain unit (first slot) with its own collapsible panel and automation lane; waveform sidebar gain control was removed.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.
 - Deck FX includes a Vocoder panel with per-deck mix, modulator-deck selection, modulator monitor level (controls linked modulator deck audibility in the mix), mod-drive sensitivity boost for stronger envelope transfer, and a single `Phase Rotate` control that continuously cycles vocoder band phase offsets.
+- Vocoder band energy applies built-in formant emphasis (low body + mid presence + upper intelligibility regions) to produce a more voice-like articulation by default across live/offline paths.
+- Vocoder includes dedicated vocal-shaping controls: `Vocal Character` (`0..3`), `Formant Shift` (`-12..+12 st`), `Pre-Emphasis` (`0..1`), and `Tightness` (`0..1`). All are session/clip-preset persistent and simple-automation capable.
 - Vocoder includes a per-deck `Post Delay` routing toggle to switch processing order between `Vocoder -> Delay` (default) and `Delay -> Vocoder` in both live playback and Export Mix offline render.
 - Vocoder is bypassed in live/render paths when mix is zero or no modulator source is selected; selecting a modulator source auto-primes mix to 50%, and clearing source sets mix to 0%.
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
@@ -142,6 +144,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
 - Manual/quick saves are project-scoped: once a project has a saved session ID, subsequent saves update that same entry instead of creating additional entries.
 - Autosave continues writing the hidden autosave snapshot and also mirrors writes into the active saved session entry (when one is loaded/saved) so `Load Saved Session` stays one-entry-per-project.
+- Manual saves also refresh the hidden autosave snapshot so browser refresh hydration reflects the most recently saved project state.
 - Session export/import: zip bundle with `session.json` manifest and audio assets (WAV for decks; clips preserve original format when unchanged, except imports normalized to a portable compatibility format during ingest).
 - Deck undo/redo history is session-scoped and persisted through autosaves/manual saves plus session zip export/import (including audio blobs needed by historical deck snapshots).
 - Header `Last saved` readout is sourced from session `savedAt` and refreshed whenever save/autosave writes succeed.

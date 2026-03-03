@@ -75,6 +75,11 @@ export type DeckStackProps = {
   onVocoderModulatorMonitorChange: (id: number, value: number) => void;
   onVocoderModDriveChange: (id: number, value: number) => void;
   onVocoderBandCountChange: (id: number, value: number) => void;
+  onVocoderVocalCharacterChange: (id: number, value: number) => void;
+  onVocoderFormantShiftChange: (id: number, value: number) => void;
+  onVocoderConsonantBoostChange: (id: number, value: number) => void;
+  onVocoderPreEmphasisChange: (id: number, value: number) => void;
+  onVocoderTightnessChange: (id: number, value: number) => void;
   onVocoderAttackMsChange: (id: number, value: number) => void;
   onVocoderReleaseMsChange: (id: number, value: number) => void;
   onVocoderPhaseRotateChange: (id: number, value: number) => void;
@@ -220,6 +225,11 @@ const DeckStack = ({
   onVocoderModulatorMonitorChange,
   onVocoderModDriveChange,
   onVocoderBandCountChange,
+  onVocoderVocalCharacterChange,
+  onVocoderFormantShiftChange,
+  onVocoderConsonantBoostChange,
+  onVocoderPreEmphasisChange,
+  onVocoderTightnessChange,
   onVocoderAttackMsChange,
   onVocoderReleaseMsChange,
   onVocoderPhaseRotateChange,
@@ -478,6 +488,11 @@ const DeckStack = ({
               onVocoderModulatorMonitorChange={onVocoderModulatorMonitorChange}
               onVocoderModDriveChange={onVocoderModDriveChange}
               onVocoderBandCountChange={onVocoderBandCountChange}
+              onVocoderVocalCharacterChange={onVocoderVocalCharacterChange}
+              onVocoderFormantShiftChange={onVocoderFormantShiftChange}
+              onVocoderConsonantBoostChange={onVocoderConsonantBoostChange}
+              onVocoderPreEmphasisChange={onVocoderPreEmphasisChange}
+              onVocoderTightnessChange={onVocoderTightnessChange}
               onVocoderAttackMsChange={onVocoderAttackMsChange}
               onVocoderReleaseMsChange={onVocoderReleaseMsChange}
               onVocoderPhaseRotateChange={onVocoderPhaseRotateChange}

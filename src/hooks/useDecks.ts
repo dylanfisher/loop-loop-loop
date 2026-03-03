@@ -79,6 +79,11 @@ import {
   DEFAULT_VOCODER_ATTACK_MS,
   DEFAULT_VOCODER_BAND_COUNT,
   DEFAULT_VOCODER_BAND_SPREAD,
+  DEFAULT_VOCODER_CONSONANT_BOOST,
+  DEFAULT_VOCODER_FORMANT_SHIFT,
+  DEFAULT_VOCODER_PRE_EMPHASIS,
+  DEFAULT_VOCODER_TIGHTNESS,
+  DEFAULT_VOCODER_VOCAL_CHARACTER,
   DEFAULT_VOCODER_CARRIER_DECK_ID,
   DEFAULT_VOCODER_GATE_THRESHOLD,
   DEFAULT_VOCODER_MIX,
@@ -170,6 +175,11 @@ const useDecks = () => {
     setDeckVocoderModDrive,
     setDeckVocoderBandCount,
     setDeckVocoderBandSpread,
+    setDeckVocoderVocalCharacter,
+    setDeckVocoderFormantShift,
+    setDeckVocoderConsonantBoost,
+    setDeckVocoderPreEmphasis,
+    setDeckVocoderTightness,
     setDeckVocoderAttackMs,
     setDeckVocoderReleaseMs,
     setDeckVocoderNoiseMix,
@@ -382,6 +392,31 @@ const useDecks = () => {
         updateDeckValue("vocoderBandSpread", clamped);
         return;
       }
+      if (param === "vocoderVocalCharacter") {
+        setDeckVocoderVocalCharacter(deckId, clamped);
+        updateDeckValue("vocoderVocalCharacter", clamped);
+        return;
+      }
+      if (param === "vocoderFormantShift") {
+        setDeckVocoderFormantShift(deckId, clamped);
+        updateDeckValue("vocoderFormantShift", clamped, 0.05);
+        return;
+      }
+      if (param === "vocoderConsonantBoost") {
+        setDeckVocoderConsonantBoost(deckId, clamped);
+        updateDeckValue("vocoderConsonantBoost", clamped);
+        return;
+      }
+      if (param === "vocoderPreEmphasis") {
+        setDeckVocoderPreEmphasis(deckId, clamped);
+        updateDeckValue("vocoderPreEmphasis", clamped);
+        return;
+      }
+      if (param === "vocoderTightness") {
+        setDeckVocoderTightness(deckId, clamped);
+        updateDeckValue("vocoderTightness", clamped);
+        return;
+      }
       if (param === "vocoderAttackMs") {
         setDeckVocoderAttackMs(deckId, clamped);
         updateDeckValue("vocoderAttackMs", clamped, 0.5);
@@ -448,6 +483,11 @@ const useDecks = () => {
       setDeckVocoderAttackMs,
       setDeckVocoderBandCount,
       setDeckVocoderBandSpread,
+      setDeckVocoderVocalCharacter,
+      setDeckVocoderFormantShift,
+      setDeckVocoderConsonantBoost,
+      setDeckVocoderPreEmphasis,
+      setDeckVocoderTightness,
       setDeckVocoderGateThreshold,
       setDeckVocoderMix,
       setDeckVocoderModDrive,
@@ -597,6 +637,11 @@ const useDecks = () => {
         vocoderModDrive: number;
         vocoderBandCount: number;
         vocoderBandSpread: number;
+        vocoderVocalCharacter: number;
+        vocoderFormantShift: number;
+        vocoderConsonantBoost: number;
+        vocoderPreEmphasis: number;
+        vocoderTightness: number;
         vocoderAttackMs: number;
         vocoderReleaseMs: number;
         vocoderNoiseMix: number;
@@ -641,6 +686,11 @@ const useDecks = () => {
       setDeckVocoderModDrive(deckId, settings.vocoderModDrive);
       setDeckVocoderBandCount(deckId, settings.vocoderBandCount);
       setDeckVocoderBandSpread(deckId, settings.vocoderBandSpread);
+      setDeckVocoderVocalCharacter(deckId, settings.vocoderVocalCharacter);
+      setDeckVocoderFormantShift(deckId, settings.vocoderFormantShift);
+      setDeckVocoderConsonantBoost(deckId, settings.vocoderConsonantBoost);
+      setDeckVocoderPreEmphasis(deckId, settings.vocoderPreEmphasis);
+      setDeckVocoderTightness(deckId, settings.vocoderTightness);
       setDeckVocoderAttackMs(deckId, settings.vocoderAttackMs);
       setDeckVocoderReleaseMs(deckId, settings.vocoderReleaseMs);
       setDeckVocoderNoiseMix(deckId, settings.vocoderNoiseMix);
@@ -708,6 +758,11 @@ const useDecks = () => {
       setDeckVocoderModDrive,
       setDeckVocoderBandCount,
       setDeckVocoderBandSpread,
+      setDeckVocoderVocalCharacter,
+      setDeckVocoderFormantShift,
+      setDeckVocoderConsonantBoost,
+      setDeckVocoderPreEmphasis,
+      setDeckVocoderTightness,
       setDeckVocoderAttackMs,
       setDeckVocoderReleaseMs,
       setDeckVocoderNoiseMix,
@@ -1217,6 +1272,11 @@ const useDecks = () => {
         setDeckVocoderModDrive(deck.id, deck.vocoderModDrive);
         setDeckVocoderBandCount(deck.id, deck.vocoderBandCount);
         setDeckVocoderBandSpread(deck.id, deck.vocoderBandSpread);
+        setDeckVocoderVocalCharacter(deck.id, deck.vocoderVocalCharacter);
+        setDeckVocoderFormantShift(deck.id, deck.vocoderFormantShift);
+        setDeckVocoderConsonantBoost(deck.id, deck.vocoderConsonantBoost);
+        setDeckVocoderPreEmphasis(deck.id, deck.vocoderPreEmphasis);
+        setDeckVocoderTightness(deck.id, deck.vocoderTightness);
         setDeckVocoderAttackMs(deck.id, deck.vocoderAttackMs);
         setDeckVocoderReleaseMs(deck.id, deck.vocoderReleaseMs);
         setDeckVocoderNoiseMix(deck.id, deck.vocoderNoiseMix);
@@ -1297,6 +1357,11 @@ const useDecks = () => {
           deck.vocoderModDrive,
           deck.vocoderBandCount,
           deck.vocoderBandSpread,
+          deck.vocoderVocalCharacter,
+          deck.vocoderFormantShift,
+          deck.vocoderConsonantBoost,
+          deck.vocoderPreEmphasis,
+          deck.vocoderTightness,
           deck.vocoderAttackMs,
           deck.vocoderReleaseMs,
           deck.vocoderNoiseMix,
@@ -1351,6 +1416,11 @@ const useDecks = () => {
       setDeckVocoderModDrive,
       setDeckVocoderBandCount,
       setDeckVocoderBandSpread,
+      setDeckVocoderVocalCharacter,
+      setDeckVocoderFormantShift,
+      setDeckVocoderConsonantBoost,
+      setDeckVocoderPreEmphasis,
+      setDeckVocoderTightness,
       setDeckVocoderAttackMs,
       setDeckVocoderReleaseMs,
       setDeckVocoderNoiseMix,
@@ -1619,13 +1689,18 @@ const useDecks = () => {
         vocoderCarrierDeckId: DEFAULT_VOCODER_CARRIER_DECK_ID,
         vocoderModulatorMonitor: DEFAULT_VOCODER_MODULATOR_MONITOR,
         vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
-      vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
-      vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
-      vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
-      vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
-      vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
-      vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
-      vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
+        vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
+        vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+        vocoderVocalCharacter: DEFAULT_VOCODER_VOCAL_CHARACTER,
+        vocoderFormantShift: DEFAULT_VOCODER_FORMANT_SHIFT,
+        vocoderConsonantBoost: DEFAULT_VOCODER_CONSONANT_BOOST,
+        vocoderPreEmphasis: DEFAULT_VOCODER_PRE_EMPHASIS,
+        vocoderTightness: DEFAULT_VOCODER_TIGHTNESS,
+        vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
+        vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
+        vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
+        vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
+        vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
         deckWidthOverride: undefined,
         offsetSeconds: 0,
         zoom: 1,
@@ -1716,13 +1791,18 @@ const useDecks = () => {
             vocoderCarrierDeckId: DEFAULT_VOCODER_CARRIER_DECK_ID,
             vocoderModulatorMonitor: DEFAULT_VOCODER_MODULATOR_MONITOR,
             vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
-      vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
-      vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
-      vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
-      vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
-      vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
-      vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
-      vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
+            vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
+            vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+            vocoderVocalCharacter: DEFAULT_VOCODER_VOCAL_CHARACTER,
+            vocoderFormantShift: DEFAULT_VOCODER_FORMANT_SHIFT,
+            vocoderConsonantBoost: DEFAULT_VOCODER_CONSONANT_BOOST,
+            vocoderPreEmphasis: DEFAULT_VOCODER_PRE_EMPHASIS,
+            vocoderTightness: DEFAULT_VOCODER_TIGHTNESS,
+            vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
+            vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
+            vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
+            vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
+            vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
             deckWidthOverride: undefined,
             offsetSeconds: 0,
             zoom: 1,
@@ -1885,6 +1965,16 @@ const useDecks = () => {
       clipSettings?.vocoderBandCount ?? DEFAULT_VOCODER_BAND_COUNT;
     const nextVocoderBandSpread =
       clipSettings?.vocoderBandSpread ?? DEFAULT_VOCODER_BAND_SPREAD;
+    const nextVocoderVocalCharacter =
+      clipSettings?.vocoderVocalCharacter ?? DEFAULT_VOCODER_VOCAL_CHARACTER;
+    const nextVocoderFormantShift =
+      clipSettings?.vocoderFormantShift ?? DEFAULT_VOCODER_FORMANT_SHIFT;
+    const nextVocoderConsonantBoost =
+      clipSettings?.vocoderConsonantBoost ?? DEFAULT_VOCODER_CONSONANT_BOOST;
+    const nextVocoderPreEmphasis =
+      clipSettings?.vocoderPreEmphasis ?? DEFAULT_VOCODER_PRE_EMPHASIS;
+    const nextVocoderTightness =
+      clipSettings?.vocoderTightness ?? DEFAULT_VOCODER_TIGHTNESS;
     const nextVocoderAttackMs =
       clipSettings?.vocoderAttackMs ?? DEFAULT_VOCODER_ATTACK_MS;
     const nextVocoderReleaseMs =
@@ -1984,6 +2074,11 @@ const useDecks = () => {
           !approxEqual(nextVocoderModDrive, DEFAULT_VOCODER_MOD_DRIVE) ||
           Math.round(nextVocoderBandCount) !== DEFAULT_VOCODER_BAND_COUNT ||
           !approxEqual(nextVocoderBandSpread, DEFAULT_VOCODER_BAND_SPREAD) ||
+          !approxEqual(nextVocoderVocalCharacter, DEFAULT_VOCODER_VOCAL_CHARACTER) ||
+          !approxEqual(nextVocoderFormantShift, DEFAULT_VOCODER_FORMANT_SHIFT) ||
+          !approxEqual(nextVocoderConsonantBoost, DEFAULT_VOCODER_CONSONANT_BOOST) ||
+          !approxEqual(nextVocoderPreEmphasis, DEFAULT_VOCODER_PRE_EMPHASIS) ||
+          !approxEqual(nextVocoderTightness, DEFAULT_VOCODER_TIGHTNESS) ||
           !approxEqual(nextVocoderAttackMs, DEFAULT_VOCODER_ATTACK_MS) ||
           !approxEqual(nextVocoderReleaseMs, DEFAULT_VOCODER_RELEASE_MS) ||
           nextVocoderNoiseMix > FX_ACTIVE_EPSILON ||
@@ -2039,6 +2134,11 @@ const useDecks = () => {
       vocoderModDrive: nextVocoderModDrive,
       vocoderBandCount: nextVocoderBandCount,
       vocoderBandSpread: nextVocoderBandSpread,
+      vocoderVocalCharacter: nextVocoderVocalCharacter,
+      vocoderFormantShift: nextVocoderFormantShift,
+      vocoderConsonantBoost: nextVocoderConsonantBoost,
+      vocoderPreEmphasis: nextVocoderPreEmphasis,
+      vocoderTightness: nextVocoderTightness,
       vocoderAttackMs: nextVocoderAttackMs,
       vocoderReleaseMs: nextVocoderReleaseMs,
       vocoderNoiseMix: nextVocoderNoiseMix,
@@ -2110,6 +2210,11 @@ const useDecks = () => {
       vocoderModDrive: nextVocoderModDrive,
       vocoderBandCount: nextVocoderBandCount,
       vocoderBandSpread: nextVocoderBandSpread,
+      vocoderVocalCharacter: nextVocoderVocalCharacter,
+      vocoderFormantShift: nextVocoderFormantShift,
+      vocoderConsonantBoost: nextVocoderConsonantBoost,
+      vocoderPreEmphasis: nextVocoderPreEmphasis,
+      vocoderTightness: nextVocoderTightness,
       vocoderAttackMs: nextVocoderAttackMs,
       vocoderReleaseMs: nextVocoderReleaseMs,
       vocoderNoiseMix: nextVocoderNoiseMix,
@@ -2183,6 +2288,11 @@ const useDecks = () => {
     setDeckVocoderModDrive(id, nextVocoderModDrive);
     setDeckVocoderBandCount(id, nextVocoderBandCount);
     setDeckVocoderBandSpread(id, nextVocoderBandSpread);
+    setDeckVocoderVocalCharacter(id, nextVocoderVocalCharacter);
+    setDeckVocoderFormantShift(id, nextVocoderFormantShift);
+    setDeckVocoderConsonantBoost(id, nextVocoderConsonantBoost);
+    setDeckVocoderPreEmphasis(id, nextVocoderPreEmphasis);
+    setDeckVocoderTightness(id, nextVocoderTightness);
     setDeckVocoderAttackMs(id, nextVocoderAttackMs);
     setDeckVocoderReleaseMs(id, nextVocoderReleaseMs);
     setDeckVocoderNoiseMix(id, nextVocoderNoiseMix);
@@ -2218,13 +2328,18 @@ const useDecks = () => {
         vocoderCarrierDeckId: nextVocoderCarrierDeckId,
         vocoderModulatorMonitor: nextVocoderModulatorMonitor,
         vocoderModDrive: nextVocoderModDrive,
-      vocoderBandCount: nextVocoderBandCount,
-      vocoderBandSpread: nextVocoderBandSpread,
-      vocoderAttackMs: nextVocoderAttackMs,
-      vocoderReleaseMs: nextVocoderReleaseMs,
-      vocoderNoiseMix: nextVocoderNoiseMix,
-      vocoderGateThreshold: nextVocoderGateThreshold,
-      vocoderPostDelay: nextVocoderPostDelay,
+        vocoderBandCount: nextVocoderBandCount,
+        vocoderBandSpread: nextVocoderBandSpread,
+        vocoderVocalCharacter: nextVocoderVocalCharacter,
+        vocoderFormantShift: nextVocoderFormantShift,
+        vocoderConsonantBoost: nextVocoderConsonantBoost,
+        vocoderPreEmphasis: nextVocoderPreEmphasis,
+        vocoderTightness: nextVocoderTightness,
+        vocoderAttackMs: nextVocoderAttackMs,
+        vocoderReleaseMs: nextVocoderReleaseMs,
+        vocoderNoiseMix: nextVocoderNoiseMix,
+        vocoderGateThreshold: nextVocoderGateThreshold,
+        vocoderPostDelay: nextVocoderPostDelay,
         zoom: 1,
         loopEnabled: clipSettings?.loopEnabled ?? true,
         loopStartSeconds: loopStart,
@@ -2324,6 +2439,11 @@ const useDecks = () => {
           nextVocoderModDrive,
           nextVocoderBandCount,
           nextVocoderBandSpread,
+          nextVocoderVocalCharacter,
+          nextVocoderFormantShift,
+          nextVocoderConsonantBoost,
+          nextVocoderPreEmphasis,
+          nextVocoderTightness,
           nextVocoderAttackMs,
           nextVocoderReleaseMs,
           nextVocoderNoiseMix,
@@ -2415,6 +2535,11 @@ const useDecks = () => {
       deck.vocoderModDrive,
       deck.vocoderBandCount,
       deck.vocoderBandSpread,
+      deck.vocoderVocalCharacter,
+      deck.vocoderFormantShift,
+      deck.vocoderConsonantBoost,
+      deck.vocoderPreEmphasis,
+      deck.vocoderTightness,
       deck.vocoderAttackMs,
       deck.vocoderReleaseMs,
       deck.vocoderNoiseMix,
@@ -2593,6 +2718,11 @@ const useDecks = () => {
         deck.vocoderModDrive,
         deck.vocoderBandCount,
         deck.vocoderBandSpread,
+        deck.vocoderVocalCharacter,
+        deck.vocoderFormantShift,
+        deck.vocoderConsonantBoost,
+        deck.vocoderPreEmphasis,
+        deck.vocoderTightness,
         deck.vocoderAttackMs,
         deck.vocoderReleaseMs,
         deck.vocoderNoiseMix,
@@ -2641,6 +2771,11 @@ const useDecks = () => {
     setDeckVocoderModDriveValue,
     setDeckVocoderBandCountValue,
     setDeckVocoderBandSpreadValue,
+    setDeckVocoderVocalCharacterValue,
+    setDeckVocoderFormantShiftValue,
+    setDeckVocoderConsonantBoostValue,
+    setDeckVocoderPreEmphasisValue,
+    setDeckVocoderTightnessValue,
     setDeckVocoderAttackMsValue,
     setDeckVocoderReleaseMsValue,
     setDeckVocoderNoiseMixValue,
@@ -2693,6 +2828,11 @@ const useDecks = () => {
     setDeckVocoderModDrive,
     setDeckVocoderBandCount,
     setDeckVocoderBandSpread,
+    setDeckVocoderVocalCharacter,
+    setDeckVocoderFormantShift,
+    setDeckVocoderConsonantBoost,
+    setDeckVocoderPreEmphasis,
+    setDeckVocoderTightness,
     setDeckVocoderAttackMs,
     setDeckVocoderReleaseMs,
     setDeckVocoderNoiseMix,
@@ -2815,6 +2955,21 @@ const useDecks = () => {
       const nextVocoderBandSpread = preserveFxState
         ? deck.vocoderBandSpread
         : DEFAULT_VOCODER_BAND_SPREAD;
+      const nextVocoderVocalCharacter = preserveFxState
+        ? deck.vocoderVocalCharacter
+        : DEFAULT_VOCODER_VOCAL_CHARACTER;
+      const nextVocoderFormantShift = preserveFxState
+        ? deck.vocoderFormantShift
+        : DEFAULT_VOCODER_FORMANT_SHIFT;
+      const nextVocoderConsonantBoost = preserveFxState
+        ? deck.vocoderConsonantBoost
+        : DEFAULT_VOCODER_CONSONANT_BOOST;
+      const nextVocoderPreEmphasis = preserveFxState
+        ? deck.vocoderPreEmphasis
+        : DEFAULT_VOCODER_PRE_EMPHASIS;
+      const nextVocoderTightness = preserveFxState
+        ? deck.vocoderTightness
+        : DEFAULT_VOCODER_TIGHTNESS;
       const nextVocoderAttackMs = preserveFxState
         ? deck.vocoderAttackMs
         : DEFAULT_VOCODER_ATTACK_MS;
@@ -2937,13 +3092,18 @@ const useDecks = () => {
         vocoderCarrierDeckId: nextVocoderCarrierDeckId,
         vocoderModulatorMonitor: nextVocoderModulatorMonitor,
         vocoderModDrive: nextVocoderModDrive,
-      vocoderBandCount: nextVocoderBandCount,
-      vocoderBandSpread: nextVocoderBandSpread,
-      vocoderAttackMs: nextVocoderAttackMs,
-      vocoderReleaseMs: nextVocoderReleaseMs,
-      vocoderNoiseMix: nextVocoderNoiseMix,
-      vocoderGateThreshold: nextVocoderGateThreshold,
-      vocoderPostDelay: nextVocoderPostDelay,
+        vocoderBandCount: nextVocoderBandCount,
+        vocoderBandSpread: nextVocoderBandSpread,
+        vocoderVocalCharacter: nextVocoderVocalCharacter,
+        vocoderFormantShift: nextVocoderFormantShift,
+        vocoderConsonantBoost: nextVocoderConsonantBoost,
+        vocoderPreEmphasis: nextVocoderPreEmphasis,
+        vocoderTightness: nextVocoderTightness,
+        vocoderAttackMs: nextVocoderAttackMs,
+        vocoderReleaseMs: nextVocoderReleaseMs,
+        vocoderNoiseMix: nextVocoderNoiseMix,
+        vocoderGateThreshold: nextVocoderGateThreshold,
+        vocoderPostDelay: nextVocoderPostDelay,
         offsetSeconds: nextOffsetSeconds,
         zoom: nextZoom,
         loopEnabled: true,
@@ -3012,6 +3172,11 @@ const useDecks = () => {
       setDeckVocoderModDrive(id, nextVocoderModDrive);
       setDeckVocoderBandCount(id, nextVocoderBandCount);
       setDeckVocoderBandSpread(id, nextVocoderBandSpread);
+      setDeckVocoderVocalCharacter(id, nextVocoderVocalCharacter);
+      setDeckVocoderFormantShift(id, nextVocoderFormantShift);
+      setDeckVocoderConsonantBoost(id, nextVocoderConsonantBoost);
+      setDeckVocoderPreEmphasis(id, nextVocoderPreEmphasis);
+      setDeckVocoderTightness(id, nextVocoderTightness);
       setDeckVocoderAttackMs(id, nextVocoderAttackMs);
       setDeckVocoderReleaseMs(id, nextVocoderReleaseMs);
       setDeckVocoderNoiseMix(id, nextVocoderNoiseMix);
@@ -3085,6 +3250,11 @@ const useDecks = () => {
           nextVocoderModDrive,
           nextVocoderBandCount,
           nextVocoderBandSpread,
+          nextVocoderVocalCharacter,
+          nextVocoderFormantShift,
+          nextVocoderConsonantBoost,
+          nextVocoderPreEmphasis,
+          nextVocoderTightness,
           nextVocoderAttackMs,
           nextVocoderReleaseMs,
           nextVocoderNoiseMix,
@@ -3135,6 +3305,11 @@ const useDecks = () => {
       setDeckVocoderModDrive,
       setDeckVocoderBandCount,
       setDeckVocoderBandSpread,
+      setDeckVocoderVocalCharacter,
+      setDeckVocoderFormantShift,
+      setDeckVocoderConsonantBoost,
+      setDeckVocoderPreEmphasis,
+      setDeckVocoderTightness,
       setDeckVocoderAttackMs,
       setDeckVocoderReleaseMs,
       setDeckVocoderNoiseMix,
@@ -3313,14 +3488,19 @@ const useDecks = () => {
         vocoderCarrierDeckId: DEFAULT_VOCODER_CARRIER_DECK_ID,
         vocoderModulatorMonitor: DEFAULT_VOCODER_MODULATOR_MONITOR,
         vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
-      vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
-      vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
-      vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
-      vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
-      vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
-      vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
-      vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
-      includeInRecordExport: deck.includeInRecordExport,
+        vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
+        vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+        vocoderVocalCharacter: DEFAULT_VOCODER_VOCAL_CHARACTER,
+        vocoderFormantShift: DEFAULT_VOCODER_FORMANT_SHIFT,
+        vocoderConsonantBoost: DEFAULT_VOCODER_CONSONANT_BOOST,
+        vocoderPreEmphasis: DEFAULT_VOCODER_PRE_EMPHASIS,
+        vocoderTightness: DEFAULT_VOCODER_TIGHTNESS,
+        vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
+        vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
+        vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
+        vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
+        vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
+        includeInRecordExport: deck.includeInRecordExport,
         tempoOffset: deck.tempoOffset,
         delayTime: DEFAULT_DELAY_TIME,
         delayFeedback: DEFAULT_DELAY_FEEDBACK,
@@ -3368,13 +3548,18 @@ const useDecks = () => {
           vocoderCarrierDeckId: DEFAULT_VOCODER_CARRIER_DECK_ID,
           vocoderModulatorMonitor: DEFAULT_VOCODER_MODULATOR_MONITOR,
           vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
-      vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
-      vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
-      vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
-      vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
-      vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
-      vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
-      vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
+          vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
+          vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+          vocoderVocalCharacter: DEFAULT_VOCODER_VOCAL_CHARACTER,
+          vocoderFormantShift: DEFAULT_VOCODER_FORMANT_SHIFT,
+          vocoderConsonantBoost: DEFAULT_VOCODER_CONSONANT_BOOST,
+          vocoderPreEmphasis: DEFAULT_VOCODER_PRE_EMPHASIS,
+          vocoderTightness: DEFAULT_VOCODER_TIGHTNESS,
+          vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
+          vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
+          vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
+          vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
+          vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
           stretchRatio: DEFAULT_STRETCH_RATIO,
           stretchWindowSize: DEFAULT_STRETCH_WINDOW_SIZE,
           stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
@@ -3656,6 +3841,11 @@ const useDecks = () => {
     setDeckVocoderModDrive: setDeckVocoderModDriveValue,
     setDeckVocoderBandCount: setDeckVocoderBandCountValue,
     setDeckVocoderBandSpread: setDeckVocoderBandSpreadValue,
+    setDeckVocoderVocalCharacter: setDeckVocoderVocalCharacterValue,
+    setDeckVocoderFormantShift: setDeckVocoderFormantShiftValue,
+    setDeckVocoderConsonantBoost: setDeckVocoderConsonantBoostValue,
+    setDeckVocoderPreEmphasis: setDeckVocoderPreEmphasisValue,
+    setDeckVocoderTightness: setDeckVocoderTightnessValue,
     setDeckVocoderAttackMs: setDeckVocoderAttackMsValue,
     setDeckVocoderReleaseMs: setDeckVocoderReleaseMsValue,
     setDeckVocoderNoiseMix: setDeckVocoderNoiseMixValue,

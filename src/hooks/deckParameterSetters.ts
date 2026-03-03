@@ -42,6 +42,11 @@ type Args = {
   setDeckVocoderModDrive: (id: number, value: number) => void;
   setDeckVocoderBandCount: (id: number, value: number) => void;
   setDeckVocoderBandSpread: (id: number, value: number) => void;
+  setDeckVocoderVocalCharacter: (id: number, value: number) => void;
+  setDeckVocoderFormantShift: (id: number, value: number) => void;
+  setDeckVocoderConsonantBoost: (id: number, value: number) => void;
+  setDeckVocoderPreEmphasis: (id: number, value: number) => void;
+  setDeckVocoderTightness: (id: number, value: number) => void;
   setDeckVocoderAttackMs: (id: number, value: number) => void;
   setDeckVocoderReleaseMs: (id: number, value: number) => void;
   setDeckVocoderNoiseMix: (id: number, value: number) => void;
@@ -124,6 +129,11 @@ export const createDeckParameterSetters = ({
   setDeckVocoderModDrive,
   setDeckVocoderBandCount,
   setDeckVocoderBandSpread,
+  setDeckVocoderVocalCharacter,
+  setDeckVocoderFormantShift,
+  setDeckVocoderConsonantBoost,
+  setDeckVocoderPreEmphasis,
+  setDeckVocoderTightness,
   setDeckVocoderAttackMs,
   setDeckVocoderReleaseMs,
   setDeckVocoderNoiseMix,
@@ -390,6 +400,36 @@ export const createDeckParameterSetters = ({
     updateDeck(id, { vocoderBandSpread: clamped }, false);
   };
 
+  const setDeckVocoderVocalCharacterValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 3);
+    setDeckVocoderVocalCharacter(id, clamped);
+    updateDeck(id, { vocoderVocalCharacter: clamped }, false);
+  };
+
+  const setDeckVocoderFormantShiftValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, -12), 12);
+    setDeckVocoderFormantShift(id, clamped);
+    updateDeck(id, { vocoderFormantShift: clamped }, false);
+  };
+
+  const setDeckVocoderConsonantBoostValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderConsonantBoost(id, clamped);
+    updateDeck(id, { vocoderConsonantBoost: clamped }, false);
+  };
+
+  const setDeckVocoderPreEmphasisValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderPreEmphasis(id, clamped);
+    updateDeck(id, { vocoderPreEmphasis: clamped }, false);
+  };
+
+  const setDeckVocoderTightnessValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckVocoderTightness(id, clamped);
+    updateDeck(id, { vocoderTightness: clamped }, false);
+  };
+
   const setDeckVocoderAttackMsValue = (id: number, value: number) => {
     const clamped = Math.min(Math.max(value, 1), 160);
     setDeckVocoderAttackMs(id, clamped);
@@ -509,6 +549,11 @@ export const createDeckParameterSetters = ({
     setDeckVocoderModDriveValue,
     setDeckVocoderBandCountValue,
     setDeckVocoderBandSpreadValue,
+    setDeckVocoderVocalCharacterValue,
+    setDeckVocoderFormantShiftValue,
+    setDeckVocoderConsonantBoostValue,
+    setDeckVocoderPreEmphasisValue,
+    setDeckVocoderTightnessValue,
     setDeckVocoderAttackMsValue,
     setDeckVocoderReleaseMsValue,
     setDeckVocoderNoiseMixValue,

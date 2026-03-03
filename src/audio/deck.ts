@@ -36,6 +36,11 @@ import {
   normalizeVocoderAttackMs,
   normalizeVocoderBandCount,
   normalizeVocoderBandSpread,
+  normalizeVocoderVocalCharacter,
+  normalizeVocoderFormantShift,
+  normalizeVocoderConsonantBoost,
+  normalizeVocoderPreEmphasis,
+  normalizeVocoderTightness,
   normalizeVocoderGateThreshold,
   setChannelVocoderCarrierActive,
   setChannelVocoderGateThreshold,
@@ -43,6 +48,11 @@ import {
   setChannelVocoderAttackMs,
   setChannelVocoderBandCount,
   setChannelVocoderBandSpread,
+  setChannelVocoderVocalCharacter,
+  setChannelVocoderFormantShift,
+  setChannelVocoderConsonantBoost,
+  setChannelVocoderPreEmphasis,
+  setChannelVocoderTightness,
   setChannelVocoderMix,
   setChannelVocoderNoiseMix,
   setChannelVocoderReleaseMs,
@@ -135,6 +145,11 @@ type DeckNodes = {
   vocoderModDrive: number;
   vocoderBandCount: number;
   vocoderBandSpread: number;
+  vocoderVocalCharacter: number;
+  vocoderFormantShift: number;
+  vocoderConsonantBoost: number;
+  vocoderPreEmphasis: number;
+  vocoderTightness: number;
   vocoderAttackMs: number;
   vocoderReleaseMs: number;
   vocoderNoiseMix: number;
@@ -210,6 +225,11 @@ const pendingVocoderModulatorMonitor = new Map<number, number>();
 const pendingVocoderModDrive = new Map<number, number>();
 const pendingVocoderBandCount = new Map<number, number>();
 const pendingVocoderBandSpread = new Map<number, number>();
+const pendingVocoderVocalCharacter = new Map<number, number>();
+const pendingVocoderFormantShift = new Map<number, number>();
+const pendingVocoderConsonantBoost = new Map<number, number>();
+const pendingVocoderPreEmphasis = new Map<number, number>();
+const pendingVocoderTightness = new Map<number, number>();
 const pendingVocoderAttackMs = new Map<number, number>();
 const pendingVocoderReleaseMs = new Map<number, number>();
 const pendingVocoderNoiseMix = new Map<number, number>();
@@ -699,6 +719,11 @@ const ensureDeckNodes = (
   vocoderModDrive: number,
   vocoderBandCount: number,
   vocoderBandSpread: number,
+  vocoderVocalCharacter: number,
+  vocoderFormantShift: number,
+  vocoderConsonantBoost: number,
+  vocoderPreEmphasis: number,
+  vocoderTightness: number,
   vocoderAttackMs: number,
   vocoderReleaseMs: number,
   vocoderNoiseMix: number,
@@ -943,6 +968,21 @@ const ensureDeckNodes = (
     const nextVocoderBandSpread = normalizeVocoderBandSpread(
       pendingVocoderBandSpread.get(deckId) ?? vocoderBandSpread
     );
+    const nextVocoderVocalCharacter = normalizeVocoderVocalCharacter(
+      pendingVocoderVocalCharacter.get(deckId) ?? vocoderVocalCharacter
+    );
+    const nextVocoderFormantShift = normalizeVocoderFormantShift(
+      pendingVocoderFormantShift.get(deckId) ?? vocoderFormantShift
+    );
+    const nextVocoderConsonantBoost = normalizeVocoderConsonantBoost(
+      pendingVocoderConsonantBoost.get(deckId) ?? vocoderConsonantBoost
+    );
+    const nextVocoderPreEmphasis = normalizeVocoderPreEmphasis(
+      pendingVocoderPreEmphasis.get(deckId) ?? vocoderPreEmphasis
+    );
+    const nextVocoderTightness = normalizeVocoderTightness(
+      pendingVocoderTightness.get(deckId) ?? vocoderTightness
+    );
     const nextVocoderAttackMs = normalizeVocoderAttackMs(
       pendingVocoderAttackMs.get(deckId) ?? vocoderAttackMs
     );
@@ -962,6 +1002,11 @@ const ensureDeckNodes = (
       modDrive: nextVocoderModDrive,
       bandCount: nextVocoderBandCount,
       bandSpread: nextVocoderBandSpread,
+      vocalCharacter: nextVocoderVocalCharacter,
+      formantShift: nextVocoderFormantShift,
+      consonantBoost: nextVocoderConsonantBoost,
+      preEmphasis: nextVocoderPreEmphasis,
+      tightness: nextVocoderTightness,
       attackMs: nextVocoderAttackMs,
       releaseMs: nextVocoderReleaseMs,
       noiseMix: nextVocoderNoiseMix,
@@ -971,6 +1016,11 @@ const ensureDeckNodes = (
     setChannelVocoderModDrive(vocoder, nextVocoderModDrive);
     setChannelVocoderBandCount(vocoder, nextVocoderBandCount);
     setChannelVocoderBandSpread(vocoder, nextVocoderBandSpread);
+    setChannelVocoderVocalCharacter(vocoder, nextVocoderVocalCharacter);
+    setChannelVocoderFormantShift(vocoder, nextVocoderFormantShift);
+    setChannelVocoderConsonantBoost(vocoder, nextVocoderConsonantBoost);
+    setChannelVocoderPreEmphasis(vocoder, nextVocoderPreEmphasis);
+    setChannelVocoderTightness(vocoder, nextVocoderTightness);
     setChannelVocoderAttackMs(vocoder, nextVocoderAttackMs);
     setChannelVocoderReleaseMs(vocoder, nextVocoderReleaseMs);
     setChannelVocoderNoiseMix(vocoder, nextVocoderNoiseMix);
@@ -1119,6 +1169,11 @@ const ensureDeckNodes = (
       vocoderModDrive: nextVocoderModDrive,
       vocoderBandCount: nextVocoderBandCount,
       vocoderBandSpread: nextVocoderBandSpread,
+      vocoderVocalCharacter: nextVocoderVocalCharacter,
+      vocoderFormantShift: nextVocoderFormantShift,
+      vocoderConsonantBoost: nextVocoderConsonantBoost,
+      vocoderPreEmphasis: nextVocoderPreEmphasis,
+      vocoderTightness: nextVocoderTightness,
       vocoderAttackMs: nextVocoderAttackMs,
       vocoderReleaseMs: nextVocoderReleaseMs,
       vocoderNoiseMix: nextVocoderNoiseMix,
@@ -1245,6 +1300,26 @@ const ensureDeckNodes = (
       pendingVocoderBandSpread.get(deckId) ?? vocoderBandSpread
     );
     setChannelVocoderBandSpread(nodes.vocoder, nodes.vocoderBandSpread);
+    nodes.vocoderVocalCharacter = normalizeVocoderVocalCharacter(
+      pendingVocoderVocalCharacter.get(deckId) ?? vocoderVocalCharacter
+    );
+    setChannelVocoderVocalCharacter(nodes.vocoder, nodes.vocoderVocalCharacter);
+    nodes.vocoderFormantShift = normalizeVocoderFormantShift(
+      pendingVocoderFormantShift.get(deckId) ?? vocoderFormantShift
+    );
+    setChannelVocoderFormantShift(nodes.vocoder, nodes.vocoderFormantShift);
+    nodes.vocoderConsonantBoost = normalizeVocoderConsonantBoost(
+      pendingVocoderConsonantBoost.get(deckId) ?? vocoderConsonantBoost
+    );
+    setChannelVocoderConsonantBoost(nodes.vocoder, nodes.vocoderConsonantBoost);
+    nodes.vocoderPreEmphasis = normalizeVocoderPreEmphasis(
+      pendingVocoderPreEmphasis.get(deckId) ?? vocoderPreEmphasis
+    );
+    setChannelVocoderPreEmphasis(nodes.vocoder, nodes.vocoderPreEmphasis);
+    nodes.vocoderTightness = normalizeVocoderTightness(
+      pendingVocoderTightness.get(deckId) ?? vocoderTightness
+    );
+    setChannelVocoderTightness(nodes.vocoder, nodes.vocoderTightness);
     nodes.vocoderAttackMs = normalizeVocoderAttackMs(
       pendingVocoderAttackMs.get(deckId) ?? vocoderAttackMs
     );
@@ -1320,6 +1395,11 @@ const ensureDeckNodes = (
   pendingVocoderModDrive.delete(deckId);
   pendingVocoderBandCount.delete(deckId);
   pendingVocoderBandSpread.delete(deckId);
+  pendingVocoderVocalCharacter.delete(deckId);
+  pendingVocoderFormantShift.delete(deckId);
+  pendingVocoderConsonantBoost.delete(deckId);
+  pendingVocoderPreEmphasis.delete(deckId);
+  pendingVocoderTightness.delete(deckId);
   pendingVocoderAttackMs.delete(deckId);
   pendingVocoderReleaseMs.delete(deckId);
   pendingVocoderNoiseMix.delete(deckId);
@@ -1371,6 +1451,11 @@ export const playDeckBuffer = (
   vocoderModDrive: number,
   vocoderBandCount: number,
   vocoderBandSpread: number,
+  vocoderVocalCharacter: number,
+  vocoderFormantShift: number,
+  vocoderConsonantBoost: number,
+  vocoderPreEmphasis: number,
+  vocoderTightness: number,
   vocoderAttackMs: number,
   vocoderReleaseMs: number,
   vocoderNoiseMix: number,
@@ -1420,6 +1505,11 @@ export const playDeckBuffer = (
     vocoderModDrive,
     vocoderBandCount,
     vocoderBandSpread,
+    vocoderVocalCharacter,
+    vocoderFormantShift,
+    vocoderConsonantBoost,
+    vocoderPreEmphasis,
+    vocoderTightness,
     vocoderAttackMs,
     vocoderReleaseMs,
     vocoderNoiseMix,
@@ -2109,6 +2199,66 @@ export const setDeckVocoderBandSpreadValue = (deckId: number, value: number) => 
   }
 };
 
+export const setDeckVocoderVocalCharacterValue = (deckId: number, value: number) => {
+  const normalized = normalizeVocoderVocalCharacter(value);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.vocoderVocalCharacter = normalized;
+    setChannelVocoderVocalCharacter(nodes.vocoder, normalized);
+    pendingVocoderVocalCharacter.delete(deckId);
+  } else {
+    pendingVocoderVocalCharacter.set(deckId, normalized);
+  }
+};
+
+export const setDeckVocoderFormantShiftValue = (deckId: number, value: number) => {
+  const normalized = normalizeVocoderFormantShift(value);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.vocoderFormantShift = normalized;
+    setChannelVocoderFormantShift(nodes.vocoder, normalized);
+    pendingVocoderFormantShift.delete(deckId);
+  } else {
+    pendingVocoderFormantShift.set(deckId, normalized);
+  }
+};
+
+export const setDeckVocoderConsonantBoostValue = (deckId: number, value: number) => {
+  const normalized = normalizeVocoderConsonantBoost(value);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.vocoderConsonantBoost = normalized;
+    setChannelVocoderConsonantBoost(nodes.vocoder, normalized);
+    pendingVocoderConsonantBoost.delete(deckId);
+  } else {
+    pendingVocoderConsonantBoost.set(deckId, normalized);
+  }
+};
+
+export const setDeckVocoderPreEmphasisValue = (deckId: number, value: number) => {
+  const normalized = normalizeVocoderPreEmphasis(value);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.vocoderPreEmphasis = normalized;
+    setChannelVocoderPreEmphasis(nodes.vocoder, normalized);
+    pendingVocoderPreEmphasis.delete(deckId);
+  } else {
+    pendingVocoderPreEmphasis.set(deckId, normalized);
+  }
+};
+
+export const setDeckVocoderTightnessValue = (deckId: number, value: number) => {
+  const normalized = normalizeVocoderTightness(value);
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    nodes.vocoderTightness = normalized;
+    setChannelVocoderTightness(nodes.vocoder, normalized);
+    pendingVocoderTightness.delete(deckId);
+  } else {
+    pendingVocoderTightness.set(deckId, normalized);
+  }
+};
+
 export const setDeckVocoderAttackMsValue = (deckId: number, value: number) => {
   const normalized = normalizeVocoderAttackMs(value);
   const nodes = deckNodes.get(deckId);
@@ -2330,6 +2480,11 @@ export const removeDeckNodes = (deckId: number) => {
   pendingVocoderModDrive.delete(deckId);
   pendingVocoderBandCount.delete(deckId);
   pendingVocoderBandSpread.delete(deckId);
+  pendingVocoderVocalCharacter.delete(deckId);
+  pendingVocoderFormantShift.delete(deckId);
+  pendingVocoderConsonantBoost.delete(deckId);
+  pendingVocoderPreEmphasis.delete(deckId);
+  pendingVocoderTightness.delete(deckId);
   pendingVocoderAttackMs.delete(deckId);
   pendingVocoderReleaseMs.delete(deckId);
   pendingVocoderNoiseMix.delete(deckId);

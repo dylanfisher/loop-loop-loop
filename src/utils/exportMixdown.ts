@@ -504,6 +504,11 @@ export const renderMixdownBlob = async ({
         modDrive: resolveSimpleValue(deck, "vocoderModDrive", deck.vocoderModDrive ?? 2),
         bandCount: Math.round(resolveSimpleValue(deck, "vocoderBandCount", deck.vocoderBandCount)),
         bandSpread: resolveSimpleValue(deck, "vocoderBandSpread", deck.vocoderBandSpread),
+        vocalCharacter: resolveSimpleValue(
+          deck,
+          "vocoderVocalCharacter",
+          deck.vocoderVocalCharacter ?? 1
+        ),
         attackMs: resolveSimpleValue(deck, "vocoderAttackMs", deck.vocoderAttackMs),
         releaseMs: resolveSimpleValue(deck, "vocoderReleaseMs", deck.vocoderReleaseMs),
         noiseMix: resolveSimpleValue(deck, "vocoderNoiseMix", deck.vocoderNoiseMix),
@@ -553,6 +558,11 @@ export const renderMixdownBlob = async ({
         modDrive: resolveSimpleValue(deck, "vocoderModDrive", deck.vocoderModDrive ?? 2),
         bandCount: Math.round(resolveSimpleValue(deck, "vocoderBandCount", deck.vocoderBandCount)),
         bandSpread: resolveSimpleValue(deck, "vocoderBandSpread", deck.vocoderBandSpread),
+        vocalCharacter: resolveSimpleValue(
+          deck,
+          "vocoderVocalCharacter",
+          deck.vocoderVocalCharacter ?? 1
+        ),
         attackMs: resolveSimpleValue(deck, "vocoderAttackMs", deck.vocoderAttackMs),
         releaseMs: resolveSimpleValue(deck, "vocoderReleaseMs", deck.vocoderReleaseMs),
         noiseMix: resolveSimpleValue(deck, "vocoderNoiseMix", deck.vocoderNoiseMix),

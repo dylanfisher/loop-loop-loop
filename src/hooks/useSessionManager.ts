@@ -474,6 +474,14 @@ const useSessionManager = ({
         clips: clipSessions,
       };
       await saveSessionState(session, blobs);
+      await saveSessionState(
+        {
+          ...session,
+          id: AUTO_SESSION_ID,
+          sourceSessionId: id,
+        },
+        blobs
+      );
       currentSessionIdRef.current = id;
       setLastSavedAt(session.savedAt);
       await refreshSessions();
@@ -505,9 +513,11 @@ const useSessionManager = ({
     const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
     const savedAt = Date.now();
     const nextName = sessionName.trim() || "Untitled";
+    const activeSessionId = currentSessionIdRef.current;
     const session: SessionState = {
       version: 1,
       id: AUTO_SESSION_ID,
+      sourceSessionId: activeSessionId ?? undefined,
       name: nextName,
       savedAt,
       masterGain,
@@ -517,7 +527,6 @@ const useSessionManager = ({
       clips: clipSessions,
     };
     await saveSessionState(session, blobs);
-    const activeSessionId = currentSessionIdRef.current;
     if (activeSessionId) {
       await saveSessionState(
         {
@@ -722,6 +731,12 @@ const useSessionManager = ({
       }
       await applySessionDataRef.current?.(loaded.session, loaded.blobs);
       setLastSavedAt(loaded.session.savedAt);
+      if (loaded.session.sourceSessionId) {
+        currentSessionIdRef.current = loaded.session.sourceSessionId;
+        setSelectedSessionId(loaded.session.sourceSessionId);
+      } else {
+        currentSessionIdRef.current = null;
+      }
       applyDeckFxPanelStatePatch(fxPanelPatch);
       autosaveReadyRef.current = true;
       setAutosaveReady(true);

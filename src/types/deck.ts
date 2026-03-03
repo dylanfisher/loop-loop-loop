@@ -22,6 +22,11 @@ export type SimpleAutomationParam =
   | "vocoderModDrive"
   | "vocoderBandCount"
   | "vocoderBandSpread"
+  | "vocoderVocalCharacter"
+  | "vocoderFormantShift"
+  | "vocoderConsonantBoost"
+  | "vocoderPreEmphasis"
+  | "vocoderTightness"
   | "vocoderAttackMs"
   | "vocoderReleaseMs"
   | "vocoderNoiseMix"
@@ -151,6 +156,11 @@ export type DeckState = {
   vocoderModDrive: number;
   vocoderBandCount: number;
   vocoderBandSpread: number;
+  vocoderVocalCharacter: number;
+  vocoderFormantShift: number;
+  vocoderConsonantBoost: number;
+  vocoderPreEmphasis: number;
+  vocoderTightness: number;
   vocoderAttackMs: number;
   vocoderReleaseMs: number;
   vocoderNoiseMix: number;

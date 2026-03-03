@@ -170,11 +170,97 @@ describe("useSessionManager blob reuse", () => {
     });
 
     expect(hoisted.createSessionId).toHaveBeenCalledTimes(1);
-    expect(hoisted.saveSessionState).toHaveBeenCalledTimes(2);
+    expect(hoisted.saveSessionState).toHaveBeenCalledTimes(4);
     const firstSession = hoisted.saveSessionState.mock.calls[0][0] as SessionState;
-    const secondSession = hoisted.saveSessionState.mock.calls[1][0] as SessionState;
+    const secondSession = hoisted.saveSessionState.mock.calls[2][0] as SessionState;
     expect(firstSession.id).toBe("session-fixed");
     expect(secondSession.id).toBe("session-fixed");
+  });
+
+  it("manual save also refreshes autosave snapshot for reload hydration", async () => {
+    const { result } = renderHook(() =>
+      useSessionManager({
+        decks: [],
+        clips: [],
+        clipsRef: { current: [] },
+        clipIdRef: { current: 1 },
+        clipNameRef: { current: 1 },
+        decodeFile: vi.fn(async () => null as unknown as AudioBuffer),
+        getSessionDecks: vi.fn(() => []),
+        getDeckUndoRedoHistorySnapshots: vi.fn(() => ({ past: [], future: [] })),
+        loadSessionDecks: vi.fn(),
+        resetDecks: vi.fn(),
+        masterGain: 0.9,
+        setMasterGainValue: vi.fn(),
+        applyDeckFxPanelStatePatch: vi.fn(),
+        setClips: vi.fn(),
+      })
+    );
+
+    await waitFor(() => expect(hoisted.loadSessionState).toHaveBeenCalled());
+
+    await act(async () => {
+      await result.current.handleSaveSession();
+    });
+
+    expect(hoisted.saveSessionState).toHaveBeenCalledTimes(2);
+    const projectSession = hoisted.saveSessionState.mock.calls[0][0] as SessionState;
+    const autosaveSession = hoisted.saveSessionState.mock.calls[1][0] as SessionState;
+    expect(projectSession.id).toBe("session-fixed");
+    expect(autosaveSession.id).toBe("autosave-current");
+    expect(autosaveSession.sourceSessionId).toBe("session-fixed");
+    expect(autosaveSession.decks).toEqual(projectSession.decks);
+    expect(autosaveSession.clips).toEqual(projectSession.clips);
+  });
+
+  it("reuses autosave-linked project id after reload when manually saving", async () => {
+    hoisted.loadSessionState.mockImplementation(async (id: string) => {
+      if (id !== "autosave-current") return null;
+      const session: SessionState = {
+        version: 1,
+        id: "autosave-current",
+        sourceSessionId: "session-existing",
+        name: "Recovered",
+        savedAt: 1,
+        masterGain: 0.9,
+        welcomePanelDismissed: false,
+        decks: [],
+        clips: [],
+      };
+      return { session, blobs: new Map() };
+    });
+
+    const { result } = renderHook(() =>
+      useSessionManager({
+        decks: [],
+        clips: [],
+        clipsRef: { current: [] },
+        clipIdRef: { current: 1 },
+        clipNameRef: { current: 1 },
+        decodeFile: vi.fn(async () => null as unknown as AudioBuffer),
+        getSessionDecks: vi.fn(() => []),
+        getDeckUndoRedoHistorySnapshots: vi.fn(() => ({ past: [], future: [] })),
+        loadSessionDecks: vi.fn(),
+        resetDecks: vi.fn(),
+        masterGain: 0.9,
+        setMasterGainValue: vi.fn(),
+        applyDeckFxPanelStatePatch: vi.fn(),
+        setClips: vi.fn(),
+      })
+    );
+
+    await waitFor(() => expect(hoisted.loadSessionState).toHaveBeenCalled());
+
+    await act(async () => {
+      await result.current.handleSaveSession();
+      await result.current.handleSaveSession();
+    });
+
+    expect(hoisted.createSessionId).not.toHaveBeenCalled();
+    const firstProjectSave = hoisted.saveSessionState.mock.calls[0][0] as SessionState;
+    const secondProjectSave = hoisted.saveSessionState.mock.calls[2][0] as SessionState;
+    expect(firstProjectSave.id).toBe("session-existing");
+    expect(secondProjectSave.id).toBe("session-existing");
   });
 
   it("autosave mirrors updates into the currently loaded saved session", async () => {

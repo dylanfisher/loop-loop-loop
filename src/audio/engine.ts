@@ -41,6 +41,11 @@ import {
   setDeckVocoderModDriveValue,
   setDeckVocoderBandCountValue,
   setDeckVocoderBandSpreadValue,
+  setDeckVocoderVocalCharacterValue,
+  setDeckVocoderFormantShiftValue,
+  setDeckVocoderConsonantBoostValue,
+  setDeckVocoderPreEmphasisValue,
+  setDeckVocoderTightnessValue,
   setDeckVocoderAttackMsValue,
   setDeckVocoderReleaseMsValue,
   setDeckVocoderNoiseMixValue,
@@ -105,6 +110,11 @@ type AudioEngine = {
     vocoderModDrive?: number,
     vocoderBandCount?: number,
     vocoderBandSpread?: number,
+    vocoderVocalCharacter?: number,
+    vocoderFormantShift?: number,
+    vocoderConsonantBoost?: number,
+    vocoderPreEmphasis?: number,
+    vocoderTightness?: number,
     vocoderAttackMs?: number,
     vocoderReleaseMs?: number,
     vocoderNoiseMix?: number,
@@ -160,6 +170,11 @@ type AudioEngine = {
   setDeckVocoderModDrive: (deckId: number, value: number) => void;
   setDeckVocoderBandCount: (deckId: number, value: number) => void;
   setDeckVocoderBandSpread: (deckId: number, value: number) => void;
+  setDeckVocoderVocalCharacter: (deckId: number, value: number) => void;
+  setDeckVocoderFormantShift: (deckId: number, value: number) => void;
+  setDeckVocoderConsonantBoost: (deckId: number, value: number) => void;
+  setDeckVocoderPreEmphasis: (deckId: number, value: number) => void;
+  setDeckVocoderTightness: (deckId: number, value: number) => void;
   setDeckVocoderAttackMs: (deckId: number, value: number) => void;
   setDeckVocoderReleaseMs: (deckId: number, value: number) => void;
   setDeckVocoderNoiseMix: (deckId: number, value: number) => void;
@@ -299,6 +314,11 @@ const playBuffer: AudioEngine["playBuffer"] = async (
   vocoderModDrive = 2,
   vocoderBandCount = 12,
   vocoderBandSpread = 1,
+  vocoderVocalCharacter = 1,
+  vocoderFormantShift = 0,
+  vocoderConsonantBoost = 0,
+  vocoderPreEmphasis = 0.45,
+  vocoderTightness = 0.35,
   vocoderAttackMs = 8,
   vocoderReleaseMs = 5,
   vocoderNoiseMix = 0,
@@ -367,6 +387,11 @@ const playBuffer: AudioEngine["playBuffer"] = async (
     vocoderModDrive,
     vocoderBandCount,
     vocoderBandSpread,
+    vocoderVocalCharacter,
+    vocoderFormantShift,
+    vocoderConsonantBoost,
+    vocoderPreEmphasis,
+    vocoderTightness,
     vocoderAttackMs,
     vocoderReleaseMs,
     vocoderNoiseMix,
@@ -543,6 +568,26 @@ const setDeckVocoderBandSpread = (deckId: number, value: number) => {
   setDeckVocoderBandSpreadValue(deckId, value);
 };
 
+const setDeckVocoderVocalCharacter = (deckId: number, value: number) => {
+  setDeckVocoderVocalCharacterValue(deckId, value);
+};
+
+const setDeckVocoderFormantShift = (deckId: number, value: number) => {
+  setDeckVocoderFormantShiftValue(deckId, value);
+};
+
+const setDeckVocoderConsonantBoost = (deckId: number, value: number) => {
+  setDeckVocoderConsonantBoostValue(deckId, value);
+};
+
+const setDeckVocoderPreEmphasis = (deckId: number, value: number) => {
+  setDeckVocoderPreEmphasisValue(deckId, value);
+};
+
+const setDeckVocoderTightness = (deckId: number, value: number) => {
+  setDeckVocoderTightnessValue(deckId, value);
+};
+
 const setDeckVocoderAttackMs = (deckId: number, value: number) => {
   setDeckVocoderAttackMsValue(deckId, value);
 };
@@ -696,6 +741,11 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckVocoderModDrive,
     setDeckVocoderBandCount,
     setDeckVocoderBandSpread,
+    setDeckVocoderVocalCharacter,
+    setDeckVocoderFormantShift,
+    setDeckVocoderConsonantBoost,
+    setDeckVocoderPreEmphasis,
+    setDeckVocoderTightness,
     setDeckVocoderAttackMs,
     setDeckVocoderReleaseMs,
     setDeckVocoderNoiseMix,

@@ -75,6 +75,11 @@ const useFocusedDeckActions = ({
         isDifferent(deck.vocoderModDrive, 2) ||
         Math.round(deck.vocoderBandCount) !== 12 ||
         isDifferent(deck.vocoderBandSpread, 1) ||
+        isDifferent(deck.vocoderVocalCharacter, 1) ||
+        isDifferent(deck.vocoderFormantShift, 0) ||
+        isDifferent(deck.vocoderConsonantBoost, 0) ||
+        isDifferent(deck.vocoderPreEmphasis, 0.45) ||
+        isDifferent(deck.vocoderTightness, 0.35) ||
         isDifferent(deck.vocoderAttackMs, 8) ||
         isDifferent(deck.vocoderReleaseMs, 5) ||
         isDifferent(deck.vocoderNoiseMix, 0) ||

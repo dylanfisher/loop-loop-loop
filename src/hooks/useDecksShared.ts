@@ -49,6 +49,11 @@ export const DEFAULT_VOCODER_MODULATOR_MONITOR = 0;
 export const DEFAULT_VOCODER_MOD_DRIVE = 2;
 export const DEFAULT_VOCODER_BAND_COUNT = 12;
 export const DEFAULT_VOCODER_BAND_SPREAD = 1;
+export const DEFAULT_VOCODER_VOCAL_CHARACTER = 1;
+export const DEFAULT_VOCODER_FORMANT_SHIFT = 0;
+export const DEFAULT_VOCODER_CONSONANT_BOOST = 0;
+export const DEFAULT_VOCODER_PRE_EMPHASIS = 0.45;
+export const DEFAULT_VOCODER_TIGHTNESS = 0.35;
 export const DEFAULT_VOCODER_ATTACK_MS = 8;
 export const DEFAULT_VOCODER_RELEASE_MS = 5;
 export const DEFAULT_VOCODER_NOISE_MIX = 0;
@@ -98,6 +103,11 @@ export const SIMPLE_AUTOMATION_PARAM_LIMITS: Record<
   vocoderModDrive: { min: 0.5, max: 10 },
   vocoderBandCount: { min: 4, max: 24 },
   vocoderBandSpread: { min: 0, max: 1 },
+  vocoderVocalCharacter: { min: 0, max: 3 },
+  vocoderFormantShift: { min: -12, max: 12 },
+  vocoderConsonantBoost: { min: 0, max: 1 },
+  vocoderPreEmphasis: { min: 0, max: 1 },
+  vocoderTightness: { min: 0, max: 1 },
   vocoderAttackMs: { min: 1, max: 160 },
   vocoderReleaseMs: { min: 1, max: 1200 },
   vocoderNoiseMix: { min: 0, max: 1 },
@@ -337,6 +347,11 @@ export const buildInitialDecks = (): DeckState[] => [
     vocoderModDrive: DEFAULT_VOCODER_MOD_DRIVE,
     vocoderBandCount: DEFAULT_VOCODER_BAND_COUNT,
     vocoderBandSpread: DEFAULT_VOCODER_BAND_SPREAD,
+    vocoderVocalCharacter: DEFAULT_VOCODER_VOCAL_CHARACTER,
+    vocoderFormantShift: DEFAULT_VOCODER_FORMANT_SHIFT,
+    vocoderConsonantBoost: DEFAULT_VOCODER_CONSONANT_BOOST,
+    vocoderPreEmphasis: DEFAULT_VOCODER_PRE_EMPHASIS,
+    vocoderTightness: DEFAULT_VOCODER_TIGHTNESS,
     vocoderAttackMs: DEFAULT_VOCODER_ATTACK_MS,
     vocoderReleaseMs: DEFAULT_VOCODER_RELEASE_MS,
     vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,

@@ -46,6 +46,11 @@ export type DeckSession = {
   vocoderModDrive?: number;
   vocoderBandCount?: number;
   vocoderBandSpread?: number;
+  vocoderVocalCharacter?: number;
+  vocoderFormantShift?: number;
+  vocoderConsonantBoost?: number;
+  vocoderPreEmphasis?: number;
+  vocoderTightness?: number;
   vocoderAttackMs?: number;
   vocoderReleaseMs?: number;
   vocoderNoiseMix?: number;
@@ -113,6 +118,11 @@ export type ClipSession = {
   vocoderModDrive?: number;
   vocoderBandCount?: number;
   vocoderBandSpread?: number;
+  vocoderVocalCharacter?: number;
+  vocoderFormantShift?: number;
+  vocoderConsonantBoost?: number;
+  vocoderPreEmphasis?: number;
+  vocoderTightness?: number;
   vocoderAttackMs?: number;
   vocoderReleaseMs?: number;
   vocoderNoiseMix?: number;
@@ -145,6 +155,11 @@ export type ClipSettings = {
   vocoderModDrive?: number;
   vocoderBandCount?: number;
   vocoderBandSpread?: number;
+  vocoderVocalCharacter?: number;
+  vocoderFormantShift?: number;
+  vocoderConsonantBoost?: number;
+  vocoderPreEmphasis?: number;
+  vocoderTightness?: number;
   vocoderAttackMs?: number;
   vocoderReleaseMs?: number;
   vocoderNoiseMix?: number;
@@ -197,6 +212,7 @@ export type ClipSettings = {
 export type SessionState = {
   version: 1;
   id: string;
+  sourceSessionId?: string;
   name: string;
   savedAt: number;
   masterGain?: number;

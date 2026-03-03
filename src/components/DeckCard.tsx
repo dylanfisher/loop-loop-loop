@@ -79,6 +79,11 @@ export type DeckCardProps = {
   onVocoderModulatorMonitorChange: (id: number, value: number) => void;
   onVocoderModDriveChange: (id: number, value: number) => void;
   onVocoderBandCountChange: (id: number, value: number) => void;
+  onVocoderVocalCharacterChange: (id: number, value: number) => void;
+  onVocoderFormantShiftChange: (id: number, value: number) => void;
+  onVocoderConsonantBoostChange: (id: number, value: number) => void;
+  onVocoderPreEmphasisChange: (id: number, value: number) => void;
+  onVocoderTightnessChange: (id: number, value: number) => void;
   onVocoderAttackMsChange: (id: number, value: number) => void;
   onVocoderReleaseMsChange: (id: number, value: number) => void;
   onVocoderPhaseRotateChange: (id: number, value: number) => void;
@@ -608,6 +613,11 @@ const DeckCard = (props: DeckCardProps) => {
         isDifferent(deck.vocoderModulatorMonitor, 0) ||
         isDifferent(deck.vocoderModDrive, 2) ||
         Math.round(deck.vocoderBandCount) !== 12 ||
+        isDifferent(deck.vocoderVocalCharacter, 1) ||
+        isDifferent(deck.vocoderFormantShift, 0) ||
+        isDifferent(deck.vocoderConsonantBoost, 0) ||
+        isDifferent(deck.vocoderPreEmphasis, 0.45) ||
+        isDifferent(deck.vocoderTightness, 0.35) ||
         isDifferent(deck.vocoderAttackMs, 8) ||
         isDifferent(deck.vocoderReleaseMs, 5) ||
         isDifferent(deck.vocoderNoiseMix, 0) ||
