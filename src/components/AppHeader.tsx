@@ -19,6 +19,7 @@ type AppHeaderProps = {
   perfStats: PerfStats;
   sessionName: string;
   lastSavedAt: number | null;
+  storageUsedLabel: string;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -68,6 +69,7 @@ const AppHeader = ({
   perfStats,
   sessionName,
   lastSavedAt,
+  storageUsedLabel,
   canUndo,
   canRedo,
   onUndo,
@@ -156,6 +158,7 @@ const AppHeader = ({
           {sessionName.trim() ? `Project: ${sessionName}` : "Project: Untitled"}
         </div>
         <div className="app__last-saved">{lastSavedLabel}</div>
+        <div className="app__last-saved">{storageUsedLabel}</div>
       </div>
       {debugPerf ? (
         <div className="perf-panel" aria-live="polite">

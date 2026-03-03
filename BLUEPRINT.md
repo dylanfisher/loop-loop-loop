@@ -119,6 +119,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Session state stored in memory with optional persistence to IndexedDB.
 - Presets for FX chains, deck states, and mappings.
 - Session persistence: save/load session JSON to IndexedDB plus audio blobs for deck/clip audio.
+- Repeated saves/autosaves reuse existing blob IDs for unchanged in-memory deck/clip sources to avoid unbounded IndexedDB blob growth during a working session.
 - Clip session persistence now preserves original clip blob format (for example `audio/webm` from Clip Recorder) instead of re-encoding unchanged clips to WAV on each autosave.
 - Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.
 - Deck UI state is also mirrored immediately to localStorage (lightweight patch) so quick refreshes restore panel state before the next full autosave.
@@ -139,6 +140,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Stopping a deck (including global Stop) resets lane-automation and simple-automation playheads to `0` so the next playback restart begins from automation start phase.
 - Non-lane Delay/Vocoder/Rearranger knobs support lightweight "simple automation" (Option-drag captures a gesture loop; Option-double-click clears), persisted through sessions/clip FX metadata and read by export/offline paths. Rearranger simple automation currently excludes `Slices`, `Sensitivity`, and `Quiet Thresh`.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
+- Manual/quick saves are project-scoped: once a project has a saved session ID, subsequent saves update that same entry instead of creating additional entries.
+- Autosave continues writing the hidden autosave snapshot and also mirrors writes into the active saved session entry (when one is loaded/saved) so `Load Saved Session` stays one-entry-per-project.
 - Session export/import: zip bundle with `session.json` manifest and audio assets (WAV for decks; clips preserve original format when unchanged, except imports normalized to a portable compatibility format during ingest).
 - Deck undo/redo history is session-scoped and persisted through autosaves/manual saves plus session zip export/import (including audio blobs needed by historical deck snapshots).
 - Header `Last saved` readout is sourced from session `savedAt` and refreshed whenever save/autosave writes succeed.

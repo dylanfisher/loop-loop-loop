@@ -31,6 +31,20 @@ type PerformanceMemory = {
 
 const ZOOM_STEPS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
 
+const formatStorageBytes = (bytes: number | null): string => {
+  if (bytes === null || !Number.isFinite(bytes) || bytes < 0) return "--";
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(precision)} ${units[unitIndex]}`;
+};
+
 const App = () => {
   const [exportMinutes, setExportMinutes] = useState(1);
   const [exportSeconds, setExportSeconds] = useState(0);
@@ -71,6 +85,7 @@ const App = () => {
   const [clipLoadHoverDeckId, setClipLoadHoverDeckId] = useState<number | null>(null);
   const [showSessionPanel, setShowSessionPanel] = useState(false);
   const [showWelcomePanelOverride, setShowWelcomePanelOverride] = useState(false);
+  const [storageUsedLabel, setStorageUsedLabel] = useState("Storage: --");
   const statusTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -434,6 +449,47 @@ const App = () => {
   }, [theme]);
 
   useEffect(() => {
+    const estimateStorage = navigator.storage?.estimate?.bind(navigator.storage);
+    if (!estimateStorage) {
+      setStorageUsedLabel("Storage: n/a");
+      return;
+    }
+    let cancelled = false;
+    const updateStorageUsedLabel = async () => {
+      try {
+        const { usage, quota } = await estimateStorage();
+        if (cancelled) return;
+        const usageLabel = formatStorageBytes(typeof usage === "number" ? usage : null);
+        const quotaLabel = formatStorageBytes(typeof quota === "number" ? quota : null);
+        setStorageUsedLabel(
+          quotaLabel === "--"
+            ? `Storage: ${usageLabel}`
+            : `Storage: ${usageLabel} / ${quotaLabel}`
+        );
+      } catch {
+        if (!cancelled) setStorageUsedLabel("Storage: unavailable");
+      }
+    };
+    void updateStorageUsedLabel();
+    const intervalId = window.setInterval(() => {
+      void updateStorageUsedLabel();
+    }, 30000);
+    const handleRefreshTrigger = () => {
+      if (!document.hidden) {
+        void updateStorageUsedLabel();
+      }
+    };
+    window.addEventListener("focus", handleRefreshTrigger);
+    document.addEventListener("visibilitychange", handleRefreshTrigger);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleRefreshTrigger);
+      document.removeEventListener("visibilitychange", handleRefreshTrigger);
+    };
+  }, []);
+
+  useEffect(() => {
     const setAltHeld = (held: boolean) => {
       document.body.classList.toggle("mod-alt-held", held);
     };
@@ -752,6 +808,7 @@ const App = () => {
         perfStats={perfStats}
         sessionName={sessionName}
         lastSavedAt={lastSavedAt}
+        storageUsedLabel={storageUsedLabel}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={undo}

@@ -108,6 +108,9 @@ const useSessionManager = ({
   const autosaveReadyRef = useRef(false);
   const saveAutoSessionNowRef = useRef<(() => Promise<void>) | null>(null);
   const wasAllLoadedDecksPausedRef = useRef(false);
+  const deckBlobIdsRef = useRef(new WeakMap<AudioBuffer, string>());
+  const clipBlobIdsRef = useRef(new WeakMap<Blob, string>());
+  const currentSessionIdRef = useRef<string | null>(null);
   const applySessionDataRef = useRef<
     ((session: SessionState, blobs: Map<string, Blob>) => Promise<void>) | null
   >(null);
@@ -128,7 +131,7 @@ const useSessionManager = ({
     const sessionDecks = getSessionDecks();
     const deckHistorySnapshots = getDeckUndoRedoHistorySnapshots();
     const blobs = new Map<string, Blob>();
-    const deckBlobIds = new WeakMap<AudioBuffer, string>();
+    const deckBlobIds = deckBlobIdsRef.current;
     const currentDeckById = new Map(decks.map((deck) => [deck.id, deck]));
 
     const encodeDeckAudio = async (buffer: AudioBuffer) => {
@@ -180,9 +183,14 @@ const useSessionManager = ({
     async (existingBlobs: Map<string, Blob>) => {
       const nextBlobs = new Map(existingBlobs);
       const clipSessions = [] as SessionState["clips"];
+      const clipBlobIds = clipBlobIdsRef.current;
 
       for (const clip of clips) {
-        const blobId = createSessionBlobId("clip");
+        const existingBlobId = clipBlobIds.get(clip.blob);
+        const blobId = existingBlobId ?? createSessionBlobId("clip");
+        if (!existingBlobId) {
+          clipBlobIds.set(clip.blob, blobId);
+        }
         nextBlobs.set(blobId, clip.blob);
         const mimeType = clip.blob.type || "audio/wav";
         const ext = inferAudioExtension(mimeType, "wav");
@@ -428,6 +436,8 @@ const useSessionManager = ({
       setMasterGainValue(sessionFile.masterGain ?? 0.9);
       setSessionName(sessionFile.name);
       setLastSavedAt(sessionFile.savedAt ?? null);
+      currentSessionIdRef.current = null;
+      setSelectedSessionId(null);
       setWelcomePanelDismissed(
         sessionFile.welcomePanelDismissed ?? !isSessionBrandNew({
           decks: sessionDecks,
@@ -451,7 +461,7 @@ const useSessionManager = ({
       } = await encodeDecksForSession();
       const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
       const nextName = sessionName.trim() || `Session ${new Date().toLocaleString()}`;
-      const id = createSessionId();
+      const id = currentSessionIdRef.current ?? createSessionId();
       const session: SessionState = {
         version: 1,
         id,
@@ -464,6 +474,7 @@ const useSessionManager = ({
         clips: clipSessions,
       };
       await saveSessionState(session, blobs);
+      currentSessionIdRef.current = id;
       setLastSavedAt(session.savedAt);
       await refreshSessions();
       setSelectedSessionId(id);
@@ -492,11 +503,13 @@ const useSessionManager = ({
       blobs: deckBlobs,
     } = await encodeDecksForSession();
     const { clipSessions, blobs } = await encodeClipsForSession(deckBlobs);
+    const savedAt = Date.now();
+    const nextName = sessionName.trim() || "Untitled";
     const session: SessionState = {
       version: 1,
       id: AUTO_SESSION_ID,
-      name: sessionName.trim() || "Untitled",
-      savedAt: Date.now(),
+      name: nextName,
+      savedAt,
       masterGain,
       welcomePanelDismissed,
       decks: sessionDecks,
@@ -504,10 +517,22 @@ const useSessionManager = ({
       clips: clipSessions,
     };
     await saveSessionState(session, blobs);
-    setLastSavedAt(session.savedAt);
+    const activeSessionId = currentSessionIdRef.current;
+    if (activeSessionId) {
+      await saveSessionState(
+        {
+          ...session,
+          id: activeSessionId,
+        },
+        blobs
+      );
+      await refreshSessions();
+    }
+    setLastSavedAt(savedAt);
   }, [
     encodeClipsForSession,
     encodeDecksForSession,
+    refreshSessions,
     masterGain,
     sessionName,
     welcomePanelDismissed,
@@ -579,6 +604,7 @@ const useSessionManager = ({
           type: blob.type || "audio/wav",
         });
         const buffer = await decodeFile(file);
+        deckBlobIdsRef.current.set(buffer, deck.wavBlobId);
         buffers.set(deck.id, buffer);
       }
       return buffers;
@@ -605,6 +631,7 @@ const useSessionManager = ({
           type: blob.type || "audio/wav",
         });
         const buffer = await decodeFile(file);
+        deckBlobIdsRef.current.set(buffer, deck.wavBlobId);
         historyBuffers.set(deck.wavBlobId, buffer);
       }
       return historyBuffers;
@@ -632,6 +659,7 @@ const useSessionManager = ({
         if (!blobId) continue;
         const blob = blobs.get(blobId);
         if (!blob) continue;
+        clipBlobIdsRef.current.set(blob, blobId);
         const url = URL.createObjectURL(blob);
         nextClips.push({
           id: clip.id,
@@ -726,6 +754,8 @@ const useSessionManager = ({
 
       const { session, blobs } = loaded;
       await applySessionData(session, blobs);
+      currentSessionIdRef.current = session.id;
+      setSelectedSessionId(session.id);
       setLastSavedAt(session.savedAt);
       setSessionStatus(`Loaded "${session.name}".`);
     } catch (error) {
@@ -749,6 +779,7 @@ const useSessionManager = ({
     setMasterGainValue(0.9);
     setSessionName("");
     setLastSavedAt(null);
+    currentSessionIdRef.current = null;
     setSelectedSessionId(null);
     setSessionStatus(null);
   }, [resetDecks, clipsRef, setClips, clipIdRef, clipNameRef, setMasterGainValue]);
