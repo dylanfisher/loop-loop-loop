@@ -111,6 +111,27 @@ type SimpleAutomationRuntimeTrack = {
   paused: boolean;
   pausedPositionSec: number;
 };
+const PARAMETRIC_EQ_AUTOMATION_PATTERN =
+  /^parametricEqBand([1-8])(Frequency|Gain)$/;
+const PARAMETRIC_EQ_MIN_FREQ = 20;
+const PARAMETRIC_EQ_MAX_FREQ = 20000;
+const PARAMETRIC_EQ_MIN_GAIN = -18;
+const PARAMETRIC_EQ_MAX_GAIN = 18;
+
+const parseParametricEqSimpleAutomationParam = (
+  param: SimpleAutomationParam
+): { bandIndex: number; mode: "frequency" | "gain" } | null => {
+  const match = PARAMETRIC_EQ_AUTOMATION_PATTERN.exec(param);
+  if (!match) return null;
+  const bandIndex = Number(match[1]);
+  if (!Number.isFinite(bandIndex) || bandIndex < 1 || bandIndex > 8) {
+    return null;
+  }
+  return {
+    bandIndex: bandIndex - 1,
+    mode: match[2] === "Frequency" ? "frequency" : "gain",
+  };
+};
 
 const useDecks = () => {
   const nextDeckId = useRef(2);
@@ -437,6 +458,42 @@ const useDecks = () => {
         updateDeckValue("vocoderGateThreshold", clamped);
         return;
       }
+      const parametricAutomation = parseParametricEqSimpleAutomationParam(param);
+      if (parametricAutomation) {
+        setDecks((prev) =>
+          prev.map((deck) => {
+            if (deck.id !== deckId) return deck;
+            const band = deck.parametricEqBands[parametricAutomation.bandIndex];
+            if (!band) return deck;
+            let changed = false;
+            const nextBands = deck.parametricEqBands.map((item, index) => {
+              if (index !== parametricAutomation.bandIndex) return item;
+              if (parametricAutomation.mode === "frequency") {
+                const nextFrequency = clamp(
+                  clamped,
+                  PARAMETRIC_EQ_MIN_FREQ,
+                  PARAMETRIC_EQ_MAX_FREQ
+                );
+                if (approxEqual(item.frequency, nextFrequency)) return item;
+                changed = true;
+                return { ...item, frequency: nextFrequency };
+              }
+              const nextGain = clamp(
+                clamped,
+                PARAMETRIC_EQ_MIN_GAIN,
+                PARAMETRIC_EQ_MAX_GAIN
+              );
+              if (approxEqual(item.gain, nextGain)) return item;
+              changed = true;
+              return { ...item, gain: nextGain };
+            });
+            if (!changed) return deck;
+            setDeckParametricEqBands(deckId, nextBands);
+            return { ...deck, parametricEqBands: nextBands };
+          })
+        );
+        return;
+      }
       if (param === "rearrangerSwapCount") {
         const rounded = Math.round(clamped);
         updateDeckValue("rearrangerSwapCount", rounded, 0);
@@ -494,6 +551,7 @@ const useDecks = () => {
       setDeckVocoderModulatorMonitor,
       setDeckVocoderNoiseMix,
       setDeckVocoderReleaseMs,
+      setDeckParametricEqBands,
       setDeckRearrangerPingPongAmount,
       setDecks,
     ]

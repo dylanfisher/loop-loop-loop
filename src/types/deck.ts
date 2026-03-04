@@ -1,6 +1,10 @@
 export type DeckStatus = "idle" | "loading" | "transcoding" | "ready" | "playing" | "paused" | "error";
 export type EqMode = "eq3" | "parametric";
 export type ParametricEqBandType = "peaking" | "lowshelf" | "highshelf";
+export type ParametricEqAutomationBandIndex = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type ParametricEqSimpleAutomationParam =
+  | `parametricEqBand${ParametricEqAutomationBandIndex}Frequency`
+  | `parametricEqBand${ParametricEqAutomationBandIndex}Gain`;
 export type SimpleAutomationParam =
   | "delayTime"
   | "delayFeedback"
@@ -36,7 +40,8 @@ export type SimpleAutomationParam =
   | "rearrangerReverse"
   | "rearrangerSliceFadeMs"
   | "rearrangerSliceDelaySec"
-  | "rearrangerPingPong";
+  | "rearrangerPingPong"
+  | ParametricEqSimpleAutomationParam;
 export type SimpleAutomationState = {
   active: boolean;
   baseline: number;

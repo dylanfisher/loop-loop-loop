@@ -5,6 +5,7 @@ import { applyPitchShiftOffline } from "../audio/effects/pitchShift";
 import { applyDjFilterOffline } from "../audio/effects/djFilter";
 import { applyEq3Offline } from "../audio/effects/eq3";
 import { applyParametricEqOffline } from "../audio/effects/parametricEq";
+import type { OfflineAutomationTrack } from "../audio/effects/automation";
 import { applyBalanceOffline } from "../audio/effects/balance";
 import { applyGainOffline } from "../audio/effects/gain";
 import { applyMasterProtectOffline } from "../audio/effects/masterProtect";
@@ -114,6 +115,58 @@ export const renderMixdownBlob = async ({
     const shape = (Math.sin(phase * Math.PI * 2) + 1) * 0.5;
     return entry.baseline + (entry.target - entry.baseline) * shape;
   };
+
+  const buildSimpleAutomationTrack = (
+    deck: DeckState,
+    param: SimpleAutomationParam,
+    min: number,
+    max: number
+  ): OfflineAutomationTrack | undefined => {
+    const entry = deck.simpleAutomation?.[param];
+    if (!entry?.active) return undefined;
+    if (
+      Array.isArray(entry.samples) &&
+      entry.samples.length > 1 &&
+      Number.isFinite(entry.durationSec) &&
+      (entry.durationSec ?? 0) > 0
+    ) {
+      return {
+        active: true,
+        durationSec: Math.max(0.05, entry.durationSec ?? 0.05),
+        samples: Float32Array.from(
+          entry.samples.map((value) => Math.min(Math.max(value, min), max))
+        ),
+      };
+    }
+    const cycleSec = Math.max(0.25, entry.cycleSec);
+    const sampleRate = 30;
+    const sampleCount = Math.max(8, Math.ceil(cycleSec * sampleRate));
+    const generated = new Float32Array(sampleCount);
+    for (let i = 0; i < sampleCount; i += 1) {
+      const phase = i / sampleCount;
+      const shape = (Math.sin(phase * Math.PI * 2) + 1) * 0.5;
+      generated[i] = Math.min(
+        Math.max(entry.baseline + (entry.target - entry.baseline) * shape, min),
+        max
+      );
+    }
+    return {
+      active: true,
+      durationSec: cycleSec,
+      samples: generated,
+    };
+  };
+
+  const buildParametricBandAutomationForExport = (deck: DeckState) =>
+    deck.parametricEqBands.map((_, index) => {
+      const slot = index + 1;
+      const freqParam = `parametricEqBand${slot}Frequency` as SimpleAutomationParam;
+      const gainParam = `parametricEqBand${slot}Gain` as SimpleAutomationParam;
+      return {
+        frequency: buildSimpleAutomationTrack(deck, freqParam, 20, 20000),
+        gain: buildSimpleAutomationTrack(deck, gainParam, -18, 18),
+      };
+    });
 
   const selectDecksStartedAt = performance.now();
   const activeDecks = decks.filter(
@@ -456,6 +509,7 @@ export const renderMixdownBlob = async ({
           }
         : undefined,
     });
+    const parametricBandAutomation = buildParametricBandAutomationForExport(deck);
     const postEq: AudioNode =
       deck.eqMode === "parametric"
         ? applyParametricEqOffline(
@@ -463,7 +517,8 @@ export const renderMixdownBlob = async ({
             postFilter,
             deck.eqMode,
             deck.parametricEqBands,
-            durationSec
+            durationSec,
+            parametricBandAutomation
           )
         : applyEq3Offline(offline, postFilter, {
             low: eqLowValue,

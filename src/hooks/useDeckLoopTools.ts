@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { DeckState } from "../types/deck";
+import type { DeckState, SimpleAutomationParam } from "../types/deck";
 import type { AutomationParam } from "../types/session";
 import type { AutomationView } from "./useDecksShared";
 import { ensurePitchShiftWorklet } from "../audio/pitchShift";
@@ -9,6 +9,7 @@ import { applyPitchShiftOffline } from "../audio/effects/pitchShift";
 import { applyDjFilterOffline } from "../audio/effects/djFilter";
 import { applyEq3Offline } from "../audio/effects/eq3";
 import { applyParametricEqOffline } from "../audio/effects/parametricEq";
+import type { OfflineAutomationTrack } from "../audio/effects/automation";
 import { applyBalanceOffline } from "../audio/effects/balance";
 import { applyGainOffline } from "../audio/effects/gain";
 import { applyMasterProtectOffline } from "../audio/effects/masterProtect";
@@ -114,6 +115,63 @@ const useDeckLoopTools = ({
   setStretchCalibration,
 }: UseDeckLoopToolsArgs): UseDeckLoopToolsResult => {
   const rearrangeBusyByDeckRef = useRef<Map<number, boolean>>(new Map());
+  const buildSimpleAutomationTrack = useCallback(
+    (
+      deck: DeckState,
+      param: SimpleAutomationParam,
+      min: number,
+      max: number
+    ): OfflineAutomationTrack | undefined => {
+      const entry = deck.simpleAutomation?.[param];
+      if (!entry?.active) return undefined;
+      if (
+        Array.isArray(entry.samples) &&
+        entry.samples.length > 1 &&
+        Number.isFinite(entry.durationSec) &&
+        (entry.durationSec ?? 0) > 0
+      ) {
+        return {
+          active: true,
+          durationSec: Math.max(0.05, entry.durationSec ?? 0.05),
+          samples: Float32Array.from(
+            entry.samples.map((value) => Math.min(Math.max(value, min), max))
+          ),
+        };
+      }
+      const cycleSec = Math.max(0.25, entry.cycleSec);
+      const sampleRate = 30;
+      const sampleCount = Math.max(8, Math.ceil(cycleSec * sampleRate));
+      const generated = new Float32Array(sampleCount);
+      for (let i = 0; i < sampleCount; i += 1) {
+        const phase = i / sampleCount;
+        const shape = (Math.sin(phase * Math.PI * 2) + 1) * 0.5;
+        generated[i] = Math.min(
+          Math.max(entry.baseline + (entry.target - entry.baseline) * shape, min),
+          max
+        );
+      }
+      return {
+        active: true,
+        durationSec: cycleSec,
+        samples: generated,
+      };
+    },
+    []
+  );
+
+  const buildParametricBandAutomation = useCallback(
+    (deck: DeckState) =>
+      deck.parametricEqBands.map((_, index) => {
+        const slot = index + 1;
+        const freqParam = `parametricEqBand${slot}Frequency` as SimpleAutomationParam;
+        const gainParam = `parametricEqBand${slot}Gain` as SimpleAutomationParam;
+        return {
+          frequency: buildSimpleAutomationTrack(deck, freqParam, 20, 20000),
+          gain: buildSimpleAutomationTrack(deck, gainParam, -18, 18),
+        };
+      }),
+    [buildSimpleAutomationTrack]
+  );
 
   const handleStretchLoop = useCallback(
     async (deckId: number) => {
@@ -290,7 +348,8 @@ const useDeckLoopTools = ({
                 chain,
                 deck.eqMode,
                 deck.parametricEqBands,
-                renderDuration
+                renderDuration,
+                buildParametricBandAutomation(deck)
               )
             : applyEq3Offline(offline, chain, {
                 low: eqLowValue,
@@ -436,6 +495,7 @@ const useDeckLoopTools = ({
     },
     [
       automationState,
+      buildParametricBandAutomation,
       decks,
       loadDeckBuffer,
       setStretchCalibration,

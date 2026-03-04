@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type {
   DeckFxPanel,
@@ -174,6 +174,11 @@ const DeckCardFxRack = ({
     deck.simpleAutomation?.[param]?.active === true;
   const lastDelayTapMsRef = useRef<number | null>(null);
   const delayTapIntervalsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    if (deck.eqMode === "parametric") return;
+    onEqModeChange(deck.id, "parametric");
+  }, [deck.eqMode, deck.id, onEqModeChange]);
 
   const handleDelayTap = () => {
     const now = performance.now();
@@ -523,33 +528,22 @@ const DeckCardFxRack = ({
             </button>
             <div className="deck__parametric-controls">
               <div className="deck__parametric-mode">
-                <span className="deck__fx-unit-title">Mode</span>
-                <div className="deck__parametric-mode-buttons" role="group" aria-label="EQ mode">
-                  <button
-                    type="button"
-                    className={`deck__action ${deck.eqMode === "eq3" ? "is-active" : ""}`.trim()}
-                    aria-pressed={deck.eqMode === "eq3"}
-                    title="Switch to 3-band EQ mode."
-                    onClick={() => onEqModeChange(deck.id, "eq3")}
-                  >
-                    EQ3
-                  </button>
-                  <button
-                    type="button"
-                    className={`deck__action ${deck.eqMode === "parametric" ? "is-active" : ""}`.trim()}
-                    aria-pressed={deck.eqMode === "parametric"}
-                    title="Switch to parametric EQ mode."
-                    onClick={() => onEqModeChange(deck.id, "parametric")}
-                  >
-                    Parametric
-                  </button>
-                </div>
+                <span className="deck__fx-unit-title">Parametric EQ</span>
               </div>
               {deck.eqMode === "parametric" ? (
                 <ParametricEqEditor
                   bands={deck.parametricEqBands}
                   playbackActive={deck.status === "playing"}
                   disabled={false}
+                  outputGain={gainValue}
+                  isSimpleAutomated={isSimpleAutomated}
+                  onSimpleAutomationSet={(param, target, baseline, recording) => {
+                    onSimpleAutomationSet(deck.id, param, target, baseline, recording);
+                  }}
+                  onSimpleAutomationClear={(param) => {
+                    onSimpleAutomationClear(deck.id, param);
+                  }}
+                  onOutputGainChange={(next) => onGainChange(deck.id, next)}
                   onChange={commitParametricEqBands}
                 />
               ) : (

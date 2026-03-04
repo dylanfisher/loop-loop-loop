@@ -137,6 +137,26 @@ describe("applyParametricEqOffline", () => {
     expect(outputGain.gain.setValueAtTime).toHaveBeenCalledTimes(1);
   });
 
+  it("applies band automation even when static gain is neutral", () => {
+    const { context, nodes } = createFakeOfflineContext();
+    const input = { connect: vi.fn() } as unknown as AudioNode;
+    const renderDuration = 2;
+    const band = createBaseBand({ gain: 0 });
+
+    applyParametricEqOffline(context, input, "parametric", [band], renderDuration, [
+      {
+        gain: {
+          active: true,
+          durationSec: 1,
+          samples: new Float32Array([0, 6, 0, -3]),
+        },
+      },
+    ]);
+    const node = nodes[0];
+    expect(node).toBeDefined();
+    expect(node.gain.setValueCurveAtTime).toHaveBeenCalledTimes(1);
+  });
+
   it("fits overlapping bands toward drawn node targets", () => {
     const sampleRate = 44100;
     const bands: ParametricEqBand[] = [

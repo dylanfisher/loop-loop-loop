@@ -50,9 +50,12 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Clip Recorder supports source-select recording: app master output or user input device (microphone/interface).
 - Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
-- Parametric EQ is implemented as a dedicated 5-unit-wide FX panel with a draggable node graph (click-to-add, drag freq/gain, node type/Q controls), while keeping EQ3 available via per-deck EQ mode selection.
+- Parametric EQ UI is now an EQ Eight-style panel: draggable numbered nodes in the graph plus per-band strips for `Freq`/`Gain`; deck EQ focuses on parametric workflow (EQ3 mode toggle removed from deck FX UI).
+- Parametric EQ always exposes 8 bands (defaulted per slot); neutral default bands are skipped by curve fitting/offline filter construction so they do not add unnecessary processing.
+- Parametric EQ per-band strip now exposes `On` toggle, `Mode` (shape/type), and `Q` at the bottom of each band column; the inspector is focused on per-band motion (`Jitter`/`Spread`) and global parametric controls (`Scale` and output `Gain`).
 - Parametric EQ now uses a fit-to-drawn-curve model (live + offline): enabled node gains are solved so the resulting response better matches drawn node targets at node frequencies, reducing additive boost buildup from clustered nodes while preserving intended curve shape.
 - Parametric EQ nodes include per-node motion controls (`Jitter` + `Spread`) in the inspector to simulate semi-random drag-like movement while playback is running.
+- Parametric EQ per-band `Freq` and `Gain` knobs support simple automation (Option-drag gesture capture, Option-double-click clear) via `SimpleAutomationParam` keys `parametricEqBand{1..8}Frequency/Gain`.
 - Parametric EQ `Jitter`/`Spread` wander is rendered in offline paths as well (Save Loop baked renders and Export Mix) to preserve live/offline behavior parity.
 - Deck FX now includes a dedicated Gain unit (first slot) with its own collapsible panel and automation lane; waveform sidebar gain control was removed.
 - Deck FX controls support per-effect collapsible panels plus a per-deck "open/close all" control.

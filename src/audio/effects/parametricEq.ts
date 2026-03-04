@@ -1,6 +1,7 @@
 import type { EqMode, ParametricEqBand } from "../../types/deck";
+import type { OfflineAutomationTrack } from "./automation";
 
-export const PARAMETRIC_EQ_MAX_BANDS = 12;
+export const PARAMETRIC_EQ_MAX_BANDS = 8;
 const MIN_FREQ = 20;
 const MAX_FREQ = 20000;
 const MIN_GAIN_DB = -18;
@@ -17,35 +18,30 @@ const FIT_REGULARIZATION = 0.08;
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
-const isNeutralBand = (band: ParametricEqBand) =>
-  !band.enabled || Math.abs(band.gain) <= 1e-4;
+const hasActiveWander = (band: ParametricEqBand) =>
+  (band.wander?.jitter ?? 0) > 1e-3 && (band.wander?.spread ?? 0) > 1e-3;
 
-export const defaultParametricEqBands = (): ParametricEqBand[] => [
-  {
-    id: "peq-low",
-    type: "lowshelf",
-    frequency: 120,
-    gain: 0,
-    q: 0.8,
-    enabled: true,
-  },
-  {
-    id: "peq-mid",
-    type: "peaking",
-    frequency: 1200,
-    gain: 0,
-    q: 1.2,
-    enabled: true,
-  },
-  {
-    id: "peq-high",
-    type: "highshelf",
-    frequency: 8000,
-    gain: 0,
-    q: 0.8,
-    enabled: true,
-  },
+const isNeutralBand = (band: ParametricEqBand) =>
+  !band.enabled || (Math.abs(band.gain) <= 1e-4 && !hasActiveWander(band));
+
+const DEFAULT_EQ8_BANDS: ReadonlyArray<
+  Pick<ParametricEqBand, "type" | "frequency" | "gain" | "q" | "enabled">
+> = [
+  { type: "lowshelf", frequency: 40, gain: 0, q: 0.8, enabled: true },
+  { type: "peaking", frequency: 120, gain: 0, q: 1.2, enabled: true },
+  { type: "peaking", frequency: 270, gain: 0, q: 1.2, enabled: true },
+  { type: "peaking", frequency: 600, gain: 0, q: 1.2, enabled: true },
+  { type: "peaking", frequency: 1200, gain: 0, q: 1.2, enabled: true },
+  { type: "peaking", frequency: 2800, gain: 0, q: 1.2, enabled: true },
+  { type: "peaking", frequency: 6500, gain: 0, q: 1.2, enabled: true },
+  { type: "highshelf", frequency: 12000, gain: 0, q: 0.8, enabled: true },
 ];
+
+export const defaultParametricEqBands = (): ParametricEqBand[] =>
+  DEFAULT_EQ8_BANDS.map((band, index) => ({
+    id: `peq-${index + 1}`,
+    ...band,
+  }));
 
 export const normalizeParametricEqBand = (
   band: Partial<ParametricEqBand>,
@@ -100,10 +96,13 @@ export const normalizeParametricEqBand = (
 };
 
 export const normalizeParametricEqBands = (bands: ParametricEqBand[] | undefined | null) => {
-  if (!bands || bands.length === 0) return defaultParametricEqBands();
-  return bands
-    .slice(0, PARAMETRIC_EQ_MAX_BANDS)
-    .map((band, index) => normalizeParametricEqBand(band, `peq-${index + 1}`));
+  const defaults = defaultParametricEqBands();
+  if (!bands || bands.length === 0) return defaults;
+  return defaults.map((fallbackBand, index) => {
+    const band = bands[index];
+    if (!band) return fallbackBand;
+    return normalizeParametricEqBand(band, fallbackBand.id);
+  });
 };
 
 export const hasActiveParametricEq = (
@@ -261,7 +260,7 @@ export const fitParametricEqBandsToCurve = (
   if (eqMode !== "parametric") return normalized;
   const adjustable = normalized
     .map((band, index) => ({ band, index }))
-    .filter((entry) => entry.band.enabled);
+    .filter((entry) => !isNeutralBand(entry.band));
   if (adjustable.length === 0) return normalized;
 
   const n = adjustable.length;
@@ -312,7 +311,9 @@ export const evaluateParametricEqResponseDb = (
   sampleRate: number
 ) => {
   if (!hasActiveParametricEq(eqMode, bands)) return 0;
-  const normalized = normalizeParametricEqBands(bands).filter((band) => band.enabled);
+  const normalized = normalizeParametricEqBands(bands).filter(
+    (band) => !isNeutralBand(band)
+  );
   return responseDbForBandsAtFrequency(
     normalized,
     clamp(frequency, MIN_FREQ, MAX_FREQ),
@@ -352,18 +353,72 @@ export const applyParametricEqOffline = (
   input: AudioNode,
   eqMode: EqMode,
   bands: ParametricEqBand[] | undefined | null,
-  renderDuration: number
+  renderDuration: number,
+  bandAutomation?: Array<{
+    frequency?: OfflineAutomationTrack;
+    gain?: OfflineAutomationTrack;
+  }>
 ) => {
-  if (!hasActiveParametricEq(eqMode, bands)) return input;
-  const fitted = fitParametricEqBandsToCurve(eqMode, bands, context.sampleRate);
-  const filters = fitted.map((band) => {
+  const normalized = normalizeParametricEqBands(bands);
+  const fitted = fitParametricEqBandsToCurve(eqMode, normalized, context.sampleRate);
+  const hasBandAutomation = (index: number, kind: "frequency" | "gain") => {
+    const track = bandAutomation?.[index]?.[kind];
+    return (
+      Boolean(track?.active) &&
+      Number.isFinite(track?.durationSec) &&
+      (track?.durationSec ?? 0) > 0 &&
+      (track?.samples?.length ?? 0) > 0
+    );
+  };
+  const hasAnyBandAutomation = normalized.some(
+    (band, index) => band.enabled && (hasBandAutomation(index, "frequency") || hasBandAutomation(index, "gain"))
+  );
+  if (!hasActiveParametricEq(eqMode, bands) && !hasAnyBandAutomation) return input;
+
+  const buildLoopedCurve = (
+    track: OfflineAutomationTrack,
+    duration: number
+  ) => {
+    if (duration <= 0 || track.samples.length === 0 || track.durationSec <= 0) {
+      return null;
+    }
+    const sampleRate = track.samples.length / track.durationSec;
+    if (!Number.isFinite(sampleRate) || sampleRate <= 0) return null;
+    const sampleCount = Math.max(2, Math.ceil(duration * sampleRate));
+    const curve = new Float32Array(sampleCount);
+    const loopSamples = track.samples.length;
+    for (let i = 0; i < sampleCount; i += 1) {
+      curve[i] = track.samples[i % loopSamples] ?? track.samples[loopSamples - 1] ?? 0;
+    }
+    return curve;
+  };
+
+  const activeEntries = fitted
+    .map((band, index) => ({
+      band,
+      rawBand: normalized[index],
+      index,
+    }))
+    .filter(
+      ({ band, index }) =>
+        band.enabled &&
+        (!isNeutralBand(band) || hasBandAutomation(index, "frequency") || hasBandAutomation(index, "gain"))
+    );
+
+  const filters = activeEntries.map(({ band, rawBand, index }) => {
     const node = context.createBiquadFilter();
     node.type = band.type;
     node.frequency.setValueAtTime(band.frequency, 0);
     node.gain.setValueAtTime(band.enabled ? band.gain : 0, 0);
     node.Q.setValueAtTime(band.q, 0);
+    const frequencyAutomation = bandAutomation?.[index]?.frequency;
+    const gainAutomation = bandAutomation?.[index]?.gain;
+    const frequencyAutomationActive = hasBandAutomation(index, "frequency");
+    const gainAutomationActive = hasBandAutomation(index, "gain");
     const wander = band.wander;
     const wanderActive =
+      !frequencyAutomationActive &&
+      !gainAutomationActive &&
       Boolean(wander) &&
       (wander?.jitter ?? 0) > 1e-3 &&
       (wander?.spread ?? 0) > 1e-3 &&
@@ -374,7 +429,7 @@ export const applyParametricEqOffline = (
       const sampleCount = Math.max(2, Math.ceil(renderDuration * sampleRate));
       const freqCurve = new Float32Array(sampleCount);
       const gainCurve = new Float32Array(sampleCount);
-      const speedHz = 0.08 + wander.jitter * 1.7;
+      const speedHz = 0.02 + Math.pow(wander.jitter, 1.5) * 1.76;
       const octaveSpan = 0.08 + wander.spread * 1.1;
       const gainSpan = 0.5 + wander.spread * 10;
       for (let i = 0; i < sampleCount; i += 1) {
@@ -396,8 +451,36 @@ export const applyParametricEqOffline = (
       node.gain.setValueCurveAtTime(gainCurve, 0, renderDuration);
       node.Q.setValueAtTime(band.q, renderDuration);
     } else if (renderDuration > 0) {
-      node.frequency.setValueAtTime(band.frequency, renderDuration);
-      node.gain.setValueAtTime(band.enabled ? band.gain : 0, renderDuration);
+      const frequencyCurve =
+        frequencyAutomationActive && frequencyAutomation
+          ? buildLoopedCurve(frequencyAutomation, renderDuration)
+          : null;
+      if (frequencyCurve) {
+        for (let i = 0; i < frequencyCurve.length; i += 1) {
+          frequencyCurve[i] = clamp(frequencyCurve[i], MIN_FREQ, MAX_FREQ);
+        }
+        node.frequency.setValueCurveAtTime(frequencyCurve, 0, renderDuration);
+      } else {
+        node.frequency.setValueAtTime(band.frequency, renderDuration);
+      }
+
+      const gainCurve =
+        gainAutomationActive && gainAutomation
+          ? buildLoopedCurve(gainAutomation, renderDuration)
+          : null;
+      if (gainCurve) {
+        const fittedOffset = clamp(
+          band.gain - (rawBand?.gain ?? band.gain),
+          MIN_GAIN_DB,
+          MAX_GAIN_DB
+        );
+        for (let i = 0; i < gainCurve.length; i += 1) {
+          gainCurve[i] = clamp(gainCurve[i] + fittedOffset, MIN_GAIN_DB, MAX_GAIN_DB);
+        }
+        node.gain.setValueCurveAtTime(gainCurve, 0, renderDuration);
+      } else {
+        node.gain.setValueAtTime(band.enabled ? band.gain : 0, renderDuration);
+      }
       node.Q.setValueAtTime(band.q, renderDuration);
     }
     return node;

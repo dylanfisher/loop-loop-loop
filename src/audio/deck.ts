@@ -840,7 +840,7 @@ const ensureDeckNodes = (
     applyEqGain(eqHigh, resolvedEqHigh);
     const parametricEq = Array.from({ length: PARAMETRIC_EQ_MAX_BANDS }, () => {
       const filter = context.createBiquadFilter();
-      resetParametricBandNode(filter);
+      resetParametricBandNode(filter, context.currentTime);
       return filter;
     });
     const resolvedParametricBands =

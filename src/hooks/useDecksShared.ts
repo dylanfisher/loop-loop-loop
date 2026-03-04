@@ -4,6 +4,7 @@ import type {
   DeckState,
   EqMode,
   ParametricEqBand,
+  ParametricEqSimpleAutomationParam,
   ParametricEqMotionState,
   SimpleAutomationParam,
   SimpleAutomationState,
@@ -70,7 +71,7 @@ export const DEFAULT_REARRANGER_SLICE_DELAY_SEC = 0;
 export const DEFAULT_REARRANGER_PINGPONG = 0;
 export const DEFAULT_REARRANGER_AUTO = false;
 export const DEFAULT_RESONANCE = 0;
-export const DEFAULT_EQ_MODE: EqMode = "eq3";
+export const DEFAULT_EQ_MODE: EqMode = "parametric";
 export const DEFAULT_PARAMETRIC_EQ_MOTION_CYCLE_SEC = 4;
 export const DEFAULT_PARAMETRIC_EQ_MOTION_STATE: ParametricEqMotionState = {
   preset: null,
@@ -79,6 +80,16 @@ export const DEFAULT_PARAMETRIC_EQ_MOTION_STATE: ParametricEqMotionState = {
   targetBandId: null,
 };
 export const DEFAULT_SIMPLE_AUTOMATION_CYCLE_SEC = 4;
+const PARAMETRIC_EQ_SIMPLE_AUTOMATION_LIMITS = Object.fromEntries(
+  Array.from({ length: 8 }, (_, index) => {
+    const slot = index + 1;
+    return [
+      [`parametricEqBand${slot}Frequency`, { min: 20, max: 20000 }],
+      [`parametricEqBand${slot}Gain`, { min: -18, max: 18 }],
+    ];
+  }).flat()
+) as Record<ParametricEqSimpleAutomationParam, { min: number; max: number }>;
+
 export const SIMPLE_AUTOMATION_PARAM_LIMITS: Record<
   SimpleAutomationParam,
   { min: number; max: number }
@@ -118,6 +129,7 @@ export const SIMPLE_AUTOMATION_PARAM_LIMITS: Record<
   rearrangerSliceFadeMs: { min: 0, max: 12 },
   rearrangerSliceDelaySec: { min: 0, max: 5 },
   rearrangerPingPong: { min: 0, max: 1 },
+  ...PARAMETRIC_EQ_SIMPLE_AUTOMATION_LIMITS,
 };
 export const EQ_MAX_DB = 18;
 export const FX_ACTIVE_EPSILON = 1e-3;
