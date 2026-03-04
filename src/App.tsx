@@ -4,6 +4,7 @@ import ClipRecorder from "./components/ClipRecorder";
 import WelcomePanel from "./components/WelcomePanel";
 import AppHeader from "./components/AppHeader";
 import KeyboardShortcutsDialog from "./components/KeyboardShortcutsDialog";
+import StorageDiagnosticsOverlay from "./components/StorageDiagnosticsOverlay";
 import AudioUnlockOverlay from "./components/AudioUnlockOverlay";
 import useDecks from "./hooks/useDecks";
 import useAudioEngine from "./hooks/useAudioEngine";
@@ -16,7 +17,9 @@ import useDeckStackProps from "./hooks/useDeckStackProps";
 import useRearrangerRuntime from "./hooks/useRearrangerRuntime";
 import useRecordingManager from "./hooks/useRecordingManager";
 import PerfOverlay from "./components/PerfOverlay";
+import { clearSessionStorage } from "./utils/sessionStore";
 import { renderMixdownBlob } from "./utils/exportMixdown";
+import { formatStorageBytes } from "./utils/storageDiagnostics";
 import {
   loadStretchCalibrationState,
   saveStretchCalibrationState,
@@ -30,20 +33,6 @@ type PerformanceMemory = {
 };
 
 const ZOOM_STEPS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
-
-const formatStorageBytes = (bytes: number | null): string => {
-  if (bytes === null || !Number.isFinite(bytes) || bytes < 0) return "--";
-  if (bytes < 1024) return `${Math.round(bytes)} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2;
-  return `${value.toFixed(precision)} ${units[unitIndex]}`;
-};
 
 const App = () => {
   const [exportMinutes, setExportMinutes] = useState(1);
@@ -85,6 +74,7 @@ const App = () => {
   const [clipLoadHoverDeckId, setClipLoadHoverDeckId] = useState<number | null>(null);
   const [showSessionPanel, setShowSessionPanel] = useState(false);
   const [showWelcomePanelOverride, setShowWelcomePanelOverride] = useState(false);
+  const [showStorageDiagnostics, setShowStorageDiagnostics] = useState(false);
   const [storageUsedLabel, setStorageUsedLabel] = useState("Storage: --");
   const statusTimeoutRef = useRef<number | null>(null);
 
@@ -588,6 +578,25 @@ const App = () => {
     setExportSeconds(clamped);
   }, []);
 
+  const [clearingStorage, setClearingStorage] = useState(false);
+  const handleClearAllStorage = useCallback(async () => {
+    if (clearingStorage || sessionBusy) return;
+    const confirmed = window.confirm(
+      "Clear all saved sessions and local app settings from this browser, then reload?"
+    );
+    if (!confirmed) return;
+    setClearingStorage(true);
+    try {
+      await clearSessionStorage();
+      window.localStorage.clear();
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to clear all storage", error);
+      setSessionStatus("Failed to clear storage.");
+      setClearingStorage(false);
+    }
+  }, [clearingStorage, sessionBusy, setSessionStatus]);
+
   useRearrangerRuntime({
     decks,
     getDeckPlaybackSnapshot,
@@ -819,6 +828,7 @@ const App = () => {
         sessionName={sessionName}
         lastSavedAt={lastSavedAt}
         storageUsedLabel={storageUsedLabel}
+        onOpenStorageDiagnostics={() => setShowStorageDiagnostics(true)}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={undo}
@@ -866,6 +876,8 @@ const App = () => {
         hasExportDecks={hasExportDecks}
         exportEstimateLabel={exportEstimateLabel}
         onSessionNameChange={setSessionName}
+        onClearAllStorage={handleClearAllStorage}
+        clearingStorage={clearingStorage}
       />
 
       <main className="app__main">
@@ -900,6 +912,10 @@ const App = () => {
       <KeyboardShortcutsDialog
         open={showKeyboardShortcuts}
         onClose={() => setShowKeyboardShortcuts(false)}
+      />
+      <StorageDiagnosticsOverlay
+        open={showStorageDiagnostics}
+        onClose={() => setShowStorageDiagnostics(false)}
       />
       <AudioUnlockOverlay
         open={audioContextState !== "running" && !import.meta.env.DEV}

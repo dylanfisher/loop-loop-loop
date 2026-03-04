@@ -1091,7 +1091,7 @@ const useDecks = () => {
   const loopBoundsHistorySnapshotRef = useRef<Map<number, DeckState[]>>(new Map());
   const historyDisabledRef = useRef(false);
   const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
-  const historyLimit = 100;
+  const historyLimit = 30;
 
   const snapshotDecks = useCallback(
     (source: DeckState[]) =>
@@ -1109,17 +1109,24 @@ const useDecks = () => {
     });
   }, []);
 
+  const trimHistory = useCallback((history: { past: DeckState[][]; future: DeckState[][] }) => {
+    if (history.past.length > historyLimit) {
+      history.past = history.past.slice(-historyLimit);
+    }
+    if (history.future.length > historyLimit) {
+      history.future = history.future.slice(-historyLimit);
+    }
+  }, [historyLimit]);
+
   const recordHistory = useCallback(
     (prev: DeckState[]) => {
       const snapshot = snapshotDecks(prev);
       historyRef.current.past.push(snapshot);
-      if (historyRef.current.past.length > historyLimit) {
-        historyRef.current.past.shift();
-      }
+      trimHistory(historyRef.current);
       historyRef.current.future = [];
       syncHistoryState();
     },
-    [snapshotDecks, syncHistoryState]
+    [snapshotDecks, syncHistoryState, trimHistory]
   );
 
   const setDecksWithHistory = useCallback(
@@ -1446,9 +1453,10 @@ const useDecks = () => {
     const previous = past.pop();
     if (!previous) return;
     historyRef.current.future.push(current);
+    trimHistory(historyRef.current);
     applyDeckSnapshot(previous);
     syncHistoryState();
-  }, [applyDeckSnapshot, decks, snapshotDecks, syncHistoryState]);
+  }, [applyDeckSnapshot, decks, snapshotDecks, syncHistoryState, trimHistory]);
 
   const redo = useCallback(() => {
     const future = historyRef.current.future;
@@ -1458,9 +1466,10 @@ const useDecks = () => {
     const next = future.pop();
     if (!next) return;
     historyRef.current.past.push(current);
+    trimHistory(historyRef.current);
     applyDeckSnapshot(next);
     syncHistoryState();
-  }, [applyDeckSnapshot, decks, snapshotDecks, syncHistoryState]);
+  }, [applyDeckSnapshot, decks, snapshotDecks, syncHistoryState, trimHistory]);
 
   const setDeckBalanceValue = useCallback(
     (id: number, value: number) => {
@@ -3751,6 +3760,7 @@ const useDecks = () => {
             future: options.deckUndoRedoHistory.future.map(hydrateHistorySnapshot),
           }
         : { past: [], future: [] };
+      trimHistory(restoredHistory);
 
       nextDeckId.current = Math.max(2, maxDeckId + 1);
       historyRef.current = restoredHistory;
@@ -3767,6 +3777,7 @@ const useDecks = () => {
       snapshotDecks,
       stop,
       syncHistoryState,
+      trimHistory,
       updateAutomationTickEnabled,
     ]
   );

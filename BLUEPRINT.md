@@ -51,6 +51,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Parametric EQ is implemented as a dedicated 5-unit-wide FX panel with a draggable node graph (click-to-add, drag freq/gain, node type/Q controls), while keeping EQ3 available via per-deck EQ mode selection.
+- Parametric EQ now uses a fit-to-drawn-curve model (live + offline): enabled node gains are solved so the resulting response better matches drawn node targets at node frequencies, reducing additive boost buildup from clustered nodes while preserving intended curve shape.
 - Parametric EQ nodes include per-node motion controls (`Jitter` + `Spread`) in the inspector to simulate semi-random drag-like movement while playback is running.
 - Parametric EQ `Jitter`/`Spread` wander is rendered in offline paths as well (Save Loop baked renders and Export Mix) to preserve live/offline behavior parity.
 - Deck FX now includes a dedicated Gain unit (first slot) with its own collapsible panel and automation lane; waveform sidebar gain control was removed.
@@ -63,9 +64,11 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck FX header includes a per-deck "Reset FX" action that restores effect parameters (and related automation tracks) to defaults.
 - Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.
 - Header project metadata includes a live `Last saved` timestamp that updates on manual saves and autosaves.
+- Header project metadata includes a clickable `Storage` readout that opens a diagnostics overlay (quota usage, IndexedDB session/blob breakdown, localStorage key sizes, and largest stored blobs).
 - Deck cards include a per-deck width override control (force full-width or half-width) next to the deck label.
 - Deck cards include a per-deck export inclusion toggle next to the deck label (enabled by default). When disabled, that deck is excluded from Export Mix offline renders and global recording capture, while remaining available for live monitoring/manipulation.
 - Header `Restore + Export` controls open as a full-width inner panel in a dedicated second header row (collapsible toggle in primary row).
+- Header `Restore + Export` panel includes a destructive `Clear All Storage` action that wipes browser-local IndexedDB sessions/blobs and localStorage app settings, then reloads the app.
 - Rearranger includes an `Auto Slice` checkbox plus sensitivity control; when enabled, changing the `Slices` knob re-runs transient boundary detection (adaptive threshold + minimum spacing) and writes boundaries as manual slice regions.
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.
 - `Delete Quiet` exposes a per-deck quiet-threshold control to tune how aggressively low-energy spans are classified for removal.
@@ -89,7 +92,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Welcome panel includes an `Open a Demo Loop` action that imports `public/example.zip` for immediate first-run exploration.
 - Layout sketch (2-up decks on wide screens, stacked on small screens):
 ```
-[Header row 1: brand + project + last-saved timestamp + transport/session toggles + layout/theme/master]
+[Header row 1: brand + project + last-saved + clickable storage diagnostics + transport/session toggles + layout/theme/master]
 [Header row 2 (collapsible): full-width Restore + Export panel]
 [Welcome panel (new project only, dismissible)]
 [Clip Recorder]
@@ -121,6 +124,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Session state stored in memory with optional persistence to IndexedDB.
 - Presets for FX chains, deck states, and mappings.
 - Session persistence: save/load session JSON to IndexedDB plus audio blobs for deck/clip audio.
+- Session persistence now performs blob garbage collection on save/autosave: unreferenced IndexedDB blobs are pruned based on currently stored session references.
 - Repeated saves/autosaves reuse existing blob IDs for unchanged in-memory deck/clip sources to avoid unbounded IndexedDB blob growth during a working session.
 - Clip session persistence now preserves original clip blob format (for example `audio/webm` from Clip Recorder) instead of re-encoding unchanged clips to WAV on each autosave.
 - Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.
@@ -147,7 +151,9 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Manual saves also refresh the hidden autosave snapshot so browser refresh hydration reflects the most recently saved project state.
 - Session export/import: zip bundle with `session.json` manifest and audio assets (WAV for decks; clips preserve original format when unchanged, except imports normalized to a portable compatibility format during ingest).
 - Deck undo/redo history is session-scoped and persisted through autosaves/manual saves plus session zip export/import (including audio blobs needed by historical deck snapshots).
+- Deck undo history is capped at 30 states (future/redo stack also capped at 30) to bound memory and persistent snapshot growth.
 - Header `Last saved` readout is sourced from session `savedAt` and refreshed whenever save/autosave writes succeed.
+- `Clear All Storage` intentionally resets all browser-local persistence (`session` + `blobs` object stores and localStorage keys such as theme/debug/fx panel/stretch calibration), followed by app reload to reset in-memory state.
 
 ## Data Flow (High-Level)
 - User/controller events -> UI -> engine API -> AudioWorklet graph.

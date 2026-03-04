@@ -622,6 +622,7 @@ const ParametricEqEditor = ({
               step={0.01}
               disabled={!selectedBand}
               value={selectedBand?.q ?? 1.2}
+              title="Q controls band width: higher Q is narrower/more surgical, lower Q is wider/more gentle."
               onDoubleClick={() => {
                 if (!selectedBand) return;
                 updateBand(selectedBand.id, { q: defaultQForType(selectedBand.type) });

@@ -20,6 +20,7 @@ type AppHeaderProps = {
   sessionName: string;
   lastSavedAt: number | null;
   storageUsedLabel: string;
+  onOpenStorageDiagnostics: () => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -62,6 +63,8 @@ type AppHeaderProps = {
   hasExportDecks: boolean;
   exportEstimateLabel: string | null;
   onSessionNameChange: (value: string) => void;
+  onClearAllStorage: () => Promise<void>;
+  clearingStorage: boolean;
 };
 
 const AppHeader = ({
@@ -70,6 +73,7 @@ const AppHeader = ({
   sessionName,
   lastSavedAt,
   storageUsedLabel,
+  onOpenStorageDiagnostics,
   canUndo,
   canRedo,
   onUndo,
@@ -112,6 +116,8 @@ const AppHeader = ({
   hasExportDecks,
   exportEstimateLabel,
   onSessionNameChange,
+  onClearAllStorage,
+  clearingStorage,
 }: AppHeaderProps) => {
   const [shiftHeld, setShiftHeld] = useState(false);
 
@@ -158,7 +164,14 @@ const AppHeader = ({
           {sessionName.trim() ? `Project: ${sessionName}` : "Project: Untitled"}
         </div>
         <div className="app__last-saved">{lastSavedLabel}</div>
-        <div className="app__last-saved">{storageUsedLabel}</div>
+        <button
+          type="button"
+          className="app__last-saved app__storage-trigger"
+          onClick={onOpenStorageDiagnostics}
+          title="Open storage diagnostics"
+        >
+          {storageUsedLabel}
+        </button>
       </div>
       {debugPerf ? (
         <div className="perf-panel" aria-live="polite">
@@ -359,6 +372,19 @@ const AppHeader = ({
                 </button>
                 <button type="button" onClick={onImportClick} disabled={sessionBusy}>
                   Import Zip
+                </button>
+              </div>
+            </div>
+            <div className="session-bar__section">
+              <div className="session-bar__group session-bar__group--danger">
+                <button
+                  type="button"
+                  className="button--danger"
+                  onClick={() => void onClearAllStorage()}
+                  disabled={sessionBusy || clearingStorage}
+                  title="Delete all saved sessions and local settings from this browser"
+                >
+                  {clearingStorage ? "Clearing..." : "Clear All Storage"}
                 </button>
               </div>
             </div>

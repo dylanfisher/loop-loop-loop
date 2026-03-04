@@ -91,6 +91,21 @@ class FakeObjectStore {
     this.transaction.track(request);
     return request;
   }
+
+  getAllKeys() {
+    const request = new FakeIDBRequest(() => Array.from(this.store.keys()));
+    this.transaction.track(request);
+    return request;
+  }
+
+  delete(key: IDBValidKey) {
+    const request = new FakeIDBRequest(() => {
+      this.store.delete(key);
+      return undefined;
+    });
+    this.transaction.track(request);
+    return request;
+  }
 }
 
 class FakeDatabase {
@@ -250,5 +265,123 @@ describe("sessionStore", () => {
     expect(loaded?.session.name).toBe("Session");
     expect(loaded?.blobs.get("deck-blob")).toBeInstanceOf(Blob);
     expect(loaded?.blobs.get("clip-blob")).toBeInstanceOf(Blob);
+  });
+
+  it("garbage collects unreferenced blobs after save", async () => {
+    const sessionId = createSessionId();
+    const baseSession: Omit<SessionState, "id" | "name" | "savedAt" | "decks"> = {
+      version: 1,
+      clips: [],
+    };
+
+    await saveSessionState(
+      {
+        ...baseSession,
+        id: sessionId,
+        name: "First",
+        savedAt: 1,
+        decks: [
+          {
+            id: 1,
+            gain: 1,
+            djFilter: 0,
+            filterResonance: 0,
+            eqLowGain: 0,
+            eqMidGain: 0,
+            eqHighGain: 0,
+            balance: 0,
+            pitchShift: 0,
+            offsetSeconds: 0,
+            zoom: 1,
+            loopEnabled: false,
+            loopStartSeconds: 0,
+            loopEndSeconds: 0,
+            tempoOffset: 0,
+            tempoPitchSync: false,
+            stretchRatio: 2,
+            stretchWindowSize: 16384,
+            stretchStereoWidth: 1,
+            stretchPhaseRandomness: 1,
+            stretchTiltDb: 0,
+            stretchScatter: 1,
+            delayTime: 0.35,
+            delayFeedback: 0.35,
+            delayMix: 0,
+            delayTone: 6000,
+            delayPingPong: false,
+            wavBlobId: "blob-first-only",
+            automation: {
+              djFilter: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              resonance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              eqLow: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              eqMid: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              eqHigh: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              balance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              pitch: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+            },
+          },
+        ],
+      },
+      new Map([
+        ["blob-first-only", new Blob(["first"])],
+      ])
+    );
+
+    await saveSessionState(
+      {
+        ...baseSession,
+        id: sessionId,
+        name: "Second",
+        savedAt: 2,
+        decks: [
+          {
+            id: 1,
+            gain: 1,
+            djFilter: 0,
+            filterResonance: 0,
+            eqLowGain: 0,
+            eqMidGain: 0,
+            eqHighGain: 0,
+            balance: 0,
+            pitchShift: 0,
+            offsetSeconds: 0,
+            zoom: 1,
+            loopEnabled: false,
+            loopStartSeconds: 0,
+            loopEndSeconds: 0,
+            tempoOffset: 0,
+            tempoPitchSync: false,
+            stretchRatio: 2,
+            stretchWindowSize: 16384,
+            stretchStereoWidth: 1,
+            stretchPhaseRandomness: 1,
+            stretchTiltDb: 0,
+            stretchScatter: 1,
+            delayTime: 0.35,
+            delayFeedback: 0.35,
+            delayMix: 0,
+            delayTone: 6000,
+            delayPingPong: false,
+            wavBlobId: "blob-second",
+            automation: {
+              djFilter: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              resonance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              eqLow: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              eqMid: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              eqHigh: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              balance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+              pitch: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+            },
+          },
+        ],
+      },
+      new Map([
+        ["blob-second", new Blob(["second"])],
+      ])
+    );
+
+    const loaded = await loadSessionState(sessionId);
+    expect(loaded?.blobs.get("blob-first-only")).toBeUndefined();
+    expect(loaded?.blobs.get("blob-second")).toBeInstanceOf(Blob);
   });
 });

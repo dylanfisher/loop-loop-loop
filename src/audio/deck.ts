@@ -26,6 +26,8 @@ import {
   normalizeDelayParams,
 } from "./effects/delay";
 import {
+  computeParametricEqCompensationGain,
+  fitParametricEqBandsToCurve,
   hasActiveParametricEq,
   normalizeParametricEqBands,
   PARAMETRIC_EQ_MAX_BANDS,
@@ -245,35 +247,68 @@ const isDev = import.meta.env.DEV;
 const defaultPitchShift = 0;
 const defaultBalance = 0;
 const eqStageCount = 2;
+const PARAMETRIC_EQ_SMOOTH_TIME_SEC = 0.03;
 const normalizeVocoderModulatorMonitor = (value: number) => Math.min(Math.max(value, 0), 1);
 
-const resetParametricBandNode = (node: BiquadFilterNode) => {
+const setSmoothedAudioParam = (
+  param: AudioParam,
+  value: number,
+  now: number,
+  timeConstant = PARAMETRIC_EQ_SMOOTH_TIME_SEC
+) => {
+  try {
+    param.cancelScheduledValues(now);
+    param.setTargetAtTime(value, now, timeConstant);
+  } catch {
+    param.value = value;
+  }
+};
+
+const resetParametricBandNode = (node: BiquadFilterNode, now: number) => {
   node.type = "peaking";
-  node.frequency.value = 1000;
-  node.Q.value = 1;
-  node.gain.value = 0;
+  setSmoothedAudioParam(node.frequency, 1000, now);
+  setSmoothedAudioParam(node.Q, 1, now);
+  setSmoothedAudioParam(node.gain, 0, now);
 };
 
 const applyParametricEq = (
   filters: BiquadFilterNode[],
   eqMode: EqMode,
-  bands: ParametricEqBand[] | undefined
+  bands: ParametricEqBand[] | undefined,
+  sampleRate: number
 ) => {
   const isActive = hasActiveParametricEq(eqMode, bands);
-  const activeBands = isActive ? normalizeParametricEqBands(bands) : [];
+  const now = filters[0]?.context.currentTime ?? 0;
+  const activeBands = isActive
+    ? fitParametricEqBandsToCurve(eqMode, normalizeParametricEqBands(bands), sampleRate)
+    : [];
   for (let i = 0; i < filters.length; i += 1) {
     const filter = filters[i];
     const band = activeBands[i];
     if (!band || !band.enabled) {
-      resetParametricBandNode(filter);
+      resetParametricBandNode(filter, now);
       continue;
     }
     filter.type = band.type;
-    filter.frequency.value = band.frequency;
-    filter.gain.value = band.gain;
-    filter.Q.value = band.q;
+    setSmoothedAudioParam(filter.frequency, band.frequency, now);
+    setSmoothedAudioParam(filter.gain, band.gain, now);
+    setSmoothedAudioParam(filter.Q, band.q, now);
   }
   return isActive;
+};
+
+const applyParametricEqOutputGain = (
+  node: GainNode,
+  eqMode: EqMode,
+  bands: ParametricEqBand[] | undefined,
+  sampleRate: number
+) => {
+  const now = node.context.currentTime;
+  setSmoothedAudioParam(
+    node.gain,
+    computeParametricEqCompensationGain(eqMode, bands, sampleRate),
+    now
+  );
 };
 
 const applyEqGain = (filters: BiquadFilterNode[], value: number) => {
@@ -810,7 +845,12 @@ const ensureDeckNodes = (
     });
     const resolvedParametricBands =
       pendingParametricEqBands.get(deckId) ?? parametricEqBands;
-    const parametricActive = applyParametricEq(parametricEq, resolvedEqMode, resolvedParametricBands);
+    const parametricActive = applyParametricEq(
+      parametricEq,
+      resolvedEqMode,
+      resolvedParametricBands,
+      context.sampleRate
+    );
     const delayDry = context.createGain();
     const delayWet = context.createGain();
     const delaySplit = context.createChannelSplitter(2);
@@ -997,6 +1037,7 @@ const ensureDeckNodes = (
     );
     const nextVocoderPostDelay = pendingVocoderPostDelay.get(deckId) ?? vocoderPostDelay;
     const postEq = context.createGain();
+    applyParametricEqOutputGain(postEq, resolvedEqMode, resolvedParametricBands, context.sampleRate);
     const vocoder = createChannelVocoder(context, {
       mix: nextVocoderMix,
       modDrive: nextVocoderModDrive,
@@ -1233,7 +1274,18 @@ const ensureDeckNodes = (
     applyEqGain(nodes.eqHigh, resolvedEqMode === "eq3" ? eqHighGain : 0);
     const resolvedParametricBands =
       pendingParametricEqBands.get(deckId) ?? parametricEqBands;
-    const parametricActive = applyParametricEq(nodes.parametricEq, resolvedEqMode, resolvedParametricBands);
+    const parametricActive = applyParametricEq(
+      nodes.parametricEq,
+      resolvedEqMode,
+      resolvedParametricBands,
+      context.sampleRate
+    );
+    applyParametricEqOutputGain(
+      nodes.postEq,
+      resolvedEqMode,
+      resolvedParametricBands,
+      context.sampleRate
+    );
     setParametricRouting(nodes, !parametricActive);
     nodes.balance.pan.value = balance;
     nodes.rearrangerPan.pan.value = pendingRearrangerPan.get(deckId) ?? 0;
@@ -1703,7 +1755,13 @@ export const setDeckEqModeValue = (deckId: number, value: EqMode) => {
     applyEqGain(nodes.eqMid, mode === "eq3" ? mid : 0);
     applyEqGain(nodes.eqHigh, mode === "eq3" ? high : 0);
     const bands = pendingParametricEqBands.get(deckId) ?? [];
-    const parametricActive = applyParametricEq(nodes.parametricEq, mode, bands);
+    const parametricActive = applyParametricEq(
+      nodes.parametricEq,
+      mode,
+      bands,
+      nodes.gain.context.sampleRate
+    );
+    applyParametricEqOutputGain(nodes.postEq, mode, bands, nodes.gain.context.sampleRate);
     setParametricRouting(nodes, !parametricActive);
     pendingEqMode.delete(deckId);
   } else {
@@ -1718,7 +1776,18 @@ export const setDeckParametricEqBandsValue = (
   const normalized = normalizeParametricEqBands(bands);
   const nodes = deckNodes.get(deckId);
   if (nodes) {
-    const parametricActive = applyParametricEq(nodes.parametricEq, nodes.eqMode, normalized);
+    const parametricActive = applyParametricEq(
+      nodes.parametricEq,
+      nodes.eqMode,
+      normalized,
+      nodes.gain.context.sampleRate
+    );
+    applyParametricEqOutputGain(
+      nodes.postEq,
+      nodes.eqMode,
+      normalized,
+      nodes.gain.context.sampleRate
+    );
     setParametricRouting(nodes, !parametricActive);
     pendingParametricEqBands.delete(deckId);
   } else {

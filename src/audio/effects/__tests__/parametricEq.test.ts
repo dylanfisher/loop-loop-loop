@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyParametricEqOffline } from "../parametricEq";
+import {
+  applyParametricEqOffline,
+  evaluateParametricEqResponseDb,
+  fitParametricEqBandsToCurve,
+} from "../parametricEq";
 import type { ParametricEqBand } from "../../../types/deck";
 
 type FakeAudioParam = {
@@ -12,6 +16,11 @@ type FakeFilterNode = {
   frequency: FakeAudioParam;
   gain: FakeAudioParam;
   Q: FakeAudioParam;
+  connect: ReturnType<typeof vi.fn>;
+};
+
+type FakeGainNode = {
+  gain: FakeAudioParam;
   connect: ReturnType<typeof vi.fn>;
 };
 
@@ -28,16 +37,29 @@ const createFakeFilterNode = (): FakeFilterNode => ({
   connect: vi.fn(),
 });
 
+const createFakeGainNode = (): FakeGainNode => ({
+  gain: createFakeAudioParam(),
+  connect: vi.fn(),
+});
+
 const createFakeOfflineContext = () => {
   const nodes: FakeFilterNode[] = [];
+  const gains: FakeGainNode[] = [];
   return {
     nodes,
+    gains,
     context: {
       createBiquadFilter: vi.fn(() => {
         const node = createFakeFilterNode();
         nodes.push(node);
         return node;
       }),
+      createGain: vi.fn(() => {
+        const node = createFakeGainNode();
+        gains.push(node);
+        return node;
+      }),
+      sampleRate: 44100,
     } as unknown as OfflineAudioContext,
   };
 };
@@ -54,7 +76,7 @@ const createBaseBand = (overrides: Partial<ParametricEqBand> = {}): ParametricEq
 
 describe("applyParametricEqOffline", () => {
   it("uses value curves for wander-enabled bands in offline render", () => {
-    const { context, nodes } = createFakeOfflineContext();
+    const { context, nodes, gains } = createFakeOfflineContext();
     const input = { connect: vi.fn() } as unknown as AudioNode;
     const renderDuration = 2;
     const band = createBaseBand({
@@ -69,8 +91,11 @@ describe("applyParametricEqOffline", () => {
 
     const output = applyParametricEqOffline(context, input, "parametric", [band], renderDuration);
     const node = nodes[0];
-    expect(output).toBe(node);
+    const outputGain = gains[0];
+    expect(output).toBe(outputGain);
     expect((input.connect as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toBe(node);
+    expect(node.connect).toHaveBeenCalledWith(outputGain);
+    expect(outputGain.gain.setValueAtTime).toHaveBeenCalledTimes(1);
 
     expect(node.frequency.setValueCurveAtTime).toHaveBeenCalledTimes(1);
     expect(node.gain.setValueCurveAtTime).toHaveBeenCalledTimes(1);
@@ -87,7 +112,7 @@ describe("applyParametricEqOffline", () => {
   });
 
   it("keeps static automation path when wander is not active", () => {
-    const { context, nodes } = createFakeOfflineContext();
+    const { context, nodes, gains } = createFakeOfflineContext();
     const input = { connect: vi.fn() } as unknown as AudioNode;
     const renderDuration = 3;
     const band = createBaseBand({
@@ -102,10 +127,45 @@ describe("applyParametricEqOffline", () => {
 
     applyParametricEqOffline(context, input, "parametric", [band], renderDuration);
     const node = nodes[0];
+    const outputGain = gains[0];
 
     expect(node.frequency.setValueCurveAtTime).not.toHaveBeenCalled();
     expect(node.gain.setValueCurveAtTime).not.toHaveBeenCalled();
     expect(node.frequency.setValueAtTime).toHaveBeenCalledWith(band.frequency, renderDuration);
-    expect(node.gain.setValueAtTime).toHaveBeenCalledWith(band.gain, renderDuration);
+    expect(node.gain.setValueAtTime).toHaveBeenCalledWith(expect.any(Number), renderDuration);
+    expect(node.gain.setValueAtTime.mock.calls.some(([, atTime]) => atTime === 0)).toBe(true);
+    expect(outputGain.gain.setValueAtTime).toHaveBeenCalledTimes(1);
+  });
+
+  it("fits overlapping bands toward drawn node targets", () => {
+    const sampleRate = 44100;
+    const bands: ParametricEqBand[] = [
+      createBaseBand({ id: "a", frequency: 1000, gain: 6, q: 1.5 }),
+      createBaseBand({ id: "b", frequency: 1100, gain: 1.5, q: 1.5 }),
+      createBaseBand({ id: "c", frequency: 1200, gain: 0.5, q: 1.5 }),
+    ];
+
+    const naiveAtA = evaluateParametricEqResponseDb("parametric", bands, bands[0].frequency, sampleRate);
+    const naiveAtB = evaluateParametricEqResponseDb("parametric", bands, bands[1].frequency, sampleRate);
+    const fitted = fitParametricEqBandsToCurve("parametric", bands, sampleRate);
+    const fittedAtA = evaluateParametricEqResponseDb(
+      "parametric",
+      fitted,
+      bands[0].frequency,
+      sampleRate
+    );
+    const fittedAtB = evaluateParametricEqResponseDb(
+      "parametric",
+      fitted,
+      bands[1].frequency,
+      sampleRate
+    );
+
+    expect(Math.abs(fittedAtA - bands[0].gain)).toBeLessThan(
+      Math.abs(naiveAtA - bands[0].gain)
+    );
+    expect(Math.abs(fittedAtB - bands[1].gain)).toBeLessThan(
+      Math.abs(naiveAtB - bands[1].gain)
+    );
   });
 });
