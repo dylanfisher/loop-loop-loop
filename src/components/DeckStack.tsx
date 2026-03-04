@@ -125,6 +125,10 @@ export type DeckStackProps = {
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
   onRearrangerSliceDelete: (id: number, sliceIndex: number) => void;
   onRearrangerAutoSlice: (id: number) => void;
+  onRearrangerSnapshotCapture: (id: number) => void;
+  onRearrangerSnapshotRestore: (id: number) => void;
+  hasRearrangerSnapshot: (id: number) => boolean;
+  getRearrangerSnapshotCapturedAtMs: (id: number) => number | null;
   onRearrangerTrimQuiet: (id: number) => void;
   onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
@@ -267,6 +271,10 @@ const DeckStack = ({
   onRearrangerRegionsChange,
   onRearrangerSliceDelete,
   onRearrangerAutoSlice,
+  onRearrangerSnapshotCapture,
+  onRearrangerSnapshotRestore,
+  hasRearrangerSnapshot,
+  getRearrangerSnapshotCapturedAtMs,
   onRearrangerTrimQuiet,
   onRearrangeLoop,
   onFxPanelToggle,
@@ -433,41 +441,46 @@ const DeckStack = ({
           clearDragState();
         }}
       >
-        {decks.map((deck, index) => (
-          <div
-            key={deck.id}
-            ref={(node) => setDeckRef(deck.id, node)}
-            className={`deck-stack__item ${deck.deckWidthOverride ? `deck-stack__item--width-${deck.deckWidthOverride}` : ""} ${draggingDeckId === deck.id ? "deck-stack__item--dragging" : ""} ${dropTarget?.deckId === deck.id && dropTarget.position === "before" ? "deck-stack__item--drop-before" : ""} ${dropTarget?.deckId === deck.id && dropTarget.position === "after" ? "deck-stack__item--drop-after" : ""}`.trim()}
-            onDragOver={(event) => handleDeckDragOver(deck.id, event)}
-            onDrop={(event) => handleDeckDrop(deck.id, event)}
-            onDragEnd={clearDragState}
-          >
-            <DeckCard
-              deck={deck}
-              label={`Deck ${index + 1}`}
-              isActive={activeDeckId === deck.id}
-              isClipLoadHovered={hoveredDeckId === deck.id}
-              zipDragActive={zipDragActive}
-              onActivate={onDeckActivate}
-              onRemove={onRemoveDeck}
-              onLoadClick={onLoadClick}
-              onFileSelected={onFileSelected}
-              onPlay={onPlay}
-              onPause={onPause}
-              onStop={onStop}
-              onGainChange={onGainChange}
-              onFilterChange={onFilterChange}
-              onResonanceChange={onResonanceChange}
-              onEqLowChange={onEqLowChange}
-              onEqMidChange={onEqMidChange}
-              onEqHighChange={onEqHighChange}
-              onEqModeChange={onEqModeChange}
-              onParametricEqBandsChange={onParametricEqBandsChange}
-              onParametricEqMotionChange={onParametricEqMotionChange}
-              onSimpleAutomationSet={onSimpleAutomationSet}
-              onSimpleAutomationClear={onSimpleAutomationClear}
-              onDelayTimeChange={onDelayTimeChange}
-              onDelayFeedbackChange={onDelayFeedbackChange}
+        {decks.map((deck, index) => {
+          const deckWidthClass =
+            deck.deckWidthOverride === "full"
+              ? "deck-stack__item--width-full"
+              : "deck-stack__item--width-half";
+          return (
+            <div
+              key={deck.id}
+              ref={(node) => setDeckRef(deck.id, node)}
+              className={`deck-stack__item ${deckWidthClass} ${draggingDeckId === deck.id ? "deck-stack__item--dragging" : ""} ${dropTarget?.deckId === deck.id && dropTarget.position === "before" ? "deck-stack__item--drop-before" : ""} ${dropTarget?.deckId === deck.id && dropTarget.position === "after" ? "deck-stack__item--drop-after" : ""}`.trim()}
+              onDragOver={(event) => handleDeckDragOver(deck.id, event)}
+              onDrop={(event) => handleDeckDrop(deck.id, event)}
+              onDragEnd={clearDragState}
+            >
+              <DeckCard
+                deck={deck}
+                label={`Deck ${index + 1}`}
+                isActive={activeDeckId === deck.id}
+                isClipLoadHovered={hoveredDeckId === deck.id}
+                zipDragActive={zipDragActive}
+                onActivate={onDeckActivate}
+                onRemove={onRemoveDeck}
+                onLoadClick={onLoadClick}
+                onFileSelected={onFileSelected}
+                onPlay={onPlay}
+                onPause={onPause}
+                onStop={onStop}
+                onGainChange={onGainChange}
+                onFilterChange={onFilterChange}
+                onResonanceChange={onResonanceChange}
+                onEqLowChange={onEqLowChange}
+                onEqMidChange={onEqMidChange}
+                onEqHighChange={onEqHighChange}
+                onEqModeChange={onEqModeChange}
+                onParametricEqBandsChange={onParametricEqBandsChange}
+                onParametricEqMotionChange={onParametricEqMotionChange}
+                onSimpleAutomationSet={onSimpleAutomationSet}
+                onSimpleAutomationClear={onSimpleAutomationClear}
+                onDelayTimeChange={onDelayTimeChange}
+                onDelayFeedbackChange={onDelayFeedbackChange}
               onDelayMixChange={onDelayMixChange}
               onDelayToneChange={onDelayToneChange}
               onDelayPingPongChange={onDelayPingPongChange}
@@ -540,6 +553,10 @@ const DeckStack = ({
               onRearrangerRegionsChange={onRearrangerRegionsChange}
               onRearrangerSliceDelete={onRearrangerSliceDelete}
               onRearrangerAutoSlice={onRearrangerAutoSlice}
+              onRearrangerSnapshotCapture={onRearrangerSnapshotCapture}
+              onRearrangerSnapshotRestore={onRearrangerSnapshotRestore}
+              hasRearrangerSnapshot={hasRearrangerSnapshot(deck.id)}
+              rearrangerSnapshotCapturedAtMs={getRearrangerSnapshotCapturedAtMs(deck.id)}
               onRearrangerTrimQuiet={onRearrangerTrimQuiet}
               onRearrangeLoop={onRearrangeLoop}
               onFxPanelToggle={onFxPanelToggle}
@@ -566,9 +583,10 @@ const DeckStack = ({
               getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}
               setFileInputRef={setFileInputRef}
               onTitleDragStart={(event) => handleDeckDragStart(deck.id, event)}
-            />
-          </div>
-        ))}
+              />
+            </div>
+          );
+        })}
       </div>
     </section>
   );

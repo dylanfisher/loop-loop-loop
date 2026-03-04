@@ -188,6 +188,10 @@ export type DeckCardProps = {
   onRearrangerRegionsChange: (id: number, regions?: number[]) => void;
   onRearrangerSliceDelete: (id: number, sliceIndex: number) => void;
   onRearrangerAutoSlice: (id: number) => void;
+  onRearrangerSnapshotCapture: (id: number) => void;
+  onRearrangerSnapshotRestore: (id: number) => void;
+  hasRearrangerSnapshot: boolean;
+  rearrangerSnapshotCapturedAtMs: number | null;
   onRearrangerTrimQuiet: (id: number) => void;
   onRearrangeLoop: (id: number) => void;
   onFxPanelToggle: (id: number, panel: DeckFxPanel, open: boolean) => void;
@@ -1201,6 +1205,7 @@ const DeckCard = (props: DeckCardProps) => {
         commitParametricEqBands={commitParametricEqBands}
         onSimpleAutomationSet={props.onSimpleAutomationSet}
         onSimpleAutomationClear={props.onSimpleAutomationClear}
+        rearrangerSnapshotCapturedAtMs={props.rearrangerSnapshotCapturedAtMs}
         autoSliceEnabled={autoSliceEnabled}
         handleAutoSliceToggle={handleAutoSliceToggle}
         handleRearrangerSlicesKnobChange={handleRearrangerSlicesKnobChange}

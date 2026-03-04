@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { DeckState, SimpleAutomationParam } from "../types/deck";
 import type { AutomationParam } from "../types/session";
@@ -57,6 +57,10 @@ type UseDeckLoopToolsArgs = {
 type UseDeckLoopToolsResult = {
   rearrangeBusyByDeckRef: MutableRefObject<Map<number, boolean>>;
   handleStretchLoop: (deckId: number) => Promise<void>;
+  handleCaptureRearrangerSnapshot: (deckId: number) => void;
+  handleRestoreRearrangerSnapshot: (deckId: number) => void;
+  hasRearrangerSnapshot: (deckId: number) => boolean;
+  getRearrangerSnapshotCapturedAtMs: (deckId: number) => number | null;
   handleRearrangeLoop: (
     deckId: number,
     options?: {
@@ -115,6 +119,24 @@ const useDeckLoopTools = ({
   setStretchCalibration,
 }: UseDeckLoopToolsArgs): UseDeckLoopToolsResult => {
   const rearrangeBusyByDeckRef = useRef<Map<number, boolean>>(new Map());
+  const [rearrangerSnapshotMetaByDeckId, setRearrangerSnapshotMetaByDeckId] = useState<
+    Record<number, { available: boolean; version: number; capturedAtMs: number }>
+  >({});
+  const rearrangerSnapshotByDeckRef = useRef<
+    Map<
+      number,
+      {
+        buffer: AudioBuffer;
+        fileName?: string;
+        loopStartSeconds: number;
+        loopEndSeconds: number;
+        rearrangerSlices: number;
+        rearrangerRegions?: number[];
+        rearrangerRegionIds?: number[];
+        rearrangerRegionsManual?: boolean;
+      }
+    >
+  >(new Map());
   const buildSimpleAutomationTrack = useCallback(
     (
       deck: DeckState,
@@ -610,6 +632,96 @@ const useDeckLoopTools = ({
     [decks, getDeckPlaybackSnapshot, loadDeckBuffer, markSkipNextAutosave]
   );
 
+  const handleCaptureRearrangerSnapshot = useCallback(
+    (deckId: number) => {
+      const deck = decks.find((item) => item.id === deckId);
+      if (!deck?.buffer) return;
+      const duration = deck.duration ?? deck.buffer.duration;
+      const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+      const loopEnd =
+        deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+          ? Math.min(deck.loopEndSeconds, duration)
+          : duration;
+      rearrangerSnapshotByDeckRef.current.set(deckId, {
+        buffer: deck.buffer,
+        fileName: deck.fileName,
+        loopStartSeconds: loopStart,
+        loopEndSeconds: loopEnd,
+        rearrangerSlices: deck.rearrangerSlices,
+        rearrangerRegions: deck.rearrangerRegions ? [...deck.rearrangerRegions] : undefined,
+        rearrangerRegionIds: deck.rearrangerRegionIds ? [...deck.rearrangerRegionIds] : undefined,
+        rearrangerRegionsManual: deck.rearrangerRegionsManual,
+      });
+      setRearrangerSnapshotMetaByDeckId((prev) => {
+        const current = prev[deckId];
+        const nextVersion = (current?.version ?? 0) + 1;
+        return {
+          ...prev,
+          [deckId]: {
+            available: true,
+            version: nextVersion,
+            capturedAtMs: Date.now(),
+          },
+        };
+      });
+    },
+    [decks]
+  );
+
+  const handleRestoreRearrangerSnapshot = useCallback(
+    (deckId: number) => {
+      const deck = decks.find((item) => item.id === deckId);
+      const snapshot = rearrangerSnapshotByDeckRef.current.get(deckId);
+      if (!deck || !snapshot) return;
+      const wasPlaying = deck.status === "playing";
+      loadDeckBuffer(deckId, snapshot.buffer, {
+        name: snapshot.fileName ?? deck.fileName ?? "Snapshot Restored",
+        autoplay: wasPlaying,
+        preserveFxState: true,
+        loopStartSeconds: snapshot.loopStartSeconds,
+        loopEndSeconds: snapshot.loopEndSeconds,
+        rearrangerSlices: snapshot.rearrangerSlices,
+        rearrangerRegions: snapshot.rearrangerRegions ? [...snapshot.rearrangerRegions] : undefined,
+        rearrangerRegionIds: snapshot.rearrangerRegionIds
+          ? [...snapshot.rearrangerRegionIds]
+          : undefined,
+        rearrangerRegionsManual: snapshot.rearrangerRegionsManual ?? false,
+      });
+    },
+    [decks, loadDeckBuffer]
+  );
+
+  const hasRearrangerSnapshot = useCallback(
+    (deckId: number) => rearrangerSnapshotMetaByDeckId[deckId]?.available === true,
+    [rearrangerSnapshotMetaByDeckId]
+  );
+  const getRearrangerSnapshotCapturedAtMs = useCallback(
+    (deckId: number) => rearrangerSnapshotMetaByDeckId[deckId]?.capturedAtMs ?? null,
+    [rearrangerSnapshotMetaByDeckId]
+  );
+
+  useEffect(() => {
+    const activeDeckIds = new Set(decks.map((deck) => deck.id));
+    rearrangerSnapshotByDeckRef.current.forEach((_, deckId) => {
+      if (!activeDeckIds.has(deckId)) {
+        rearrangerSnapshotByDeckRef.current.delete(deckId);
+      }
+    });
+    setRearrangerSnapshotMetaByDeckId((prev) => {
+      let changed = false;
+      const next: Record<number, { available: boolean; version: number; capturedAtMs: number }> = {};
+      Object.keys(prev).forEach((key) => {
+        const deckId = Number(key);
+        if (activeDeckIds.has(deckId)) {
+          next[deckId] = prev[deckId];
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [decks]);
+
   const handleDeleteRearrangerSlice = useCallback(
     (deckId: number, sliceIndex: number) => {
       const deck = decks.find((item) => item.id === deckId);
@@ -768,6 +880,10 @@ const useDeckLoopTools = ({
   return {
     rearrangeBusyByDeckRef,
     handleStretchLoop,
+    handleCaptureRearrangerSnapshot,
+    handleRestoreRearrangerSnapshot,
+    hasRearrangerSnapshot,
+    getRearrangerSnapshotCapturedAtMs,
     handleRearrangeLoop,
     handleDeleteRearrangerSlice,
     handleAutoSliceRearranger,

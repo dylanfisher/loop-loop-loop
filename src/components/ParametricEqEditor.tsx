@@ -32,6 +32,7 @@ const VIEWBOX_HEIGHT = 320;
 const JITTER_DEBOUNCE_MS = 90;
 const SPREAD_DEBOUNCE_MS = 90;
 const RESPONSE_POINTS = 240;
+const NODE_AUTOMATION_SAMPLE_RATE = 30;
 const GRAPH_LEFT_PAD = 28;
 const GRAPH_RIGHT_PAD = 12;
 const GRAPH_TOP_PAD = 10;
@@ -51,6 +52,7 @@ type ParametricEqEditorProps = {
   ) => void;
   onSimpleAutomationClear?: (param: SimpleAutomationParam) => void;
   onOutputGainChange?: (next: number) => void;
+  onResetAll?: () => void;
   onChange: (bands: ParametricEqBand[]) => void;
 };
 
@@ -140,6 +142,14 @@ const formatGridFrequency = (value: number) =>
   value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}k` : `${value}`;
 const linearToDb = (value: number) => 20 * Math.log10(Math.max(1e-6, value));
 const dbToLinear = (db: number) => Math.pow(10, db / 20);
+const qToSliderUnit = (q: number) => {
+  const clampedQ = clamp(q, MIN_Q, MAX_Q);
+  return Math.log(clampedQ / MIN_Q) / Math.log(MAX_Q / MIN_Q);
+};
+const sliderUnitToQ = (value: number) => {
+  const t = clamp(value, 0, 1);
+  return MIN_Q * Math.pow(MAX_Q / MIN_Q, t);
+};
 
 type BiquadCoefficients = {
   b0: number;
@@ -238,6 +248,7 @@ const ParametricEqEditor = ({
   onSimpleAutomationSet,
   onSimpleAutomationClear,
   onOutputGainChange,
+  onResetAll,
   onChange,
 }: ParametricEqEditorProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -252,6 +263,19 @@ const ParametricEqEditor = ({
   const nodeDragStartYRef = useRef(0);
   const bandsRef = useRef(bands);
   const onChangeRef = useRef(onChange);
+  const nodeAutomationCaptureRef = useRef<{
+    bandId: string;
+    freqParam: SimpleAutomationParam;
+    gainParam: SimpleAutomationParam;
+    baselineFrequency: number;
+    baselineGain: number;
+    startedAtMs: number;
+    frequencySamples: number[];
+    gainSamples: number[];
+    moved: boolean;
+  } | null>(null);
+  const nodeAutomationLatestRef = useRef<{ frequency: number; gain: number } | null>(null);
+  const nodeAutomationIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     bandsRef.current = bands;
@@ -333,6 +357,9 @@ const ParametricEqEditor = ({
     return () => {
       if (jitterDebounceTimeoutRef.current !== null) window.clearTimeout(jitterDebounceTimeoutRef.current);
       if (spreadDebounceTimeoutRef.current !== null) window.clearTimeout(spreadDebounceTimeoutRef.current);
+      if (nodeAutomationIntervalRef.current !== null) {
+        window.clearInterval(nodeAutomationIntervalRef.current);
+      }
     };
   }, []);
 
@@ -480,6 +507,7 @@ const ParametricEqEditor = ({
   const defaultBands = useMemo(() => defaultParametricEqBands().slice(0, MAX_BANDS), []);
 
   const resetBands = () => {
+    onResetAll?.();
     const next = defaultBands.map((band, index) => ({ ...band, id: bands[index]?.id ?? band.id }));
     onChange(next);
     setSelectedBandId(next[0]?.id ?? null);
@@ -530,6 +558,37 @@ const ParametricEqEditor = ({
     nodeDragStartYRef.current = event.clientY;
     setSelectedBandId(bandId);
     svgRef.current?.setPointerCapture(event.pointerId);
+    if (nodeAutomationIntervalRef.current !== null) {
+      window.clearInterval(nodeAutomationIntervalRef.current);
+      nodeAutomationIntervalRef.current = null;
+    }
+    nodeAutomationCaptureRef.current = null;
+    nodeAutomationLatestRef.current = null;
+    if (!event.altKey || !onSimpleAutomationSet) return;
+    const slot = slotByBandId.get(bandId);
+    const band = bandsRef.current.find((item) => item.id === bandId);
+    if (!slot || !band) return;
+    const freqParam = toFrequencyAutomationParam(slot);
+    const gainParam = toGainAutomationParam(slot);
+    nodeAutomationCaptureRef.current = {
+      bandId,
+      freqParam,
+      gainParam,
+      baselineFrequency: band.frequency,
+      baselineGain: band.gain,
+      startedAtMs: event.timeStamp,
+      frequencySamples: [band.frequency],
+      gainSamples: [band.gain],
+      moved: false,
+    };
+    nodeAutomationLatestRef.current = { frequency: band.frequency, gain: band.gain };
+    nodeAutomationIntervalRef.current = window.setInterval(() => {
+      const capture = nodeAutomationCaptureRef.current;
+      const latest = nodeAutomationLatestRef.current;
+      if (!capture || !latest) return;
+      capture.frequencySamples.push(latest.frequency);
+      capture.gainSamples.push(latest.gain);
+    }, 1000 / NODE_AUTOMATION_SAMPLE_RATE);
   };
 
   const handleSvgPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -548,6 +607,13 @@ const ParametricEqEditor = ({
       gain: yToGain(point.y),
       enabled: true,
     });
+    const capture = nodeAutomationCaptureRef.current;
+    if (capture && capture.bandId === dragBandIdRef.current) {
+      const nextFrequency = xToFreq(point.x, graphWidth);
+      const nextGain = yToGain(point.y);
+      nodeAutomationLatestRef.current = { frequency: nextFrequency, gain: nextGain };
+      capture.moved = true;
+    }
   };
 
   const handleSvgPointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -571,6 +637,57 @@ const ParametricEqEditor = ({
       dragBandIdRef.current = null;
       pointerDownBandIdRef.current = null;
       nodeDragMovedRef.current = false;
+    }
+    const capture = nodeAutomationCaptureRef.current;
+    if (capture && onSimpleAutomationSet) {
+      if (nodeAutomationIntervalRef.current !== null) {
+        window.clearInterval(nodeAutomationIntervalRef.current);
+        nodeAutomationIntervalRef.current = null;
+      }
+      const latest = nodeAutomationLatestRef.current;
+      if (latest) {
+        capture.frequencySamples.push(latest.frequency);
+        capture.gainSamples.push(latest.gain);
+      }
+      const band = bandsRef.current.find((item) => item.id === capture.bandId);
+      const targetFrequency = band?.frequency ?? latest?.frequency ?? capture.baselineFrequency;
+      const targetGain = band?.gain ?? latest?.gain ?? capture.baselineGain;
+      if (capture.moved) {
+        const durationSec = Math.max(
+          0.05,
+          (event.timeStamp - capture.startedAtMs) / 1000
+        );
+        const hasRecordedSamples =
+          capture.frequencySamples.length > 1 && capture.gainSamples.length > 1;
+        const frequencyRecording = hasRecordedSamples
+          ? {
+              samples: capture.frequencySamples,
+              sampleRate: NODE_AUTOMATION_SAMPLE_RATE,
+              durationSec,
+            }
+          : undefined;
+        const gainRecording = hasRecordedSamples
+          ? {
+              samples: capture.gainSamples,
+              sampleRate: NODE_AUTOMATION_SAMPLE_RATE,
+              durationSec,
+            }
+          : undefined;
+        onSimpleAutomationSet(
+          capture.freqParam,
+          targetFrequency,
+          capture.baselineFrequency,
+          frequencyRecording
+        );
+        onSimpleAutomationSet(
+          capture.gainParam,
+          targetGain,
+          capture.baselineGain,
+          gainRecording
+        );
+      }
+      nodeAutomationCaptureRef.current = null;
+      nodeAutomationLatestRef.current = null;
     }
     if (svgRef.current?.hasPointerCapture(event.pointerId)) {
       svgRef.current.releasePointerCapture(event.pointerId);
@@ -829,12 +946,19 @@ const ParametricEqEditor = ({
                   <span>Q {band.q.toFixed(2)}</span>
                   <input
                     type="range"
-                    min={MIN_Q}
-                    max={MAX_Q}
-                    step={0.01}
-                    value={band.q}
+                    min={0}
+                    max={1}
+                    step={0.001}
+                    value={qToSliderUnit(band.q)}
                     onClick={(event) => event.stopPropagation()}
-                    onChange={(event) => updateBand(band.id, { q: Number(event.target.value) })}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation();
+                      const defaultQ = defaultBands[slot - 1]?.q ?? 1.2;
+                      updateBand(band.id, { q: defaultQ });
+                    }}
+                    onChange={(event) =>
+                      updateBand(band.id, { q: sliderUnitToQ(Number(event.target.value)) })
+                    }
                   />
                 </label>
               </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type {
   DeckFxPanel,
@@ -12,6 +12,8 @@ import Knob from "./Knob";
 import ParametricEqEditor from "./ParametricEqEditor";
 import type { DeckCardProps } from "./DeckCard";
 import type { AutomationTrackView } from "./deckCardUtils";
+
+const DEFAULT_DECK_GAIN = 0.9;
 
 type DeckCardFxRackProps = {
   deck: DeckState;
@@ -51,6 +53,7 @@ type DeckCardFxRackProps = {
     recording?: { samples: number[]; sampleRate: number; durationSec: number }
   ) => void;
   onSimpleAutomationClear: (deckId: number, param: SimpleAutomationParam) => void;
+  rearrangerSnapshotCapturedAtMs: number | null;
   autoSliceEnabled: boolean;
   handleAutoSliceToggle: (enabled: boolean) => void;
   handleRearrangerSlicesKnobChange: (next: number) => void;
@@ -91,6 +94,7 @@ const DeckCardFxRack = ({
   commitParametricEqBands,
   onSimpleAutomationSet,
   onSimpleAutomationClear,
+  rearrangerSnapshotCapturedAtMs,
   autoSliceEnabled,
   handleAutoSliceToggle,
   handleRearrangerSlicesKnobChange,
@@ -160,6 +164,9 @@ const DeckCardFxRack = ({
     onRearrangerAutoChange,
     onRearrangerTrimQuiet,
     onRearrangeLoop,
+    onRearrangerSnapshotCapture,
+    onRearrangerSnapshotRestore,
+    hasRearrangerSnapshot,
     onStretchRatioChange,
     onStretchPhaseRandomnessChange,
     onStretchStereoWidthChange,
@@ -172,8 +179,63 @@ const DeckCardFxRack = ({
 
   const isSimpleAutomated = (param: SimpleAutomationParam) =>
     deck.simpleAutomation?.[param]?.active === true;
+  const handleParametricEqReset = () => {
+    for (let slot = 1; slot <= 8; slot += 1) {
+      onSimpleAutomationClear(deck.id, `parametricEqBand${slot}Frequency` as SimpleAutomationParam);
+      onSimpleAutomationClear(deck.id, `parametricEqBand${slot}Gain` as SimpleAutomationParam);
+    }
+    onAutomationReset(deck.id, "gain");
+    onGainChange(deck.id, DEFAULT_DECK_GAIN);
+  };
   const lastDelayTapMsRef = useRef<number | null>(null);
   const delayTapIntervalsRef = useRef<number[]>([]);
+  const [snapshotSavedFlash, setSnapshotSavedFlash] = useState(false);
+  const snapshotFlashTimeoutRef = useRef<number | null>(null);
+
+  const handleSnapshotCapture = () => {
+    if (hasRearrangerSnapshot) {
+      const confirmed = window.confirm(
+        "A snapshot already exists for this deck. Replace it with a new snapshot?"
+      );
+      if (!confirmed) return;
+    }
+    onRearrangerSnapshotCapture(deck.id);
+    setSnapshotSavedFlash(true);
+    if (snapshotFlashTimeoutRef.current !== null) {
+      window.clearTimeout(snapshotFlashTimeoutRef.current);
+    }
+    snapshotFlashTimeoutRef.current = window.setTimeout(() => {
+      snapshotFlashTimeoutRef.current = null;
+      setSnapshotSavedFlash(false);
+    }, 1500);
+  };
+  const handleSnapshotRestore = () => {
+    if (hasRearrangerSnapshot) {
+      const confirmed = window.confirm(
+        "Restore the saved snapshot for this deck? Current rearranger edits will be replaced."
+      );
+      if (!confirmed) return;
+    }
+    onRearrangerSnapshotRestore(deck.id);
+  };
+  const snapshotCapturedLabel =
+    rearrangerSnapshotCapturedAtMs !== null
+      ? new Date(rearrangerSnapshotCapturedAtMs).toLocaleString([], {
+          month: "numeric",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : null;
+
+  useEffect(
+    () => () => {
+      if (snapshotFlashTimeoutRef.current !== null) {
+        window.clearTimeout(snapshotFlashTimeoutRef.current);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (deck.eqMode === "parametric") return;
@@ -544,6 +606,7 @@ const DeckCardFxRack = ({
                     onSimpleAutomationClear(deck.id, param);
                   }}
                   onOutputGainChange={(next) => onGainChange(deck.id, next)}
+                  onResetAll={handleParametricEqReset}
                   onChange={commitParametricEqBands}
                 />
               ) : (
@@ -1420,26 +1483,53 @@ const DeckCardFxRack = ({
               </label>
             </div>
             <div className="deck__fx-actions deck__fx-footer">
-              <button
-                type="button"
-                className="deck__action"
-                disabled={!deck.buffer}
-                onClick={() => onRearrangerTrimQuiet(deck.id)}
-                onPointerEnter={() => setShowQuietDeletePreview(true)}
-                onPointerLeave={() => setShowQuietDeletePreview(false)}
-                onFocus={() => setShowQuietDeletePreview(true)}
-                onBlur={() => setShowQuietDeletePreview(false)}
-                title="Detect quiet sections in the loop and destructively remove them."
-              >
-                Delete Quiet
-              </button>
-              <AsyncActionButton
-                className="deck__action"
-                disabled={!deck.buffer}
-                idleLabel="Rearrange Loop"
-                busyLabel="Rearranging..."
-                onAction={() => onRearrangeLoop(deck.id)}
-              />
+              <div className="deck__rearranger-actions deck__rearranger-actions--left">
+                <button
+                  type="button"
+                  className={`deck__action ${hasRearrangerSnapshot ? "is-active" : ""}`.trim()}
+                  disabled={!deck.buffer}
+                  onClick={handleSnapshotCapture}
+                  title="Capture current audio and slice state so you can restore it later."
+                >
+                  {snapshotSavedFlash ? "Snapshot Saved" : "Snapshot"}
+                </button>
+                <button
+                  type="button"
+                  className="deck__action"
+                  disabled={!hasRearrangerSnapshot}
+                  onClick={handleSnapshotRestore}
+                  title="Restore the last rearranger snapshot for this deck."
+                >
+                  Restore
+                </button>
+                {hasRearrangerSnapshot && snapshotCapturedLabel ? (
+                  <span className="deck__snapshot-meta" title={`Snapshot saved ${snapshotCapturedLabel}`}>
+                    Saved {snapshotCapturedLabel}
+                  </span>
+                ) : null}
+              </div>
+              <div className="deck__rearranger-actions deck__rearranger-actions--right">
+                <button
+                  type="button"
+                  className="deck__action"
+                  disabled={!deck.buffer}
+                  onClick={() => onRearrangerTrimQuiet(deck.id)}
+                  onPointerEnter={() => setShowQuietDeletePreview(true)}
+                  onPointerLeave={() => setShowQuietDeletePreview(false)}
+                  onFocus={() => setShowQuietDeletePreview(true)}
+                  onBlur={() => setShowQuietDeletePreview(false)}
+                  title="Detect quiet sections in the loop and destructively remove them."
+                >
+                  Delete Quiet
+                </button>
+                <AsyncActionButton
+                  className="deck__action"
+                  disabled={!deck.buffer}
+                  idleLabel="Rearrange Loop"
+                  busyLabel="Rearranging..."
+                  onAction={() => onRearrangeLoop(deck.id)}
+                />
+              </div>
             </div>
           </div>
           <div

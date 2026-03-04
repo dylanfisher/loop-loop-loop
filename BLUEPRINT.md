@@ -74,6 +74,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Header `Restore + Export` panel includes a destructive `Clear All Storage` action that wipes browser-local IndexedDB sessions/blobs and localStorage app settings, then reloads the app.
 - Rearranger includes an `Auto Slice` checkbox plus sensitivity control; when enabled, changing the `Slices` knob re-runs transient boundary detection (adaptive threshold + minimum spacing) and writes boundaries as manual slice regions.
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.
+- Rearranger includes per-deck `Snapshot` and `Restore` actions that capture the current deck buffer + loop/slice metadata in-memory and restore that captured state after destructive rearrange operations.
 - `Delete Quiet` exposes a per-deck quiet-threshold control to tune how aggressively low-energy spans are classified for removal.
 - Rearranger includes a per-deck slice-fade control to soften slice edges and reduce clicks.
 - Rearranger slice-fade defaults to `0ms` on new decks/sessions.

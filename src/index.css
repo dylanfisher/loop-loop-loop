@@ -1691,6 +1691,14 @@ input[type="range"]::-moz-focus-outer {
   grid-column: span 3;
 }
 
+.deck--width-half .deck__fx-unit--parametric {
+  grid-column: span 5;
+}
+
+.deck-stack__item--width-half .deck__fx-unit--parametric {
+  grid-column: span 5;
+}
+
 .deck__parametric-controls {
   display: grid;
   gap: 10px;
@@ -2132,6 +2140,44 @@ body[data-theme="dark"] .peq__node-label {
 
 .deck__fx-actions .deck__action {
   font-size: 0.6rem;
+}
+
+.deck__rearranger-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.deck__rearranger-actions--left {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.deck__rearranger-actions--right {
+  margin-left: auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.deck__delay-options .deck__delay-tap:active:not(:disabled) {
+  border-color: color-mix(in oklab, var(--accent) 70%, var(--line));
+  background: color-mix(in oklab, var(--accent) 18%, var(--surface));
+  color: color-mix(in oklab, var(--accent) 75%, var(--text));
+}
+
+.deck__fx-actions .deck__action.is-active:not(:disabled) {
+  border-color: color-mix(in oklab, var(--accent) 70%, var(--line));
+  background: color-mix(in oklab, var(--accent) 18%, var(--surface));
+  color: color-mix(in oklab, var(--accent) 75%, var(--text));
+}
+
+.deck__snapshot-meta {
+  color: var(--muted);
+  font-size: 0.54rem;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .deck__stretch-estimate {

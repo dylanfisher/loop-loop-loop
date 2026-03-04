@@ -108,6 +108,10 @@ type UseDeckStackPropsArgs = {
   setDeckRearrangerRegions: (id: number, regions?: number[]) => void;
   handleDeleteRearrangerSlice: (id: number, sliceIndex: number) => void;
   handleAutoSliceRearranger: (id: number) => void;
+  handleCaptureRearrangerSnapshot: (id: number) => void;
+  handleRestoreRearrangerSnapshot: (id: number) => void;
+  hasRearrangerSnapshot: (id: number) => boolean;
+  getRearrangerSnapshotCapturedAtMs: (id: number) => number | null;
   handleTrimQuietRearranger: (id: number) => void;
   handleRearrangeLoop: (id: number) => void;
   setDeckFxPanelOpen: DeckStackProps["onFxPanelToggle"];
@@ -231,6 +235,10 @@ const useDeckStackProps = ({
   setDeckRearrangerRegions,
   handleDeleteRearrangerSlice,
   handleAutoSliceRearranger,
+  handleCaptureRearrangerSnapshot,
+  handleRestoreRearrangerSnapshot,
+  hasRearrangerSnapshot,
+  getRearrangerSnapshotCapturedAtMs,
   handleTrimQuietRearranger,
   handleRearrangeLoop,
   setDeckFxPanelOpen,
@@ -408,6 +416,10 @@ const useDeckStackProps = ({
     onRearrangerRegionsChange: setDeckRearrangerRegions,
     onRearrangerSliceDelete: handleDeleteRearrangerSlice,
     onRearrangerAutoSlice: handleAutoSliceRearranger,
+    onRearrangerSnapshotCapture: handleCaptureRearrangerSnapshot,
+    onRearrangerSnapshotRestore: handleRestoreRearrangerSnapshot,
+    hasRearrangerSnapshot,
+    getRearrangerSnapshotCapturedAtMs,
     onRearrangerTrimQuiet: handleTrimQuietRearranger,
     onRearrangeLoop: handleRearrangeLoop,
     onFxPanelToggle: setDeckFxPanelOpen,

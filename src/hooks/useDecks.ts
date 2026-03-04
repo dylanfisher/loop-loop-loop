@@ -3448,7 +3448,7 @@ const useDecks = () => {
       }
     ) => {
       const limits = SIMPLE_AUTOMATION_PARAM_LIMITS[param];
-      const deck = decks.find((item) => item.id === id);
+      const deck = decksRef.current.find((item) => item.id === id);
       if (!deck) return;
       const resolvedBaseline = clamp(baseline, limits.min, limits.max);
       const resolvedTarget = clamp(target, limits.min, limits.max);
@@ -3463,34 +3463,36 @@ const useDecks = () => {
       const resolvedSampleRate = Number.isFinite(recording?.sampleRate)
         ? clamp(Number(recording?.sampleRate), 5, 240)
         : undefined;
-      updateDeck(
-        id,
-        {
-          simpleAutomation: {
-            ...(normalizeSimpleAutomation(
-              deck.simpleAutomation
-            ) as DeckSimpleAutomation),
-            [param]: {
-              active: true,
-              baseline: resolvedBaseline,
-              target: resolvedTarget,
-              cycleSec: 4,
-              samples:
-                normalizedSamples && normalizedSamples.length > 1
-                  ? normalizedSamples
-                  : undefined,
-              sampleRate:
-                normalizedSamples && normalizedSamples.length > 1
-                  ? resolvedSampleRate
-                  : undefined,
-              durationSec:
-                normalizedSamples && normalizedSamples.length > 1
-                  ? resolvedDurationSec
-                  : undefined,
+      setDecksNoHistory((current) =>
+        current.map((item) => {
+          if (item.id !== id) return item;
+          return {
+            ...item,
+            simpleAutomation: {
+              ...(normalizeSimpleAutomation(
+                item.simpleAutomation
+              ) as DeckSimpleAutomation),
+              [param]: {
+                active: true,
+                baseline: resolvedBaseline,
+                target: resolvedTarget,
+                cycleSec: 4,
+                samples:
+                  normalizedSamples && normalizedSamples.length > 1
+                    ? normalizedSamples
+                    : undefined,
+                sampleRate:
+                  normalizedSamples && normalizedSamples.length > 1
+                    ? resolvedSampleRate
+                    : undefined,
+                durationSec:
+                  normalizedSamples && normalizedSamples.length > 1
+                    ? resolvedDurationSec
+                    : undefined,
+              },
             },
-          },
-        },
-        false
+          };
+        })
       );
       const track = ensureSimpleAutomationRuntimeTrack(id, param);
       if (deck.status === "playing") {
@@ -3507,20 +3509,22 @@ const useDecks = () => {
     },
     [
       applySimpleAutomationValue,
-      decks,
       ensureSimpleAutomationRuntimeTrack,
+      setDecksNoHistory,
       updateAutomationTickEnabled,
-      updateDeck,
     ]
   );
 
   const clearDeckSimpleAutomation = useCallback(
     (id: number, param: SimpleAutomationParam) => {
-      const deck = decks.find((item) => item.id === id);
-      if (!deck) return;
-      const next = { ...(normalizeSimpleAutomation(deck.simpleAutomation) as DeckSimpleAutomation) };
-      delete next[param];
-      updateDeck(id, { simpleAutomation: next }, false);
+      setDecksNoHistory((current) =>
+        current.map((deck) => {
+          if (deck.id !== id) return deck;
+          const next = { ...(normalizeSimpleAutomation(deck.simpleAutomation) as DeckSimpleAutomation) };
+          delete next[param];
+          return { ...deck, simpleAutomation: next };
+        })
+      );
       const deckRuntime = simpleAutomationRuntimeRef.current.get(id);
       if (deckRuntime) {
         delete deckRuntime[param];
@@ -3530,7 +3534,7 @@ const useDecks = () => {
       }
       updateAutomationTickEnabled();
     },
-    [decks, updateAutomationTickEnabled, updateDeck]
+    [setDecksNoHistory, updateAutomationTickEnabled]
   );
 
   const resetDeckFx = useCallback(
