@@ -109,6 +109,7 @@ const useSessionManager = ({
   const saveAutoSessionNowRef = useRef<(() => Promise<void>) | null>(null);
   const wasAllLoadedDecksPausedRef = useRef(false);
   const deckBlobIdsRef = useRef(new WeakMap<AudioBuffer, string>());
+  const deckWavCacheRef = useRef(new WeakMap<AudioBuffer, Blob>());
   const clipBlobIdsRef = useRef(new WeakMap<Blob, string>());
   const currentSessionIdRef = useRef<string | null>(null);
   const applySessionDataRef = useRef<
@@ -132,15 +133,27 @@ const useSessionManager = ({
     const deckHistorySnapshots = getDeckUndoRedoHistorySnapshots();
     const blobs = new Map<string, Blob>();
     const deckBlobIds = deckBlobIdsRef.current;
+    const deckWavCache = deckWavCacheRef.current;
     const currentDeckById = new Map(decks.map((deck) => [deck.id, deck]));
 
     const encodeDeckAudio = async (buffer: AudioBuffer) => {
       const existingBlobId = deckBlobIds.get(buffer);
-      if (existingBlobId) return existingBlobId;
+      if (existingBlobId) {
+        const cachedWav = deckWavCache.get(buffer);
+        if (cachedWav) {
+          blobs.set(existingBlobId, cachedWav);
+          return existingBlobId;
+        }
+        const wav = await encodeWavOffThread(buffer);
+        deckWavCache.set(buffer, wav);
+        blobs.set(existingBlobId, wav);
+        return existingBlobId;
+      }
       const wav = await encodeWavOffThread(buffer);
       const blobId = createSessionBlobId("deck");
       blobs.set(blobId, wav);
       deckBlobIds.set(buffer, blobId);
+      deckWavCache.set(buffer, wav);
       return blobId;
     };
 
@@ -337,14 +350,75 @@ const useSessionManager = ({
       if (sessionFile.version !== 1) {
         throw new Error("Unsupported session version");
       }
+      const toNumericDeckId = (value: unknown, fallback: number) => {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric) && numeric > 0) {
+          return Math.round(numeric);
+        }
+        return fallback;
+      };
+      const normalizedZipEntries = Array.from(files.entries()).map(([key, data]) => ({
+        key,
+        normalizedKey: key.replace(/\\/g, "/").replace(/^\.?\//, ""),
+        data,
+      }));
+      const findZipEntry = (path: string | undefined) => {
+        if (!path) return undefined;
+        const normalized = path.replace(/\\/g, "/").replace(/^\.?\//, "");
+        const candidates = [path, normalized, decodeURIComponent(normalized)].map((value) =>
+          value.replace(/\\/g, "/").replace(/^\.?\//, "")
+        );
+        for (const candidate of candidates) {
+          if (!candidate) continue;
+          const exact = files.get(candidate);
+          if (exact) return exact;
+          const normalizedExact = normalizedZipEntries.find(
+            (entry) => entry.normalizedKey === candidate
+          );
+          if (normalizedExact) return normalizedExact.data;
+          const suffix = normalizedZipEntries.find((entry) =>
+            entry.normalizedKey.endsWith(`/${candidate}`)
+          );
+          if (suffix) return suffix.data;
+          const basename = candidate.split("/").pop();
+          if (basename) {
+            const basenameMatch = normalizedZipEntries.find((entry) =>
+              entry.normalizedKey.endsWith(`/${basename}`)
+            );
+            if (basenameMatch) return basenameMatch.data;
+          }
+        }
+        return undefined;
+      };
+      const normalizeDeckFromFile = (deck: SessionFileDeck, index: number) => {
+        const legacyDeck = deck as SessionFileDeck & { wavBlobId?: string };
+        const id = toNumericDeckId((deck as { id?: unknown }).id, index + 1);
+        const wavFile =
+          deck.wavFile ??
+          (legacyDeck.wavBlobId ? `audio/deck-blob-${legacyDeck.wavBlobId}.wav` : undefined);
+        return {
+          ...deck,
+          id,
+          wavFile,
+        };
+      };
+      const normalizedDecks = sessionFile.decks.map(normalizeDeckFromFile);
+      const deckAudioZipPaths = normalizedZipEntries
+        .map((entry) => entry.normalizedKey)
+        .filter((key) => /(?:^|\/)audio\/.*deck.*\.wav$/i.test(key))
+        .sort((a, b) => a.localeCompare(b));
+      let fallbackDeckAudioIndex = 0;
       const buffers = new Map<number, AudioBuffer | null>();
+      let resolvedDeckAudioCount = 0;
       const toArrayBuffer = (data: Uint8Array) => data.slice().buffer as ArrayBuffer;
-      for (const deck of sessionFile.decks) {
-        if (!deck.wavFile) {
+      for (const deck of normalizedDecks) {
+        const mappedFallbackPath = deckAudioZipPaths[fallbackDeckAudioIndex];
+        const requestedPath = deck.wavFile ?? mappedFallbackPath;
+        if (!requestedPath) {
           buffers.set(deck.id, null);
           continue;
         }
-        const data = files.get(deck.wavFile);
+        const data = findZipEntry(requestedPath);
         if (!data) {
           buffers.set(deck.id, null);
           continue;
@@ -355,9 +429,19 @@ const useSessionManager = ({
         });
         const audioBuffer = await decodeFile(wavFile);
         buffers.set(deck.id, audioBuffer);
+        resolvedDeckAudioCount += 1;
+        if (!deck.wavFile && mappedFallbackPath) {
+          fallbackDeckAudioIndex += 1;
+        }
+      }
+      if (normalizedDecks.length > 0 && resolvedDeckAudioCount === 0) {
+        console.warn("Session import found no deck audio entries", {
+          requestedDeckFiles: normalizedDecks.map((deck) => deck.wavFile).filter(Boolean),
+          availableZipEntries: normalizedZipEntries.map((entry) => entry.key),
+        });
       }
 
-      const sessionDecks: DeckSession[] = sessionFile.decks.map((deck) => ({
+      const sessionDecks: DeckSession[] = normalizedDecks.map((deck) => ({
         ...deck,
         wavBlobId: undefined,
       }));
@@ -383,9 +467,10 @@ const useSessionManager = ({
           ...sessionFile.deckUndoRedoHistory.past.flat(),
           ...sessionFile.deckUndoRedoHistory.future.flat(),
         ];
-        for (const deck of historyDecks) {
+        for (const historyDeck of historyDecks) {
+          const deck = normalizeDeckFromFile(historyDeck, 0);
           if (!deck.wavFile || historyBuffers.has(deck.wavFile)) continue;
-          const data = files.get(deck.wavFile);
+          const data = findZipEntry(deck.wavFile);
           if (!data) {
             historyBuffers.set(deck.wavFile, null);
             continue;
@@ -410,7 +495,7 @@ const useSessionManager = ({
       for (const clip of sessionFile.clips) {
         const audioPath = clip.audioFile ?? clip.wavFile;
         if (!audioPath) continue;
-        const data = files.get(audioPath);
+        const data = findZipEntry(audioPath);
         if (!data) continue;
         const mimeType = clip.audioMimeType ?? inferAudioMimeTypeFromPath(audioPath, "audio/wav");
         const blob = new Blob([toArrayBuffer(data)], { type: mimeType });
@@ -444,7 +529,9 @@ const useSessionManager = ({
           clips: sessionFile.clips,
         })
       );
-      setSessionStatus(`Imported "${sessionFile.name}".`);
+      setSessionStatus(
+        `Imported "${sessionFile.name}" (${resolvedDeckAudioCount}/${normalizedDecks.length} deck audio).`
+      );
     },
     [decodeFile, loadSessionDecks, clipsRef, setClips, clipIdRef, clipNameRef, setMasterGainValue]
   );

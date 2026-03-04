@@ -14,6 +14,7 @@ const hoisted = vi.hoisted(() => {
     loadSessionState: vi.fn(async () => null),
     saveSessionState: vi.fn(async () => {}),
     encodeWavOffThread: vi.fn(async () => new Blob(["wav"], { type: "audio/wav" })),
+    readZip: vi.fn(() => new Map<string, Uint8Array>()),
   };
 });
 
@@ -36,6 +37,11 @@ vi.mock("../../utils/wavWorkerClient", () => ({
   encodeWavOffThread: hoisted.encodeWavOffThread,
 }));
 
+vi.mock("../../utils/zip", () => ({
+  createZip: vi.fn(() => new Blob([], { type: "application/zip" })),
+  readZip: hoisted.readZip,
+}));
+
 vi.mock("../deckSessionSerialization", () => ({
   serializeDeckSession: vi.fn((deck: unknown) => deck),
 }));
@@ -49,6 +55,8 @@ describe("useSessionManager blob reuse", () => {
     hoisted.loadSessionState.mockClear();
     hoisted.saveSessionState.mockClear();
     hoisted.encodeWavOffThread.mockClear();
+    hoisted.readZip.mockReset();
+    hoisted.readZip.mockImplementation(() => new Map<string, Uint8Array>());
   });
 
   it("reuses clip blob ids across repeated autosaves", async () => {
@@ -318,5 +326,211 @@ describe("useSessionManager blob reuse", () => {
     const mirroredProjectSession = hoisted.saveSessionState.mock.calls[1][0] as SessionState;
     expect(autosaveSession.id).toBe("autosave-current");
     expect(mirroredProjectSession.id).toBe("session-existing");
+  });
+
+  it("imports deck audio from legacy wavBlobId session files", async () => {
+    const importedBuffer = { duration: 1, sampleRate: 44100, length: 44100 } as AudioBuffer;
+    const decodeFile = vi.fn(async () => importedBuffer);
+    const loadSessionDecks = vi.fn();
+    const deckTemplate = {
+      id: 1,
+      gain: 0.9,
+      djFilter: 0,
+      filterResonance: 0,
+      eqLowGain: 0,
+      eqMidGain: 0,
+      eqHighGain: 0,
+      balance: 0,
+      pitchShift: 0,
+      offsetSeconds: 0,
+      zoom: 1,
+      loopEnabled: false,
+      loopStartSeconds: 0,
+      loopEndSeconds: 0,
+      tempoOffset: 0,
+      tempoPitchSync: false,
+      stretchRatio: 2,
+      stretchWindowSize: 16384,
+      stretchStereoWidth: 1,
+      stretchPhaseRandomness: 1,
+      stretchTiltDb: 0,
+      stretchScatter: 1,
+      delayTime: 0.35,
+      delayFeedback: 0.35,
+      delayMix: 0,
+      delayTone: 6000,
+      delayPingPong: false,
+      automation: {
+        gain: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0.9 },
+        djFilter: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        resonance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        eqLow: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        eqMid: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        eqHigh: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        balance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        pitch: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+      },
+    };
+    const sessionFile = {
+      version: 1,
+      name: "Imported Session",
+      savedAt: Date.now(),
+      decks: [
+        {
+          ...deckTemplate,
+          wavBlobId: "legacy-blob-1",
+        },
+      ],
+      clips: [],
+    };
+    hoisted.readZip.mockReturnValue(
+      new Map<string, Uint8Array>([
+        ["session.json", new TextEncoder().encode(JSON.stringify(sessionFile))],
+        ["nested/audio/deck-blob-legacy-blob-1.wav", new Uint8Array([1, 2, 3])],
+      ])
+    );
+
+    const { result } = renderHook(() =>
+      useSessionManager({
+        decks: [],
+        clips: [],
+        clipsRef: { current: [] },
+        clipIdRef: { current: 1 },
+        clipNameRef: { current: 1 },
+        decodeFile,
+        getSessionDecks: vi.fn(() => []),
+        getDeckUndoRedoHistorySnapshots: vi.fn(() => ({ past: [], future: [] })),
+        loadSessionDecks,
+        resetDecks: vi.fn(),
+        masterGain: 0.9,
+        setMasterGainValue: vi.fn(),
+        applyDeckFxPanelStatePatch: vi.fn(),
+        setClips: vi.fn(),
+      })
+    );
+
+    await waitFor(() => expect(hoisted.loadSessionState).toHaveBeenCalled());
+
+    const zipFile = {
+      name: "session.zip",
+      type: "application/zip",
+      arrayBuffer: async () => new ArrayBuffer(16),
+    } as unknown as File;
+
+    await act(async () => {
+      await result.current.handleImportChange({
+        target: {
+          files: [zipFile],
+          value: "session.zip",
+        },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    expect(loadSessionDecks).toHaveBeenCalledTimes(1);
+    const [, importedBuffers] = loadSessionDecks.mock.calls[0] as [DeckSession[], Map<number, AudioBuffer | null>];
+    expect(importedBuffers.get(1)).toBe(importedBuffer);
+  });
+
+  it("imports deck audio when wavFile uses windows separators", async () => {
+    const importedBuffer = { duration: 1, sampleRate: 44100, length: 44100 } as AudioBuffer;
+    const decodeFile = vi.fn(async () => importedBuffer);
+    const loadSessionDecks = vi.fn();
+    const deckTemplate = {
+      id: 1,
+      gain: 0.9,
+      djFilter: 0,
+      filterResonance: 0,
+      eqLowGain: 0,
+      eqMidGain: 0,
+      eqHighGain: 0,
+      balance: 0,
+      pitchShift: 0,
+      offsetSeconds: 0,
+      zoom: 1,
+      loopEnabled: false,
+      loopStartSeconds: 0,
+      loopEndSeconds: 0,
+      tempoOffset: 0,
+      tempoPitchSync: false,
+      stretchRatio: 2,
+      stretchWindowSize: 16384,
+      stretchStereoWidth: 1,
+      stretchPhaseRandomness: 1,
+      stretchTiltDb: 0,
+      stretchScatter: 1,
+      delayTime: 0.35,
+      delayFeedback: 0.35,
+      delayMix: 0,
+      delayTone: 6000,
+      delayPingPong: false,
+      automation: {
+        gain: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0.9 },
+        djFilter: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        resonance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        eqLow: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        eqMid: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        eqHigh: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        balance: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+        pitch: { samples: [], sampleRate: 30, durationSec: 0, active: false, currentValue: 0 },
+      },
+    };
+    const sessionFile = {
+      version: 1,
+      name: "Imported Session",
+      savedAt: Date.now(),
+      decks: [
+        {
+          ...deckTemplate,
+          wavFile: "audio\\deck-blob-legacy-blob-2.wav",
+        },
+      ],
+      clips: [],
+    };
+    hoisted.readZip.mockReturnValue(
+      new Map<string, Uint8Array>([
+        ["session.json", new TextEncoder().encode(JSON.stringify(sessionFile))],
+        ["nested/audio/deck-blob-legacy-blob-2.wav", new Uint8Array([1, 2, 3])],
+      ])
+    );
+
+    const { result } = renderHook(() =>
+      useSessionManager({
+        decks: [],
+        clips: [],
+        clipsRef: { current: [] },
+        clipIdRef: { current: 1 },
+        clipNameRef: { current: 1 },
+        decodeFile,
+        getSessionDecks: vi.fn(() => []),
+        getDeckUndoRedoHistorySnapshots: vi.fn(() => ({ past: [], future: [] })),
+        loadSessionDecks,
+        resetDecks: vi.fn(),
+        masterGain: 0.9,
+        setMasterGainValue: vi.fn(),
+        applyDeckFxPanelStatePatch: vi.fn(),
+        setClips: vi.fn(),
+      })
+    );
+
+    await waitFor(() => expect(hoisted.loadSessionState).toHaveBeenCalled());
+
+    const zipFile = {
+      name: "session.zip",
+      type: "application/zip",
+      arrayBuffer: async () => new ArrayBuffer(16),
+    } as unknown as File;
+
+    await act(async () => {
+      await result.current.handleImportChange({
+        target: {
+          files: [zipFile],
+          value: "session.zip",
+        },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    expect(loadSessionDecks).toHaveBeenCalledTimes(1);
+    const [, importedBuffers] = loadSessionDecks.mock.calls[0] as [DeckSession[], Map<number, AudioBuffer | null>];
+    expect(importedBuffers.get(1)).toBe(importedBuffer);
   });
 });
