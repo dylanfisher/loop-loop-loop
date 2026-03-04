@@ -54,6 +54,13 @@ import {
   DEFAULT_DELAY_SATURATION,
   DEFAULT_DELAY_SPECTRAL_MIX,
   DEFAULT_DELAY_SPECTRAL_SPREAD,
+  DEFAULT_DELAY_SPECTRAL_MOTION,
+  DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+  DEFAULT_SPECTRAL_SPACE_MIX,
+  DEFAULT_SPECTRAL_SPACE_MOTION,
+  DEFAULT_SPECTRAL_SPACE_SPREAD,
+  DEFAULT_SPECTRAL_SPACE_TILT,
+  DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
   DEFAULT_DELAY_SLICE_SYNC,
   DEFAULT_DELAY_TIME,
   DEFAULT_DELAY_TONE,
@@ -190,6 +197,13 @@ const useDecks = () => {
     setDeckDelayDuckResponseMs,
     setDeckDelaySpectralMix,
     setDeckDelaySpectralSpread,
+    setDeckDelaySpectralMotion,
+    setDeckSpectralSpaceMix,
+    setDeckSpectralSpaceSpread,
+    setDeckSpectralSpaceMotion,
+    setDeckSpectralSpaceTilt,
+    setDeckSpectralSpaceLowMono,
+    setDeckSpectralSpaceTransientProtect,
     setDeckVocoderMix,
     setDeckVocoderCarrierDeckId,
     setDeckVocoderModulatorMonitor,
@@ -387,6 +401,41 @@ const useDecks = () => {
         updateDeckValue("delaySpectralSpread", clamped);
         return;
       }
+      if (param === "delaySpectralMotion") {
+        setDeckDelaySpectralMotion(deckId, clamped);
+        updateDeckValue("delaySpectralMotion", clamped);
+        return;
+      }
+      if (param === "spectralSpaceMix") {
+        setDeckSpectralSpaceMix(deckId, clamped);
+        updateDeckValue("spectralSpaceMix", clamped);
+        return;
+      }
+      if (param === "spectralSpaceSpread") {
+        setDeckSpectralSpaceSpread(deckId, clamped);
+        updateDeckValue("spectralSpaceSpread", clamped);
+        return;
+      }
+      if (param === "spectralSpaceMotion") {
+        setDeckSpectralSpaceMotion(deckId, clamped);
+        updateDeckValue("spectralSpaceMotion", clamped);
+        return;
+      }
+      if (param === "spectralSpaceTilt") {
+        setDeckSpectralSpaceTilt(deckId, clamped);
+        updateDeckValue("spectralSpaceTilt", clamped);
+        return;
+      }
+      if (param === "spectralSpaceLowMono") {
+        setDeckSpectralSpaceLowMono(deckId, clamped);
+        updateDeckValue("spectralSpaceLowMono", clamped);
+        return;
+      }
+      if (param === "spectralSpaceTransientProtect") {
+        setDeckSpectralSpaceTransientProtect(deckId, clamped);
+        updateDeckValue("spectralSpaceTransientProtect", clamped);
+        return;
+      }
       if (param === "vocoderMix") {
         setDeckVocoderMix(deckId, clamped);
         updateDeckValue("vocoderMix", clamped);
@@ -532,11 +581,18 @@ const useDecks = () => {
       setDeckDelaySaturation,
       setDeckDelaySpectralMix,
       setDeckDelaySpectralSpread,
+      setDeckDelaySpectralMotion,
       setDeckDelayTime,
       setDeckDelayTone,
       setDeckDelayRhythmMorph,
       setDeckDelayRhythmRateHz,
       setDeckDelayRhythmSwing,
+      setDeckSpectralSpaceLowMono,
+      setDeckSpectralSpaceMix,
+      setDeckSpectralSpaceMotion,
+      setDeckSpectralSpaceSpread,
+      setDeckSpectralSpaceTilt,
+      setDeckSpectralSpaceTransientProtect,
       setDeckVocoderAttackMs,
       setDeckVocoderBandCount,
       setDeckVocoderBandSpread,
@@ -724,6 +780,13 @@ const useDecks = () => {
         delayDuckResponseMs?: number;
         delaySpectralMix?: number;
         delaySpectralSpread?: number;
+        delaySpectralMotion?: number;
+        spectralSpaceMix?: number;
+        spectralSpaceSpread?: number;
+        spectralSpaceMotion?: number;
+        spectralSpaceTilt?: number;
+        spectralSpaceLowMono?: number;
+        spectralSpaceTransientProtect?: number;
       }
     ) => {
       const targets = getFilterTargets(settings.djFilter);
@@ -780,6 +843,35 @@ const useDecks = () => {
         deckId,
         settings.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD
       );
+      setDeckDelaySpectralMotion(
+        deckId,
+        settings.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION
+      );
+      setDeckSpectralSpaceMix(
+        deckId,
+        settings.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX
+      );
+      setDeckSpectralSpaceSpread(
+        deckId,
+        settings.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD
+      );
+      setDeckSpectralSpaceMotion(
+        deckId,
+        settings.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION
+      );
+      setDeckSpectralSpaceTilt(
+        deckId,
+        settings.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT
+      );
+      setDeckSpectralSpaceLowMono(
+        deckId,
+        settings.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO
+      );
+      setDeckSpectralSpaceTransientProtect(
+        deckId,
+        settings.spectralSpaceTransientProtect ??
+          DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT
+      );
       setDeckPlaybackRate(deckId, clampPlaybackRate(1 + settings.tempoOffset / 100));
     },
     [
@@ -799,6 +891,13 @@ const useDecks = () => {
       setDeckDelayDuckResponseMs,
       setDeckDelaySpectralMix,
       setDeckDelaySpectralSpread,
+      setDeckDelaySpectralMotion,
+      setDeckSpectralSpaceMix,
+      setDeckSpectralSpaceSpread,
+      setDeckSpectralSpaceMotion,
+      setDeckSpectralSpaceTilt,
+      setDeckSpectralSpaceLowMono,
+      setDeckSpectralSpaceTransientProtect,
       setDeckDelayTime,
       setDeckDelayTone,
       setDeckEqMode,
@@ -1331,6 +1430,24 @@ const useDecks = () => {
           deck.id,
           deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD
         );
+        setDeckSpectralSpaceMix(deck.id, deck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX);
+        setDeckSpectralSpaceSpread(
+          deck.id,
+          deck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD
+        );
+        setDeckSpectralSpaceMotion(
+          deck.id,
+          deck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION
+        );
+        setDeckSpectralSpaceTilt(deck.id, deck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT);
+        setDeckSpectralSpaceLowMono(
+          deck.id,
+          deck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO
+        );
+        setDeckSpectralSpaceTransientProtect(
+          deck.id,
+          deck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT
+        );
         setDeckVocoderMix(deck.id, deck.vocoderMix);
         setDeckVocoderCarrierDeckId(deck.id, deck.vocoderCarrierDeckId);
         setDeckVocoderModulatorMonitor(deck.id, deck.vocoderModulatorMonitor);
@@ -1416,6 +1533,13 @@ const useDecks = () => {
           deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
           deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
           deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
+          deck.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION,
+          deck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX,
+          deck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD,
+          deck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION,
+          deck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT,
+          deck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+          deck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
           deck.vocoderMix,
           deck.vocoderCarrierDeckId,
           deck.vocoderModulatorMonitor,
@@ -1475,6 +1599,12 @@ const useDecks = () => {
       setDeckDelayDuckResponseMs,
       setDeckDelaySpectralMix,
       setDeckDelaySpectralSpread,
+      setDeckSpectralSpaceMix,
+      setDeckSpectralSpaceSpread,
+      setDeckSpectralSpaceMotion,
+      setDeckSpectralSpaceTilt,
+      setDeckSpectralSpaceLowMono,
+      setDeckSpectralSpaceTransientProtect,
       setDeckVocoderMix,
       setDeckVocoderCarrierDeckId,
       setDeckVocoderModulatorMonitor,
@@ -1799,6 +1929,7 @@ const useDecks = () => {
         delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
         delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
         delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
+        delaySpectralMotion: DEFAULT_DELAY_SPECTRAL_MOTION,
         rearrangerSlices: DEFAULT_REARRANGER_SLICES,
         rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
         rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -1898,9 +2029,10 @@ const useDecks = () => {
         delayRhythmSwing: DEFAULT_DELAY_RHYTHM_SWING,
         delayDuckDepth: DEFAULT_DELAY_DUCK_DEPTH,
         delayDuckThreshold: DEFAULT_DELAY_DUCK_THRESHOLD,
-        delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
-        delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
-        delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
+            delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
+            delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
+            delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
+            delaySpectralMotion: DEFAULT_DELAY_SPECTRAL_MOTION,
             rearrangerSlices: DEFAULT_REARRANGER_SLICES,
             rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
             rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -2021,6 +2153,18 @@ const useDecks = () => {
     const nextDelaySpectralMix = clipSettings?.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX;
     const nextDelaySpectralSpread =
       clipSettings?.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD;
+    const nextDelaySpectralMotion =
+      clipSettings?.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION;
+    const nextSpectralSpaceMix = clipSettings?.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX;
+    const nextSpectralSpaceSpread =
+      clipSettings?.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD;
+    const nextSpectralSpaceMotion =
+      clipSettings?.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION;
+    const nextSpectralSpaceTilt = clipSettings?.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT;
+    const nextSpectralSpaceLowMono =
+      clipSettings?.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO;
+    const nextSpectralSpaceTransientProtect =
+      clipSettings?.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT;
     const nextVocoderMix = clipSettings?.vocoderMix ?? DEFAULT_VOCODER_MIX;
     const nextVocoderCarrierDeckId =
       clipSettings?.vocoderCarrierDeckId ?? DEFAULT_VOCODER_CARRIER_DECK_ID;
@@ -2164,6 +2308,7 @@ const useDecks = () => {
           !approxEqual(nextDelayDuckResponseMs, DEFAULT_DELAY_DUCK_RESPONSE_MS) ||
           nextDelaySpectralMix > FX_ACTIVE_EPSILON ||
           !approxEqual(nextDelaySpectralSpread, DEFAULT_DELAY_SPECTRAL_SPREAD) ||
+          !approxEqual(nextDelaySpectralMotion, DEFAULT_DELAY_SPECTRAL_MOTION) ||
           nextDelaySliceSync,
         rearranger:
           currentPanels.rearranger ||
@@ -2230,6 +2375,13 @@ const useDecks = () => {
       delayDuckResponseMs: nextDelayDuckResponseMs,
       delaySpectralMix: nextDelaySpectralMix,
       delaySpectralSpread: nextDelaySpectralSpread,
+      delaySpectralMotion: nextDelaySpectralMotion,
+      spectralSpaceMix: nextSpectralSpaceMix,
+      spectralSpaceSpread: nextSpectralSpaceSpread,
+      spectralSpaceMotion: nextSpectralSpaceMotion,
+      spectralSpaceTilt: nextSpectralSpaceTilt,
+      spectralSpaceLowMono: nextSpectralSpaceLowMono,
+      spectralSpaceTransientProtect: nextSpectralSpaceTransientProtect,
     });
     if (clipSettings?.automation) {
       applyAutomationSnapshots(id, clipSettings.automation, {
@@ -2316,6 +2468,13 @@ const useDecks = () => {
       delayDuckResponseMs: nextDelayDuckResponseMs,
       delaySpectralMix: nextDelaySpectralMix,
       delaySpectralSpread: nextDelaySpectralSpread,
+      delaySpectralMotion: nextDelaySpectralMotion,
+      spectralSpaceMix: nextSpectralSpaceMix,
+      spectralSpaceSpread: nextSpectralSpaceSpread,
+      spectralSpaceMotion: nextSpectralSpaceMotion,
+      spectralSpaceTilt: nextSpectralSpaceTilt,
+      spectralSpaceLowMono: nextSpectralSpaceLowMono,
+      spectralSpaceTransientProtect: nextSpectralSpaceTransientProtect,
       rearrangerSlices: nextRearrangerSlices,
       rearrangerSwapCount: nextRearrangerSwapCount,
       rearrangerChaos: nextRearrangerChaos,
@@ -2349,6 +2508,13 @@ const useDecks = () => {
     setDeckDelayDuckResponseMs(id, nextDelayDuckResponseMs);
     setDeckDelaySpectralMix(id, nextDelaySpectralMix);
     setDeckDelaySpectralSpread(id, nextDelaySpectralSpread);
+    setDeckDelaySpectralMotion(id, nextDelaySpectralMotion);
+    setDeckSpectralSpaceMix(id, nextSpectralSpaceMix);
+    setDeckSpectralSpaceSpread(id, nextSpectralSpaceSpread);
+    setDeckSpectralSpaceMotion(id, nextSpectralSpaceMotion);
+    setDeckSpectralSpaceTilt(id, nextSpectralSpaceTilt);
+    setDeckSpectralSpaceLowMono(id, nextSpectralSpaceLowMono);
+    setDeckSpectralSpaceTransientProtect(id, nextSpectralSpaceTransientProtect);
     setDeckVocoderMix(id, nextVocoderMix);
     setDeckVocoderCarrierDeckId(id, nextVocoderCarrierDeckId);
     setDeckVocoderModulatorMonitor(id, nextVocoderModulatorMonitor);
@@ -2500,6 +2666,13 @@ const useDecks = () => {
           nextDelayDuckResponseMs,
           nextDelaySpectralMix,
           nextDelaySpectralSpread,
+          nextDelaySpectralMotion,
+          nextSpectralSpaceMix,
+          nextSpectralSpaceSpread,
+          nextSpectralSpaceMotion,
+          nextSpectralSpaceTilt,
+          nextSpectralSpaceLowMono,
+          nextSpectralSpaceTransientProtect,
           nextVocoderMix,
           nextVocoderCarrierDeckId,
           nextVocoderModulatorMonitor,
@@ -2596,6 +2769,13 @@ const useDecks = () => {
           deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
           deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
           deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
+          deck.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION,
+          deck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX,
+          deck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD,
+          deck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION,
+          deck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT,
+          deck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+          deck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
           deck.vocoderMix,
       deck.vocoderCarrierDeckId,
       deck.vocoderModulatorMonitor,
@@ -2776,11 +2956,18 @@ const useDecks = () => {
           deck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING,
           deck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH,
           deck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD,
-          deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
-          deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
-          deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
+        deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
+        deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
+        deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
+        deck.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION,
+        deck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX,
+        deck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD,
+        deck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION,
+          deck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT,
+          deck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+          deck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
           deck.vocoderMix,
-        deck.vocoderCarrierDeckId,
+        deck.vocoderCarrierDeckId ?? undefined,
         deck.vocoderModulatorMonitor,
         deck.vocoderModDrive,
         deck.vocoderBandCount,
@@ -2832,6 +3019,13 @@ const useDecks = () => {
     setDeckDelayDuckResponseMsValue,
     setDeckDelaySpectralMixValue,
     setDeckDelaySpectralSpreadValue,
+    setDeckDelaySpectralMotionValue,
+    setDeckSpectralSpaceMixValue,
+    setDeckSpectralSpaceSpreadValue,
+    setDeckSpectralSpaceMotionValue,
+    setDeckSpectralSpaceTiltValue,
+    setDeckSpectralSpaceLowMonoValue,
+    setDeckSpectralSpaceTransientProtectValue,
     setDeckVocoderMixValue,
     setDeckVocoderCarrierDeckIdValue,
     setDeckVocoderModulatorMonitorValue,
@@ -2889,6 +3083,13 @@ const useDecks = () => {
     setDeckDelayDuckResponseMs,
     setDeckDelaySpectralMix,
     setDeckDelaySpectralSpread,
+    setDeckDelaySpectralMotion,
+    setDeckSpectralSpaceMix,
+    setDeckSpectralSpaceSpread,
+    setDeckSpectralSpaceMotion,
+    setDeckSpectralSpaceTilt,
+    setDeckSpectralSpaceLowMono,
+    setDeckSpectralSpaceTransientProtect,
     setDeckVocoderMix,
     setDeckVocoderCarrierDeckId,
     setDeckVocoderModulatorMonitor,
@@ -3095,6 +3296,16 @@ const useDecks = () => {
       const nextDelayDuckResponseMs = deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS;
       const nextDelaySpectralMix = deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX;
       const nextDelaySpectralSpread = deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD;
+      const nextDelaySpectralMotion = deck.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION;
+      const nextSpectralSpaceMix = deck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX;
+      const nextSpectralSpaceSpread =
+        deck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD;
+      const nextSpectralSpaceMotion =
+        deck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION;
+      const nextSpectralSpaceTilt = deck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT;
+      const nextSpectralSpaceLowMono = deck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO;
+      const nextSpectralSpaceTransientProtect =
+        deck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT;
       const nextRearrangerSlices =
         options?.rearrangerSlices ?? deck.rearrangerSlices ?? DEFAULT_REARRANGER_SLICES;
       const nextRearrangerSwapCount =
@@ -3201,6 +3412,13 @@ const useDecks = () => {
         delayDuckResponseMs: nextDelayDuckResponseMs,
         delaySpectralMix: nextDelaySpectralMix,
         delaySpectralSpread: nextDelaySpectralSpread,
+        delaySpectralMotion: nextDelaySpectralMotion,
+        spectralSpaceMix: nextSpectralSpaceMix,
+        spectralSpaceSpread: nextSpectralSpaceSpread,
+        spectralSpaceMotion: nextSpectralSpaceMotion,
+        spectralSpaceTilt: nextSpectralSpaceTilt,
+        spectralSpaceLowMono: nextSpectralSpaceLowMono,
+        spectralSpaceTransientProtect: nextSpectralSpaceTransientProtect,
         rearrangerSlices: nextRearrangerSlices,
         rearrangerSwapCount: nextRearrangerSwapCount,
         rearrangerChaos: nextRearrangerChaos,
@@ -3266,6 +3484,25 @@ const useDecks = () => {
       setDeckDelayDuckResponseMs(id, nextDelayDuckResponseMs);
       setDeckDelaySpectralMix(id, nextDelaySpectralMix);
       setDeckDelaySpectralSpread(id, nextDelaySpectralSpread);
+      setDeckDelaySpectralMotion(id, nextDelaySpectralMotion);
+      setDeckSpectralSpaceMix(id, nextDeck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX);
+      setDeckSpectralSpaceSpread(
+        id,
+        nextDeck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD
+      );
+      setDeckSpectralSpaceMotion(
+        id,
+        nextDeck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION
+      );
+      setDeckSpectralSpaceTilt(id, nextDeck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT);
+      setDeckSpectralSpaceLowMono(
+        id,
+        nextDeck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO
+      );
+      setDeckSpectralSpaceTransientProtect(
+        id,
+        nextDeck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT
+      );
       const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
       setDeckPlaybackRate(id, tempoRatio);
       setDeckLoopParams(id, true, nextLoopStartSeconds, nextLoopEndSeconds);
@@ -3311,6 +3548,13 @@ const useDecks = () => {
           nextDelayDuckResponseMs,
           nextDelaySpectralMix,
           nextDelaySpectralSpread,
+          nextDelaySpectralMotion,
+          nextDeck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX,
+          nextDeck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD,
+          nextDeck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION,
+          nextDeck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT,
+          nextDeck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+          nextDeck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
           nextVocoderMix,
           nextVocoderCarrierDeckId,
           nextVocoderModulatorMonitor,
@@ -3354,6 +3598,13 @@ const useDecks = () => {
       setDeckDelayDuckResponseMs,
       setDeckDelaySpectralMix,
       setDeckDelaySpectralSpread,
+      setDeckDelaySpectralMotion,
+      setDeckSpectralSpaceMix,
+      setDeckSpectralSpaceSpread,
+      setDeckSpectralSpaceMotion,
+      setDeckSpectralSpaceTilt,
+      setDeckSpectralSpaceLowMono,
+      setDeckSpectralSpaceTransientProtect,
       setDeckDelayTime,
       setDeckDelayTone,
       setDeckEqHigh,
@@ -3589,6 +3840,13 @@ const useDecks = () => {
         delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
         delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
         delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
+        delaySpectralMotion: DEFAULT_DELAY_SPECTRAL_MOTION,
+        spectralSpaceMix: DEFAULT_SPECTRAL_SPACE_MIX,
+        spectralSpaceSpread: DEFAULT_SPECTRAL_SPACE_SPREAD,
+        spectralSpaceMotion: DEFAULT_SPECTRAL_SPACE_MOTION,
+        spectralSpaceTilt: DEFAULT_SPECTRAL_SPACE_TILT,
+        spectralSpaceLowMono: DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+        spectralSpaceTransientProtect: DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
       });
       resetAutomation(
         id,
@@ -3646,14 +3904,21 @@ const useDecks = () => {
           delaySaturation: DEFAULT_DELAY_SATURATION,
           delayDamping: DEFAULT_DELAY_DAMPING,
           delaySafety: DEFAULT_DELAY_SAFETY,
-        delayRhythmMorph: DEFAULT_DELAY_RHYTHM_MORPH,
-        delayRhythmRateHz: DEFAULT_DELAY_RHYTHM_RATE_HZ,
-        delayRhythmSwing: DEFAULT_DELAY_RHYTHM_SWING,
-        delayDuckDepth: DEFAULT_DELAY_DUCK_DEPTH,
-        delayDuckThreshold: DEFAULT_DELAY_DUCK_THRESHOLD,
-        delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
-        delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
-        delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
+          delayRhythmMorph: DEFAULT_DELAY_RHYTHM_MORPH,
+          delayRhythmRateHz: DEFAULT_DELAY_RHYTHM_RATE_HZ,
+          delayRhythmSwing: DEFAULT_DELAY_RHYTHM_SWING,
+          delayDuckDepth: DEFAULT_DELAY_DUCK_DEPTH,
+          delayDuckThreshold: DEFAULT_DELAY_DUCK_THRESHOLD,
+          delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
+          delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
+          delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
+          delaySpectralMotion: DEFAULT_DELAY_SPECTRAL_MOTION,
+          spectralSpaceMix: DEFAULT_SPECTRAL_SPACE_MIX,
+          spectralSpaceSpread: DEFAULT_SPECTRAL_SPACE_SPREAD,
+          spectralSpaceMotion: DEFAULT_SPECTRAL_SPACE_MOTION,
+          spectralSpaceTilt: DEFAULT_SPECTRAL_SPACE_TILT,
+          spectralSpaceLowMono: DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+          spectralSpaceTransientProtect: DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
           rearrangerSlices: DEFAULT_REARRANGER_SLICES,
           rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
           rearrangerChaos: DEFAULT_REARRANGER_CHAOS,
@@ -3908,6 +4173,13 @@ const useDecks = () => {
     setDeckDelayDuckResponseMs: setDeckDelayDuckResponseMsValue,
     setDeckDelaySpectralMix: setDeckDelaySpectralMixValue,
     setDeckDelaySpectralSpread: setDeckDelaySpectralSpreadValue,
+    setDeckDelaySpectralMotion: setDeckDelaySpectralMotionValue,
+    setDeckSpectralSpaceMix: setDeckSpectralSpaceMixValue,
+    setDeckSpectralSpaceSpread: setDeckSpectralSpaceSpreadValue,
+    setDeckSpectralSpaceMotion: setDeckSpectralSpaceMotionValue,
+    setDeckSpectralSpaceTilt: setDeckSpectralSpaceTiltValue,
+    setDeckSpectralSpaceLowMono: setDeckSpectralSpaceLowMonoValue,
+    setDeckSpectralSpaceTransientProtect: setDeckSpectralSpaceTransientProtectValue,
     setDeckVocoderMix: setDeckVocoderMixValue,
     setDeckVocoderCarrierDeckId: setDeckVocoderCarrierDeckIdValue,
     setDeckVocoderModulatorMonitor: setDeckVocoderModulatorMonitorValue,

@@ -25,6 +25,7 @@ import {
   mapDelaySaturationDrive,
   normalizeDelayParams,
 } from "./effects/delay";
+import { normalizeSpectralSpaceParams } from "./effects/spectralSpace";
 import {
   computeParametricEqCompensationGain,
   fitParametricEqBandsToCurve,
@@ -136,6 +137,33 @@ type DeckNodes = {
   delaySpectralFeedback: [GainNode, GainNode, GainNode];
   delaySpectralTone: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode];
   delaySpectralPanners: [StereoPannerNode, StereoPannerNode, StereoPannerNode];
+  delaySpectralLfo: OscillatorNode;
+  delaySpectralPanDepth: [GainNode, GainNode, GainNode];
+  delaySpectralPanDrift: GainNode;
+  delaySpectralDelayDepth: [GainNode, GainNode, GainNode];
+  delaySpectralSpreadValue: number;
+  delaySpectralMotionValue: number;
+  spectralSpaceInput: GainNode;
+  spectralSpaceDryComp: GainNode;
+  spectralSpaceWet: GainNode;
+  spectralSpaceWetGain: GainNode;
+  spectralSpaceFilters: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode];
+  spectralSpaceDelays: [DelayNode, DelayNode, DelayNode];
+  spectralSpaceTone: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode];
+  spectralSpaceBandGain: [GainNode, GainNode, GainNode];
+  spectralSpacePanners: [StereoPannerNode, StereoPannerNode, StereoPannerNode];
+  spectralSpaceLfo: OscillatorNode;
+  spectralSpacePanDepth: [GainNode, GainNode, GainNode];
+  spectralSpaceDelayDepth: [GainNode, GainNode, GainNode];
+  spectralSpaceTransientRectifier: WaveShaperNode;
+  spectralSpaceTransientFollower: BiquadFilterNode;
+  spectralSpaceTransientThreshold: WaveShaperNode;
+  spectralSpaceTransientDepth: GainNode;
+  spectralSpaceSpreadValue: number;
+  spectralSpaceMotionValue: number;
+  spectralSpaceLowMonoValue: number;
+  spectralSpaceTiltValue: number;
+  spectralSpaceTransientProtectValue: number;
   delayPingPong: boolean;
   delayInputUsesVocoder: boolean;
   delayActive: boolean;
@@ -221,6 +249,13 @@ const pendingDelayDuckThreshold = new Map<number, number>();
 const pendingDelayDuckResponseMs = new Map<number, number>();
 const pendingDelaySpectralMix = new Map<number, number>();
 const pendingDelaySpectralSpread = new Map<number, number>();
+const pendingDelaySpectralMotion = new Map<number, number>();
+const pendingSpectralSpaceMix = new Map<number, number>();
+const pendingSpectralSpaceSpread = new Map<number, number>();
+const pendingSpectralSpaceMotion = new Map<number, number>();
+const pendingSpectralSpaceTilt = new Map<number, number>();
+const pendingSpectralSpaceLowMono = new Map<number, number>();
+const pendingSpectralSpaceTransientProtect = new Map<number, number>();
 const pendingVocoderMix = new Map<number, number>();
 const pendingVocoderCarrierDeckId = new Map<number, number | null>();
 const pendingVocoderModulatorMonitor = new Map<number, number>();
@@ -448,13 +483,17 @@ const updateDelaySpectralSettings = (
   safety: number,
   tone: number,
   spectralMix: number,
-  spectralSpread: number
+  spectralSpread: number,
+  spectralMotion: number
 ) => {
   const normalizedFeedback = Number.isFinite(feedback) ? feedback : 0;
   const normalizedSafety = Number.isFinite(safety) ? safety : 0;
   const feedbackWithSafety =
     normalizedFeedback * mapDelaySafetyFeedbackMultiplier(normalizedSafety);
   const spread = Math.min(Math.max(spectralSpread, 0), 1);
+  const motion = Math.min(Math.max(spectralMotion, 0), 1);
+  nodes.delaySpectralSpreadValue = spread;
+  nodes.delaySpectralMotionValue = motion;
   nodes.delaySpectralDryComp.gain.value = 1 - spectralMix;
   nodes.delaySpectralWet.gain.value = spectralMix;
 
@@ -474,14 +513,93 @@ const updateDelaySpectralSettings = (
     Math.min(0.99, feedbackWithSafety * (0.85 - spread * 0.1))
   );
 
-  const panAmount = 0.1 + spread * 0.8;
+  const panAmount = (0.08 + spread * 0.82) * (1 - motion * 0.5);
   nodes.delaySpectralPanners[0].pan.value = -panAmount;
   nodes.delaySpectralPanners[1].pan.value = 0;
   nodes.delaySpectralPanners[2].pan.value = panAmount;
+  const panDepthBase = (0.04 + spread * 0.16) * motion;
+  nodes.delaySpectralPanDepth[0].gain.value = panDepthBase;
+  nodes.delaySpectralPanDepth[1].gain.value = panDepthBase * 0.4;
+  nodes.delaySpectralPanDepth[2].gain.value = panDepthBase;
+  nodes.delaySpectralPanDrift.gain.value = (0.1 + spread * 0.4) * motion;
+  const delayDepthBase = (0.0005 + spread * 0.002) * motion;
+  nodes.delaySpectralDelayDepth[0].gain.value = delayDepthBase;
+  nodes.delaySpectralDelayDepth[1].gain.value = delayDepthBase;
+  nodes.delaySpectralDelayDepth[2].gain.value = delayDepthBase;
+  nodes.delaySpectralLfo.frequency.value = 0.04 + motion * 0.45;
 
   nodes.delaySpectralTone[0].frequency.value = Math.max(400, Math.min(12000, tone * 0.7));
   nodes.delaySpectralTone[1].frequency.value = Math.max(400, Math.min(12000, tone));
   nodes.delaySpectralTone[2].frequency.value = Math.max(400, Math.min(12000, tone * 1.15));
+};
+
+const updateSpectralSpaceSettings = (
+  nodes: DeckNodes,
+  mix: number,
+  spread: number,
+  motion: number,
+  tilt: number,
+  lowMono: number,
+  transientProtect: number
+) => {
+  const shapeCharacter = (value: number) =>
+    Math.min(Math.max(value + value * value * 0.65 + value * value * value * 0.2, 0), 1);
+  const normalized = normalizeSpectralSpaceParams({
+    mix,
+    spread,
+    motion,
+    tilt,
+    lowMono,
+    transientProtect,
+  });
+  nodes.spectralSpaceSpreadValue = normalized.spread;
+  nodes.spectralSpaceMotionValue = normalized.motion;
+  nodes.spectralSpaceLowMonoValue = normalized.lowMono;
+  nodes.spectralSpaceTiltValue = normalized.tilt;
+  nodes.spectralSpaceTransientProtectValue = normalized.transientProtect;
+  const spreadHot = shapeCharacter(normalized.spread);
+  const motionHot = shapeCharacter(normalized.motion);
+  nodes.spectralSpaceDryComp.gain.value = 1 - normalized.mix;
+  nodes.spectralSpaceWet.gain.value = normalized.mix;
+  nodes.spectralSpaceWetGain.gain.value =
+    1 + normalized.mix * 0.2 + spreadHot * 0.25 + motionHot * 0.24;
+
+  const panBase = (0.16 + spreadHot * 0.92) * (1 - normalized.lowMono * 0.88);
+  const basePans = [-panBase, 0, panBase] as const;
+  const baseDelaySec = [
+    (12 + spreadHot * 40) / 1000,
+    (8 + spreadHot * 26) / 1000,
+    (4 + spreadHot * 16) / 1000,
+  ] as const;
+  const toneFrequencies = [
+    Math.max(900, Math.min(12000, 11200 - spreadHot * 7000)),
+    Math.max(900, Math.min(12000, 11800 - spreadHot * 7000)),
+    Math.max(900, Math.min(12000, 12400 - spreadHot * 7000)),
+  ] as const;
+  const bandGains = [
+    Math.max(0.35, Math.min(2, 1.08 - normalized.tilt * 0.44)),
+    1.08,
+    Math.max(0.35, Math.min(2, 1.08 + normalized.tilt * 0.6)),
+  ] as const;
+  const panDepthBase = (0.1 + spreadHot * 0.32) * motionHot;
+  const delayDepthBase = (0.0012 + spreadHot * 0.0042) * motionHot;
+
+  for (let i = 0; i < 3; i += 1) {
+    nodes.spectralSpacePanners[i].pan.value = basePans[i];
+    nodes.spectralSpaceDelays[i].delayTime.value = baseDelaySec[i];
+    nodes.spectralSpaceTone[i].frequency.value = toneFrequencies[i];
+    nodes.spectralSpaceBandGain[i].gain.value = bandGains[i];
+    nodes.spectralSpacePanDepth[i].gain.value = panDepthBase * (i === 1 ? 0.4 : 1);
+    nodes.spectralSpaceDelayDepth[i].gain.value = delayDepthBase;
+  }
+
+  nodes.spectralSpaceLfo.frequency.value = 0.08 + motionHot * 1.3;
+  nodes.spectralSpaceTransientFollower.frequency.value =
+    8 + normalized.transientProtect * 60;
+  nodes.spectralSpaceTransientThreshold.curve = createThresholdCurve(
+    0.06 + (1 - normalized.transientProtect) * 0.22
+  );
+  nodes.spectralSpaceTransientDepth.gain.value = -(0.12 + normalized.transientProtect * 0.55);
 };
 
 const applyDelayFeedbackSafety = (nodes: DeckNodes, feedback: number, safety: number) => {
@@ -748,6 +866,13 @@ const ensureDeckNodes = (
   delayDuckResponseMs: number,
   delaySpectralMix: number,
   delaySpectralSpread: number,
+  delaySpectralMotion: number,
+  spectralSpaceMix: number,
+  spectralSpaceSpread: number,
+  spectralSpaceMotion: number,
+  spectralSpaceTilt: number,
+  spectralSpaceLowMono: number,
+  spectralSpaceTransientProtect: number,
   vocoderMix: number,
   vocoderCarrierDeckId: number | null,
   vocoderModulatorMonitor: number,
@@ -783,6 +908,15 @@ const ensureDeckNodes = (
     duckResponseMs: delayDuckResponseMs,
     spectralMix: delaySpectralMix,
     spectralSpread: delaySpectralSpread,
+    spectralMotion: delaySpectralMotion,
+  });
+  const normalizedSpectralSpace = normalizeSpectralSpaceParams({
+    mix: spectralSpaceMix,
+    spread: spectralSpaceSpread,
+    motion: spectralSpaceMotion,
+    tilt: spectralSpaceTilt,
+    lowMono: spectralSpaceLowMono,
+    transientProtect: spectralSpaceTransientProtect,
   });
   let nodes = deckNodes.get(deckId);
   if (!nodes) {
@@ -919,6 +1053,18 @@ const ensureDeckNodes = (
       context.createStereoPanner(),
       context.createStereoPanner(),
     ];
+    const delaySpectralLfo = context.createOscillator();
+    const delaySpectralPanDepth: [GainNode, GainNode, GainNode] = [
+      context.createGain(),
+      context.createGain(),
+      context.createGain(),
+    ];
+    const delaySpectralPanDrift = context.createGain();
+    const delaySpectralDelayDepth: [GainNode, GainNode, GainNode] = [
+      context.createGain(),
+      context.createGain(),
+      context.createGain(),
+    ];
     delayToneL.type = "lowpass";
     delayToneR.type = "lowpass";
     delayDampingL.type = "lowpass";
@@ -941,6 +1087,15 @@ const ensureDeckNodes = (
     delayRhythmLfo.frequency.value = 0.25;
     delayRhythmDepthL.gain.value = 0;
     delayRhythmDepthR.gain.value = 0;
+    delaySpectralLfo.type = "sine";
+    delaySpectralLfo.frequency.value = 0.2;
+    delaySpectralPanDepth.forEach((node) => {
+      node.gain.value = 0;
+    });
+    delaySpectralPanDrift.gain.value = 0;
+    delaySpectralDelayDepth.forEach((node) => {
+      node.gain.value = 0;
+    });
     delaySpectralFilters[0].type = "lowpass";
     delaySpectralFilters[0].frequency.value = 320;
     delaySpectralFilters[0].Q.value = 0.7;
@@ -989,6 +1144,21 @@ const ensureDeckNodes = (
     const nextDelaySpectralMix = pendingDelaySpectralMix.get(deckId) ?? normalizedDelay.spectralMix;
     const nextDelaySpectralSpread =
       pendingDelaySpectralSpread.get(deckId) ?? normalizedDelay.spectralSpread;
+    const nextDelaySpectralMotion =
+      pendingDelaySpectralMotion.get(deckId) ?? normalizedDelay.spectralMotion;
+    const nextSpectralSpaceMix =
+      pendingSpectralSpaceMix.get(deckId) ?? normalizedSpectralSpace.mix;
+    const nextSpectralSpaceSpread =
+      pendingSpectralSpaceSpread.get(deckId) ?? normalizedSpectralSpace.spread;
+    const nextSpectralSpaceMotion =
+      pendingSpectralSpaceMotion.get(deckId) ?? normalizedSpectralSpace.motion;
+    const nextSpectralSpaceTilt =
+      pendingSpectralSpaceTilt.get(deckId) ?? normalizedSpectralSpace.tilt;
+    const nextSpectralSpaceLowMono =
+      pendingSpectralSpaceLowMono.get(deckId) ?? normalizedSpectralSpace.lowMono;
+    const nextSpectralSpaceTransientProtect =
+      pendingSpectralSpaceTransientProtect.get(deckId) ??
+      normalizedSpectralSpace.transientProtect;
     const nextDelayMix = pendingDelayMix.get(deckId) ?? normalizedDelay.mix;
     delayWet.gain.value = nextDelayMix;
     delayDry.gain.value = 1 - nextDelayMix;
@@ -1069,6 +1239,71 @@ const ensureDeckNodes = (
     const deckGain = context.createGain();
     deckGain.gain.value = pendingGains.get(deckId) ?? gain;
     const postDelaySum = context.createGain();
+    const spectralSpaceInput = context.createGain();
+    const spectralSpaceDryComp = context.createGain();
+    const spectralSpaceWet = context.createGain();
+    const spectralSpaceWetGain = context.createGain();
+    const spectralSpaceFilters: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode] = [
+      context.createBiquadFilter(),
+      context.createBiquadFilter(),
+      context.createBiquadFilter(),
+    ];
+    const spectralSpaceDelays: [DelayNode, DelayNode, DelayNode] = [
+      context.createDelay(0.08),
+      context.createDelay(0.08),
+      context.createDelay(0.08),
+    ];
+    const spectralSpaceTone: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode] = [
+      context.createBiquadFilter(),
+      context.createBiquadFilter(),
+      context.createBiquadFilter(),
+    ];
+    const spectralSpaceBandGain: [GainNode, GainNode, GainNode] = [
+      context.createGain(),
+      context.createGain(),
+      context.createGain(),
+    ];
+    const spectralSpacePanners: [StereoPannerNode, StereoPannerNode, StereoPannerNode] = [
+      context.createStereoPanner(),
+      context.createStereoPanner(),
+      context.createStereoPanner(),
+    ];
+    const spectralSpaceLfo = context.createOscillator();
+    const spectralSpacePanDepth: [GainNode, GainNode, GainNode] = [
+      context.createGain(),
+      context.createGain(),
+      context.createGain(),
+    ];
+    const spectralSpaceDelayDepth: [GainNode, GainNode, GainNode] = [
+      context.createGain(),
+      context.createGain(),
+      context.createGain(),
+    ];
+    const spectralSpaceTransientRectifier = context.createWaveShaper();
+    const spectralSpaceTransientFollower = context.createBiquadFilter();
+    const spectralSpaceTransientThreshold = context.createWaveShaper();
+    const spectralSpaceTransientDepth = context.createGain();
+    spectralSpaceFilters[0].type = "lowpass";
+    spectralSpaceFilters[0].frequency.value = 300;
+    spectralSpaceFilters[0].Q.value = 0.7;
+    spectralSpaceFilters[1].type = "bandpass";
+    spectralSpaceFilters[1].frequency.value = 1450;
+    spectralSpaceFilters[1].Q.value = 0.9;
+    spectralSpaceFilters[2].type = "highpass";
+    spectralSpaceFilters[2].frequency.value = 3200;
+    spectralSpaceFilters[2].Q.value = 0.7;
+    spectralSpaceTone.forEach((node) => {
+      node.type = "lowpass";
+      node.frequency.value = 9000;
+    });
+    spectralSpaceWetGain.gain.value = 1;
+    spectralSpaceLfo.type = "sine";
+    spectralSpaceLfo.frequency.value = 0.2;
+    spectralSpaceTransientRectifier.curve = createAbsCurve();
+    spectralSpaceTransientFollower.type = "lowpass";
+    spectralSpaceTransientFollower.frequency.value = 24;
+    spectralSpaceTransientThreshold.curve = createThresholdCurve(0.14);
+    spectralSpaceTransientDepth.gain.value = -0.4;
     const recordExportSend = context.createGain();
     recordExportSend.gain.value =
       (pendingRecordExportSend.get(deckId) ?? includeInRecordExport) ? 1 : 0;
@@ -1111,6 +1346,11 @@ const ensureDeckNodes = (
       delaySpectralPanners[i].connect(delaySpectralWet);
       delaySpectralDelays[i].connect(delaySpectralFeedback[i]);
       delaySpectralFeedback[i].connect(delaySpectralDelays[i]);
+      delaySpectralLfo.connect(delaySpectralPanDepth[i]);
+      delaySpectralPanDepth[i].connect(delaySpectralPanners[i].pan);
+      delaySpectralPanDrift.connect(delaySpectralPanners[i].pan);
+      delaySpectralLfo.connect(delaySpectralDelayDepth[i]);
+      delaySpectralDelayDepth[i].connect(delaySpectralDelays[i].delayTime);
     }
     delaySpectralWet.connect(delayDuckGain);
     delayDuckRectifier.connect(delayDuckFollower);
@@ -1121,10 +1361,33 @@ const ensureDeckNodes = (
     delayRhythmDepthL.connect(delayL.delayTime);
     delayRhythmDepthR.connect(delayR.delayTime);
     delayRhythmLfo.start();
+    delaySpectralLfo.start();
     delayWet.connect(postDelaySum);
     delayDry.connect(postDelaySum);
     postDelaySum.connect(deckGain);
-    deckGain.connect(limiter);
+    deckGain.connect(spectralSpaceInput);
+    spectralSpaceInput.connect(spectralSpaceDryComp);
+    spectralSpaceDryComp.connect(limiter);
+    spectralSpaceInput.connect(spectralSpaceTransientRectifier);
+    spectralSpaceTransientRectifier.connect(spectralSpaceTransientFollower);
+    spectralSpaceTransientFollower.connect(spectralSpaceTransientThreshold);
+    spectralSpaceTransientThreshold.connect(spectralSpaceTransientDepth);
+    spectralSpaceTransientDepth.connect(spectralSpaceWetGain.gain);
+    for (let i = 0; i < spectralSpaceFilters.length; i += 1) {
+      spectralSpaceInput.connect(spectralSpaceFilters[i]);
+      spectralSpaceFilters[i].connect(spectralSpaceDelays[i]);
+      spectralSpaceDelays[i].connect(spectralSpaceTone[i]);
+      spectralSpaceTone[i].connect(spectralSpaceBandGain[i]);
+      spectralSpaceBandGain[i].connect(spectralSpacePanners[i]);
+      spectralSpacePanners[i].connect(spectralSpaceWet);
+      spectralSpaceLfo.connect(spectralSpacePanDepth[i]);
+      spectralSpacePanDepth[i].connect(spectralSpacePanners[i].pan);
+      spectralSpaceLfo.connect(spectralSpaceDelayDepth[i]);
+      spectralSpaceDelayDepth[i].connect(spectralSpaceDelays[i].delayTime);
+    }
+    spectralSpaceWet.connect(spectralSpaceWetGain);
+    spectralSpaceWetGain.connect(limiter);
+    spectralSpaceLfo.start();
     limiter.connect(clipper);
     clipper.connect(output);
     clipper.connect(recordExportSend);
@@ -1199,6 +1462,12 @@ const ensureDeckNodes = (
       delaySpectralFeedback,
       delaySpectralTone,
       delaySpectralPanners,
+      delaySpectralLfo,
+      delaySpectralPanDepth,
+      delaySpectralPanDrift,
+      delaySpectralDelayDepth,
+      delaySpectralSpreadValue: nextDelaySpectralSpread,
+      delaySpectralMotionValue: nextDelaySpectralMotion,
       delayPingPong: !nextDelayPingPong,
       delayInputUsesVocoder: false,
       delayActive: false,
@@ -1222,6 +1491,27 @@ const ensureDeckNodes = (
       vocoderPostDelay: nextVocoderPostDelay,
       vocoderCarrierConnectedDeckId: null,
       postDelaySum,
+      spectralSpaceInput,
+      spectralSpaceDryComp,
+      spectralSpaceWet,
+      spectralSpaceWetGain,
+      spectralSpaceFilters,
+      spectralSpaceDelays,
+      spectralSpaceTone,
+      spectralSpaceBandGain,
+      spectralSpacePanners,
+      spectralSpaceLfo,
+      spectralSpacePanDepth,
+      spectralSpaceDelayDepth,
+      spectralSpaceTransientRectifier,
+      spectralSpaceTransientFollower,
+      spectralSpaceTransientThreshold,
+      spectralSpaceTransientDepth,
+      spectralSpaceSpreadValue: nextSpectralSpaceSpread,
+      spectralSpaceMotionValue: nextSpectralSpaceMotion,
+      spectralSpaceLowMonoValue: nextSpectralSpaceLowMono,
+      spectralSpaceTiltValue: nextSpectralSpaceTilt,
+      spectralSpaceTransientProtectValue: nextSpectralSpaceTransientProtect,
       postEq,
       clipper,
       limiter,
@@ -1254,7 +1544,17 @@ const ensureDeckNodes = (
       nextDelaySafety,
       nextDelayTone,
       nextDelaySpectralMix,
-      nextDelaySpectralSpread
+      nextDelaySpectralSpread,
+      nextDelaySpectralMotion
+    );
+    updateSpectralSpaceSettings(
+      nodes,
+      nextSpectralSpaceMix,
+      nextSpectralSpaceSpread,
+      nextSpectralSpaceMotion,
+      nextSpectralSpaceTilt,
+      nextSpectralSpaceLowMono,
+      nextSpectralSpaceTransientProtect
     );
     setVocoderRouting(nodes, shouldRouteThroughVocoder(nodes));
     setDelayRouting(nodes, nextDelayMix > 0);
@@ -1334,7 +1634,18 @@ const ensureDeckNodes = (
       normalizedDelay.safety,
       normalizedDelay.tone,
       normalizedDelay.spectralMix,
-      normalizedDelay.spectralSpread
+      normalizedDelay.spectralSpread,
+      pendingDelaySpectralMotion.get(deckId) ?? normalizedDelay.spectralMotion
+    );
+    updateSpectralSpaceSettings(
+      nodes,
+      pendingSpectralSpaceMix.get(deckId) ?? normalizedSpectralSpace.mix,
+      pendingSpectralSpaceSpread.get(deckId) ?? normalizedSpectralSpace.spread,
+      pendingSpectralSpaceMotion.get(deckId) ?? normalizedSpectralSpace.motion,
+      pendingSpectralSpaceTilt.get(deckId) ?? normalizedSpectralSpace.tilt,
+      pendingSpectralSpaceLowMono.get(deckId) ?? normalizedSpectralSpace.lowMono,
+      pendingSpectralSpaceTransientProtect.get(deckId) ??
+        normalizedSpectralSpace.transientProtect
     );
     nodes.delayWet.gain.value = normalizedDelay.mix;
     nodes.delayDry.gain.value = 1 - normalizedDelay.mix;
@@ -1441,6 +1752,13 @@ const ensureDeckNodes = (
   pendingDelayDuckResponseMs.delete(deckId);
   pendingDelaySpectralMix.delete(deckId);
   pendingDelaySpectralSpread.delete(deckId);
+  pendingDelaySpectralMotion.delete(deckId);
+  pendingSpectralSpaceMix.delete(deckId);
+  pendingSpectralSpaceSpread.delete(deckId);
+  pendingSpectralSpaceMotion.delete(deckId);
+  pendingSpectralSpaceTilt.delete(deckId);
+  pendingSpectralSpaceLowMono.delete(deckId);
+  pendingSpectralSpaceTransientProtect.delete(deckId);
   pendingVocoderMix.delete(deckId);
   pendingVocoderCarrierDeckId.delete(deckId);
   pendingVocoderModulatorMonitor.delete(deckId);
@@ -1497,6 +1815,13 @@ export const playDeckBuffer = (
   delayDuckResponseMs: number,
   delaySpectralMix: number,
   delaySpectralSpread: number,
+  delaySpectralMotion: number,
+  spectralSpaceMix: number,
+  spectralSpaceSpread: number,
+  spectralSpaceMotion: number,
+  spectralSpaceTilt: number,
+  spectralSpaceLowMono: number,
+  spectralSpaceTransientProtect: number,
   vocoderMix: number,
   vocoderCarrierDeckId: number | null,
   vocoderModulatorMonitor: number,
@@ -1551,6 +1876,13 @@ export const playDeckBuffer = (
     delayDuckResponseMs,
     delaySpectralMix,
     delaySpectralSpread,
+    delaySpectralMotion,
+    spectralSpaceMix,
+    spectralSpaceSpread,
+    spectralSpaceMotion,
+    spectralSpaceTilt,
+    spectralSpaceLowMono,
+    spectralSpaceTransientProtect,
     vocoderMix,
     vocoderCarrierDeckId,
     vocoderModulatorMonitor,
@@ -1892,7 +2224,8 @@ export const setDeckDelayTimeValue = (deckId: number, value: number) => {
       nodes.delaySafetyValue,
       nodes.delayToneL.frequency.value,
       nodes.delaySpectralWet.gain.value,
-      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+      nodes.delaySpectralSpreadValue,
+      nodes.delaySpectralMotionValue
     );
     pendingDelayTime.delete(deckId);
   } else {
@@ -1913,7 +2246,8 @@ export const setDeckDelayFeedbackValue = (deckId: number, value: number) => {
       nodes.delaySafetyValue,
       nodes.delayToneL.frequency.value,
       nodes.delaySpectralWet.gain.value,
-      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+      nodes.delaySpectralSpreadValue,
+      nodes.delaySpectralMotionValue
     );
     pendingDelayFeedback.delete(deckId);
   } else {
@@ -1947,7 +2281,8 @@ export const setDeckDelayToneValue = (deckId: number, value: number) => {
       nodes.delaySafetyValue,
       normalized,
       nodes.delaySpectralWet.gain.value,
-      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+      nodes.delaySpectralSpreadValue,
+      nodes.delaySpectralMotionValue
     );
     pendingDelayTone.delete(deckId);
   } else {
@@ -2011,7 +2346,8 @@ export const setDeckDelaySafetyValue = (deckId: number, value: number) => {
       nodes.delaySafetyValue,
       nodes.delayToneL.frequency.value,
       nodes.delaySpectralWet.gain.value,
-      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+      nodes.delaySpectralSpreadValue,
+      nodes.delaySpectralMotionValue
     );
     pendingDelaySafety.delete(deckId);
   } else {
@@ -2112,7 +2448,8 @@ export const setDeckDelaySpectralMixValue = (deckId: number, value: number) => {
       nodes.delaySafetyValue,
       nodes.delayToneL.frequency.value,
       normalized,
-      Math.max(0, Math.min(1, (Math.abs(nodes.delaySpectralPanners[2].pan.value) - 0.1) / 0.8))
+      nodes.delaySpectralSpreadValue,
+      nodes.delaySpectralMotionValue
     );
     pendingDelaySpectralMix.delete(deckId);
   } else {
@@ -2131,11 +2468,151 @@ export const setDeckDelaySpectralSpreadValue = (deckId: number, value: number) =
       nodes.delaySafetyValue,
       nodes.delayToneL.frequency.value,
       nodes.delaySpectralWet.gain.value,
-      normalized
+      normalized,
+      nodes.delaySpectralMotionValue
     );
     pendingDelaySpectralSpread.delete(deckId);
   } else {
     pendingDelaySpectralSpread.set(deckId, normalized);
+  }
+};
+
+export const setDeckDelaySpectralMotionValue = (deckId: number, value: number) => {
+  const normalized = normalizeDelayParams({ spectralMotion: value }).spectralMotion;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateDelaySpectralSettings(
+      nodes,
+      nodes.delayRhythmBaseTime,
+      nodes.delayFeedbackValue,
+      nodes.delaySafetyValue,
+      nodes.delayToneL.frequency.value,
+      nodes.delaySpectralWet.gain.value,
+      nodes.delaySpectralSpreadValue,
+      normalized
+    );
+    pendingDelaySpectralMotion.delete(deckId);
+  } else {
+    pendingDelaySpectralMotion.set(deckId, normalized);
+  }
+};
+
+export const setDeckSpectralSpaceMixValue = (deckId: number, value: number) => {
+  const normalized = normalizeSpectralSpaceParams({ mix: value }).mix;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateSpectralSpaceSettings(
+      nodes,
+      normalized,
+      nodes.spectralSpaceSpreadValue,
+      nodes.spectralSpaceMotionValue,
+      nodes.spectralSpaceTiltValue,
+      nodes.spectralSpaceLowMonoValue,
+      nodes.spectralSpaceTransientProtectValue
+    );
+    pendingSpectralSpaceMix.delete(deckId);
+  } else {
+    pendingSpectralSpaceMix.set(deckId, normalized);
+  }
+};
+
+export const setDeckSpectralSpaceSpreadValue = (deckId: number, value: number) => {
+  const normalized = normalizeSpectralSpaceParams({ spread: value }).spread;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateSpectralSpaceSettings(
+      nodes,
+      nodes.spectralSpaceWet.gain.value,
+      normalized,
+      nodes.spectralSpaceMotionValue,
+      nodes.spectralSpaceTiltValue,
+      nodes.spectralSpaceLowMonoValue,
+      nodes.spectralSpaceTransientProtectValue
+    );
+    pendingSpectralSpaceSpread.delete(deckId);
+  } else {
+    pendingSpectralSpaceSpread.set(deckId, normalized);
+  }
+};
+
+export const setDeckSpectralSpaceMotionValue = (deckId: number, value: number) => {
+  const normalized = normalizeSpectralSpaceParams({ motion: value }).motion;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateSpectralSpaceSettings(
+      nodes,
+      nodes.spectralSpaceWet.gain.value,
+      nodes.spectralSpaceSpreadValue,
+      normalized,
+      nodes.spectralSpaceTiltValue,
+      nodes.spectralSpaceLowMonoValue,
+      nodes.spectralSpaceTransientProtectValue
+    );
+    pendingSpectralSpaceMotion.delete(deckId);
+  } else {
+    pendingSpectralSpaceMotion.set(deckId, normalized);
+  }
+};
+
+export const setDeckSpectralSpaceTiltValue = (deckId: number, value: number) => {
+  const normalized = normalizeSpectralSpaceParams({ tilt: value }).tilt;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateSpectralSpaceSettings(
+      nodes,
+      nodes.spectralSpaceWet.gain.value,
+      nodes.spectralSpaceSpreadValue,
+      nodes.spectralSpaceMotionValue,
+      normalized,
+      nodes.spectralSpaceLowMonoValue,
+      nodes.spectralSpaceTransientProtectValue
+    );
+    pendingSpectralSpaceTilt.delete(deckId);
+  } else {
+    pendingSpectralSpaceTilt.set(deckId, normalized);
+  }
+};
+
+export const setDeckSpectralSpaceLowMonoValue = (deckId: number, value: number) => {
+  const normalized = normalizeSpectralSpaceParams({ lowMono: value }).lowMono;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateSpectralSpaceSettings(
+      nodes,
+      nodes.spectralSpaceWet.gain.value,
+      nodes.spectralSpaceSpreadValue,
+      nodes.spectralSpaceMotionValue,
+      nodes.spectralSpaceTiltValue,
+      normalized,
+      nodes.spectralSpaceTransientProtectValue
+    );
+    pendingSpectralSpaceLowMono.delete(deckId);
+  } else {
+    pendingSpectralSpaceLowMono.set(deckId, normalized);
+  }
+};
+
+export const setDeckSpectralSpaceTransientProtectValue = (
+  deckId: number,
+  value: number
+) => {
+  const normalized = normalizeSpectralSpaceParams({
+    transientProtect: value,
+  }).transientProtect;
+  const nodes = deckNodes.get(deckId);
+  if (nodes) {
+    updateSpectralSpaceSettings(
+      nodes,
+      nodes.spectralSpaceWet.gain.value,
+      nodes.spectralSpaceSpreadValue,
+      nodes.spectralSpaceMotionValue,
+      nodes.spectralSpaceTiltValue,
+      nodes.spectralSpaceLowMonoValue,
+      normalized
+    );
+    pendingSpectralSpaceTransientProtect.delete(deckId);
+  } else {
+    pendingSpectralSpaceTransientProtect.set(deckId, normalized);
   }
 };
 
@@ -2497,9 +2974,39 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.delaySpectralFeedback.forEach((node) => node.disconnect());
     nodes.delaySpectralTone.forEach((node) => node.disconnect());
     nodes.delaySpectralPanners.forEach((node) => node.disconnect());
+    nodes.delaySpectralPanDepth.forEach((node) => node.disconnect());
+    nodes.delaySpectralPanDrift.disconnect();
+    nodes.delaySpectralDelayDepth.forEach((node) => node.disconnect());
+    try {
+      nodes.delaySpectralLfo.stop();
+    } catch {
+      // already stopped
+    }
+    nodes.delaySpectralLfo.disconnect();
     disposeChannelVocoder(nodes.vocoder);
     nodes.postEq.disconnect();
     nodes.postDelaySum.disconnect();
+    nodes.spectralSpaceInput.disconnect();
+    nodes.spectralSpaceDryComp.disconnect();
+    nodes.spectralSpaceWet.disconnect();
+    nodes.spectralSpaceWetGain.disconnect();
+    nodes.spectralSpaceFilters.forEach((node) => node.disconnect());
+    nodes.spectralSpaceDelays.forEach((node) => node.disconnect());
+    nodes.spectralSpaceTone.forEach((node) => node.disconnect());
+    nodes.spectralSpaceBandGain.forEach((node) => node.disconnect());
+    nodes.spectralSpacePanners.forEach((node) => node.disconnect());
+    nodes.spectralSpacePanDepth.forEach((node) => node.disconnect());
+    nodes.spectralSpaceDelayDepth.forEach((node) => node.disconnect());
+    nodes.spectralSpaceTransientRectifier.disconnect();
+    nodes.spectralSpaceTransientFollower.disconnect();
+    nodes.spectralSpaceTransientThreshold.disconnect();
+    nodes.spectralSpaceTransientDepth.disconnect();
+    try {
+      nodes.spectralSpaceLfo.stop();
+    } catch {
+      // already stopped
+    }
+    nodes.spectralSpaceLfo.disconnect();
     nodes.gain.disconnect();
     nodes.recordExportSend.disconnect();
     nodes.modulatorOutputGain.disconnect();
@@ -2543,6 +3050,13 @@ export const removeDeckNodes = (deckId: number) => {
   pendingDelayDuckResponseMs.delete(deckId);
   pendingDelaySpectralMix.delete(deckId);
   pendingDelaySpectralSpread.delete(deckId);
+  pendingDelaySpectralMotion.delete(deckId);
+  pendingSpectralSpaceMix.delete(deckId);
+  pendingSpectralSpaceSpread.delete(deckId);
+  pendingSpectralSpaceMotion.delete(deckId);
+  pendingSpectralSpaceTilt.delete(deckId);
+  pendingSpectralSpaceLowMono.delete(deckId);
+  pendingSpectralSpaceTransientProtect.delete(deckId);
   pendingVocoderMix.delete(deckId);
   pendingVocoderCarrierDeckId.delete(deckId);
   pendingVocoderModulatorMonitor.delete(deckId);

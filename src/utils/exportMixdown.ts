@@ -381,6 +381,44 @@ export const renderMixdownBlob = async ({
       Math.max(resolveSimpleValue(deck, "delaySpectralSpread", deck.delaySpectralSpread ?? 0.35), 0),
       1
     );
+    const delaySpectralMotion = Math.min(
+      Math.max(resolveSimpleValue(deck, "delaySpectralMotion", deck.delaySpectralMotion ?? 0.2), 0),
+      1
+    );
+    const spectralSpaceMix = Math.min(
+      Math.max(resolveSimpleValue(deck, "spectralSpaceMix", deck.spectralSpaceMix ?? 0), 0),
+      1
+    );
+    const spectralSpaceSpread = Math.min(
+      Math.max(
+        resolveSimpleValue(deck, "spectralSpaceSpread", deck.spectralSpaceSpread ?? 0.35),
+        0
+      ),
+      1
+    );
+    const spectralSpaceMotion = Math.min(
+      Math.max(resolveSimpleValue(deck, "spectralSpaceMotion", deck.spectralSpaceMotion ?? 0.25), 0),
+      1
+    );
+    const spectralSpaceTilt = Math.min(
+      Math.max(resolveSimpleValue(deck, "spectralSpaceTilt", deck.spectralSpaceTilt ?? 0), -1),
+      1
+    );
+    const spectralSpaceLowMono = Math.min(
+      Math.max(resolveSimpleValue(deck, "spectralSpaceLowMono", deck.spectralSpaceLowMono ?? 0.6), 0),
+      1
+    );
+    const spectralSpaceTransientProtect = Math.min(
+      Math.max(
+        resolveSimpleValue(
+          deck,
+          "spectralSpaceTransientProtect",
+          deck.spectralSpaceTransientProtect ?? 0.35
+        ),
+        0
+      ),
+      1
+    );
     const delayPingPong = deck.delayPingPong ?? false;
     const hasDelay = delayMix > 1e-3;
     const modulatorOutputGain = getDeckModulatorOutputGain(deck.id);
@@ -603,6 +641,15 @@ export const renderMixdownBlob = async ({
           duckResponseMs: delayDuckResponseMs,
           spectralMix: delaySpectralMix,
           spectralSpread: delaySpectralSpread,
+          spectralMotion: delaySpectralMotion,
+        },
+        spectralSpace: {
+          mix: spectralSpaceMix,
+          spread: spectralSpaceSpread,
+          motion: spectralSpaceMotion,
+          tilt: spectralSpaceTilt,
+          lowMono: spectralSpaceLowMono,
+          transientProtect: spectralSpaceTransientProtect,
         },
       },
       "exportMix"

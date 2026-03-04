@@ -67,13 +67,19 @@ export type DeckCardProps = {
   onDelaySafetyChange: (id: number, value: number) => void;
   onDelayRhythmMorphChange: (id: number, value: number) => void;
   onDelayRhythmRateHzChange: (id: number, value: number) => void;
-  onDelayRhythmSwingChange: (id: number, value: number) => void;
   onDelayDuckDepthChange: (id: number, value: number) => void;
   onDelayDuckThresholdChange: (id: number, value: number) => void;
   onDelayDuckResponseMsChange: (id: number, value: number) => void;
   onDelaySpectralMixChange: (id: number, value: number) => void;
   onDelaySpectralSpreadChange: (id: number, value: number) => void;
+  onDelaySpectralMotionChange: (id: number, value: number) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
+  onSpectralSpaceMixChange: (id: number, value: number) => void;
+  onSpectralSpaceSpreadChange: (id: number, value: number) => void;
+  onSpectralSpaceMotionChange: (id: number, value: number) => void;
+  onSpectralSpaceTiltChange: (id: number, value: number) => void;
+  onSpectralSpaceLowMonoChange: (id: number, value: number) => void;
+  onSpectralSpaceTransientProtectChange: (id: number, value: number) => void;
   onVocoderMixChange: (id: number, value: number) => void;
   onVocoderCarrierDeckIdChange: (id: number, value: number | null) => void;
   onVocoderModulatorMonitorChange: (id: number, value: number) => void;
@@ -642,15 +648,26 @@ const DeckCard = (props: DeckCardProps) => {
           isDifferent(deck.delaySafety ?? 0.35, 0.35) ||
           isDifferent(deck.delayRhythmMorph ?? 0, 0) ||
           isDifferent(deck.delayRhythmRateHz ?? 0, 0, 0.01) ||
-          isDifferent(deck.delayRhythmSwing ?? 0, 0) ||
           isDifferent(deck.delayDuckDepth ?? 0, 0) ||
           isDifferent(deck.delayDuckThreshold ?? 0.2, 0.2) ||
           isDifferent(deck.delayDuckResponseMs ?? 80, 80, 0.5) ||
           isDifferent(deck.delaySpectralMix ?? 0, 0) ||
           isDifferent(deck.delaySpectralSpread ?? 0.35, 0.35) ||
+          isDifferent(deck.delaySpectralMotion ?? 0.2, 0.2) ||
           deck.delayPingPong ||
           deck.delaySliceSync
         ),
+    },
+    spectralSpace: {
+      automation: false,
+      modified:
+        (deck.spectralSpaceMix ?? 0) > 1e-3 &&
+        (isDifferent(deck.spectralSpaceMix ?? 0, 0) ||
+          isDifferent(deck.spectralSpaceSpread ?? 0.35, 0.35) ||
+          isDifferent(deck.spectralSpaceMotion ?? 0.25, 0.25) ||
+          isDifferent(deck.spectralSpaceTilt ?? 0, 0) ||
+          isDifferent(deck.spectralSpaceLowMono ?? 0.6, 0.6) ||
+          isDifferent(deck.spectralSpaceTransientProtect ?? 0.35, 0.35)),
     },
     rearranger: {
       automation: false,

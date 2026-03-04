@@ -311,6 +311,7 @@ export const createDeckUiSetters = ({ updateDeck, setDecksNoHistory, setDeckReco
                 pitch: open,
                 vocoder: open,
                 delay: open,
+                spectralSpace: open,
                 rearranger: open,
                 stretch: open,
               },

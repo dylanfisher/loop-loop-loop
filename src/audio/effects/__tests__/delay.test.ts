@@ -15,6 +15,7 @@ describe("delay params", () => {
       duckResponseMs: 1,
       spectralMix: 2,
       spectralSpread: -1,
+      spectralMotion: 3,
     });
 
     expect(params.rhythmMorph).toBe(1);
@@ -25,6 +26,7 @@ describe("delay params", () => {
     expect(params.duckResponseMs).toBe(8);
     expect(params.spectralMix).toBe(1);
     expect(params.spectralSpread).toBe(0);
+    expect(params.spectralMotion).toBe(1);
   });
 
   it("maps duck response to a bounded follower cutoff", () => {

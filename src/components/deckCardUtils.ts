@@ -19,6 +19,7 @@ export const FX_PANEL_KEYS: DeckFxPanel[] = [
   "pitch",
   "vocoder",
   "delay",
+  "spectralSpace",
   "rearranger",
   "stretch",
 ];
@@ -167,6 +168,8 @@ export const FX_HINTS: Record<DeckFxPanel, string> = {
   pitch: "Pitch: semitone shift for key matching or creative detune.",
   vocoder: "Vocoder: this deck is the carrier; select another deck as the modulator envelope source.",
   delay: "Delay: time, feedback, tone, saturation, damping, safety, mix, and ping-pong echo.",
+  spectralSpace:
+    "Spectral Space: post-delay stereo width/tone sculpting with spread, motion, tilt, low-mono, and transient protection.",
   rearranger:
     "Rearranger: Auto Slice detects transient boundaries. Delete Quiet removes low-energy spans in the loop. You can also click waveform between boundaries to add slices; hold Shift and click a slice to destructively remove that slice audio.",
   stretch: "Stretch: offline Paulstretch render with phase/width/tilt/scatter controls.",

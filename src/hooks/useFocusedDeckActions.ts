@@ -100,6 +100,7 @@ const useFocusedDeckActions = ({
         isDifferent(deck.delayDuckResponseMs ?? 80, 80, 0.5) ||
         isDifferent(deck.delaySpectralMix ?? 0, 0) ||
         isDifferent(deck.delaySpectralSpread ?? 0.35, 0.35) ||
+        isDifferent(deck.delaySpectralMotion ?? 0.2, 0.2) ||
         deck.delayPingPong ||
         Boolean(deck.delaySliceSync),
       rearranger:

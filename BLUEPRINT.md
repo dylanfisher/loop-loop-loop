@@ -19,7 +19,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ### DSP Modules
 - Beat/onset detection (WASM or lightweight JS analysis).
-- FX chain: filters, delay (time/feedback/mix/tone + ping-pong plus feedback-loop character controls for damping/safety and drive-in-feedback saturation, plus Pitch-Ladder feedback shifting, Diffusion smear, and Spectral 3-band parallel delay branch), deck-to-deck channel vocoder (modulator deck + carrier deck routing), Loop Rearranger (offline loop slicing/reordering with slices/offset/chaos/reverse controls, draggable colored slice-boundary handles in the waveform, click-between-handles to add a slice at pointer position, Shift+click in the slice zone to destructively remove the clicked slice audio from the deck buffer and shorten duration, and slice-handle click to remove only a divider while preserving audio, plus optional auto-rearrange each loop cycle), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
+- FX chain: filters, delay (time/feedback/mix/tone + ping-pong plus feedback-loop character controls for damping/safety and drive-in-feedback saturation, plus Pitch-Ladder feedback shifting and Spectral 3-band parallel delay branch), Spectral Space (post-delay spectral/stereo widening with spread/motion/tilt/low-mono/transient-protect), deck-to-deck channel vocoder (modulator deck + carrier deck routing), Loop Rearranger (offline loop slicing/reordering with slices/offset/chaos/reverse controls, draggable colored slice-boundary handles in the waveform, click-between-handles to add a slice at pointer position, Shift+click in the slice zone to destructively remove the clicked slice audio from the deck buffer and shorten duration, and slice-handle click to remove only a divider while preserving audio, plus optional auto-rearrange each loop cycle), reverb, granular, spectral freeze, bitcrush, pitch shift (phase vocoder), per-deck Paulstretch render (offline stretch to new clip with phase/tilt/spacing/scatter controls).
 - Modulation system: LFOs, envelopes, random/stochastic sources.
 
 ## BPM Detection & Control (Planned)
@@ -88,7 +88,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Delay includes `Pitch-Ladder` controls (`Pitch Mix`, `Pitch Step`) that shift repeats by fixed semitone intervals per feedback pass.
 - Delay includes `Diffusion` control that inserts all-pass smearing in the feedback path for ambient-style tails.
 - Delay includes `Drive FB` control that saturates the feedback loop so repeats progressively degrade.
-- Delay includes `Spectral` controls (`Spectral Mix`, `Spectral Spread`) that run a parallel 3-band delay branch (low/mid/high with independent time/feedback/pan shaping).
+- Delay includes `Spectral` controls (`Spectral Mix`, `Spectral Spread`, `Spectral Motion`) that run a parallel 3-band delay branch (low/mid/high with independent time/feedback/pan shaping plus motion-driven modulation).
+- Deck FX includes a dedicated `Spectral Space` module (Mix/Spread/Motion/Tilt/Low Mono/Transient) after Delay in both live and offline post-EQ pipelines.
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/crop/duplicate/remove/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
@@ -148,7 +149,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Save Loop/duplicate clip automation metadata phase-shifts to the captured slice start while preserving the original automation cycle shape/duration (for example Balance automation).
 - Automation lanes support compact preset waveforms and length scaling controls.
 - Stopping a deck (including global Stop) resets lane-automation and simple-automation playheads to `0` so the next playback restart begins from automation start phase.
-- Non-lane Delay/Vocoder/Rearranger knobs support lightweight "simple automation" (Option-drag captures a gesture loop; Option-double-click clears), persisted through sessions/clip FX metadata and read by export/offline paths. Rearranger simple automation currently excludes `Slices`, `Sensitivity`, and `Quiet Thresh`.
+- Non-lane Delay/Spectral Space/Vocoder/Rearranger knobs support lightweight "simple automation" (Option-drag captures a gesture loop; Option-double-click clears), persisted through sessions/clip FX metadata and read by export/offline paths. Rearranger simple automation currently excludes `Slices`, `Sensitivity`, and `Quiet Thresh`.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
 - Manual/quick saves are project-scoped: once a project has a saved session ID, subsequent saves update that same entry instead of creating additional entries.
 - Autosave continues writing the hidden autosave snapshot and also mirrors writes into the active saved session entry (when one is loaded/saved) so `Load Saved Session` stays one-entry-per-project.

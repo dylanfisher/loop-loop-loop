@@ -18,6 +18,7 @@ export type DelayParams = {
   duckResponseMs: number;
   spectralMix: number;
   spectralSpread: number;
+  spectralMotion: number;
 };
 
 export const DELAY_DEFAULTS: DelayParams = {
@@ -37,6 +38,7 @@ export const DELAY_DEFAULTS: DelayParams = {
   duckResponseMs: 80,
   spectralMix: 0,
   spectralSpread: 0.35,
+  spectralMotion: 0.2,
 };
 
 const MIN_TIME = 0.01;
@@ -168,6 +170,7 @@ export const normalizeDelayParams = (
   ),
   spectralMix: clamp(params?.spectralMix ?? DELAY_DEFAULTS.spectralMix, 0, 1),
   spectralSpread: clamp(params?.spectralSpread ?? DELAY_DEFAULTS.spectralSpread, 0, 1),
+  spectralMotion: clamp(params?.spectralMotion ?? DELAY_DEFAULTS.spectralMotion, 0, 1),
 });
 
 export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
@@ -369,6 +372,7 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
       safetyOut.connect(spectralInput);
 
       const spread = params.spectralSpread;
+      const motion = params.spectralMotion;
       const lowTime = clamp(params.time * (1.3 + spread * 0.9), MIN_TIME, MAX_TIME);
       const midTime = clamp(params.time, MIN_TIME, MAX_TIME);
       const highTime = clamp(params.time * (0.7 - spread * 0.3), MIN_TIME, MAX_TIME);
@@ -387,7 +391,14 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
         MIN_FEEDBACK,
         MAX_FEEDBACK
       );
-      const panAmount = 0.1 + spread * 0.8;
+      const panAmount = (0.08 + spread * 0.82) * (1 - motion * 0.5);
+      const spectralLfo = context.createOscillator();
+      spectralLfo.type = "sine";
+      spectralLfo.frequency.value = 0.04 + motion * 0.45;
+      spectralLfo.start();
+      const panDrift = context.createGain();
+      panDrift.gain.value = (0.1 + spread * 0.4) * motion;
+      spectralLfo.connect(panDrift);
 
       const makeBand = (
         type: BiquadFilterType,
@@ -395,7 +406,8 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
         q: number,
         delayTimeSec: number,
         feedback: number,
-        pan: number
+        pan: number,
+        index: number
       ) => {
         const filter = context.createBiquadFilter();
         filter.type = type;
@@ -410,6 +422,17 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
         tone.frequency.value = clamp(params.tone * (0.8 + (1 - Math.abs(pan)) * 0.2), MIN_TONE, MAX_TONE);
         const panner = context.createStereoPanner();
         panner.pan.value = pan;
+        if (motion > 1e-3) {
+          const panDepth = context.createGain();
+          panDepth.gain.value = (0.04 + spread * 0.16) * motion * (index === 1 ? 0.4 : 1);
+          spectralLfo.connect(panDepth);
+          panDepth.connect(panner.pan);
+          panDrift.connect(panner.pan);
+          const delayDepth = context.createGain();
+          delayDepth.gain.value = (0.0005 + spread * 0.002) * motion;
+          spectralLfo.connect(delayDepth);
+          delayDepth.connect(delay.delayTime);
+        }
         spectralInput.connect(filter);
         filter.connect(delay);
         delay.connect(tone);
@@ -419,9 +442,9 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
         fb.connect(delay);
       };
 
-      makeBand("lowpass", 320, 0.7, lowTime, lowFeedback, -panAmount);
-      makeBand("bandpass", 1400, 0.8, midTime, midFeedback, 0);
-      makeBand("highpass", 3200, 0.7, highTime, highFeedback, panAmount);
+      makeBand("lowpass", 320, 0.7, lowTime, lowFeedback, -panAmount, 0);
+      makeBand("bandpass", 1400, 0.8, midTime, midFeedback, 0, 1);
+      makeBand("highpass", 3200, 0.7, highTime, highFeedback, panAmount, 2);
       spectralWet.connect(wetDuckGain);
     }
 

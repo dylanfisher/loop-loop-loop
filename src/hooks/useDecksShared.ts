@@ -44,6 +44,13 @@ export const DEFAULT_DELAY_DUCK_THRESHOLD = 0.2;
 export const DEFAULT_DELAY_DUCK_RESPONSE_MS = 80;
 export const DEFAULT_DELAY_SPECTRAL_MIX = 0;
 export const DEFAULT_DELAY_SPECTRAL_SPREAD = 0.35;
+export const DEFAULT_DELAY_SPECTRAL_MOTION = 0.2;
+export const DEFAULT_SPECTRAL_SPACE_MIX = 0;
+export const DEFAULT_SPECTRAL_SPACE_SPREAD = 0.35;
+export const DEFAULT_SPECTRAL_SPACE_MOTION = 0.25;
+export const DEFAULT_SPECTRAL_SPACE_TILT = 0;
+export const DEFAULT_SPECTRAL_SPACE_LOW_MONO = 0.6;
+export const DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT = 0.35;
 export const DEFAULT_VOCODER_MIX = 0;
 export const DEFAULT_VOCODER_CARRIER_DECK_ID: number | null = null;
 export const DEFAULT_VOCODER_MODULATOR_MONITOR = 0;
@@ -109,6 +116,13 @@ export const SIMPLE_AUTOMATION_PARAM_LIMITS: Record<
   delayDuckResponseMs: { min: 8, max: 800 },
   delaySpectralMix: { min: 0, max: 1 },
   delaySpectralSpread: { min: 0, max: 1 },
+  delaySpectralMotion: { min: 0, max: 1 },
+  spectralSpaceMix: { min: 0, max: 1 },
+  spectralSpaceSpread: { min: 0, max: 1 },
+  spectralSpaceMotion: { min: 0, max: 1 },
+  spectralSpaceTilt: { min: -1, max: 1 },
+  spectralSpaceLowMono: { min: 0, max: 1 },
+  spectralSpaceTransientProtect: { min: 0, max: 1 },
   vocoderMix: { min: 0, max: 1 },
   vocoderModulatorMonitor: { min: 0, max: 1 },
   vocoderModDrive: { min: 0.5, max: 10 },
@@ -146,6 +160,7 @@ const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
   pitch: false,
   vocoder: false,
   delay: false,
+  spectralSpace: false,
   rearranger: false,
   stretch: false,
 };
@@ -402,6 +417,13 @@ export const buildInitialDecks = (): DeckState[] => [
     delayDuckResponseMs: DEFAULT_DELAY_DUCK_RESPONSE_MS,
     delaySpectralMix: DEFAULT_DELAY_SPECTRAL_MIX,
     delaySpectralSpread: DEFAULT_DELAY_SPECTRAL_SPREAD,
+    delaySpectralMotion: DEFAULT_DELAY_SPECTRAL_MOTION,
+    spectralSpaceMix: DEFAULT_SPECTRAL_SPACE_MIX,
+    spectralSpaceSpread: DEFAULT_SPECTRAL_SPACE_SPREAD,
+    spectralSpaceMotion: DEFAULT_SPECTRAL_SPACE_MOTION,
+    spectralSpaceTilt: DEFAULT_SPECTRAL_SPACE_TILT,
+    spectralSpaceLowMono: DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+    spectralSpaceTransientProtect: DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
     rearrangerSlices: DEFAULT_REARRANGER_SLICES,
     rearrangerSwapCount: DEFAULT_REARRANGER_SWAP_COUNT,
     rearrangerChaos: DEFAULT_REARRANGER_CHAOS,

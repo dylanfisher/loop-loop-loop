@@ -35,6 +35,13 @@ import {
   setDeckDelayDuckResponseMsValue,
   setDeckDelaySpectralMixValue,
   setDeckDelaySpectralSpreadValue,
+  setDeckDelaySpectralMotionValue,
+  setDeckSpectralSpaceMixValue,
+  setDeckSpectralSpaceSpreadValue,
+  setDeckSpectralSpaceMotionValue,
+  setDeckSpectralSpaceTiltValue,
+  setDeckSpectralSpaceLowMonoValue,
+  setDeckSpectralSpaceTransientProtectValue,
   setDeckVocoderMixValue,
   setDeckVocoderCarrierDeckIdValue,
   setDeckVocoderModulatorMonitorValue,
@@ -104,6 +111,13 @@ type AudioEngine = {
     delayDuckResponseMs?: number,
     delaySpectralMix?: number,
     delaySpectralSpread?: number,
+    delaySpectralMotion?: number,
+    spectralSpaceMix?: number,
+    spectralSpaceSpread?: number,
+    spectralSpaceMotion?: number,
+    spectralSpaceTilt?: number,
+    spectralSpaceLowMono?: number,
+    spectralSpaceTransientProtect?: number,
     vocoderMix?: number,
     vocoderCarrierDeckId?: number | null,
     vocoderModulatorMonitor?: number,
@@ -164,6 +178,13 @@ type AudioEngine = {
   setDeckDelayDuckResponseMs: (deckId: number, value: number) => void;
   setDeckDelaySpectralMix: (deckId: number, value: number) => void;
   setDeckDelaySpectralSpread: (deckId: number, value: number) => void;
+  setDeckDelaySpectralMotion: (deckId: number, value: number) => void;
+  setDeckSpectralSpaceMix: (deckId: number, value: number) => void;
+  setDeckSpectralSpaceSpread: (deckId: number, value: number) => void;
+  setDeckSpectralSpaceMotion: (deckId: number, value: number) => void;
+  setDeckSpectralSpaceTilt: (deckId: number, value: number) => void;
+  setDeckSpectralSpaceLowMono: (deckId: number, value: number) => void;
+  setDeckSpectralSpaceTransientProtect: (deckId: number, value: number) => void;
   setDeckVocoderMix: (deckId: number, value: number) => void;
   setDeckVocoderCarrierDeckId: (deckId: number, value: number | null) => void;
   setDeckVocoderModulatorMonitor: (deckId: number, value: number) => void;
@@ -308,6 +329,13 @@ const playBuffer: AudioEngine["playBuffer"] = async (
   delayDuckResponseMs = 80,
   delaySpectralMix = 0,
   delaySpectralSpread = 0.35,
+  delaySpectralMotion = 0.2,
+  spectralSpaceMix = 0,
+  spectralSpaceSpread = 0.35,
+  spectralSpaceMotion = 0.25,
+  spectralSpaceTilt = 0,
+  spectralSpaceLowMono = 0.6,
+  spectralSpaceTransientProtect = 0.35,
   vocoderMix = 0,
   vocoderCarrierDeckId = null,
   vocoderModulatorMonitor = 0,
@@ -381,6 +409,13 @@ const playBuffer: AudioEngine["playBuffer"] = async (
     delayDuckResponseMs,
     delaySpectralMix,
     delaySpectralSpread,
+    delaySpectralMotion,
+    spectralSpaceMix,
+    spectralSpaceSpread,
+    spectralSpaceMotion,
+    spectralSpaceTilt,
+    spectralSpaceLowMono,
+    spectralSpaceTransientProtect,
     vocoderMix,
     vocoderCarrierDeckId,
     vocoderModulatorMonitor,
@@ -542,6 +577,34 @@ const setDeckDelaySpectralMix = (deckId: number, value: number) => {
 
 const setDeckDelaySpectralSpread = (deckId: number, value: number) => {
   setDeckDelaySpectralSpreadValue(deckId, value);
+};
+
+const setDeckDelaySpectralMotion = (deckId: number, value: number) => {
+  setDeckDelaySpectralMotionValue(deckId, value);
+};
+
+const setDeckSpectralSpaceMix = (deckId: number, value: number) => {
+  setDeckSpectralSpaceMixValue(deckId, value);
+};
+
+const setDeckSpectralSpaceSpread = (deckId: number, value: number) => {
+  setDeckSpectralSpaceSpreadValue(deckId, value);
+};
+
+const setDeckSpectralSpaceMotion = (deckId: number, value: number) => {
+  setDeckSpectralSpaceMotionValue(deckId, value);
+};
+
+const setDeckSpectralSpaceTilt = (deckId: number, value: number) => {
+  setDeckSpectralSpaceTiltValue(deckId, value);
+};
+
+const setDeckSpectralSpaceLowMono = (deckId: number, value: number) => {
+  setDeckSpectralSpaceLowMonoValue(deckId, value);
+};
+
+const setDeckSpectralSpaceTransientProtect = (deckId: number, value: number) => {
+  setDeckSpectralSpaceTransientProtectValue(deckId, value);
 };
 
 const setDeckVocoderMix = (deckId: number, value: number) => {
@@ -735,6 +798,13 @@ export const getAudioEngine = (): AudioEngine => {
     setDeckDelayDuckResponseMs,
     setDeckDelaySpectralMix,
     setDeckDelaySpectralSpread,
+    setDeckDelaySpectralMotion,
+    setDeckSpectralSpaceMix,
+    setDeckSpectralSpaceSpread,
+    setDeckSpectralSpaceMotion,
+    setDeckSpectralSpaceTilt,
+    setDeckSpectralSpaceLowMono,
+    setDeckSpectralSpaceTransientProtect,
     setDeckVocoderMix,
     setDeckVocoderCarrierDeckId,
     setDeckVocoderModulatorMonitor,

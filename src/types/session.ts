@@ -88,6 +88,13 @@ export type DeckSession = {
   delayDuckResponseMs?: number;
   delaySpectralMix?: number;
   delaySpectralSpread?: number;
+  delaySpectralMotion?: number;
+  spectralSpaceMix?: number;
+  spectralSpaceSpread?: number;
+  spectralSpaceMotion?: number;
+  spectralSpaceTilt?: number;
+  spectralSpaceLowMono?: number;
+  spectralSpaceTransientProtect?: number;
   rearrangerSlices?: number;
   rearrangerSwapCount?: number;
   rearrangerChaos?: number;
@@ -190,6 +197,13 @@ export type ClipSettings = {
   delayDuckResponseMs?: number;
   delaySpectralMix?: number;
   delaySpectralSpread?: number;
+  delaySpectralMotion?: number;
+  spectralSpaceMix?: number;
+  spectralSpaceSpread?: number;
+  spectralSpaceMotion?: number;
+  spectralSpaceTilt?: number;
+  spectralSpaceLowMono?: number;
+  spectralSpaceTransientProtect?: number;
   rearrangerSlices?: number;
   rearrangerSwapCount?: number;
   rearrangerChaos?: number;

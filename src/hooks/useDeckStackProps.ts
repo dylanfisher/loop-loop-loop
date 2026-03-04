@@ -52,13 +52,19 @@ type UseDeckStackPropsArgs = {
   setDeckDelaySafety: (id: number, value: number) => void;
   setDeckDelayRhythmMorph: (id: number, value: number) => void;
   setDeckDelayRhythmRateHz: (id: number, value: number) => void;
-  setDeckDelayRhythmSwing: (id: number, value: number) => void;
   setDeckDelayDuckDepth: (id: number, value: number) => void;
   setDeckDelayDuckThreshold: (id: number, value: number) => void;
   setDeckDelayDuckResponseMs: (id: number, value: number) => void;
   setDeckDelaySpectralMix: (id: number, value: number) => void;
   setDeckDelaySpectralSpread: (id: number, value: number) => void;
+  setDeckDelaySpectralMotion: (id: number, value: number) => void;
   setDeckDelaySliceSync: (id: number, value: boolean) => void;
+  setDeckSpectralSpaceMix: (id: number, value: number) => void;
+  setDeckSpectralSpaceSpread: (id: number, value: number) => void;
+  setDeckSpectralSpaceMotion: (id: number, value: number) => void;
+  setDeckSpectralSpaceTilt: (id: number, value: number) => void;
+  setDeckSpectralSpaceLowMono: (id: number, value: number) => void;
+  setDeckSpectralSpaceTransientProtect: (id: number, value: number) => void;
   setDeckVocoderMix: (id: number, value: number) => void;
   setDeckVocoderCarrierDeckId: (id: number, value: number | null) => void;
   setDeckVocoderModulatorMonitor: (id: number, value: number) => void;
@@ -183,13 +189,19 @@ const useDeckStackProps = ({
   setDeckDelaySafety,
   setDeckDelayRhythmMorph,
   setDeckDelayRhythmRateHz,
-  setDeckDelayRhythmSwing,
   setDeckDelayDuckDepth,
   setDeckDelayDuckThreshold,
   setDeckDelayDuckResponseMs,
   setDeckDelaySpectralMix,
   setDeckDelaySpectralSpread,
+  setDeckDelaySpectralMotion,
   setDeckDelaySliceSync,
+  setDeckSpectralSpaceMix,
+  setDeckSpectralSpaceSpread,
+  setDeckSpectralSpaceMotion,
+  setDeckSpectralSpaceTilt,
+  setDeckSpectralSpaceLowMono,
+  setDeckSpectralSpaceTransientProtect,
   setDeckVocoderMix,
   setDeckVocoderCarrierDeckId,
   setDeckVocoderModulatorMonitor,
@@ -362,13 +374,19 @@ const useDeckStackProps = ({
     onDelaySafetyChange: setDeckDelaySafety,
     onDelayRhythmMorphChange: setDeckDelayRhythmMorph,
     onDelayRhythmRateHzChange: setDeckDelayRhythmRateHz,
-    onDelayRhythmSwingChange: setDeckDelayRhythmSwing,
     onDelayDuckDepthChange: setDeckDelayDuckDepth,
     onDelayDuckThresholdChange: setDeckDelayDuckThreshold,
     onDelayDuckResponseMsChange: setDeckDelayDuckResponseMs,
     onDelaySpectralMixChange: setDeckDelaySpectralMix,
     onDelaySpectralSpreadChange: setDeckDelaySpectralSpread,
+    onDelaySpectralMotionChange: setDeckDelaySpectralMotion,
     onDelaySliceSyncChange: setDeckDelaySliceSync,
+    onSpectralSpaceMixChange: setDeckSpectralSpaceMix,
+    onSpectralSpaceSpreadChange: setDeckSpectralSpaceSpread,
+    onSpectralSpaceMotionChange: setDeckSpectralSpaceMotion,
+    onSpectralSpaceTiltChange: setDeckSpectralSpaceTilt,
+    onSpectralSpaceLowMonoChange: setDeckSpectralSpaceLowMono,
+    onSpectralSpaceTransientProtectChange: setDeckSpectralSpaceTransientProtect,
     onVocoderMixChange: setDeckVocoderMix,
     onVocoderCarrierDeckIdChange: setDeckVocoderCarrierDeckId,
     onVocoderModulatorMonitorChange: setDeckVocoderModulatorMonitor,

@@ -48,6 +48,13 @@ const playBuffer = vi.fn(
     _delayDuckResponseMs?: number,
     _delaySpectralMix?: number,
     _delaySpectralSpread?: number,
+    _delaySpectralMotion?: number,
+    _spectralSpaceMix?: number,
+    _spectralSpaceSpread?: number,
+    _spectralSpaceMotion?: number,
+    _spectralSpaceTilt?: number,
+    _spectralSpaceLowMono?: number,
+    _spectralSpaceTransientProtect?: number,
     _vocoderMix?: number,
     _vocoderCarrierDeckId?: number | null,
     _vocoderModulatorMonitor?: number,
@@ -96,6 +103,13 @@ const setDeckDelayDuckThreshold = vi.fn();
 const setDeckDelayDuckResponseMs = vi.fn();
 const setDeckDelaySpectralMix = vi.fn();
 const setDeckDelaySpectralSpread = vi.fn();
+const setDeckDelaySpectralMotion = vi.fn();
+const setDeckSpectralSpaceMix = vi.fn();
+const setDeckSpectralSpaceSpread = vi.fn();
+const setDeckSpectralSpaceMotion = vi.fn();
+const setDeckSpectralSpaceTilt = vi.fn();
+const setDeckSpectralSpaceLowMono = vi.fn();
+const setDeckSpectralSpaceTransientProtect = vi.fn();
 const setDeckFractalMix = vi.fn();
 const setDeckFractalStructure = vi.fn();
 const setDeckFractalDepth = vi.fn();
@@ -164,6 +178,13 @@ vi.mock("../useAudioEngine", () => ({
     setDeckDelayDuckResponseMs,
     setDeckDelaySpectralMix,
     setDeckDelaySpectralSpread,
+    setDeckDelaySpectralMotion,
+    setDeckSpectralSpaceMix,
+    setDeckSpectralSpaceSpread,
+    setDeckSpectralSpaceMotion,
+    setDeckSpectralSpaceTilt,
+    setDeckSpectralSpaceLowMono,
+    setDeckSpectralSpaceTransientProtect,
     setDeckFractalMix,
     setDeckFractalStructure,
     setDeckFractalDepth,
@@ -234,6 +255,13 @@ describe("useDecks", () => {
     setDeckDelayDuckResponseMs.mockClear();
     setDeckDelaySpectralMix.mockClear();
     setDeckDelaySpectralSpread.mockClear();
+    setDeckDelaySpectralMotion.mockClear();
+    setDeckSpectralSpaceMix.mockClear();
+    setDeckSpectralSpaceSpread.mockClear();
+    setDeckSpectralSpaceMotion.mockClear();
+    setDeckSpectralSpaceTilt.mockClear();
+    setDeckSpectralSpaceLowMono.mockClear();
+    setDeckSpectralSpaceTransientProtect.mockClear();
     setDeckFractalMix.mockClear();
     setDeckFractalStructure.mockClear();
     setDeckFractalDepth.mockClear();

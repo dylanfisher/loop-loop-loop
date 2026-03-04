@@ -36,6 +36,13 @@ type Args = {
   setDeckDelayDuckResponseMs: (id: number, value: number) => void;
   setDeckDelaySpectralMix: (id: number, value: number) => void;
   setDeckDelaySpectralSpread: (id: number, value: number) => void;
+  setDeckDelaySpectralMotion: (id: number, value: number) => void;
+  setDeckSpectralSpaceMix: (id: number, value: number) => void;
+  setDeckSpectralSpaceSpread: (id: number, value: number) => void;
+  setDeckSpectralSpaceMotion: (id: number, value: number) => void;
+  setDeckSpectralSpaceTilt: (id: number, value: number) => void;
+  setDeckSpectralSpaceLowMono: (id: number, value: number) => void;
+  setDeckSpectralSpaceTransientProtect: (id: number, value: number) => void;
   setDeckVocoderMix: (id: number, value: number) => void;
   setDeckVocoderCarrierDeckId: (id: number, value: number | null) => void;
   setDeckVocoderModulatorMonitor: (id: number, value: number) => void;
@@ -123,6 +130,13 @@ export const createDeckParameterSetters = ({
   setDeckDelayDuckResponseMs,
   setDeckDelaySpectralMix,
   setDeckDelaySpectralSpread,
+  setDeckDelaySpectralMotion,
+  setDeckSpectralSpaceMix,
+  setDeckSpectralSpaceSpread,
+  setDeckSpectralSpaceMotion,
+  setDeckSpectralSpaceTilt,
+  setDeckSpectralSpaceLowMono,
+  setDeckSpectralSpaceTransientProtect,
   setDeckVocoderMix,
   setDeckVocoderCarrierDeckId,
   setDeckVocoderModulatorMonitor,
@@ -347,6 +361,48 @@ export const createDeckParameterSetters = ({
     updateDeck(id, { delaySpectralSpread: clamped }, false);
   };
 
+  const setDeckDelaySpectralMotionValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckDelaySpectralMotion(id, clamped);
+    updateDeck(id, { delaySpectralMotion: clamped }, false);
+  };
+
+  const setDeckSpectralSpaceMixValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckSpectralSpaceMix(id, clamped);
+    updateDeck(id, { spectralSpaceMix: clamped }, false);
+  };
+
+  const setDeckSpectralSpaceSpreadValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckSpectralSpaceSpread(id, clamped);
+    updateDeck(id, { spectralSpaceSpread: clamped }, false);
+  };
+
+  const setDeckSpectralSpaceMotionValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckSpectralSpaceMotion(id, clamped);
+    updateDeck(id, { spectralSpaceMotion: clamped }, false);
+  };
+
+  const setDeckSpectralSpaceTiltValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, -1), 1);
+    setDeckSpectralSpaceTilt(id, clamped);
+    updateDeck(id, { spectralSpaceTilt: clamped }, false);
+  };
+
+  const setDeckSpectralSpaceLowMonoValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckSpectralSpaceLowMono(id, clamped);
+    updateDeck(id, { spectralSpaceLowMono: clamped }, false);
+  };
+
+  const setDeckSpectralSpaceTransientProtectValue = (id: number, value: number) => {
+    const clamped = Math.min(Math.max(value, 0), 1);
+    setDeckSpectralSpaceTransientProtect(id, clamped);
+    updateDeck(id, { spectralSpaceTransientProtect: clamped }, false);
+  };
+
   const setDeckVocoderMixValue = (id: number, value: number) => {
     const clamped = Math.min(Math.max(value, 0), 1);
     setDeckVocoderMix(id, clamped);
@@ -543,6 +599,13 @@ export const createDeckParameterSetters = ({
     setDeckDelayDuckResponseMsValue,
     setDeckDelaySpectralMixValue,
     setDeckDelaySpectralSpreadValue,
+    setDeckDelaySpectralMotionValue,
+    setDeckSpectralSpaceMixValue,
+    setDeckSpectralSpaceSpreadValue,
+    setDeckSpectralSpaceMotionValue,
+    setDeckSpectralSpaceTiltValue,
+    setDeckSpectralSpaceLowMonoValue,
+    setDeckSpectralSpaceTransientProtectValue,
     setDeckVocoderMixValue,
     setDeckVocoderCarrierDeckIdValue,
     setDeckVocoderModulatorMonitorValue,

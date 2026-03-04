@@ -63,13 +63,19 @@ export type DeckStackProps = {
   onDelaySafetyChange: (id: number, value: number) => void;
   onDelayRhythmMorphChange: (id: number, value: number) => void;
   onDelayRhythmRateHzChange: (id: number, value: number) => void;
-  onDelayRhythmSwingChange: (id: number, value: number) => void;
   onDelayDuckDepthChange: (id: number, value: number) => void;
   onDelayDuckThresholdChange: (id: number, value: number) => void;
   onDelayDuckResponseMsChange: (id: number, value: number) => void;
   onDelaySpectralMixChange: (id: number, value: number) => void;
   onDelaySpectralSpreadChange: (id: number, value: number) => void;
+  onDelaySpectralMotionChange: (id: number, value: number) => void;
   onDelaySliceSyncChange: (id: number, value: boolean) => void;
+  onSpectralSpaceMixChange: (id: number, value: number) => void;
+  onSpectralSpaceSpreadChange: (id: number, value: number) => void;
+  onSpectralSpaceMotionChange: (id: number, value: number) => void;
+  onSpectralSpaceTiltChange: (id: number, value: number) => void;
+  onSpectralSpaceLowMonoChange: (id: number, value: number) => void;
+  onSpectralSpaceTransientProtectChange: (id: number, value: number) => void;
   onVocoderMixChange: (id: number, value: number) => void;
   onVocoderCarrierDeckIdChange: (id: number, value: number | null) => void;
   onVocoderModulatorMonitorChange: (id: number, value: number) => void;
@@ -217,13 +223,19 @@ const DeckStack = ({
   onDelaySafetyChange,
   onDelayRhythmMorphChange,
   onDelayRhythmRateHzChange,
-  onDelayRhythmSwingChange,
   onDelayDuckDepthChange,
   onDelayDuckThresholdChange,
   onDelayDuckResponseMsChange,
   onDelaySpectralMixChange,
   onDelaySpectralSpreadChange,
+  onDelaySpectralMotionChange,
   onDelaySliceSyncChange,
+  onSpectralSpaceMixChange,
+  onSpectralSpaceSpreadChange,
+  onSpectralSpaceMotionChange,
+  onSpectralSpaceTiltChange,
+  onSpectralSpaceLowMonoChange,
+  onSpectralSpaceTransientProtectChange,
   onVocoderMixChange,
   onVocoderCarrierDeckIdChange,
   onVocoderModulatorMonitorChange,
@@ -489,13 +501,19 @@ const DeckStack = ({
               onDelaySafetyChange={onDelaySafetyChange}
               onDelayRhythmMorphChange={onDelayRhythmMorphChange}
               onDelayRhythmRateHzChange={onDelayRhythmRateHzChange}
-              onDelayRhythmSwingChange={onDelayRhythmSwingChange}
               onDelayDuckDepthChange={onDelayDuckDepthChange}
               onDelayDuckThresholdChange={onDelayDuckThresholdChange}
               onDelayDuckResponseMsChange={onDelayDuckResponseMsChange}
               onDelaySpectralMixChange={onDelaySpectralMixChange}
               onDelaySpectralSpreadChange={onDelaySpectralSpreadChange}
+              onDelaySpectralMotionChange={onDelaySpectralMotionChange}
               onDelaySliceSyncChange={onDelaySliceSyncChange}
+              onSpectralSpaceMixChange={onSpectralSpaceMixChange}
+              onSpectralSpaceSpreadChange={onSpectralSpaceSpreadChange}
+              onSpectralSpaceMotionChange={onSpectralSpaceMotionChange}
+              onSpectralSpaceTiltChange={onSpectralSpaceTiltChange}
+              onSpectralSpaceLowMonoChange={onSpectralSpaceLowMonoChange}
+              onSpectralSpaceTransientProtectChange={onSpectralSpaceTransientProtectChange}
               onVocoderMixChange={onVocoderMixChange}
               onVocoderCarrierDeckIdChange={onVocoderCarrierDeckIdChange}
               onVocoderModulatorMonitorChange={onVocoderModulatorMonitorChange}

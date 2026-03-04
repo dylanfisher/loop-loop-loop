@@ -21,6 +21,13 @@ export type SimpleAutomationParam =
   | "delayDuckResponseMs"
   | "delaySpectralMix"
   | "delaySpectralSpread"
+  | "delaySpectralMotion"
+  | "spectralSpaceMix"
+  | "spectralSpaceSpread"
+  | "spectralSpaceMotion"
+  | "spectralSpaceTilt"
+  | "spectralSpaceLowMono"
+  | "spectralSpaceTransientProtect"
   | "vocoderMix"
   | "vocoderModulatorMonitor"
   | "vocoderModDrive"
@@ -88,6 +95,7 @@ export type DeckFxPanel =
   | "pitch"
   | "vocoder"
   | "delay"
+  | "spectralSpace"
   | "rearranger"
   | "stretch";
 
@@ -132,6 +140,13 @@ export type DeckState = {
   delayDuckResponseMs?: number;
   delaySpectralMix?: number;
   delaySpectralSpread?: number;
+  delaySpectralMotion?: number;
+  spectralSpaceMix?: number;
+  spectralSpaceSpread?: number;
+  spectralSpaceMotion?: number;
+  spectralSpaceTilt?: number;
+  spectralSpaceLowMono?: number;
+  spectralSpaceTransientProtect?: number;
   rearrangerSlices: number;
   rearrangerSwapCount: number;
   rearrangerChaos: number;

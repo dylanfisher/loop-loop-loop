@@ -106,6 +106,60 @@ const applyStereoEnergyBalance = (buffer: AudioBuffer, amount: number) => {
   }
 };
 
+const computeBufferPeak = (buffer: AudioBuffer) => {
+  let peak = 0;
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i += 1) {
+      const abs = Math.abs(data[i] ?? 0);
+      if (abs > peak) peak = abs;
+    }
+  }
+  return peak;
+};
+
+const computeActiveRms = (
+  buffer: AudioBuffer,
+  startSample: number,
+  length: number,
+  gate = 0.006
+) => {
+  const safeStart = Math.max(0, Math.min(startSample, Math.max(0, buffer.length - 1)));
+  const safeLength = Math.max(1, Math.min(length, Math.max(1, buffer.length - safeStart)));
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < safeLength; i += 1) {
+    let frameEnergy = 0;
+    let framePeak = 0;
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      const sample = buffer.getChannelData(channel)[safeStart + i] ?? 0;
+      const abs = Math.abs(sample);
+      frameEnergy += sample * sample;
+      if (abs > framePeak) framePeak = abs;
+    }
+    if (framePeak < gate) continue;
+    sum += frameEnergy / Math.max(1, buffer.numberOfChannels);
+    count += 1;
+  }
+  return count > 0 ? Math.sqrt(sum / count) : 0;
+};
+
+const applySoftLimiter = (buffer: AudioBuffer, threshold = 0.92) => {
+  const safeThreshold = Math.min(0.995, Math.max(0.5, threshold));
+  const kneeRange = Math.max(1e-4, 1 - safeThreshold);
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i += 1) {
+      const sample = data[i] ?? 0;
+      const abs = Math.abs(sample);
+      if (abs <= safeThreshold) continue;
+      const excess = (abs - safeThreshold) / kneeRange;
+      const limited = safeThreshold + kneeRange * Math.tanh(excess);
+      data[i] = Math.sign(sample) * limited;
+    }
+  }
+};
+
 const useDeckLoopTools = ({
   decks,
   automationState,
@@ -234,13 +288,25 @@ const useDeckLoopTools = ({
         const phaseRandomness = Math.min(Math.max(deck.stretchPhaseRandomness ?? 1, 0), 1);
         const tiltDb = Math.min(Math.max(deck.stretchTiltDb ?? 0, -18), 18);
         const scatter = Math.min(Math.max(deck.stretchScatter ?? 1, 1), 16);
+        const ratioStretch = Math.min(1, Math.max(0, (ratio - 1) / 15));
+        const effectivePhaseRandomness = Math.min(
+          1,
+          Math.max(0, phaseRandomness * (1 - ratioStretch * 0.35))
+        );
+        const effectiveScatter = Math.max(
+          1,
+          1 + (scatter - 1) * (1 - ratioStretch * 0.25)
+        );
         const tempoRatio = Math.min(Math.max(1 + deck.tempoOffset / 100, 0.01), 16);
         const sliceDuration = Math.max(0.01, loopEnd - loopStart);
         const inputDurationSource = sliceDuration * tempoRatio;
         const sampleRate = deck.buffer.sampleRate;
         const hopOut = effectiveWindowSize / 2;
-        const inputSamples = Math.max(1, Math.ceil(sliceDuration * sampleRate * Math.max(1, scatter)));
-        const effectiveRatio = Math.min(ratio * scatter, 128);
+        const inputSamples = Math.max(
+          1,
+          Math.ceil(sliceDuration * sampleRate * Math.max(1, effectiveScatter))
+        );
+        const effectiveRatio = Math.min(ratio * effectiveScatter, 128);
         const outputSamples = Math.max(1, Math.ceil(sliceDuration * effectiveRatio * sampleRate));
         const startupTrimBudgetSamples = Math.max(
           Math.ceil(0.05 * sampleRate),
@@ -260,9 +326,9 @@ const useDeckLoopTools = ({
           inputSamples,
           outputSamples,
           stereoWidth,
-          phaseRandomness,
+          phaseRandomness: effectivePhaseRandomness,
           tilt: tiltDb,
-          scatter,
+          scatter: effectiveScatter,
         });
         stretchNode.port.onmessage = null;
         const source = offline.createBufferSource();
@@ -318,9 +384,6 @@ const useDeckLoopTools = ({
         const limiterNeeded = needsEq || needsFilter || needsPitch;
 
         const renderDuration = sliceDuration;
-        // Keep stretch loudness compensation, but only when pitch/EQ are neutral so we
-        // don't undo those timbral changes. Gain is preserved via the target RMS.
-        const shouldAutoNormalizeStretchOutput = !(needsPitch || needsEq);
         let chain: AudioNode = source;
         chain = applyBalanceOffline(offline, chain, {
           balance: balanceValue,
@@ -476,16 +539,25 @@ const useDeckLoopTools = ({
             : maxTrimmedEnd;
         const trimmedLength = Math.max(1, trimmedEnd - totalTrim);
         const trimmed = trimBufferLeadingSamples(offline, rendered, totalTrim, trimmedLength);
-        if (shouldAutoNormalizeStretchOutput) {
-          const sourceStartSample = Math.floor(loopStart * sampleRate);
-          const sourceLengthSamples = Math.max(1, Math.floor(sliceDuration * sampleRate));
-          const sourceRms = computeRms(deck.buffer, sourceStartSample, sourceLengthSamples);
-          const stretchedRms = computeRms(trimmed, 0, trimmed.length);
-          if (sourceRms > 0 && stretchedRms > 0) {
-            const gainRatio = Math.min(4, Math.max(0, gainValue / 0.9));
-            const targetRms = sourceRms * gainRatio;
-            const gain = Math.min(4, Math.max(0.25, targetRms / stretchedRms));
-            applyBufferGain(trimmed, gain);
+        const sourceStartSample = Math.floor(loopStart * sampleRate);
+        const sourceLengthSamples = Math.max(1, Math.floor(sliceDuration * sampleRate));
+        const sourceRms =
+          computeActiveRms(deck.buffer, sourceStartSample, sourceLengthSamples) ||
+          computeRms(deck.buffer, sourceStartSample, sourceLengthSamples);
+        const stretchedRms =
+          computeActiveRms(trimmed, 0, trimmed.length) ||
+          computeRms(trimmed, 0, trimmed.length);
+        if (sourceRms > 0 && stretchedRms > 0) {
+          const gainRatio = Math.min(4, Math.max(0, gainValue / 0.9));
+          const ratioLift = 1 + Math.min(1, Math.max(0, (ratio - 1) * 0.12));
+          const targetRms = sourceRms * gainRatio * ratioLift;
+          const rawGain = targetRms / stretchedRms;
+          const gain = Math.min(3.2, Math.max(0.8, rawGain));
+          applyBufferGain(trimmed, gain);
+          applySoftLimiter(trimmed, 0.92);
+          const peak = computeBufferPeak(trimmed);
+          if (peak > 0.995) {
+            applyBufferGain(trimmed, 0.995 / peak);
           }
         }
         if (trimmed.numberOfChannels > 1) {

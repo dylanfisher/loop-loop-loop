@@ -148,11 +148,17 @@ const DeckCardFxRack = ({
     onDelaySafetyChange,
     onDelayRhythmMorphChange,
     onDelayRhythmRateHzChange,
-    onDelayRhythmSwingChange,
     onDelaySpectralMixChange,
     onDelaySpectralSpreadChange,
+    onDelaySpectralMotionChange,
     onDelayPingPongChange,
     onDelaySliceSyncChange,
+    onSpectralSpaceMixChange,
+    onSpectralSpaceSpreadChange,
+    onSpectralSpaceMotionChange,
+    onSpectralSpaceTiltChange,
+    onSpectralSpaceLowMonoChange,
+    onSpectralSpaceTransientProtectChange,
     onRearrangerSwapCountChange,
     onRearrangerChaosChange,
     onRearrangerReverseChange,
@@ -1217,23 +1223,6 @@ const DeckCardFxRack = ({
               />
               <Knob
                 className="knob--compact"
-                label="Diffusion"
-                min={0}
-                max={1}
-                step={0.01}
-                value={deck.delayRhythmSwing ?? 0}
-                defaultValue={0}
-                labelTitle="Adds all-pass diffusion inside the feedback path for smeary ambient tails."
-                onChange={(next) => onDelayRhythmSwingChange(deck.id, next)}
-                isSimpleAutomated={isSimpleAutomated("delayRhythmSwing")}
-                onSimpleAutomationSet={(value, baseline, recording) =>
-                  onSimpleAutomationSet(deck.id, "delayRhythmSwing", value, baseline, recording)
-                }
-                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delayRhythmSwing")}
-                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
-              />
-              <Knob
-                className="knob--compact"
                 label="Spectral Mix"
                 min={0}
                 max={1}
@@ -1264,6 +1253,23 @@ const DeckCardFxRack = ({
                   onSimpleAutomationSet(deck.id, "delaySpectralSpread", value, baseline, recording)
                 }
                 onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delaySpectralSpread")}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Spectral Motion"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.delaySpectralMotion ?? 0.2}
+                defaultValue={0.2}
+                labelTitle="Adds slow movement to spectral band panning and delay offsets."
+                onChange={(next) => onDelaySpectralMotionChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("delaySpectralMotion")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "delaySpectralMotion", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "delaySpectralMotion")}
                 formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
               />
             </div>
@@ -1302,6 +1308,131 @@ const DeckCardFxRack = ({
                   }
                 />
               </label>
+            </div>
+          </div>
+          <div
+            className={`deck__fx-unit deck__fx-unit--spectral-space deck__fx-unit--span-2 ${fxPanelOpen.spectralSpace ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.spectralSpace}
+              onClick={() => toggleFxPanel("spectralSpace")}
+            >
+              {renderFxToggleLabel("spectralSpace", "Spectral Space")}
+            </button>
+            <div className="deck__fx-controls-grid deck__fx-controls-grid--cols-4">
+              <Knob
+                className="knob--compact"
+                label="Mix"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.spectralSpaceMix ?? 0}
+                defaultValue={0}
+                labelTitle="Wet/dry mix of the Spectral Space processor."
+                onChange={(next) => onSpectralSpaceMixChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("spectralSpaceMix")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "spectralSpaceMix", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "spectralSpaceMix")}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Spread"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.spectralSpaceSpread ?? 0.35}
+                defaultValue={0.35}
+                labelTitle="Band separation and stereo widening amount."
+                onChange={(next) => onSpectralSpaceSpreadChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("spectralSpaceSpread")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "spectralSpaceSpread", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "spectralSpaceSpread")}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Motion"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.spectralSpaceMotion ?? 0.25}
+                defaultValue={0.25}
+                labelTitle="LFO movement depth for micro-delay/pan motion."
+                onChange={(next) => onSpectralSpaceMotionChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("spectralSpaceMotion")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "spectralSpaceMotion", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "spectralSpaceMotion")}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Tilt"
+                min={-1}
+                max={1}
+                step={0.01}
+                value={deck.spectralSpaceTilt ?? 0}
+                defaultValue={0}
+                labelTitle="Bias energy darker (negative) or brighter (positive)."
+                onChange={(next) => onSpectralSpaceTiltChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("spectralSpaceTilt")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "spectralSpaceTilt", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "spectralSpaceTilt")}
+                formatValue={(value, fine) => `${value >= 0 ? "+" : ""}${(value * 100).toFixed(fine ? 2 : 1)}%`}
+                centerSnap={0.03}
+              />
+              <Knob
+                className="knob--compact"
+                label="Low Mono"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.spectralSpaceLowMono ?? 0.6}
+                defaultValue={0.6}
+                labelTitle="Keeps low frequencies centered while highs can stay wide."
+                onChange={(next) => onSpectralSpaceLowMonoChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("spectralSpaceLowMono")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(deck.id, "spectralSpaceLowMono", value, baseline, recording)
+                }
+                onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "spectralSpaceLowMono")}
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
+              <Knob
+                className="knob--compact"
+                label="Transient"
+                min={0}
+                max={1}
+                step={0.01}
+                value={deck.spectralSpaceTransientProtect ?? 0.35}
+                defaultValue={0.35}
+                labelTitle="Ducks spectral wet signal on strong transients for clarity."
+                onChange={(next) => onSpectralSpaceTransientProtectChange(deck.id, next)}
+                isSimpleAutomated={isSimpleAutomated("spectralSpaceTransientProtect")}
+                onSimpleAutomationSet={(value, baseline, recording) =>
+                  onSimpleAutomationSet(
+                    deck.id,
+                    "spectralSpaceTransientProtect",
+                    value,
+                    baseline,
+                    recording
+                  )
+                }
+                onSimpleAutomationClear={() =>
+                  onSimpleAutomationClear(deck.id, "spectralSpaceTransientProtect")
+                }
+                formatValue={(value, fine) => `${(value * 100).toFixed(fine ? 2 : 1)}%`}
+              />
             </div>
           </div>
           <div
