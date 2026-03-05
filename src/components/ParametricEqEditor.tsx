@@ -19,6 +19,7 @@ import {
   normalizeParametricEqBands,
 } from "../audio/effects/parametricEq";
 import Knob from "./Knob";
+import type { MidiActionId } from "../types/midi";
 
 const MIN_FREQ = 20;
 const MAX_FREQ = 20000;
@@ -149,6 +150,14 @@ const qToSliderUnit = (q: number) => {
 const sliderUnitToQ = (value: number) => {
   const t = clamp(value, 0, 1);
   return MIN_Q * Math.pow(MAX_Q / MIN_Q, t);
+};
+
+const toBandMidiActionId = (
+  slot: number,
+  param: "frequency" | "gain" | "jitter" | "spread"
+): MidiActionId | undefined => {
+  if (slot < 1 || slot > MAX_BANDS) return undefined;
+  return `deck.parametricBand${slot as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}.${param}` as MidiActionId;
 };
 
 type BiquadCoefficients = {
@@ -875,6 +884,7 @@ const ParametricEqEditor = ({
               <Knob
                 className="knob--compact"
                 label="Freq"
+                midiActionId={toBandMidiActionId(slot, "frequency")}
                 min={0}
                 max={1}
                 step={0.001}
@@ -904,6 +914,7 @@ const ParametricEqEditor = ({
               <Knob
                 className="knob--compact"
                 label="Gain"
+                midiActionId={toBandMidiActionId(slot, "gain")}
                 min={MIN_GAIN}
                 max={MAX_GAIN}
                 step={0.05}
@@ -978,6 +989,7 @@ const ParametricEqEditor = ({
                 <Knob
                   className="knob--compact"
                   label="Jitter"
+                  midiActionId={toBandMidiActionId(slotByBandId.get(selectedBand.id) ?? 0, "jitter")}
                   min={0}
                   max={1}
                   step={0.001}
@@ -1011,6 +1023,7 @@ const ParametricEqEditor = ({
                 <Knob
                   className="knob--compact"
                   label="Spread"
+                  midiActionId={toBandMidiActionId(slotByBandId.get(selectedBand.id) ?? 0, "spread")}
                   min={0}
                   max={1}
                   step={0.01}
@@ -1055,6 +1068,7 @@ const ParametricEqEditor = ({
             <Knob
               className="knob--compact"
               label="Scale"
+              midiActionId="deck.parametricScale"
               min={0}
               max={200}
               step={0.1}
@@ -1077,6 +1091,7 @@ const ParametricEqEditor = ({
             <Knob
               className="knob--compact"
               label="Gain"
+              midiActionId="deck.gain"
               min={-24}
               max={12}
               step={0.1}

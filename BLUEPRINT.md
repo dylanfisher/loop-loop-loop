@@ -68,6 +68,9 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Header includes a deck-layout toggle (single-column vs two-column) for fast workspace density changes.
 - Header project metadata includes a live `Last saved` timestamp that updates on manual saves and autosaves.
 - Header project metadata includes a clickable `Storage` readout that opens a diagnostics overlay (quota usage, IndexedDB session/blob breakdown, localStorage key sizes, and largest stored blobs).
+- Header now includes a compact MIDI panel for Web MIDI connection, input/output selection, controller learn mode, click-to-map workflow (toggle learn, click highlighted mappable knob, move hardware), per-control mapping management, and basic MIDI-out feedback.
+- All UI knobs now expose MIDI learn targets (including deck FX, parametric EQ band strips/details, and stretch/rearranger controls), so click-to-map can bind any knob directly without preselecting from the action list.
+- MIDI panel includes a dedicated Twister Mode: encoder slots 1-12 are dynamically routed to the currently selected effect module, slot 15 selects module, slot 16 selects active deck, with module highlight on the active deck and matching in-app knob ring gradient colors for mapped slots.
 - Deck cards include a per-deck width override control (force full-width or half-width) next to the deck label.
 - Deck cards include a per-deck export inclusion toggle next to the deck label (enabled by default). When disabled, that deck is excluded from Export Mix offline renders and global recording capture, while remaining available for live monitoring/manipulation.
 - Header `Restore + Export` controls open as a full-width inner panel in a dedicated second header row (collapsible toggle in primary row).
@@ -86,7 +89,6 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Shared DSP core also exposes reusable window-to-complex and overlap-add kernels used by both Paulstretch and pitch-vocoder hot paths.
 - Delay includes a phase-1 live-only `Slice Sync` mode that retimes delay-time per active rearranger slice boundary during loop playback.
 - Delay includes `Pitch-Ladder` controls (`Pitch Mix`, `Pitch Step`) that shift repeats by fixed semitone intervals per feedback pass.
-- Delay includes `Diffusion` control that inserts all-pass smearing in the feedback path for ambient-style tails.
 - Delay includes `Drive FB` control that saturates the feedback loop so repeats progressively degrade.
 - Delay includes `Spectral` controls (`Spectral Mix`, `Spectral Spread`, `Spectral Motion`) that run a parallel 3-band delay branch (low/mid/high with independent time/feedback/pan shaping plus motion-driven modulation).
 - Deck FX includes a dedicated `Spectral Space` module (Mix/Spread/Motion/Tilt/Low Mono/Transient) after Delay in both live and offline post-EQ pipelines.
@@ -150,6 +152,8 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Automation lanes support compact preset waveforms and length scaling controls.
 - Stopping a deck (including global Stop) resets lane-automation and simple-automation playheads to `0` so the next playback restart begins from automation start phase.
 - Non-lane Delay/Spectral Space/Vocoder/Rearranger knobs support lightweight "simple automation" (Option-drag captures a gesture loop; Option-double-click clears), persisted through sessions/clip FX metadata and read by export/offline paths. Rearranger simple automation currently excludes `Slices`, `Sensitivity`, and `Quiet Thresh`.
+- MIDI mapping state (phase 1) is persisted in localStorage and includes selected input + mapping records (`input/channel/message -> action`, with absolute/relative modes).
+- MIDI mapping now includes a one-click Midi Fighter Twister profile loader (4 banks x 16 encoder CCs on default Ch1 with absolute mode and prebuilt action pages) and selected output persistence for feedback routing.
 - Sessions are named and stored as multiple entries in IndexedDB for later recall.
 - Manual/quick saves are project-scoped: once a project has a saved session ID, subsequent saves update that same entry instead of creating additional entries.
 - Autosave continues writing the hidden autosave snapshot and also mirrors writes into the active saved session entry (when one is loaded/saved) so `Load Saved Session` stays one-entry-per-project.
@@ -197,6 +201,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Keyboard shortcut dialog rendering is extracted from `App.tsx` into `src/components/KeyboardShortcutsDialog.tsx`.
 - Audio unlock gate rendering is extracted from `App.tsx` into `src/components/AudioUnlockOverlay.tsx`.
 - `DeckStack` prop assembly/callback wiring is extracted from `App.tsx` into `src/hooks/useDeckStackProps.ts`.
+- Web MIDI device access, input lifecycle, learn-mode capture, and mapping dispatch are handled in `src/hooks/useMidiController.ts`.
 - Shared DeckCard formatting/default-automation/quiet-preview analysis helpers are extracted into `src/components/deckCardUtils.ts`.
 - DeckCard FX rack rendering is extracted into `src/components/DeckCardFxRack.tsx` to keep `DeckCard.tsx` focused on orchestration and waveform/transport interaction state.
 - DeckCard-to-FX-rack prop assembly is extracted into `src/hooks/useDeckCardFxRackProps.ts` so `DeckCard.tsx` avoids duplicated mega-object wiring.

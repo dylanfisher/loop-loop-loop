@@ -220,6 +220,8 @@ export type DeckCardProps = {
   } | null;
   setFileInputRef: (id: number, node: HTMLInputElement | null) => void;
   onTitleDragStart?: (event: ReactDragEvent<HTMLElement>) => void;
+  twisterScrollToPanel?: DeckFxPanel | null;
+  twisterScrollToken?: number;
 };
 
 const DeckCard = (props: DeckCardProps) => {
@@ -267,6 +269,8 @@ const DeckCard = (props: DeckCardProps) => {
     getDeckPlaybackSnapshot,
     setFileInputRef,
     onTitleDragStart,
+    twisterScrollToPanel = null,
+    twisterScrollToken = 0,
   } = props;
   const deckCardFxRackProps = useDeckCardFxRackProps(props);
   const AUTO_SLICE_THROTTLE_MS = 90;
@@ -1229,6 +1233,8 @@ const DeckCard = (props: DeckCardProps) => {
         setShowQuietDeletePreview={setShowQuietDeletePreview}
         stretchWindowSizes={stretchWindowSizes}
         stretchWindowIndex={stretchWindowIndex}
+        twisterScrollToPanel={twisterScrollToPanel}
+        twisterScrollToken={twisterScrollToken}
       />
     </div>
   );

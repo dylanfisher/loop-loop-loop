@@ -261,6 +261,7 @@ const AppHeader = ({
             step={0.01}
             value={masterGain}
             defaultValue={0.9}
+            midiActionId="master.gain"
             className="knob--compact knob--tiny knob--icon-only app__header-knob"
             labelTitle="Controls global output level after all decks. Affects monitoring and recording."
             onChange={onMasterGainChange}

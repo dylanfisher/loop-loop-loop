@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
+import { useMidiLearnContext } from "./MidiLearnContext";
+import { useTwisterModeContext } from "./TwisterModeContext";
+import type { MidiActionId } from "../types/midi";
 
 type KnobProps = {
   label: string;
@@ -23,6 +30,7 @@ type KnobProps = {
   ) => void;
   onSimpleAutomationClear?: () => void;
   disabled?: boolean;
+  midiActionId?: MidiActionId;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -69,7 +77,10 @@ const Knob = ({
   onSimpleAutomationSet,
   onSimpleAutomationClear,
   disabled = false,
+  midiActionId,
 }: KnobProps) => {
+  const midiLearn = useMidiLearnContext();
+  const twisterMode = useTwisterModeContext();
   const knobRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<{ lastX: number; lastY: number; rawValue: number } | null>(null);
   const pendingValueRef = useRef<number | null>(null);
@@ -93,6 +104,13 @@ const Knob = ({
     ? formatValue(value, fineMode)
     : value.toFixed(fineMode ? 3 : 1);
   const supportsSimpleAutomation = Boolean(onSimpleAutomationSet) && !disabled;
+  const midiLearnEnabled = midiLearn?.learnModeEnabled === true;
+  const midiMappable = Boolean(midiActionId);
+  const midiLearnArmed = midiActionId !== undefined && midiLearn?.armedActionId === midiActionId;
+  const twisterSlotIndex =
+    midiActionId !== undefined ? twisterMode?.actionToSlotIndex[midiActionId] : undefined;
+  const twisterColor =
+    twisterSlotIndex !== undefined ? twisterMode?.slotColors[twisterSlotIndex] : undefined;
 
   const flushPendingChange = useCallback(() => {
     if (pendingValueRef.current === null) return;
@@ -217,6 +235,12 @@ const Knob = ({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (disabled) return;
+    if (midiLearnEnabled && midiActionId) {
+      event.preventDefault();
+      event.stopPropagation();
+      midiLearn?.onArmAction(midiActionId);
+      return;
+    }
     if (!knobRef.current) return;
     knobRef.current.setPointerCapture(event.pointerId);
     dragState.current = {
@@ -291,7 +315,14 @@ const Knob = ({
 
   return (
     <div
-      className={`knob ${isAutomated ? "is-automated" : ""} ${isSimpleAutomated ? "is-simple-automated" : ""} ${supportsSimpleAutomation ? "is-simple-automation-capable" : ""} ${disabled ? "is-disabled" : ""} ${className ?? ""}`.trim()}
+      className={`knob ${isAutomated ? "is-automated" : ""} ${isSimpleAutomated ? "is-simple-automated" : ""} ${supportsSimpleAutomation ? "is-simple-automation-capable" : ""} ${disabled ? "is-disabled" : ""} ${midiLearnEnabled && midiMappable ? "is-midi-mappable" : ""} ${midiLearnArmed ? "is-midi-learn-armed" : ""} ${twisterMode?.enabled && twisterColor ? "is-twister-slot-mapped" : ""} ${className ?? ""}`.trim()}
+      style={
+        twisterMode?.enabled && twisterColor
+          ? ({
+              "--twister-slot-color": twisterColor,
+            } as CSSProperties)
+          : undefined
+      }
     >
       <div className="knob__label" title={labelTitle}>{label}</div>
       <div

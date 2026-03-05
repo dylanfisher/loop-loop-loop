@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { DeckState, SimpleAutomationParam } from "../types/deck";
+import type { DeckFxPanel, DeckState, SimpleAutomationParam } from "../types/deck";
 import type { DeckStackProps } from "../components/DeckStack";
 import type { AutomationParam } from "../types/session";
 import type { AutomationView } from "./useDecksShared";
@@ -151,6 +151,9 @@ type UseDeckStackPropsArgs = {
   handleSaveLoopClip: (id: number, includeSettings: boolean) => void;
   handleCropLoop: (id: number) => void;
   handleDuplicateLoop: (id: number, includeSettings: boolean) => void;
+  twisterScrollDeckId: number | null;
+  twisterScrollToPanel: DeckFxPanel | null;
+  twisterScrollToken: number;
 };
 
 const useDeckStackProps = ({
@@ -276,6 +279,9 @@ const useDeckStackProps = ({
   handleSaveLoopClip,
   handleCropLoop,
   handleDuplicateLoop,
+  twisterScrollDeckId,
+  twisterScrollToPanel,
+  twisterScrollToken,
 }: UseDeckStackPropsArgs): DeckStackProps => {
   const handleScrollComplete = useCallback(
     (id: number) => {
@@ -463,6 +469,9 @@ const useDeckStackProps = ({
     onSaveLoopClip: handleSaveLoopClip,
     onCropLoop: handleCropLoop,
     onDuplicateLoop: handleDuplicateLoop,
+    twisterScrollDeckId,
+    twisterScrollToPanel,
+    twisterScrollToken,
   };
 };
 

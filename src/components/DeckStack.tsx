@@ -145,6 +145,9 @@ export type DeckStackProps = {
   onSaveLoopClip: (id: number, includeSettings: boolean) => void;
   onCropLoop: (id: number) => void;
   onDuplicateLoop: (id: number, includeSettings: boolean) => void;
+  twisterScrollDeckId: number | null;
+  twisterScrollToPanel: DeckFxPanel | null;
+  twisterScrollToken: number;
   automationState: Map<number, Record<AutomationParam, {
     samples: Float32Array;
     previewSamples: Float32Array;
@@ -297,6 +300,9 @@ const DeckStack = ({
   onSaveLoopClip,
   onCropLoop,
   onDuplicateLoop,
+  twisterScrollDeckId,
+  twisterScrollToPanel,
+  twisterScrollToken,
   automationState,
   onAutomationStart,
   onAutomationStop,
@@ -601,6 +607,10 @@ const DeckStack = ({
               getDeckPlaybackSnapshot={getDeckPlaybackSnapshot}
               setFileInputRef={setFileInputRef}
               onTitleDragStart={(event) => handleDeckDragStart(deck.id, event)}
+              twisterScrollToPanel={
+                twisterScrollDeckId === deck.id ? twisterScrollToPanel : null
+              }
+              twisterScrollToken={twisterScrollToken}
               />
             </div>
           );

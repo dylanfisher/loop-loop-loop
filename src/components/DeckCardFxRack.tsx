@@ -60,6 +60,8 @@ type DeckCardFxRackProps = {
   setShowQuietDeletePreview: (value: boolean) => void;
   stretchWindowSizes: number[];
   stretchWindowIndex: number;
+  twisterScrollToPanel?: DeckFxPanel | null;
+  twisterScrollToken?: number;
 };
 
 const DeckCardFxRack = ({
@@ -101,6 +103,8 @@ const DeckCardFxRack = ({
   setShowQuietDeletePreview,
   stretchWindowSizes,
   stretchWindowIndex,
+  twisterScrollToPanel = null,
+  twisterScrollToken = 0,
 }: DeckCardFxRackProps) => {
   const {
     onFxResetAll,
@@ -197,6 +201,10 @@ const DeckCardFxRack = ({
   const delayTapIntervalsRef = useRef<number[]>([]);
   const [snapshotSavedFlash, setSnapshotSavedFlash] = useState(false);
   const snapshotFlashTimeoutRef = useRef<number | null>(null);
+  const panelRefs = useRef<Partial<Record<DeckFxPanel, HTMLDivElement | null>>>({});
+  const setPanelRef = (panel: DeckFxPanel) => (node: HTMLDivElement | null) => {
+    panelRefs.current[panel] = node;
+  };
 
   const handleSnapshotCapture = () => {
     if (hasRearrangerSnapshot) {
@@ -242,6 +250,45 @@ const DeckCardFxRack = ({
     },
     []
   );
+
+  useEffect(() => {
+    if (!twisterScrollToPanel) return;
+    const node = panelRefs.current[twisterScrollToPanel];
+    if (!node) return;
+    const findScrollableAncestor = (element: HTMLElement): HTMLElement | null => {
+      let current: HTMLElement | null = element.parentElement;
+      while (current) {
+        const style = window.getComputedStyle(current);
+        const canScrollY =
+          (style.overflowY === "auto" || style.overflowY === "scroll") &&
+          current.scrollHeight > current.clientHeight;
+        if (canScrollY) return current;
+        current = current.parentElement;
+      }
+      return null;
+    };
+
+    const scrollParent = findScrollableAncestor(node);
+    if (scrollParent) {
+      const parentRect = scrollParent.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      const targetTop =
+        scrollParent.scrollTop + (nodeRect.top - parentRect.top) - (parentRect.height / 2 - nodeRect.height / 2);
+      scrollParent.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: "smooth",
+      });
+      return;
+    }
+
+    const rect = node.getBoundingClientRect();
+    const absoluteTop = rect.top + window.scrollY;
+    const targetY = absoluteTop - (window.innerHeight / 2 - rect.height / 2);
+    window.scrollTo({
+      top: Math.max(0, targetY),
+      behavior: "smooth",
+    });
+  }, [twisterScrollToPanel, twisterScrollToken]);
 
   useEffect(() => {
     if (deck.eqMode === "parametric") return;
@@ -293,6 +340,7 @@ const DeckCardFxRack = ({
         </div>
         <div className="deck__fx-row deck__fx-row--core">
           <div
+            ref={setPanelRef("gain")}
             className={`deck__fx-unit deck__fx-unit--gain ${fxPanelOpen.gain ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -305,6 +353,7 @@ const DeckCardFxRack = ({
             </button>
             <Knob
               label="Gain"
+              midiActionId="deck.gain"
               min={0}
               max={1.5}
               step={0.01}
@@ -346,6 +395,7 @@ const DeckCardFxRack = ({
             />
           </div>
           <div
+            ref={setPanelRef("djFilter")}
             className={`deck__fx-unit deck__fx-unit--filter ${fxPanelOpen.djFilter ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -358,6 +408,7 @@ const DeckCardFxRack = ({
             </button>
             <Knob
               label="DJ Filter"
+              midiActionId="deck.filter"
               min={-1}
               max={1}
               step={0.01}
@@ -404,6 +455,7 @@ const DeckCardFxRack = ({
             />
           </div>
           <div
+            ref={setPanelRef("resonance")}
             className={`deck__fx-unit deck__fx-unit--filter ${fxPanelOpen.resonance ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -416,6 +468,7 @@ const DeckCardFxRack = ({
             </button>
             <Knob
               label="Resonance"
+              midiActionId="deck.resonance"
               min={resonanceMin}
               max={resonanceMax}
               step={0.05}
@@ -471,6 +524,7 @@ const DeckCardFxRack = ({
         </div>
         <div className="deck__fx-row deck__fx-row--single">
           <div
+            ref={setPanelRef("balance")}
             className={`deck__fx-unit deck__fx-unit--balance ${fxPanelOpen.balance ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -483,6 +537,7 @@ const DeckCardFxRack = ({
             </button>
             <Knob
               label="Balance"
+              midiActionId="deck.balance"
               min={-1}
               max={1}
               step={0.01}
@@ -525,6 +580,7 @@ const DeckCardFxRack = ({
             />
           </div>
           <div
+            ref={setPanelRef("pitch")}
             className={`deck__fx-unit deck__fx-unit--pitch ${fxPanelOpen.pitch ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -537,6 +593,7 @@ const DeckCardFxRack = ({
             </button>
             <Knob
               label="Pitch"
+              midiActionId="deck.pitch"
               min={-24}
               max={24}
               step={0.1}
@@ -583,6 +640,7 @@ const DeckCardFxRack = ({
         </div>
         <div className="deck__fx-row deck__fx-row--parametric">
           <div
+            ref={setPanelRef("parametricEq")}
             className={`deck__fx-unit deck__fx-unit--parametric deck__fx-unit--span-3 ${fxPanelOpen.parametricEq ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -621,6 +679,7 @@ const DeckCardFxRack = ({
                     <div className="deck__eq3-section">
                       <Knob
                         label="Low"
+                        midiActionId="deck.eqLow"
                         min={-18}
                         max={18}
                         step={0.1}
@@ -675,6 +734,7 @@ const DeckCardFxRack = ({
                     <div className="deck__eq3-section">
                       <Knob
                         label="Mid"
+                        midiActionId="deck.eqMid"
                         min={-18}
                         max={18}
                         step={0.1}
@@ -729,6 +789,7 @@ const DeckCardFxRack = ({
                     <div className="deck__eq3-section">
                       <Knob
                         label="High"
+                        midiActionId="deck.eqHigh"
                         min={-18}
                         max={18}
                         step={0.1}
@@ -788,6 +849,7 @@ const DeckCardFxRack = ({
         </div>
         <div className="deck__fx-row deck__fx-row--single">
           <div
+            ref={setPanelRef("vocoder")}
             className={`deck__fx-unit deck__fx-unit--vocoder deck__fx-unit--span-2 ${fxPanelOpen.vocoder ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -802,6 +864,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Mix"
+                midiActionId="deck.vocoderMix"
                 min={0}
                 max={1}
                 step={0.01}
@@ -819,6 +882,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Monitor"
+                midiActionId="deck.vocoderMonitor"
                 min={0}
                 max={1}
                 step={0.01}
@@ -838,6 +902,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Mod Drive"
+                midiActionId="deck.vocoderModDrive"
                 min={0.5}
                 max={10}
                 step={0.01}
@@ -855,6 +920,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Bands"
+                midiActionId="deck.vocoderBands"
                 min={4}
                 max={24}
                 step={1}
@@ -872,6 +938,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Vocal Character"
+                midiActionId="deck.vocoderVocalCharacter"
                 min={0}
                 max={3}
                 step={0.01}
@@ -891,6 +958,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Formant Shift"
+                midiActionId="deck.vocoderFormantShift"
                 min={-12}
                 max={12}
                 step={0.1}
@@ -910,6 +978,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Pre-Emphasis"
+                midiActionId="deck.vocoderPreEmphasis"
                 min={0}
                 max={1}
                 step={0.01}
@@ -929,6 +998,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Tightness"
+                midiActionId="deck.vocoderTightness"
                 min={0}
                 max={1}
                 step={0.01}
@@ -948,6 +1018,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Attack"
+                midiActionId="deck.vocoderAttack"
                 min={1}
                 max={160}
                 step={1}
@@ -965,6 +1036,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Release"
+                midiActionId="deck.vocoderRelease"
                 min={1}
                 max={1200}
                 step={1}
@@ -984,6 +1056,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Phase Rotate"
+                midiActionId="deck.vocoderPhaseRotate"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1005,6 +1078,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Gate"
+                midiActionId="deck.vocoderGate"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1056,6 +1130,7 @@ const DeckCardFxRack = ({
             </div>
           </div>
           <div
+            ref={setPanelRef("delay")}
             className={`deck__fx-unit deck__fx-unit--delay deck__fx-unit--span-2 ${fxPanelOpen.delay ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -1070,6 +1145,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Mix"
+                midiActionId="deck.delayMix"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1087,6 +1163,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Time"
+                midiActionId="deck.delayTime"
                 min={0.01}
                 max={1.5}
                 step={0.01}
@@ -1105,6 +1182,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Feedback"
+                midiActionId="deck.delayFeedback"
                 min={0}
                 max={0.99}
                 step={0.01}
@@ -1122,6 +1200,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Tone"
+                midiActionId="deck.delayTone"
                 min={400}
                 max={12000}
                 step={100}
@@ -1139,6 +1218,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Drive FB"
+                midiActionId="deck.delayDriveFb"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1156,6 +1236,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Damping"
+                midiActionId="deck.delayDamping"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1173,6 +1254,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Safety"
+                midiActionId="deck.delaySafety"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1190,6 +1272,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Pitch Mix"
+                midiActionId="deck.delayPitchMix"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1207,6 +1290,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Pitch Step"
+                midiActionId="deck.delayPitchStep"
                 min={-12}
                 max={12}
                 step={0.01}
@@ -1224,6 +1308,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Spectral Mix"
+                midiActionId="deck.delaySpectralMix"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1241,6 +1326,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Spectral Spread"
+                midiActionId="deck.delaySpectralSpread"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1258,6 +1344,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Spectral Motion"
+                midiActionId="deck.delaySpectralMotion"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1311,6 +1398,7 @@ const DeckCardFxRack = ({
             </div>
           </div>
           <div
+            ref={setPanelRef("spectralSpace")}
             className={`deck__fx-unit deck__fx-unit--spectral-space deck__fx-unit--span-2 ${fxPanelOpen.spectralSpace ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -1325,6 +1413,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Mix"
+                midiActionId="deck.spectralSpaceMix"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1342,6 +1431,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Spread"
+                midiActionId="deck.spectralSpaceSpread"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1359,6 +1449,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Motion"
+                midiActionId="deck.spectralSpaceMotion"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1376,6 +1467,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Tilt"
+                midiActionId="deck.spectralSpaceTilt"
                 min={-1}
                 max={1}
                 step={0.01}
@@ -1394,6 +1486,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Low Mono"
+                midiActionId="deck.spectralSpaceLowMono"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1411,6 +1504,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Transient"
+                midiActionId="deck.spectralSpaceTransientProtect"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1436,6 +1530,7 @@ const DeckCardFxRack = ({
             </div>
           </div>
           <div
+            ref={setPanelRef("rearranger")}
             className={`deck__fx-unit deck__fx-unit--rearranger deck__fx-unit--span-3 ${fxPanelOpen.rearranger ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -1451,6 +1546,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Slices"
+                midiActionId="deck.rearrangerSlices"
                 min={0}
                 max={Math.max(64, Math.round(deck.rearrangerSlices || 0))}
                 step={1}
@@ -1466,6 +1562,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Swaps"
+                midiActionId="deck.rearrangerSwaps"
                 min={0}
                 max={Math.max(64, Math.round(deck.rearrangerSlices || 0))}
                 step={1}
@@ -1483,6 +1580,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Chaos"
+                midiActionId="deck.rearrangerChaos"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1500,6 +1598,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Reverse"
+                midiActionId="deck.rearrangerReverse"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1517,6 +1616,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Sensitivity"
+                midiActionId="deck.rearrangerSensitivity"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1529,6 +1629,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Quiet Thresh"
+                midiActionId="deck.rearrangerQuietThreshold"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1541,6 +1642,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Slice Fade"
+                midiActionId="deck.rearrangerSliceFade"
                 min={0}
                 max={12}
                 step={1}
@@ -1558,6 +1660,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Slice Delay"
+                midiActionId="deck.rearrangerSliceDelay"
                 min={0}
                 max={5}
                 step={0.01}
@@ -1575,6 +1678,7 @@ const DeckCardFxRack = ({
               <Knob
                 className="knob--compact"
                 label="Ping Pong"
+                midiActionId="deck.rearrangerPingPong"
                 min={0}
                 max={1}
                 step={0.01}
@@ -1664,6 +1768,7 @@ const DeckCardFxRack = ({
             </div>
           </div>
           <div
+            ref={setPanelRef("stretch")}
             className={`deck__fx-unit deck__fx-unit--stretch deck__fx-unit--span-2 ${fxPanelOpen.stretch ? "" : "is-collapsed"}`.trim()}
           >
             <button
@@ -1677,6 +1782,7 @@ const DeckCardFxRack = ({
             <div className="deck__stretch-grid">
               <Knob
                 label="Amount"
+                midiActionId="deck.stretchAmount"
                 min={1}
                 max={16}
                 step={0.1}
@@ -1690,6 +1796,7 @@ const DeckCardFxRack = ({
                 <Knob
                   className="knob--compact"
                   label="Phase"
+                  midiActionId="deck.stretchPhase"
                   min={0}
                   max={1}
                   step={0.05}
@@ -1702,6 +1809,7 @@ const DeckCardFxRack = ({
                 <Knob
                   className="knob--compact"
                   label="Width"
+                  midiActionId="deck.stretchWidth"
                   min={0}
                   max={2}
                   step={0.05}
@@ -1714,6 +1822,7 @@ const DeckCardFxRack = ({
                 <Knob
                   className="knob--compact"
                   label="Tilt"
+                  midiActionId="deck.stretchTilt"
                   min={-18}
                   max={18}
                   step={0.1}
@@ -1726,6 +1835,7 @@ const DeckCardFxRack = ({
                 <Knob
                   className="knob--compact"
                   label="Scatter"
+                  midiActionId="deck.stretchScatter"
                   min={1}
                   max={16}
                   step={0.05}
@@ -1738,6 +1848,7 @@ const DeckCardFxRack = ({
                 <Knob
                   className="knob--compact"
                   label="Window"
+                  midiActionId="deck.stretchWindow"
                   min={1}
                   max={stretchWindowSizes.length}
                   step={1}

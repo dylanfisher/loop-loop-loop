@@ -228,6 +228,109 @@ body[data-theme="dark"] .app__header {
   width: 100%;
 }
 
+.midi-panel {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface) 92%, transparent);
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+  box-shadow: 0 8px 22px var(--soft-shadow);
+}
+
+.midi-panel__header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.midi-panel__status {
+  color: var(--muted);
+}
+
+.midi-panel__deck {
+  color: var(--muted);
+}
+
+.midi-panel__row {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.midi-panel label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.midi-panel select {
+  min-width: 160px;
+}
+
+.midi-panel__hint,
+.midi-panel__message,
+.midi-panel__error,
+.midi-panel__empty {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.midi-panel__error {
+  color: #c03;
+}
+
+body[data-theme="dark"] .midi-panel__error {
+  color: #ff6e75;
+}
+
+.midi-panel__mappings {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.midi-panel__mappings-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.midi-panel__mappings ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.midi-panel__mappings li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.61rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .app__header-master {
   display: flex;
   align-items: center;
@@ -2250,6 +2353,73 @@ body[data-theme="dark"] .peq__node-label {
 
 .knob.is-simple-automated .knob__indicator {
   stroke: color-mix(in oklab, #ff8a00 75%, var(--ink));
+}
+
+.knob.is-midi-mappable .knob__control {
+  cursor: pointer;
+  border-color: color-mix(in oklab, var(--accent) 38%, var(--line));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 28%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--accent) 20%, transparent);
+}
+
+.knob.is-midi-mappable .knob__indicator {
+  stroke: color-mix(in oklab, var(--accent) 78%, var(--ink));
+}
+
+.knob.is-midi-learn-armed .knob__control {
+  border-color: color-mix(in oklab, var(--accent) 80%, #ffffff);
+  background: color-mix(in oklab, var(--accent) 20%, var(--surface));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 70%, transparent),
+    0 0 0 2px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+
+.knob.is-midi-learn-armed .knob__indicator {
+  stroke: color-mix(in oklab, var(--accent) 92%, var(--ink));
+}
+
+.deck--active .knob.is-twister-slot-mapped .knob__control {
+  border-color: color-mix(in oklab, var(--twister-slot-color) 52%, var(--line));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--twister-slot-color) 40%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--twister-slot-color) 24%, transparent);
+}
+
+.deck--active .knob.is-twister-slot-mapped .knob__ring,
+.deck--active .knob.is-twister-slot-mapped .knob__indicator {
+  stroke: var(--twister-slot-color);
+}
+
+.deck:not(.deck--active) .knob.is-twister-slot-mapped .knob__control {
+  border-color: var(--line);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.deck:not(.deck--active) .knob.is-twister-slot-mapped .knob__ring,
+.deck:not(.deck--active) .knob.is-twister-slot-mapped .knob__indicator {
+  stroke: var(--ink);
+}
+
+.app--twister-mode .deck--active .deck__fx-unit-toggle {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, #f3ca2f 10%, transparent);
+}
+
+.app--twister-mode.app--twister-module-gain .deck--active .deck__fx-unit--gain .deck__fx-unit-toggle,
+.app--twister-mode.app--twister-module-djFilter .deck--active .deck__fx-unit--filter .deck__fx-unit-toggle,
+.app--twister-mode.app--twister-module-balance .deck--active .deck__fx-unit--balance .deck__fx-unit-toggle,
+.app--twister-mode.app--twister-module-pitch .deck--active .deck__fx-unit--pitch .deck__fx-unit-toggle,
+.app--twister-mode.app--twister-module-parametricEq .deck--active .deck__fx-unit--parametric .deck__fx-unit-toggle,
+.app--twister-mode.app--twister-module-vocoder .deck--active .deck__fx-unit--vocoder .deck__fx-unit-toggle,
+.app--twister-mode.app--twister-module-delay .deck--active .deck__fx-unit--delay .deck__fx-unit-toggle,
+.app--twister-mode.app--twister-module-spectralSpace .deck--active .deck__fx-unit--spectral-space .deck__fx-unit-toggle,
+.app--twister-mode.app--twister-module-rearranger .deck--active .deck__fx-unit--rearranger .deck__fx-unit-toggle,
+.app--twister-mode.app--twister-module-stretch .deck--active .deck__fx-unit--stretch .deck__fx-unit-toggle {
+  border-color: color-mix(in oklab, #f3ca2f 68%, var(--line));
+  background: color-mix(in oklab, #f3ca2f 12%, var(--surface));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, #f3ca2f 45%, transparent),
+    0 0 0 1px color-mix(in oklab, #f3ca2f 35%, transparent);
 }
 
 body.mod-alt-held .knob.is-simple-automation-capable:not(.is-simple-automated) .knob__control {

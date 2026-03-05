@@ -127,6 +127,13 @@ const WelcomePanel = ({ onClose, onOpenDemoLoop }: WelcomePanelProps) => {
           </p>
         </article>
         <article className="welcome-panel__card">
+          <h3>MIDI Learn</h3>
+          <p>
+            Connect a controller in the new MIDI panel, choose an action, press Learn, then move
+            a knob. Mappings target the focused deck by default.
+          </p>
+        </article>
+        <article className="welcome-panel__card">
           <h3>Undo + Sessions</h3>
           <p>
             Use <strong>Cmd/Ctrl+Z</strong> often. Save sessions as milestones, especially before
