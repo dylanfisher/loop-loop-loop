@@ -1256,6 +1256,13 @@ const App = () => {
     decks.every((deck) => !deck.buffer && !deck.fileName);
   const showWelcomePanel =
     (isCurrentProjectBrandNew && !welcomePanelDismissed) || showWelcomePanelOverride;
+  const handleNewProject = useCallback(() => {
+    setMidiLearnModeEnabled(false);
+    cancelMidiLearn();
+    setTwisterModeEnabled(false);
+    setShowWelcomePanelOverride(false);
+    handleNewSession();
+  }, [cancelMidiLearn, handleNewSession]);
 
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
   const hasExportDecks = decks.some(
@@ -1817,7 +1824,7 @@ const App = () => {
         onUndo={undo}
         onRedo={redo}
         onAddDeck={handleAddDeck}
-        onNewSession={handleNewSession}
+        onNewSession={handleNewProject}
         onGlobalPlaybackToggle={handleGlobalPlaybackToggle}
         onGlobalStopReset={handleGlobalStopReset}
         hasActivePlayback={hasActivePlayback}
@@ -1873,7 +1880,7 @@ const App = () => {
         onSelectedInputIdChange={setSelectedMidiInputId}
         selectedOutputId={selectedMidiOutputId}
         onSelectedOutputIdChange={setSelectedMidiOutputId}
-        focusedDeckLabel={focusedDeck ? `Deck ${focusedDeck.id}` : "No Deck Selected"}
+        focusedDeckLabel={focusedDeck ? `Deck ${focusedDeck.id}` : "None"}
         mappings={midiMappings}
         learnTarget={midiLearnTarget}
         onBeginLearn={beginMidiLearn}

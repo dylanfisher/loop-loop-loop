@@ -378,7 +378,6 @@ const DeckCard = (props: DeckCardProps) => {
     onLoadClick(deck.id);
   }, [deck.id, onLoadClick]);
 
-  const [saveSettings, setSaveSettings] = useState(true);
   const [tempoFine, setTempoFine] = useState(false);
   const [tempoEditing, setTempoEditing] = useState(false);
   const [tempoInput, setTempoInput] = useState(deck.tempoOffset.toFixed(2));
@@ -877,7 +876,7 @@ const DeckCard = (props: DeckCardProps) => {
                 idleLabel="Save"
                 busyLabel="Saving..."
                 successLabel="Saved"
-                onAction={() => onSaveLoopClip(deck.id, saveSettings)}
+                onAction={() => onSaveLoopClip(deck.id, true)}
                 title="Save the current loop as a clip."
               />
               <AsyncActionButton
@@ -895,7 +894,7 @@ const DeckCard = (props: DeckCardProps) => {
                 idleLabel="Duplicate"
                 busyLabel="Duplicating..."
                 successLabel="Duplicated"
-                onAction={() => onDuplicateLoop(deck.id, saveSettings)}
+                onAction={() => onDuplicateLoop(deck.id, true)}
                 title="Open the current loop in a new deck without saving a clip. (D)"
               />
               <button
@@ -947,17 +946,6 @@ const DeckCard = (props: DeckCardProps) => {
           <div className="deck__meta">
             <div className="deck__bpm-summary">
               <div className="deck__meta-actions">
-                <label
-                  className="deck__pitch-sync"
-                  title="When enabled, Save stores the current deck FX/automation/settings (filters, EQ, vocoder, delay, balance, pitch, tempo, stretch, and loop settings) as metadata without baking them into the audio. Loading that clip will reapply those settings to the target deck."
-                >
-                  <input
-                    type="checkbox"
-                    checked={saveSettings}
-                    onChange={(event) => setSaveSettings(event.target.checked)}
-                  />
-                  Save FX Settings
-                </label>
                 <label className="deck__pitch-sync">
                   <input
                     type="checkbox"

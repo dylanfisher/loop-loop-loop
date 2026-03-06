@@ -73,27 +73,31 @@ const MidiPanel = ({
   return (
     <section className="midi-panel" aria-label="MIDI controller mapping">
       <div className="midi-panel__header">
-        <strong>MIDI</strong>
-        <span className="midi-panel__status">
-          {supported ? (accessGranted ? "Ready" : "Disconnected") : "Not Supported"}
-        </span>
-        <span className="midi-panel__deck">Target: {focusedDeckLabel}</span>
-        <button
-          type="button"
-          className={learnModeEnabled ? "is-active" : undefined}
-          onClick={onToggleLearnMode}
-          title="Toggle MIDI click-to-map mode"
-        >
-          MIDI Learn {learnModeEnabled ? "On" : "Off"}
-        </button>
-        <button
-          type="button"
-          className={twisterModeEnabled ? "is-active" : undefined}
-          onClick={onToggleTwisterMode}
-          title="Enable dynamic Twister mode (slots 1-15 = module controls, 16 = module select, right-side top/bottom buttons on page-16 mapping = prev/next deck)"
-        >
-          Twister Mode {twisterModeEnabled ? "On" : "Off"}
-        </button>
+        <div className="midi-panel__meta">
+          <strong>MIDI</strong>
+          <span className="midi-panel__status">
+            {supported ? (accessGranted ? "Ready" : "Disconnected") : "Not Supported"}
+          </span>
+          <span className="midi-panel__deck">Target: {focusedDeckLabel}</span>
+        </div>
+        <div className="midi-panel__actions">
+          <button
+            type="button"
+            className={learnModeEnabled ? "is-active" : undefined}
+            onClick={onToggleLearnMode}
+            title="Toggle MIDI click-to-map mode"
+          >
+            MIDI Learn {learnModeEnabled ? "On" : "Off"}
+          </button>
+          <button
+            type="button"
+            className={twisterModeEnabled ? "is-active" : undefined}
+            onClick={onToggleTwisterMode}
+            title="Enable dynamic Twister mode (slots 1-15 = module controls, 16 = module select, right-side top/bottom buttons on page-16 mapping = prev/next deck)"
+          >
+            Twister Mode {twisterModeEnabled ? "On" : "Off"}
+          </button>
+        </div>
       </div>
       {!supported ? (
         <div className="midi-panel__message">
@@ -101,9 +105,14 @@ const MidiPanel = ({
         </div>
       ) : null}
       {supported && !accessGranted ? (
-        <button type="button" onClick={onRequestAccess}>
-          Connect MIDI
-        </button>
+        <div className="midi-panel__connect">
+          <button type="button" onClick={onRequestAccess}>
+            Connect MIDI
+          </button>
+          <span className="midi-panel__message">
+            Grant browser access to choose MIDI inputs, outputs, and mappings.
+          </span>
+        </div>
       ) : null}
       {accessError ? <div className="midi-panel__error">{accessError}</div> : null}
       {supported && accessGranted ? (
