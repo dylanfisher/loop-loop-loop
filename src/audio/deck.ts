@@ -14,6 +14,8 @@ import {
 } from "./rearrangerPingPong";
 import { createLimiter, createSoftClipper } from "./clipper";
 import {
+  DELAY_FEEDBACK_AIR_TRIM_DB,
+  DELAY_FEEDBACK_AIR_TRIM_FREQ,
   createAbsCurve,
   createSoftClipCurve,
   createThresholdCurve,
@@ -93,6 +95,8 @@ type DeckNodes = {
   delayFeedbackR: GainNode;
   delayToneL: BiquadFilterNode;
   delayToneR: BiquadFilterNode;
+  delayAirTrimL: BiquadFilterNode;
+  delayAirTrimR: BiquadFilterNode;
   delayDampingL: BiquadFilterNode;
   delayDampingR: BiquadFilterNode;
   delaySaturationDriveL: GainNode;
@@ -367,6 +371,8 @@ const connectDelayFeedback = (nodes: DeckNodes, pingPong: boolean) => {
   nodes.delayFeedbackR.disconnect();
   nodes.delayToneL.disconnect();
   nodes.delayToneR.disconnect();
+  nodes.delayAirTrimL.disconnect();
+  nodes.delayAirTrimR.disconnect();
   nodes.delayPitchL.output.disconnect();
   nodes.delayPitchR.output.disconnect();
   nodes.delayDiffusionL1.disconnect();
@@ -392,8 +398,10 @@ const connectDelayFeedback = (nodes: DeckNodes, pingPong: boolean) => {
   nodes.delayR.connect(nodes.delayFeedbackR);
   nodes.delayFeedbackL.connect(nodes.delayToneL);
   nodes.delayFeedbackR.connect(nodes.delayToneR);
-  nodes.delayToneL.connect(nodes.delayPitchL.input);
-  nodes.delayToneR.connect(nodes.delayPitchR.input);
+  nodes.delayToneL.connect(nodes.delayAirTrimL);
+  nodes.delayToneR.connect(nodes.delayAirTrimR);
+  nodes.delayAirTrimL.connect(nodes.delayPitchL.input);
+  nodes.delayAirTrimR.connect(nodes.delayPitchR.input);
   nodes.delayPitchL.output.connect(nodes.delayDiffusionDryL);
   nodes.delayPitchR.output.connect(nodes.delayDiffusionDryR);
   nodes.delayDiffusionDryL.connect(nodes.delayDiffusionMergeL);
@@ -995,6 +1003,8 @@ const ensureDeckNodes = (
     const delayFeedbackR = context.createGain();
     const delayToneL = context.createBiquadFilter();
     const delayToneR = context.createBiquadFilter();
+    const delayAirTrimL = context.createBiquadFilter();
+    const delayAirTrimR = context.createBiquadFilter();
     const delayDampingL = context.createBiquadFilter();
     const delayDampingR = context.createBiquadFilter();
     const delaySaturationDriveL = context.createGain();
@@ -1067,6 +1077,12 @@ const ensureDeckNodes = (
     ];
     delayToneL.type = "lowpass";
     delayToneR.type = "lowpass";
+    delayAirTrimL.type = "highshelf";
+    delayAirTrimR.type = "highshelf";
+    delayAirTrimL.frequency.value = DELAY_FEEDBACK_AIR_TRIM_FREQ;
+    delayAirTrimR.frequency.value = DELAY_FEEDBACK_AIR_TRIM_FREQ;
+    delayAirTrimL.gain.value = DELAY_FEEDBACK_AIR_TRIM_DB;
+    delayAirTrimR.gain.value = DELAY_FEEDBACK_AIR_TRIM_DB;
     delayDampingL.type = "lowpass";
     delayDampingR.type = "lowpass";
     delayDuckGain.gain.value = 1;
@@ -1418,6 +1434,8 @@ const ensureDeckNodes = (
       delayFeedbackR,
       delayToneL,
       delayToneR,
+      delayAirTrimL,
+      delayAirTrimR,
       delayDampingL,
       delayDampingR,
       delaySaturationDriveL,
@@ -2943,6 +2961,8 @@ export const removeDeckNodes = (deckId: number) => {
     nodes.delayFeedbackR.disconnect();
     nodes.delayToneL.disconnect();
     nodes.delayToneR.disconnect();
+    nodes.delayAirTrimL.disconnect();
+    nodes.delayAirTrimR.disconnect();
     nodes.delayDampingL.disconnect();
     nodes.delayDampingR.disconnect();
     nodes.delaySaturationDriveL.disconnect();

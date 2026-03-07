@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  DELAY_FEEDBACK_AIR_TRIM_DB,
+  DELAY_FEEDBACK_AIR_TRIM_FREQ,
   mapDuckResponseToFollowerCutoff,
   normalizeDelayParams,
 } from "../delay";
@@ -32,5 +34,11 @@ describe("delay params", () => {
   it("maps duck response to a bounded follower cutoff", () => {
     expect(mapDuckResponseToFollowerCutoff(1)).toBeGreaterThanOrEqual(2);
     expect(mapDuckResponseToFollowerCutoff(5000)).toBeLessThanOrEqual(120);
+  });
+
+  it("applies a subtle fixed high-frequency trim in the feedback loop", () => {
+    expect(DELAY_FEEDBACK_AIR_TRIM_FREQ).toBeGreaterThan(3000);
+    expect(DELAY_FEEDBACK_AIR_TRIM_DB).toBeLessThan(0);
+    expect(DELAY_FEEDBACK_AIR_TRIM_DB).toBeGreaterThan(-9);
   });
 });

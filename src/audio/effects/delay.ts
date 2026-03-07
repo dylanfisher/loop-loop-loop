@@ -52,6 +52,8 @@ const MAX_PITCH_LADDER_SEMITONES = 12;
 const MIN_DUCK_RESPONSE_MS = 8;
 const MAX_DUCK_RESPONSE_MS = 800;
 const MIX_BYPASS_EPSILON = 1e-3;
+export const DELAY_FEEDBACK_AIR_TRIM_FREQ = 4200;
+export const DELAY_FEEDBACK_AIR_TRIM_DB = -4.5;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -200,6 +202,8 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
     const feedbackR = context.createGain();
     const toneL = context.createBiquadFilter();
     const toneR = context.createBiquadFilter();
+    const airTrimL = context.createBiquadFilter();
+    const airTrimR = context.createBiquadFilter();
     const dampingL = context.createBiquadFilter();
     const dampingR = context.createBiquadFilter();
     const saturationDriveL = context.createGain();
@@ -212,6 +216,12 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
     const safetyOut = context.createGain();
     toneL.type = "lowpass";
     toneR.type = "lowpass";
+    airTrimL.type = "highshelf";
+    airTrimR.type = "highshelf";
+    airTrimL.frequency.value = DELAY_FEEDBACK_AIR_TRIM_FREQ;
+    airTrimR.frequency.value = DELAY_FEEDBACK_AIR_TRIM_FREQ;
+    airTrimL.gain.value = DELAY_FEEDBACK_AIR_TRIM_DB;
+    airTrimR.gain.value = DELAY_FEEDBACK_AIR_TRIM_DB;
     dampingL.type = "lowpass";
     dampingR.type = "lowpass";
     delayL.delayTime.value = params.time;
@@ -267,8 +277,8 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
     const pitchShiftRequested = pitchMix > 1e-3 && Math.abs(stepSemitones) > 1e-3;
     const diffusionAmount = clamp(params.rhythmSwing, 0, 1);
     const diffusionActive = diffusionAmount > 1e-3;
-    let feedbackInputL: AudioNode = toneL;
-    let feedbackInputR: AudioNode = toneR;
+    let feedbackInputL: AudioNode = airTrimL;
+    let feedbackInputR: AudioNode = airTrimR;
 
     if (pitchShiftRequested) {
       const pitchL = createPitchShiftNodes(context);
@@ -289,8 +299,8 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
         pitchR.dryGain.gain.value = 1;
         pitchR.wetGain.gain.value = 0;
       }
-      toneL.connect(pitchL.input);
-      toneR.connect(pitchR.input);
+      airTrimL.connect(pitchL.input);
+      airTrimR.connect(pitchR.input);
       feedbackInputL = pitchL.output;
       feedbackInputR = pitchR.output;
     }
@@ -346,6 +356,8 @@ export const delayPlugin: OfflineEffectPlugin<DelayParams> = {
     delayR.connect(feedbackR);
     feedbackL.connect(toneL);
     feedbackR.connect(toneR);
+    toneL.connect(airTrimL);
+    toneR.connect(airTrimR);
     dampingL.connect(saturationDriveL);
     dampingR.connect(saturationDriveR);
     saturationDriveL.connect(saturationShapeL);
