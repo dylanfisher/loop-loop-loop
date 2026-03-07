@@ -304,6 +304,7 @@ const App = () => {
   const [showStorageDiagnostics, setShowStorageDiagnostics] = useState(false);
   const [storageUsedLabel, setStorageUsedLabel] = useState("Storage: --");
   const [midiLearnModeEnabled, setMidiLearnModeEnabled] = useState(false);
+  const [midiPanelExpanded, setMidiPanelExpanded] = useState(true);
   const [twisterModeEnabled, setTwisterModeEnabled] = useState(false);
   const [twisterModuleIndex, setTwisterModuleIndex] = useState(0);
   const [twisterScrollToken, setTwisterScrollToken] = useState(0);
@@ -1130,6 +1131,7 @@ const App = () => {
         return;
       }
       setTwisterModeEnabled(true);
+      setMidiPanelExpanded(false);
       if (focusedDeckId !== null) {
         openTwisterModulePanels(focusedDeckId, activeTwisterModule.id);
       }
@@ -1155,6 +1157,7 @@ const App = () => {
     const ok = loadTwisterModeProfile();
     if (!ok) return;
     setTwisterModeEnabled(true);
+    setMidiPanelExpanded(false);
     if (focusedDeckId !== null) {
       openTwisterModulePanels(focusedDeckId, activeTwisterModule.id);
     }
@@ -1977,6 +1980,8 @@ const App = () => {
         onCancelLearn={cancelMidiLearn}
         onRemoveMapping={removeMidiMapping}
         onClearMappings={clearMidiMappings}
+        expanded={midiPanelExpanded}
+        onExpandedChange={setMidiPanelExpanded}
         showTwisterMode={twisterInputSelected}
         twisterModeEnabled={twisterModeEnabled}
         onToggleTwisterMode={toggleTwisterMode}

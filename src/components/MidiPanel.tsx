@@ -31,6 +31,8 @@ type MidiPanelProps = {
   onCancelLearn: () => void;
   onRemoveMapping: (id: string) => void;
   onClearMappings: () => void;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
   showTwisterMode: boolean;
   twisterModeEnabled: boolean;
   onToggleTwisterMode: () => void;
@@ -56,6 +58,8 @@ const MidiPanel = ({
   onCancelLearn,
   onRemoveMapping,
   onClearMappings,
+  expanded,
+  onExpandedChange,
   showTwisterMode,
   twisterModeEnabled,
   onToggleTwisterMode,
@@ -64,7 +68,6 @@ const MidiPanel = ({
 }: MidiPanelProps) => {
   const [actionId, setActionId] = useState<MidiActionId>("deck.gain");
   const [mode, setMode] = useState<MidiLearnMode>("absolute");
-  const [expanded, setExpanded] = useState(true);
 
   const selectedInputName = useMemo(
     () => inputs.find((input) => input.id === selectedInputId)?.name ?? "All Inputs",
@@ -91,7 +94,7 @@ const MidiPanel = ({
           <span className="midi-panel__deck">Target: {focusedDeckLabel}</span>
         </div>
         <div className="midi-panel__actions">
-          <button type="button" onClick={() => setExpanded((current) => !current)}>
+          <button type="button" onClick={() => onExpandedChange(!expanded)}>
             {expanded ? "Hide Panel" : "Show Panel"}
           </button>
           <button
