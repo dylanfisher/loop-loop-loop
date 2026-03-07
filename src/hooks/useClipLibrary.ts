@@ -299,6 +299,7 @@ const useClipLibrary = ({
         loopEnabled: true,
         loopStartSeconds: 0,
         loopEndSeconds: loopDuration,
+        loopDelaySec: deck.loopDelaySec,
         automation: {
           gain: toSnapshot(automation?.gain, deck.gain),
           djFilter: toSnapshot(automation?.djFilter, deck.djFilter),

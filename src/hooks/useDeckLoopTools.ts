@@ -614,13 +614,19 @@ const useDeckLoopTools = ({
       const duration = deck.duration ?? deck.buffer.duration;
       const playbackSnapshot = getDeckPlaybackSnapshot(deckId);
       const currentPosition = playbackSnapshot?.position ?? deck.offsetSeconds ?? 0;
-      const nextOffsetSeconds = Math.min(Math.max(0, currentPosition), duration);
       const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
       const loopEnd =
         deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
           ? Math.min(deck.loopEndSeconds, duration)
           : duration;
       if (loopEnd <= loopStart + 0.01) return;
+      const loopLength = loopEnd - loopStart;
+      const triggerWindow = Math.min(0.12, loopLength * 0.25);
+      const nearLoopEnd = currentPosition >= loopEnd - Math.max(0.03, triggerWindow);
+      const nextOffsetSeconds =
+        deck.status === "playing" && playbackSnapshot?.playing && nearLoopEnd
+          ? loopStart
+          : Math.min(Math.max(0, currentPosition), duration);
 
       rearrangeBusyByDeckRef.current.set(deckId, true);
       try {

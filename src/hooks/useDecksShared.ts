@@ -28,6 +28,7 @@ export const DEFAULT_STRETCH_PHASE_RANDOMNESS = 0.5;
 export const DEFAULT_STRETCH_TILT_DB = 0;
 export const DEFAULT_STRETCH_SCATTER = 1;
 export const DEFAULT_DELAY_TIME = 0.35;
+export const DEFAULT_LOOP_DELAY_SEC = 0;
 export const DEFAULT_DELAY_FEEDBACK = 0.35;
 export const DEFAULT_DELAY_MIX = 0;
 export const DEFAULT_DELAY_TONE = 6000;
@@ -101,6 +102,7 @@ export const SIMPLE_AUTOMATION_PARAM_LIMITS: Record<
   SimpleAutomationParam,
   { min: number; max: number }
 > = {
+  loopDelaySec: { min: 0, max: 60 },
   delayTime: { min: 0.01, max: 1.5 },
   delayFeedback: { min: 0, max: 0.99 },
   delayMix: { min: 0, max: 1 },
@@ -149,6 +151,7 @@ export const EQ_MAX_DB = 18;
 export const FX_ACTIVE_EPSILON = 1e-3;
 
 const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
+  loopDelay: false,
   gain: false,
   djFilter: false,
   resonance: false,
@@ -392,6 +395,7 @@ export const buildInitialDecks = (): DeckState[] => [
     loopEnabled: true,
     loopStartSeconds: 0,
     loopEndSeconds: 0,
+    loopDelaySec: DEFAULT_LOOP_DELAY_SEC,
     tempoOffset: 0,
     tempoPitchSync: false,
     stretchRatio: DEFAULT_STRETCH_RATIO,

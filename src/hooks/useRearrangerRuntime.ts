@@ -71,6 +71,12 @@ type PendingAutoRearrange = {
 
 const HIDDEN_TICK_INTERVAL_MS = 10;
 
+type RearrangeLoopTrackerState = {
+  lastPosition: number;
+  lastTriggerMs: number;
+  wasWaitingAtLoopEnd: boolean;
+};
+
 const useRearrangerRuntime = ({
   decks,
   getDeckPlaybackSnapshot,
@@ -83,7 +89,7 @@ const useRearrangerRuntime = ({
   setDeckRearrangerPingPongLive,
 }: UseRearrangerRuntimeArgs) => {
   const decksRef = useRef<DeckState[]>(decks);
-  const rearrangeLoopTrackerRef = useRef<Map<number, { lastPosition: number; lastTriggerMs: number }>>(
+  const rearrangeLoopTrackerRef = useRef<Map<number, RearrangeLoopTrackerState>>(
     new Map()
   );
   const sliceDelayHoldStateRef = useRef<Map<number, SliceDelayHoldState>>(new Map());
@@ -366,6 +372,7 @@ const useRearrangerRuntime = ({
         const state = tracker.get(deck.id) ?? {
           lastPosition: currentPosition,
           lastTriggerMs: 0,
+          wasWaitingAtLoopEnd: false,
         };
 
         if (
@@ -378,6 +385,7 @@ const useRearrangerRuntime = ({
           tracker.set(deck.id, {
             lastPosition: currentPosition,
             lastTriggerMs: state.lastTriggerMs,
+            wasWaitingAtLoopEnd: false,
           });
           return;
         }
@@ -388,6 +396,7 @@ const useRearrangerRuntime = ({
           tracker.set(deck.id, {
             lastPosition: currentPosition,
             lastTriggerMs: state.lastTriggerMs,
+            wasWaitingAtLoopEnd: false,
           });
           return;
         }
@@ -398,6 +407,7 @@ const useRearrangerRuntime = ({
           tracker.set(deck.id, {
             lastPosition: currentPosition,
             lastTriggerMs: state.lastTriggerMs,
+            wasWaitingAtLoopEnd: false,
           });
           return;
         }
@@ -491,13 +501,19 @@ const useRearrangerRuntime = ({
         }
 
         const triggerWindow = Math.min(0.12, loopLength * 0.25);
+        const restartWindow = Math.max(triggerWindow, Math.min(0.2, loopLength * 0.4));
+        const nearLoopStart = currentPosition <= snapshot.loopStart + triggerWindow;
+        const nearLoopStartAfterGap = currentPosition <= snapshot.loopStart + restartWindow;
+        const waitingAtLoopEnd =
+          currentPosition >= loopEnd - Math.max(0.03, triggerWindow);
         const wrapped =
           state.lastPosition > currentPosition + 0.03 &&
           state.lastPosition > snapshot.loopStart + triggerWindow &&
-          currentPosition <= snapshot.loopStart + triggerWindow;
+          nearLoopStart;
+        const resumedFromLoopDelay = state.wasWaitingAtLoopEnd && nearLoopStartAfterGap;
         const cooldownMs = Math.max(120, Math.min(1000, loopLength * 500));
 
-        if (wrapped && now - state.lastTriggerMs > cooldownMs) {
+        if ((wrapped || resumedFromLoopDelay) && now - state.lastTriggerMs > cooldownMs) {
           const prepared = pendingAuto.get(deck.id);
           if (
             prepared &&
@@ -519,6 +535,7 @@ const useRearrangerRuntime = ({
           tracker.set(deck.id, {
             lastPosition: currentPosition,
             lastTriggerMs: now,
+            wasWaitingAtLoopEnd: false,
           });
           return;
         }
@@ -526,6 +543,7 @@ const useRearrangerRuntime = ({
         tracker.set(deck.id, {
           lastPosition: currentPosition,
           lastTriggerMs: state.lastTriggerMs,
+          wasWaitingAtLoopEnd: waitingAtLoopEnd,
         });
       });
 

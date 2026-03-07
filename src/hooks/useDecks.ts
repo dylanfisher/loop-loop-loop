@@ -47,6 +47,7 @@ import {
   DEFAULT_DELAY_DUCK_DEPTH,
   DEFAULT_DELAY_DUCK_RESPONSE_MS,
   DEFAULT_DELAY_DUCK_THRESHOLD,
+  DEFAULT_LOOP_DELAY_SEC,
   DEFAULT_DELAY_RHYTHM_MORPH,
   DEFAULT_DELAY_RHYTHM_RATE_HZ,
   DEFAULT_DELAY_RHYTHM_SWING,
@@ -118,6 +119,11 @@ type SimpleAutomationRuntimeTrack = {
   paused: boolean;
   pausedPositionSec: number;
 };
+type LoopDelayRuntime = {
+  restartTimeoutId: number | null;
+  waitingAtLoopEndSec: number | null;
+  passToken: number;
+};
 const PARAMETRIC_EQ_AUTOMATION_PATTERN =
   /^parametricEqBand([1-8])(Frequency|Gain)$/;
 const PARAMETRIC_EQ_MIN_FREQ = 20;
@@ -152,6 +158,7 @@ const useDecks = () => {
   const simpleAutomationRuntimeRef = useRef<
     Map<number, Partial<Record<SimpleAutomationParam, SimpleAutomationRuntimeTrack>>>
   >(new Map());
+  const loopDelayRuntimeRef = useRef<Map<number, LoopDelayRuntime>>(new Map());
   const automationTickEnabledRef = useRef(false);
   const [automationState, setAutomationState] = useState<Map<number, Record<AutomationParam, AutomationView>>>(
     new Map()
@@ -329,6 +336,11 @@ const useDecks = () => {
       if (param === "delayTime") {
         setDeckDelayTime(deckId, clamped);
         updateDeckValue("delayTime", clamped);
+        return;
+      }
+      if (param === "loopDelaySec") {
+        updateDeckValue("loopDelaySec", clamped, 0.01);
+        rescheduleLoopDelayWait(deckId, clamped);
         return;
       }
       if (param === "delayFeedback") {
@@ -1235,6 +1247,345 @@ const useDecks = () => {
     []
   );
 
+  const getDeckLoopRange = useCallback((deck: DeckState) => {
+    const duration = deck.duration ?? deck.buffer?.duration ?? 0;
+    const loopStart = Math.max(0, deck.loopStartSeconds ?? 0);
+    const loopEnd =
+      deck.loopEndSeconds && deck.loopEndSeconds > loopStart + 0.01
+        ? Math.min(deck.loopEndSeconds, duration)
+        : duration;
+    if (!deck.loopEnabled || loopEnd <= loopStart + 0.01) {
+      return null;
+    }
+    return { loopStart, loopEnd };
+  }, []);
+
+  const usesLoopDelayTransport = useCallback(
+    (deck: DeckState) =>
+      getDeckLoopRange(deck) !== null &&
+      ((deck.loopDelaySec ?? DEFAULT_LOOP_DELAY_SEC) > FX_ACTIVE_EPSILON ||
+        deck.simpleAutomation?.loopDelaySec?.active === true),
+    [getDeckLoopRange]
+  );
+
+  const clearLoopDelayRuntime = useCallback((deckId: number) => {
+    const runtime = loopDelayRuntimeRef.current.get(deckId);
+    if (!runtime) return;
+    if (runtime.restartTimeoutId !== null) {
+      window.clearTimeout(runtime.restartTimeoutId);
+    }
+    loopDelayRuntimeRef.current.delete(deckId);
+  }, []);
+
+  const rescheduleLoopDelayWait = useCallback(
+    (deckId: number, gapSec: number) => {
+      const runtime = loopDelayRuntimeRef.current.get(deckId);
+      const deck = decksRef.current.find((item) => item.id === deckId);
+      if (!runtime || !deck || runtime.waitingAtLoopEndSec === null) return;
+      const loopRange = getDeckLoopRange(deck);
+      if (!loopRange) return;
+      if (runtime.restartTimeoutId !== null) {
+        window.clearTimeout(runtime.restartTimeoutId);
+        runtime.restartTimeoutId = null;
+      }
+      const clampedGapSec = clamp(gapSec, 0, 60);
+      if (clampedGapSec <= FX_ACTIVE_EPSILON) {
+        void startDeckPlayback(
+          { ...deck, loopDelaySec: clampedGapSec },
+          {
+            offsetSeconds: loopRange.loopStart,
+            stopFirst: true,
+            resumeAutomation: false,
+          }
+        );
+        return;
+      }
+      runtime.restartTimeoutId = window.setTimeout(() => {
+        const latestRuntime = loopDelayRuntimeRef.current.get(deckId);
+        const latestDeck = decksRef.current.find((item) => item.id === deckId);
+        if (!latestRuntime || !latestDeck) return;
+        latestRuntime.restartTimeoutId = null;
+        const latestLoopRange = getDeckLoopRange(latestDeck);
+        if (!latestLoopRange) return;
+        void startDeckPlayback(latestDeck, {
+          offsetSeconds: latestLoopRange.loopStart,
+          stopFirst: true,
+          resumeAutomation: false,
+        });
+      }, clampedGapSec * 1000);
+    },
+    [getDeckLoopRange, startDeckPlayback]
+  );
+
+  async function startLoopDelayPlayback(
+    deck: DeckState,
+    options?: {
+      offsetSeconds?: number;
+      startedAtMs?: number;
+      resumeAutomation?: boolean;
+      stopFirst?: boolean;
+    }
+  ) {
+      if (!deck.buffer) return;
+      const initialLoopRange = getDeckLoopRange(deck);
+      if (!initialLoopRange) return;
+      const runtime: LoopDelayRuntime = {
+        restartTimeoutId: null,
+        waitingAtLoopEndSec: null,
+        passToken: 0,
+      };
+      if (options?.stopFirst) {
+        stop(deck.id);
+      }
+      clearLoopDelayRuntime(deck.id);
+      loopDelayRuntimeRef.current.set(deck.id, runtime);
+      if (options?.resumeAutomation !== false) {
+        resumeAutomationDeck(deck.id);
+        resumeSimpleAutomationDeck(deck.id);
+      }
+      let pendingStartedAtMs = options?.startedAtMs;
+
+      const playPass = async (requestedOffsetSeconds: number) => {
+        const latestDeck = decksRef.current.find((item) => item.id === deck.id);
+        const activeRuntime = loopDelayRuntimeRef.current.get(deck.id);
+        if (!latestDeck?.buffer || !activeRuntime) return;
+        const passToken = activeRuntime.passToken + 1;
+        activeRuntime.passToken = passToken;
+        const loopRange = getDeckLoopRange(latestDeck) ?? initialLoopRange;
+        const offsetSeconds = clamp(
+          requestedOffsetSeconds,
+          loopRange.loopStart,
+          Math.max(loopRange.loopStart, loopRange.loopEnd - 0.01)
+        );
+        const startedAtMs = pendingStartedAtMs ?? performance.now();
+        pendingStartedAtMs = undefined;
+        playbackStartRef.current.set(deck.id, startedAtMs);
+        activeRuntime.waitingAtLoopEndSec = null;
+        updateDeck(
+          deck.id,
+          {
+            status: "playing",
+            startedAtMs,
+            duration: latestDeck.buffer.duration,
+            offsetSeconds,
+          },
+          false
+        );
+        const tempoRatio = getDeckPlaybackRate(latestDeck);
+        const filters = getFilterTargets(latestDeck.djFilter);
+        await playBuffer(
+          deck.id,
+          latestDeck.buffer,
+          () => {
+            const currentDeck = decksRef.current.find((item) => item.id === deck.id);
+            const currentRuntime = loopDelayRuntimeRef.current.get(deck.id);
+            if (!currentDeck?.buffer || !currentRuntime || currentRuntime.passToken !== passToken) {
+              return;
+            }
+            const currentLoopRange = getDeckLoopRange(currentDeck) ?? loopRange;
+            playbackStartRef.current.delete(deck.id);
+            currentRuntime.waitingAtLoopEndSec = currentLoopRange.loopEnd;
+            updateDeck(
+              deck.id,
+              {
+                status: "playing",
+                startedAtMs: undefined,
+                offsetSeconds: currentLoopRange.loopEnd,
+              },
+              false
+            );
+            const gapSec = clamp(currentDeck.loopDelaySec ?? DEFAULT_LOOP_DELAY_SEC, 0, 60);
+            if (gapSec <= FX_ACTIVE_EPSILON) {
+              void playPass(currentLoopRange.loopStart);
+              return;
+            }
+            currentRuntime.restartTimeoutId = window.setTimeout(() => {
+              const latestRuntime = loopDelayRuntimeRef.current.get(deck.id);
+              if (!latestRuntime || latestRuntime.passToken !== passToken) return;
+              latestRuntime.restartTimeoutId = null;
+              void playPass(currentLoopRange.loopStart);
+            }, gapSec * 1000);
+          },
+          latestDeck.gain,
+          offsetSeconds,
+          tempoRatio,
+          false,
+          loopRange.loopStart,
+          loopRange.loopEnd,
+          filters.lowpass,
+          filters.highpass,
+          latestDeck.filterResonance,
+          latestDeck.eqMode,
+          latestDeck.eqLowGain,
+          latestDeck.eqMidGain,
+          latestDeck.eqHighGain,
+          latestDeck.parametricEqBands,
+          latestDeck.delayTime,
+          latestDeck.delayFeedback,
+          latestDeck.delayMix,
+          latestDeck.delayTone,
+          latestDeck.delayPingPong,
+          latestDeck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+          latestDeck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+          latestDeck.delaySafety ?? DEFAULT_DELAY_SAFETY,
+          latestDeck.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH,
+          latestDeck.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ,
+          latestDeck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING,
+          latestDeck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH,
+          latestDeck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD,
+          latestDeck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
+          latestDeck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
+          latestDeck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
+          latestDeck.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION,
+          latestDeck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX,
+          latestDeck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD,
+          latestDeck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION,
+          latestDeck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT,
+          latestDeck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+          latestDeck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
+          latestDeck.vocoderMix,
+          latestDeck.vocoderCarrierDeckId,
+          latestDeck.vocoderModulatorMonitor,
+          latestDeck.vocoderModDrive,
+          latestDeck.vocoderBandCount,
+          latestDeck.vocoderBandSpread,
+          latestDeck.vocoderVocalCharacter,
+          latestDeck.vocoderFormantShift,
+          latestDeck.vocoderConsonantBoost,
+          latestDeck.vocoderPreEmphasis,
+          latestDeck.vocoderTightness,
+          latestDeck.vocoderAttackMs,
+          latestDeck.vocoderReleaseMs,
+          latestDeck.vocoderNoiseMix,
+          latestDeck.vocoderGateThreshold,
+          latestDeck.includeInRecordExport,
+          latestDeck.balance,
+          latestDeck.pitchShift,
+          latestDeck.vocoderPostDelay,
+          loopRange.loopEnd
+        );
+      };
+
+      const initialOffset =
+        options?.offsetSeconds ?? deck.offsetSeconds ?? initialLoopRange.loopStart;
+      await playPass(initialOffset);
+  }
+
+  async function startDeckPlayback(
+    deck: DeckState,
+    options?: {
+      offsetSeconds?: number;
+      startedAtMs?: number;
+      resumeAutomation?: boolean;
+      stopFirst?: boolean;
+    }
+  ) {
+      if (!deck.buffer) return;
+      if (usesLoopDelayTransport(deck)) {
+        await startLoopDelayPlayback(deck, options);
+        return;
+      }
+      clearLoopDelayRuntime(deck.id);
+      if (options?.stopFirst) {
+        stop(deck.id);
+      }
+      const duration = deck.buffer.duration;
+      let offsetSeconds = options?.offsetSeconds ?? deck.offsetSeconds ?? 0;
+      const loopRange = getDeckLoopRange(deck);
+      if (loopRange) {
+        offsetSeconds = clamp(
+          offsetSeconds,
+          loopRange.loopStart,
+          Math.max(loopRange.loopStart, loopRange.loopEnd - 0.01)
+        );
+      } else {
+        offsetSeconds = clamp(offsetSeconds, 0, duration);
+      }
+      // eslint-disable-next-line react-hooks/purity -- timestamp is captured while starting playback
+      const startedAtMs = options?.startedAtMs ?? performance.now();
+      playbackStartRef.current.set(deck.id, startedAtMs);
+      if (options?.resumeAutomation !== false) {
+        resumeAutomationDeck(deck.id);
+        resumeSimpleAutomationDeck(deck.id);
+      }
+      updateDeck(
+        deck.id,
+        {
+          status: "playing",
+          startedAtMs,
+          duration,
+          offsetSeconds,
+        },
+        false
+      );
+      const tempoRatio = getDeckPlaybackRate(deck);
+      const filters = getFilterTargets(deck.djFilter);
+      await playBuffer(
+        deck.id,
+        deck.buffer,
+        () => {
+          playbackStartRef.current.delete(deck.id);
+          updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
+        },
+        deck.gain,
+        offsetSeconds,
+        tempoRatio,
+        deck.loopEnabled,
+        deck.loopStartSeconds,
+        deck.loopEndSeconds,
+        filters.lowpass,
+        filters.highpass,
+        deck.filterResonance,
+        deck.eqMode,
+        deck.eqLowGain,
+        deck.eqMidGain,
+        deck.eqHighGain,
+        deck.parametricEqBands,
+        deck.delayTime,
+        deck.delayFeedback,
+        deck.delayMix,
+        deck.delayTone,
+        deck.delayPingPong,
+        deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
+        deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
+        deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
+        deck.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH,
+        deck.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ,
+        deck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING,
+        deck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH,
+        deck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD,
+        deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
+        deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
+        deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
+        deck.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION,
+        deck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX,
+        deck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD,
+        deck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION,
+        deck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT,
+        deck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO,
+        deck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
+        deck.vocoderMix,
+        deck.vocoderCarrierDeckId,
+        deck.vocoderModulatorMonitor,
+        deck.vocoderModDrive,
+        deck.vocoderBandCount,
+        deck.vocoderBandSpread,
+        deck.vocoderVocalCharacter,
+        deck.vocoderFormantShift,
+        deck.vocoderConsonantBoost,
+        deck.vocoderPreEmphasis,
+        deck.vocoderTightness,
+        deck.vocoderAttackMs,
+        deck.vocoderReleaseMs,
+        deck.vocoderNoiseMix,
+        deck.vocoderGateThreshold,
+        deck.includeInRecordExport,
+        deck.balance,
+        deck.pitchShift,
+        deck.vocoderPostDelay
+      );
+  }
+
   const getTempoSyncedPitch = useCallback((tempoOffset: number) => {
     const rate = clampPlaybackRate(1 + tempoOffset / 100);
     const semitones = -12 * Math.log2(rate);
@@ -1904,6 +2255,7 @@ const useDecks = () => {
         loopEnabled: true,
         loopStartSeconds: 0,
         loopEndSeconds: 0,
+        loopDelaySec: DEFAULT_LOOP_DELAY_SEC,
         tempoOffset: 0,
         tempoPitchSync: false,
         stretchRatio: DEFAULT_STRETCH_RATIO,
@@ -1959,6 +2311,7 @@ const useDecks = () => {
       stop(id);
       removeDeckNodes(id);
       playbackStartRef.current.delete(id);
+      clearLoopDelayRuntime(id);
       simpleAutomationRuntimeRef.current.delete(id);
       automationRef.current.delete(id);
       automationPlayheadRef.current.delete(id);
@@ -2007,6 +2360,7 @@ const useDecks = () => {
             loopEnabled: true,
             loopStartSeconds: 0,
             loopEndSeconds: 0,
+            loopDelaySec: DEFAULT_LOOP_DELAY_SEC,
             tempoOffset: 0,
             tempoPitchSync: false,
             stretchRatio: DEFAULT_STRETCH_RATIO,
@@ -2239,6 +2593,7 @@ const useDecks = () => {
       Math.min(1, clipSettings?.rearrangerPingPong ?? DEFAULT_REARRANGER_PINGPONG)
     );
     const nextRearrangerAuto = clipSettings?.rearrangerAuto ?? DEFAULT_REARRANGER_AUTO;
+    const nextLoopDelaySec = clamp(clipSettings?.loopDelaySec ?? DEFAULT_LOOP_DELAY_SEC, 0, 60);
     const nextRearrangerRegions = sanitizeRearrangerRegions(clipSettings?.rearrangerRegions);
     const nextRearrangerRegionIds = normalizeRearrangerRegionIds(
       clipSettings?.rearrangerRegionIds,
@@ -2443,6 +2798,7 @@ const useDecks = () => {
       loopEnabled: clipSettings?.loopEnabled ?? true,
       loopStartSeconds: clipSettings?.loopStartSeconds ?? 0,
       loopEndSeconds: clipSettings?.loopEndSeconds ?? 0,
+      loopDelaySec: nextLoopDelaySec,
       tempoOffset: nextTempoOffset,
       tempoPitchSync: nextTempoPitchSync,
       stretchRatio: nextStretchRatio,
@@ -2577,6 +2933,7 @@ const useDecks = () => {
         loopEnabled: clipSettings?.loopEnabled ?? true,
         loopStartSeconds: loopStart,
         loopEndSeconds: loopEnd,
+        loopDelaySec: nextLoopDelaySec,
         tempoOffset: nextTempoOffset,
         tempoPitchSync: nextTempoPitchSync,
         stretchRatio: nextStretchRatio,
@@ -2618,6 +2975,7 @@ const useDecks = () => {
         fxPanelOpen: nextFxPanelOpen,
       };
       if (wasPlaying) {
+        // eslint-disable-next-line react-hooks/purity -- timestamp is captured while restarting playback
         const startedAtMs = performance.now();
         playbackStartRef.current.set(id, startedAtMs);
         updateDeck(id, {
@@ -2625,73 +2983,9 @@ const useDecks = () => {
           status: "playing",
           startedAtMs,
         }, false);
-        const filters = getFilterTargets(nextDjFilter);
-        const gain = nextGain;
-        const tempoRatio = clampPlaybackRate(1 + nextTempoOffset / 100);
-        void playBuffer(
-          id,
-          buffer,
-          () => {
-            console.info("Deck ended", { deckId: id, loopEnabled: true });
-            playbackStartRef.current.delete(id);
-            updateDeck(id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
-          },
-          gain,
-          0,
-          tempoRatio,
-          baseDeck.loopEnabled,
-          baseDeck.loopStartSeconds,
-          baseDeck.loopEndSeconds,
-          filters.lowpass,
-          filters.highpass,
-          nextResonance,
-          nextEqMode,
-          nextEqLow,
-          nextEqMid,
-          nextEqHigh,
-          nextParametricEqBands,
-          nextDelayTime,
-          nextDelayFeedback,
-          nextDelayMix,
-          nextDelayTone,
-          nextDelayPingPong,
-          nextDelaySaturation,
-          nextDelayDamping,
-          nextDelaySafety,
-          nextDelayRhythmMorph,
-          nextDelayRhythmRateHz,
-          nextDelayRhythmSwing,
-          nextDelayDuckDepth,
-          nextDelayDuckThreshold,
-          nextDelayDuckResponseMs,
-          nextDelaySpectralMix,
-          nextDelaySpectralSpread,
-          nextDelaySpectralMotion,
-          nextSpectralSpaceMix,
-          nextSpectralSpaceSpread,
-          nextSpectralSpaceMotion,
-          nextSpectralSpaceTilt,
-          nextSpectralSpaceLowMono,
-          nextSpectralSpaceTransientProtect,
-          nextVocoderMix,
-          nextVocoderCarrierDeckId,
-          nextVocoderModulatorMonitor,
-          nextVocoderModDrive,
-          nextVocoderBandCount,
-          nextVocoderBandSpread,
-          nextVocoderVocalCharacter,
-          nextVocoderFormantShift,
-          nextVocoderConsonantBoost,
-          nextVocoderPreEmphasis,
-          nextVocoderTightness,
-          nextVocoderAttackMs,
-          nextVocoderReleaseMs,
-          nextVocoderNoiseMix,
-          nextVocoderGateThreshold,
-          currentDeck?.includeInRecordExport ?? true,
-          nextBalance,
-          nextPitchShift,
-          nextVocoderPostDelay
+        void startDeckPlayback(
+          { ...baseDeck, status: "playing", startedAtMs },
+          { offsetSeconds: 0, startedAtMs, resumeAutomation: false }
         );
       } else {
         updateDeck(id, {
@@ -2712,90 +3006,7 @@ const useDecks = () => {
 
   const playDeck = async (deck: DeckState) => {
     if (!deck.buffer) return;
-    stop(deck.id);
-    let offsetSeconds = deck.offsetSeconds ?? 0;
-    if (deck.loopEnabled && deck.loopEndSeconds > deck.loopStartSeconds) {
-      const maxOffset = Math.max(deck.loopStartSeconds, deck.loopEndSeconds - 0.01);
-      offsetSeconds = Math.min(Math.max(offsetSeconds, deck.loopStartSeconds), maxOffset);
-    }
-    // eslint-disable-next-line react-hooks/purity -- timestamp is captured during user action
-    const startedAtMs = performance.now();
-    playbackStartRef.current.set(deck.id, startedAtMs);
-    resumeAutomationDeck(deck.id);
-    resumeSimpleAutomationDeck(deck.id);
-    updateDeck(deck.id, {
-      status: "playing",
-      startedAtMs,
-      duration: deck.buffer.duration,
-      offsetSeconds,
-    }, false);
-    const tempoRatio = getDeckPlaybackRate(deck);
-    const filters = getFilterTargets(deck.djFilter);
-    await playBuffer(
-      deck.id,
-      deck.buffer,
-      () => {
-        console.info("Deck ended", { deckId: deck.id, loopEnabled: deck.loopEnabled });
-        playbackStartRef.current.delete(deck.id);
-        updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
-      },
-      deck.gain,
-      offsetSeconds,
-      tempoRatio,
-      deck.loopEnabled,
-      deck.loopStartSeconds,
-      deck.loopEndSeconds,
-      filters.lowpass,
-      filters.highpass,
-      deck.filterResonance,
-      deck.eqMode,
-      deck.eqLowGain,
-      deck.eqMidGain,
-      deck.eqHighGain,
-      deck.parametricEqBands,
-      deck.delayTime,
-      deck.delayFeedback,
-      deck.delayMix,
-      deck.delayTone,
-      deck.delayPingPong,
-      deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
-      deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
-      deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
-          deck.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH,
-          deck.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ,
-          deck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING,
-          deck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH,
-          deck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD,
-          deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
-          deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
-          deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
-          deck.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION,
-          deck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX,
-          deck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD,
-          deck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION,
-          deck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT,
-          deck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO,
-          deck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
-          deck.vocoderMix,
-      deck.vocoderCarrierDeckId,
-      deck.vocoderModulatorMonitor,
-      deck.vocoderModDrive,
-      deck.vocoderBandCount,
-      deck.vocoderBandSpread,
-      deck.vocoderVocalCharacter,
-      deck.vocoderFormantShift,
-      deck.vocoderConsonantBoost,
-      deck.vocoderPreEmphasis,
-      deck.vocoderTightness,
-      deck.vocoderAttackMs,
-      deck.vocoderReleaseMs,
-      deck.vocoderNoiseMix,
-      deck.vocoderGateThreshold,
-      deck.includeInRecordExport,
-      deck.balance,
-      deck.pitchShift,
-      deck.vocoderPostDelay
-    );
+    await startDeckPlayback(deck, { stopFirst: true });
     if (deck.status === "paused") {
       resumeAutomationDeck(deck.id);
       resumeSimpleAutomationDeck(deck.id);
@@ -2876,6 +3087,7 @@ const useDecks = () => {
 
   const pauseDeck = (deck: DeckState) => {
     if (deck.status !== "playing") return;
+    clearLoopDelayRuntime(deck.id);
     const position = getDeckPosition(deck.id);
     const duration = deck.duration ?? deck.buffer?.duration ?? 0;
     const offsetSeconds =
@@ -2893,6 +3105,7 @@ const useDecks = () => {
   };
 
   const stopDeck = (deck: DeckState) => {
+    clearLoopDelayRuntime(deck.id);
     stop(deck.id);
     playbackStartRef.current.delete(deck.id);
     resetAutomationDeck(deck.id);
@@ -2918,73 +3131,12 @@ const useDecks = () => {
     const offsetSeconds = clamped * deck.duration;
 
     if (deck.status === "playing") {
-      updateDeck(id, {
-        startedAtMs: performance.now(),
-        offsetSeconds,
-        status: "playing",
-      }, false);
-      const tempoRatio = getDeckPlaybackRate(deck);
-      const filters = getFilterTargets(deck.djFilter);
-      void playBuffer(
-        deck.id,
-        deck.buffer,
-        () => updateDeck(deck.id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false),
-        deck.gain,
-        offsetSeconds,
-        tempoRatio,
-        deck.loopEnabled,
-        deck.loopStartSeconds,
-        deck.loopEndSeconds,
-        filters.lowpass,
-        filters.highpass,
-        deck.filterResonance,
-        deck.eqMode,
-        deck.eqLowGain,
-        deck.eqMidGain,
-        deck.eqHighGain,
-        deck.parametricEqBands,
-        deck.delayTime,
-        deck.delayFeedback,
-        deck.delayMix,
-        deck.delayTone,
-        deck.delayPingPong,
-        deck.delaySaturation ?? DEFAULT_DELAY_SATURATION,
-        deck.delayDamping ?? DEFAULT_DELAY_DAMPING,
-        deck.delaySafety ?? DEFAULT_DELAY_SAFETY,
-          deck.delayRhythmMorph ?? DEFAULT_DELAY_RHYTHM_MORPH,
-          deck.delayRhythmRateHz ?? DEFAULT_DELAY_RHYTHM_RATE_HZ,
-          deck.delayRhythmSwing ?? DEFAULT_DELAY_RHYTHM_SWING,
-          deck.delayDuckDepth ?? DEFAULT_DELAY_DUCK_DEPTH,
-          deck.delayDuckThreshold ?? DEFAULT_DELAY_DUCK_THRESHOLD,
-        deck.delayDuckResponseMs ?? DEFAULT_DELAY_DUCK_RESPONSE_MS,
-        deck.delaySpectralMix ?? DEFAULT_DELAY_SPECTRAL_MIX,
-        deck.delaySpectralSpread ?? DEFAULT_DELAY_SPECTRAL_SPREAD,
-        deck.delaySpectralMotion ?? DEFAULT_DELAY_SPECTRAL_MOTION,
-        deck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX,
-        deck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD,
-        deck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION,
-          deck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT,
-          deck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO,
-          deck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
-          deck.vocoderMix,
-        deck.vocoderCarrierDeckId ?? undefined,
-        deck.vocoderModulatorMonitor,
-        deck.vocoderModDrive,
-        deck.vocoderBandCount,
-        deck.vocoderBandSpread,
-        deck.vocoderVocalCharacter,
-        deck.vocoderFormantShift,
-        deck.vocoderConsonantBoost,
-        deck.vocoderPreEmphasis,
-        deck.vocoderTightness,
-        deck.vocoderAttackMs,
-        deck.vocoderReleaseMs,
-        deck.vocoderNoiseMix,
-        deck.vocoderGateThreshold,
-        deck.includeInRecordExport,
-        deck.balance,
-        deck.pitchShift,
-        deck.vocoderPostDelay
+      void startDeckPlayback(
+        { ...deck, offsetSeconds },
+        {
+          offsetSeconds,
+          stopFirst: true,
+        }
       );
       return;
     }
@@ -3143,6 +3295,32 @@ const useDecks = () => {
     updateDeck(id, { zoom: value }, false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- startDeckPlayback is an internal event helper
+  const setDeckLoopDelaySec = useCallback(
+    (id: number, value: number) => {
+      const nextValue = Math.round(clamp(value, 0, 60) * 100) / 100;
+      const deck = decksRef.current.find((item) => item.id === id);
+      if (!deck) return;
+      updateDeck(id, { loopDelaySec: nextValue }, false);
+      rescheduleLoopDelayWait(id, nextValue);
+      if (
+        deck.status === "playing" &&
+        getDeckLoopRange(deck) &&
+        nextValue > FX_ACTIVE_EPSILON &&
+        !loopDelayRuntimeRef.current.has(id)
+      ) {
+        void startDeckPlayback(
+          { ...deck, loopDelaySec: nextValue },
+          {
+            offsetSeconds: getDeckPosition(id) ?? deck.offsetSeconds ?? deck.loopStartSeconds,
+            stopFirst: true,
+          }
+        );
+      }
+    },
+    [getDeckLoopRange, getDeckPosition, rescheduleLoopDelayWait, startDeckPlayback, updateDeck]
+  );
+
   const {
     setDeckLoopValue,
     setDeckLoopBounds,
@@ -3194,6 +3372,7 @@ const useDecks = () => {
       if (!deck) return;
       stop(id);
       playbackStartRef.current.delete(id);
+      clearLoopDelayRuntime(id);
       if (!options?.preserveNodes) {
         removeDeckNodes(id);
       }
@@ -3387,6 +3566,7 @@ const useDecks = () => {
         loopEnabled: true,
         loopStartSeconds: nextLoopStartSeconds,
         loopEndSeconds: nextLoopEndSeconds,
+        loopDelaySec: deck.loopDelaySec ?? DEFAULT_LOOP_DELAY_SEC,
         tempoOffset: nextTempoOffset,
         tempoPitchSync: nextTempoPitchSync,
         stretchRatio: nextStretchRatio,
@@ -3508,73 +3688,11 @@ const useDecks = () => {
       setDeckLoopParams(id, true, nextLoopStartSeconds, nextLoopEndSeconds);
 
       if (autoplay) {
-        const startedAtMs = nextDeck.startedAtMs ?? performance.now();
-        playbackStartRef.current.set(id, startedAtMs);
-        void playBuffer(
-          id,
-          buffer,
-          () => {
-            console.info("Deck ended", { deckId: id, loopEnabled: true });
-            playbackStartRef.current.delete(id);
-            updateDeck(id, { status: "ready", startedAtMs: undefined, offsetSeconds: 0 }, false);
-          },
-          nextGain,
-          nextOffsetSeconds,
-          tempoRatio,
-          true,
-          0,
-          duration,
-          filterTargets.lowpass,
-          filterTargets.highpass,
-            nextResonance,
-            nextEqMode,
-            nextEqLow,
-            nextEqMid,
-            nextEqHigh,
-            nextParametricEqBands,
-            nextDelayTime,
-          nextDelayFeedback,
-          nextDelayMix,
-          nextDelayTone,
-          nextDelayPingPong,
-          nextDelaySaturation,
-          nextDelayDamping,
-          nextDelaySafety,
-          nextDelayRhythmMorph,
-          nextDelayRhythmRateHz,
-          nextDelayRhythmSwing,
-          nextDelayDuckDepth,
-          nextDelayDuckThreshold,
-          nextDelayDuckResponseMs,
-          nextDelaySpectralMix,
-          nextDelaySpectralSpread,
-          nextDelaySpectralMotion,
-          nextDeck.spectralSpaceMix ?? DEFAULT_SPECTRAL_SPACE_MIX,
-          nextDeck.spectralSpaceSpread ?? DEFAULT_SPECTRAL_SPACE_SPREAD,
-          nextDeck.spectralSpaceMotion ?? DEFAULT_SPECTRAL_SPACE_MOTION,
-          nextDeck.spectralSpaceTilt ?? DEFAULT_SPECTRAL_SPACE_TILT,
-          nextDeck.spectralSpaceLowMono ?? DEFAULT_SPECTRAL_SPACE_LOW_MONO,
-          nextDeck.spectralSpaceTransientProtect ?? DEFAULT_SPECTRAL_SPACE_TRANSIENT_PROTECT,
-          nextVocoderMix,
-          nextVocoderCarrierDeckId,
-          nextVocoderModulatorMonitor,
-          nextVocoderModDrive,
-          nextVocoderBandCount,
-          nextVocoderBandSpread,
-          nextVocoderVocalCharacter,
-          nextVocoderFormantShift,
-          nextVocoderConsonantBoost,
-          nextVocoderPreEmphasis,
-          nextVocoderTightness,
-          nextVocoderAttackMs,
-          nextVocoderReleaseMs,
-          nextVocoderNoiseMix,
-          nextVocoderGateThreshold,
-          nextDeck.includeInRecordExport,
-          nextBalance,
-          nextPitchShift,
-          nextVocoderPostDelay
-        );
+        void startDeckPlayback(nextDeck, {
+          offsetSeconds: nextOffsetSeconds,
+          startedAtMs: nextDeck.startedAtMs,
+          resumeAutomation: false,
+        });
       }
     },
     [
@@ -3686,6 +3804,7 @@ const useDecks = () => {
     [updateDeck]
   );
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- startDeckPlayback is an internal event helper
   const setDeckSimpleAutomation = useCallback(
     (
       id: number,
@@ -3756,12 +3875,53 @@ const useDecks = () => {
         track.pausedPositionSec = 0;
       }
       applySimpleAutomationValue(id, param, resolvedTarget);
+      if (
+        param === "loopDelaySec" &&
+        deck.status === "playing" &&
+        getDeckLoopRange(deck) &&
+        !loopDelayRuntimeRef.current.has(id)
+      ) {
+        void startDeckPlayback(
+          {
+            ...deck,
+            loopDelaySec: resolvedTarget,
+            simpleAutomation: {
+              ...(normalizeSimpleAutomation(deck.simpleAutomation) as DeckSimpleAutomation),
+              loopDelaySec: {
+                active: true,
+                baseline: resolvedBaseline,
+                target: resolvedTarget,
+                cycleSec: 4,
+                samples:
+                  normalizedSamples && normalizedSamples.length > 1
+                    ? normalizedSamples
+                    : undefined,
+                sampleRate:
+                  normalizedSamples && normalizedSamples.length > 1
+                    ? resolvedSampleRate
+                    : undefined,
+                durationSec:
+                  normalizedSamples && normalizedSamples.length > 1
+                    ? resolvedDurationSec
+                    : undefined,
+              },
+            },
+          },
+          {
+            offsetSeconds: getDeckPosition(id) ?? deck.offsetSeconds ?? deck.loopStartSeconds,
+            stopFirst: true,
+          }
+        );
+      }
       updateAutomationTickEnabled();
     },
     [
       applySimpleAutomationValue,
       ensureSimpleAutomationRuntimeTrack,
+      getDeckLoopRange,
+      getDeckPosition,
       setDecksNoHistory,
+      startDeckPlayback,
       updateAutomationTickEnabled,
     ]
   );
@@ -3823,6 +3983,7 @@ const useDecks = () => {
         vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
         vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
         includeInRecordExport: deck.includeInRecordExport,
+        loopDelaySec: DEFAULT_LOOP_DELAY_SEC,
         tempoOffset: deck.tempoOffset,
         delayTime: DEFAULT_DELAY_TIME,
         delayFeedback: DEFAULT_DELAY_FEEDBACK,
@@ -3889,6 +4050,7 @@ const useDecks = () => {
           vocoderNoiseMix: DEFAULT_VOCODER_NOISE_MIX,
           vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
           vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
+          loopDelaySec: DEFAULT_LOOP_DELAY_SEC,
           stretchRatio: DEFAULT_STRETCH_RATIO,
           stretchWindowSize: DEFAULT_STRETCH_WINDOW_SIZE,
           stretchStereoWidth: DEFAULT_STRETCH_STEREO_WIDTH,
@@ -3929,6 +4091,7 @@ const useDecks = () => {
           rearrangerSliceDelaySec: DEFAULT_REARRANGER_SLICE_DELAY_SEC,
           rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
           rearrangerAuto: DEFAULT_REARRANGER_AUTO,
+          loopDelaySec: DEFAULT_LOOP_DELAY_SEC,
           rearrangerRegions: undefined,
           rearrangerRegionIds: undefined,
           rearrangerRegionsManual: false,
@@ -3961,10 +4124,28 @@ const useDecks = () => {
   const getDeckPlaybackSnapshotSafe = useCallback(
     (id: number) => {
       const engineSnapshot = _getDeckPlaybackSnapshot(id);
+      const deck = decks.find((item) => item.id === id);
+      const loopDelayRuntime = loopDelayRuntimeRef.current.get(id);
       if (engineSnapshot) {
+        if (deck && loopDelayRuntime) {
+          const duration = deck.duration ?? deck.buffer?.duration ?? engineSnapshot.duration;
+          const loopStart = deck.loopStartSeconds ?? 0;
+          const loopEnd =
+            deck.loopEndSeconds > loopStart + 0.01 ? deck.loopEndSeconds : duration;
+          return {
+            ...engineSnapshot,
+            duration,
+            loopEnabled: deck.loopEnabled,
+            loopStart,
+            loopEnd,
+            position:
+              loopDelayRuntime.waitingAtLoopEndSec !== null
+                ? Math.min(loopDelayRuntime.waitingAtLoopEndSec, duration)
+                : Math.min(engineSnapshot.position, loopEnd),
+          };
+        }
         return engineSnapshot;
       }
-      const deck = decks.find((item) => item.id === id);
       if (!deck) return null;
       const duration = deck.duration ?? deck.buffer?.duration ?? 0;
       if (!duration) return null;
@@ -3973,6 +4154,21 @@ const useDecks = () => {
         deck.loopEndSeconds > loopStart + 0.01 ? deck.loopEndSeconds : duration;
       const tempoRatio = getDeckPlaybackRate(deck);
       const startedAtMs = deck.startedAtMs ?? playbackStartRef.current.get(id);
+      if (
+        deck.status === "playing" &&
+        startedAtMs === undefined &&
+        loopDelayRuntime?.waitingAtLoopEndSec !== null
+      ) {
+        return {
+          position: Math.min(loopDelayRuntime.waitingAtLoopEndSec, duration),
+          duration,
+          loopEnabled: deck.loopEnabled,
+          loopStart,
+          loopEnd,
+          playing: true,
+          playbackRate: tempoRatio,
+        };
+      }
       if (deck.status !== "playing" || startedAtMs === undefined) {
         return {
           position: Math.min(deck.offsetSeconds ?? 0, duration),
@@ -4111,6 +4307,7 @@ const useDecks = () => {
 
   const resetDecks = useCallback(() => {
     decks.forEach((deck) => {
+      clearLoopDelayRuntime(deck.id);
       stop(deck.id);
       removeDeckNodes(deck.id);
     });
@@ -4127,6 +4324,7 @@ const useDecks = () => {
     setAutomationState(new Map());
     updateAutomationTickEnabled();
   }, [
+    clearLoopDelayRuntime,
     decks,
     removeDeckNodes,
     setDecksNoHistory,
@@ -4208,6 +4406,7 @@ const useDecks = () => {
     seekDeck,
     setDeckZoom: setDeckZoomValue,
     setDeckLoop: setDeckLoopValue,
+    setDeckLoopDelaySec,
     setDeckLoopBounds,
     commitDeckLoopBoundsHistory,
     setDeckTempoOffset,

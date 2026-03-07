@@ -6,6 +6,7 @@ export type ParametricEqSimpleAutomationParam =
   | `parametricEqBand${ParametricEqAutomationBandIndex}Frequency`
   | `parametricEqBand${ParametricEqAutomationBandIndex}Gain`;
 export type SimpleAutomationParam =
+  | "loopDelaySec"
   | "delayTime"
   | "delayFeedback"
   | "delayMix"
@@ -84,6 +85,7 @@ export type ParametricEqBand = {
 };
 
 export type DeckFxPanel =
+  | "loopDelay"
   | "gain"
   | "djFilter"
   | "resonance"
@@ -115,6 +117,7 @@ export type DeckState = {
   loopEnabled: boolean;
   loopStartSeconds: number;
   loopEndSeconds: number;
+  loopDelaySec: number;
   tempoOffset: number;
   tempoPitchSync: boolean;
   stretchRatio: number;

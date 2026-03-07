@@ -136,7 +136,8 @@ type AudioEngine = {
     includeInRecordExport?: boolean,
     balance?: number,
     pitchShift?: number,
-    vocoderPostDelay?: boolean
+    vocoderPostDelay?: boolean,
+    playbackEndSeconds?: number
   ) => Promise<void>;
   stop: (deckId: number) => void;
   setDeckGain: (deckId: number, value: number) => void;
@@ -354,7 +355,8 @@ const playBuffer: AudioEngine["playBuffer"] = async (
   includeInRecordExport = true,
   balance = 0,
   pitchShift = 0,
-  vocoderPostDelay = false
+  vocoderPostDelay = false,
+  playbackEndSeconds
 ) => {
   const context = await ensureContext();
   try {
@@ -435,6 +437,7 @@ const playBuffer: AudioEngine["playBuffer"] = async (
     balance,
     pitchShift,
     vocoderPostDelay,
+    playbackEndSeconds,
     onEnded
   );
 };

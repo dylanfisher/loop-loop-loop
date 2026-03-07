@@ -85,6 +85,7 @@ type UseDeckStackPropsArgs = {
   seekDeck: (id: number, progress: number) => void;
   setDeckZoom: (id: number, value: number) => void;
   setDeckLoop: (id: number, value: boolean) => void;
+  setDeckLoopDelaySec: (id: number, value: number) => void;
   setDeckLoopBounds: (id: number, startSeconds: number, endSeconds: number) => void;
   commitDeckLoopBoundsHistory: (id: number) => void;
   setDeckTempoOffset: DeckStackProps["onTempoOffsetChange"];
@@ -225,6 +226,7 @@ const useDeckStackProps = ({
   seekDeck,
   setDeckZoom,
   setDeckLoop,
+  setDeckLoopDelaySec,
   setDeckLoopBounds,
   commitDeckLoopBoundsHistory,
   setDeckTempoOffset,
@@ -415,6 +417,7 @@ const useDeckStackProps = ({
     onSeek: seekDeck,
     onZoomChange: setDeckZoom,
     onLoopChange: setDeckLoop,
+    onLoopDelayChange: setDeckLoopDelaySec,
     onLoopBoundsChange: setDeckLoopBounds,
     onLoopBoundsChangeComplete: commitDeckLoopBoundsHistory,
     onTempoOffsetChange: setDeckTempoOffset,

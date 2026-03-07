@@ -97,7 +97,8 @@ type Args = {
     includeInRecordExport: boolean,
     balance: number,
     pitchShift: number,
-    vocoderPostDelay?: boolean
+    vocoderPostDelay?: boolean,
+    playbackEndSeconds?: number
   ) => Promise<void>;
   updateDeck: (id: number, patch: Partial<DeckState>, recordHistory?: boolean) => void;
   playbackStartRef: MutableRefObject<Map<number, number>>;

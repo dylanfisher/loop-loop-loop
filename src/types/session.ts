@@ -63,6 +63,7 @@ export type DeckSession = {
   loopEnabled: boolean;
   loopStartSeconds: number;
   loopEndSeconds: number;
+  loopDelaySec?: number;
   tempoOffset: number;
   tempoPitchSync: boolean;
   stretchRatio: number;
@@ -220,6 +221,7 @@ export type ClipSettings = {
   loopEnabled: boolean;
   loopStartSeconds: number;
   loopEndSeconds: number;
+  loopDelaySec?: number;
   automation: Record<AutomationParam, AutomationSnapshot>;
 };
 

@@ -301,6 +301,7 @@ export const createDeckUiSetters = ({ updateDeck, setDecksNoHistory, setDeckReco
               ...deck,
               fxPanelOpen: {
                 gain: open,
+                loopDelay: open,
                 djFilter: open,
                 resonance: open,
                 eqLow: open,

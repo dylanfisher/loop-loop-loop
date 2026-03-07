@@ -1841,6 +1841,7 @@ export const playDeckBuffer = (
   balance = defaultBalance,
   pitchShift = defaultPitchShift,
   vocoderPostDelay = false,
+  playbackEndSeconds?: number,
   onEnded?: DeckEndedCallback
 ) => {
   stopDeckPlayback(deckId, true);
@@ -1951,13 +1952,20 @@ export const playDeckBuffer = (
     Math.max(0, offsetSeconds),
     Math.max(0, buffer.duration - 0.01)
   );
+  const clampedPlaybackEndSeconds =
+    Number.isFinite(playbackEndSeconds) && playbackEndSeconds !== undefined
+      ? Math.min(
+          buffer.duration,
+          Math.max(clampedOffset + 0.01, Number(playbackEndSeconds))
+        )
+      : null;
   deckPlayback.set(deckId, {
     startTime: context.currentTime,
     offsetSeconds: clampedOffset,
     loopEnabled,
     loopStart: safeLoopStart,
     loopEnd: safeLoopEnd,
-    duration: buffer.duration,
+    duration: clampedPlaybackEndSeconds ?? buffer.duration,
     playbackRate: nextRate,
     playing: true,
   });
@@ -1970,7 +1978,11 @@ export const playDeckBuffer = (
       loopEnd: loopEndSeconds,
     });
   }
-  source.start(0, clampedOffset);
+  if (clampedPlaybackEndSeconds !== null && !loopEnabled) {
+    source.start(0, clampedOffset, clampedPlaybackEndSeconds - clampedOffset);
+  } else {
+    source.start(0, clampedOffset);
+  }
 };
 
 export const stopDeckPlayback = (

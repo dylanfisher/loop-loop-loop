@@ -161,6 +161,7 @@ export type DeckCardProps = {
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
   onLoopChange: (id: number, value: boolean) => void;
+  onLoopDelayChange: (id: number, value: number) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onLoopBoundsChangeComplete: (id: number) => void;
   onTempoOffsetChange: (
@@ -580,6 +581,12 @@ const DeckCard = (props: DeckCardProps) => {
     }
   }, [deck.eqMode, deck.id, onEqModeChange]);
   const fxIndicators: Record<DeckFxPanel, { automation: boolean; modified: boolean }> = {
+    loopDelay: {
+      automation: false,
+      modified:
+        isDifferent(deck.loopDelaySec, 0, 0.01) ||
+        deck.simpleAutomation?.loopDelaySec?.active === true,
+    },
     gain: {
       automation: hasAutomationData(gainAutomation),
       modified: isDifferent(deck.gain, 0.9),

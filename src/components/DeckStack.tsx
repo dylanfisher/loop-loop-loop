@@ -98,6 +98,7 @@ export type DeckStackProps = {
   onSeek: (id: number, progress: number) => void;
   onZoomChange: (id: number, value: number) => void;
   onLoopChange: (id: number, value: boolean) => void;
+  onLoopDelayChange: (id: number, value: number) => void;
   onLoopBoundsChange: (id: number, startSeconds: number, endSeconds: number) => void;
   onLoopBoundsChangeComplete: (id: number) => void;
   onTempoOffsetChange: (
@@ -261,6 +262,7 @@ const DeckStack = ({
   onSeek,
   onZoomChange,
   onLoopChange,
+  onLoopDelayChange,
   onLoopBoundsChange,
   onLoopBoundsChangeComplete,
   onTempoOffsetChange,
@@ -550,9 +552,10 @@ const DeckStack = ({
               onBalanceChange={onBalanceChange}
               onPitchShiftChange={onPitchShiftChange}
               onSeek={onSeek}
-              onZoomChange={onZoomChange}
-              onLoopChange={onLoopChange}
-              onLoopBoundsChange={onLoopBoundsChange}
+            onZoomChange={onZoomChange}
+            onLoopChange={onLoopChange}
+            onLoopDelayChange={onLoopDelayChange}
+            onLoopBoundsChange={onLoopBoundsChange}
               onLoopBoundsChangeComplete={onLoopBoundsChangeComplete}
               onTempoOffsetChange={onTempoOffsetChange}
               onTempoPitchSyncChange={onTempoPitchSyncChange}

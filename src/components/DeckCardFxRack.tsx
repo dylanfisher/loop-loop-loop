@@ -108,6 +108,7 @@ const DeckCardFxRack = ({
 }: DeckCardFxRackProps) => {
   const {
     onFxResetAll,
+    onLoopDelayChange,
     onGainChange,
     getAutomationPlayhead,
     onAutomationStart,
@@ -339,6 +340,35 @@ const DeckCardFxRack = ({
           </div>
         </div>
         <div className="deck__fx-row deck__fx-row--core">
+          <div
+            ref={setPanelRef("loopDelay")}
+            className={`deck__fx-unit deck__fx-unit--gain ${fxPanelOpen.loopDelay ? "" : "is-collapsed"}`.trim()}
+          >
+            <button
+              type="button"
+              className="deck__fx-unit-toggle"
+              aria-expanded={fxPanelOpen.loopDelay}
+              onClick={() => toggleFxPanel("loopDelay")}
+            >
+              {renderFxToggleLabel("loopDelay", "Loop Delay")}
+            </button>
+            <Knob
+              label="Gap"
+              min={0}
+              max={60}
+              step={0.01}
+              value={deck.loopDelaySec}
+              defaultValue={0}
+              labelTitle="Wait time after the loop reaches its end before playback restarts at the loop start."
+              onChange={(next) => onLoopDelayChange(deck.id, next)}
+              formatValue={(value, fine) => `${value.toFixed(fine ? 2 : 1)}s`}
+              isSimpleAutomated={isSimpleAutomated("loopDelaySec")}
+              onSimpleAutomationSet={(value, baseline, recording) =>
+                onSimpleAutomationSet(deck.id, "loopDelaySec", value, baseline, recording)
+              }
+              onSimpleAutomationClear={() => onSimpleAutomationClear(deck.id, "loopDelaySec")}
+            />
+          </div>
           <div
             ref={setPanelRef("gain")}
             className={`deck__fx-unit deck__fx-unit--gain ${fxPanelOpen.gain ? "" : "is-collapsed"}`.trim()}
