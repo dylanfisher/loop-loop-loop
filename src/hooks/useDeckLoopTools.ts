@@ -45,7 +45,9 @@ type UseDeckLoopToolsArgs = {
   decks: DeckState[];
   automationState: Map<number, Record<AutomationParam, AutomationView>>;
   loadDeckBuffer: (deckId: number, buffer: AudioBuffer, options: Record<string, unknown>) => void;
-  getDeckPlaybackSnapshot: (deckId: number) => { position?: number } | null | undefined;
+  getDeckPlaybackSnapshot: (
+    deckId: number
+  ) => { position?: number; playing?: boolean } | null | undefined;
   markSkipNextAutosave: () => void;
   triggerAutosaveNow: () => Promise<void>;
   setDeckRearrangerRegions: (deckId: number, regions: number[]) => void;

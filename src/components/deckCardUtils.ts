@@ -168,6 +168,7 @@ export const FX_HINTS: Record<DeckFxPanel, string> = {
   pitch: "Pitch: semitone shift for key matching or creative detune.",
   vocoder: "Vocoder: this deck is the carrier; select another deck as the modulator envelope source.",
   delay: "Delay: time, feedback, tone, saturation, damping, safety, mix, and ping-pong echo.",
+  loopDelay: "Loop Delay: waits after a loop ends before restarting playback from the loop start.",
   spectralSpace:
     "Spectral Space: post-delay stereo width/tone sculpting with spread, motion, tilt, low-mono, and transient protection.",
   rearranger:

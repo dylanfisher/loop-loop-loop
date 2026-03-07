@@ -2897,7 +2897,10 @@ const useDecks = () => {
       const loopEnd = duration
         ? Math.min(Math.max(loopStart + 0.01, clipSettings?.loopEndSeconds ?? duration), duration)
         : clipSettings?.loopEndSeconds ?? duration;
-      const baseDeck = {
+      const baseDeck: DeckState = {
+        ...currentDeck,
+        id,
+        status: currentDeck?.status ?? "ready",
         fileName: preparedImport.file.name,
         buffer,
         duration,
@@ -2910,6 +2913,8 @@ const useDecks = () => {
         eqHighGain: nextEqHigh,
         eqMode: nextEqMode,
         parametricEqBands: nextParametricEqBands,
+        parametricEqMotion:
+          currentDeck?.parametricEqMotion ?? { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
         simpleAutomation: nextSimpleAutomation,
         balance: nextBalance,
         pitchShift: nextPitchShift,
@@ -2929,6 +2934,7 @@ const useDecks = () => {
         vocoderNoiseMix: nextVocoderNoiseMix,
         vocoderGateThreshold: nextVocoderGateThreshold,
         vocoderPostDelay: nextVocoderPostDelay,
+        includeInRecordExport: currentDeck?.includeInRecordExport ?? true,
         zoom: 1,
         loopEnabled: clipSettings?.loopEnabled ?? true,
         loopStartSeconds: loopStart,
@@ -2959,13 +2965,14 @@ const useDecks = () => {
         delayDuckResponseMs: nextDelayDuckResponseMs,
         delaySpectralMix: nextDelaySpectralMix,
         delaySpectralSpread: nextDelaySpectralSpread,
+        delaySpectralMotion: nextDelaySpectralMotion,
         rearrangerSlices: nextRearrangerSlices,
-      rearrangerSwapCount: nextRearrangerSwapCount,
-      rearrangerChaos: nextRearrangerChaos,
-      rearrangerReverse: nextRearrangerReverse,
-      rearrangerSensitivity: nextRearrangerSensitivity,
-      rearrangerQuietThreshold: nextRearrangerQuietThreshold,
-      rearrangerSliceFadeMs: nextRearrangerSliceFadeMs,
+        rearrangerSwapCount: nextRearrangerSwapCount,
+        rearrangerChaos: nextRearrangerChaos,
+        rearrangerReverse: nextRearrangerReverse,
+        rearrangerSensitivity: nextRearrangerSensitivity,
+        rearrangerQuietThreshold: nextRearrangerQuietThreshold,
+        rearrangerSliceFadeMs: nextRearrangerSliceFadeMs,
       rearrangerSliceDelaySec: nextRearrangerSliceDelaySec,
       rearrangerPingPong: nextRearrangerPingPong,
       rearrangerAuto: nextRearrangerAuto,
@@ -3983,7 +3990,6 @@ const useDecks = () => {
         vocoderGateThreshold: DEFAULT_VOCODER_GATE_THRESHOLD,
         vocoderPostDelay: DEFAULT_VOCODER_POST_DELAY,
         includeInRecordExport: deck.includeInRecordExport,
-        loopDelaySec: DEFAULT_LOOP_DELAY_SEC,
         tempoOffset: deck.tempoOffset,
         delayTime: DEFAULT_DELAY_TIME,
         delayFeedback: DEFAULT_DELAY_FEEDBACK,
@@ -4091,7 +4097,6 @@ const useDecks = () => {
           rearrangerSliceDelaySec: DEFAULT_REARRANGER_SLICE_DELAY_SEC,
           rearrangerPingPong: DEFAULT_REARRANGER_PINGPONG,
           rearrangerAuto: DEFAULT_REARRANGER_AUTO,
-          loopDelaySec: DEFAULT_LOOP_DELAY_SEC,
           rearrangerRegions: undefined,
           rearrangerRegionIds: undefined,
           rearrangerRegionsManual: false,
@@ -4132,6 +4137,7 @@ const useDecks = () => {
           const loopStart = deck.loopStartSeconds ?? 0;
           const loopEnd =
             deck.loopEndSeconds > loopStart + 0.01 ? deck.loopEndSeconds : duration;
+          const waitingAtLoopEndSec = loopDelayRuntime.waitingAtLoopEndSec;
           return {
             ...engineSnapshot,
             duration,
@@ -4139,8 +4145,8 @@ const useDecks = () => {
             loopStart,
             loopEnd,
             position:
-              loopDelayRuntime.waitingAtLoopEndSec !== null
-                ? Math.min(loopDelayRuntime.waitingAtLoopEndSec, duration)
+              waitingAtLoopEndSec !== null
+                ? Math.min(waitingAtLoopEndSec, duration)
                 : Math.min(engineSnapshot.position, loopEnd),
           };
         }
@@ -4154,13 +4160,14 @@ const useDecks = () => {
         deck.loopEndSeconds > loopStart + 0.01 ? deck.loopEndSeconds : duration;
       const tempoRatio = getDeckPlaybackRate(deck);
       const startedAtMs = deck.startedAtMs ?? playbackStartRef.current.get(id);
+      const waitingAtLoopEndSec = loopDelayRuntime?.waitingAtLoopEndSec ?? null;
       if (
         deck.status === "playing" &&
         startedAtMs === undefined &&
-        loopDelayRuntime?.waitingAtLoopEndSec !== null
+        waitingAtLoopEndSec !== null
       ) {
         return {
-          position: Math.min(loopDelayRuntime.waitingAtLoopEndSec, duration),
+          position: Math.min(waitingAtLoopEndSec, duration),
           duration,
           loopEnabled: deck.loopEnabled,
           loopStart,

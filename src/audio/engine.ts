@@ -356,7 +356,7 @@ const playBuffer: AudioEngine["playBuffer"] = async (
   balance = 0,
   pitchShift = 0,
   vocoderPostDelay = false,
-  playbackEndSeconds
+  playbackEndSeconds = undefined
 ) => {
   const context = await ensureContext();
   try {
