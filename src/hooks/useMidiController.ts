@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  TWISTER_PROFILE_PAGES,
   type MidiActionId,
   type MidiBinding,
   type MidiLearnMode,
@@ -20,6 +19,15 @@ const SESSION_CONNECTED_KEY = "midiConnectedThisSession.v1";
 const MIDI_DEBUG_LOGGING = true;
 
 const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
+const isTwisterPortName = (name: string) => name.toLowerCase().includes("midi fighter twister");
+const sortPorts = <T extends { name: string }>(ports: T[]) =>
+  [...ports].sort((a, b) => {
+    const aTwister = isTwisterPortName(a.name);
+    const bTwister = isTwisterPortName(b.name);
+    if (aTwister !== bTwister) return aTwister ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
 const debugMidi = (...args: unknown[]) => {
   if (!MIDI_DEBUG_LOGGING) return;
   // Use console.log so output is visible even when "Verbose/Debug" levels are hidden.
@@ -128,23 +136,31 @@ const useMidiController = ({ onMappedValue }: UseMidiControllerArgs) => {
       setOutputs([]);
       return;
     }
-    const nextInputs = Array.from(access.inputs.values()).map((port) => ({
-      id: port.id,
-      name: port.name ?? "Unnamed MIDI Input",
-      state: port.state,
-    }));
-    const nextOutputs = Array.from(access.outputs.values()).map((port) => ({
-      id: port.id,
-      name: port.name ?? "Unnamed MIDI Output",
-      state: port.state,
-    }));
+    const nextInputs = sortPorts(
+      Array.from(access.inputs.values()).map((port) => ({
+        id: port.id,
+        name: port.name ?? "Unnamed MIDI Input",
+        state: port.state,
+      }))
+    );
+    const nextOutputs = sortPorts(
+      Array.from(access.outputs.values()).map((port) => ({
+        id: port.id,
+        name: port.name ?? "Unnamed MIDI Output",
+        state: port.state,
+      }))
+    );
     setInputs(nextInputs);
     setOutputs(nextOutputs);
-    if (selectedInputId && !nextInputs.some((input) => input.id === selectedInputId)) {
-      setSelectedInputId(nextInputs[0]?.id ?? null);
+    const preferredInputId =
+      nextInputs.find((input) => input.id === selectedInputId)?.id ?? nextInputs[0]?.id ?? null;
+    const preferredOutputId =
+      nextOutputs.find((output) => output.id === selectedOutputId)?.id ?? nextOutputs[0]?.id ?? null;
+    if (preferredInputId !== selectedInputId) {
+      setSelectedInputId(preferredInputId);
     }
-    if (selectedOutputId && !nextOutputs.some((output) => output.id === selectedOutputId)) {
-      setSelectedOutputId(nextOutputs[0]?.id ?? null);
+    if (preferredOutputId !== selectedOutputId) {
+      setSelectedOutputId(preferredOutputId);
     }
   }, [selectedInputId, selectedOutputId]);
 
@@ -176,8 +192,6 @@ const useMidiController = ({ onMappedValue }: UseMidiControllerArgs) => {
   useEffect(() => {
     if (!supported || accessGranted || autoConnectAttemptedRef.current) return;
     autoConnectAttemptedRef.current = true;
-    if (typeof window === "undefined") return;
-    if (window.sessionStorage.getItem(SESSION_CONNECTED_KEY) !== "1") return;
     const timeoutId = window.setTimeout(() => {
       void requestAccess();
     }, 0);
@@ -199,31 +213,6 @@ const useMidiController = ({ onMappedValue }: UseMidiControllerArgs) => {
   const clearMappings = useCallback(() => {
     setMappings([]);
   }, []);
-
-  const loadTwisterProfile = useCallback(() => {
-    const inputId = selectedInputId ?? inputs[0]?.id;
-    if (!inputId) return false;
-    const inputName =
-      inputs.find((input) => input.id === inputId)?.name ?? "Midi Fighter Twister";
-    const nextMappings: MidiBinding[] = [];
-    TWISTER_PROFILE_PAGES.forEach((page) => {
-      page.actions.forEach((actionId, index) => {
-        const ccNumber = (page.bank - 1) * 16 + index;
-        nextMappings.push({
-          id: `${inputId}:cc:0:${ccNumber}:${actionId}:twister-b${page.bank}`,
-          inputId,
-          inputName,
-          messageType: "cc",
-          channel: 0,
-          number: ccNumber,
-          actionId,
-          mode: "absolute",
-        });
-      });
-    });
-    setMappings(nextMappings);
-    return true;
-  }, [inputs, selectedInputId]);
 
   const loadTwisterModeProfile = useCallback(() => {
     const inputId = selectedInputId ?? inputs[0]?.id;
@@ -305,6 +294,16 @@ const useMidiController = ({ onMappedValue }: UseMidiControllerArgs) => {
       channel: 3,
       number: 13,
       actionId: "twister.deckNext",
+      mode: "absolute",
+    });
+    nextMappings.push({
+      id: `${inputId}:cc:1:15:twister.playPause:twister-mode`,
+      inputId,
+      inputName,
+      messageType: "cc",
+      channel: 1,
+      number: 15,
+      actionId: "twister.playPause",
       mode: "absolute",
     });
     setMappings(nextMappings);
@@ -518,7 +517,6 @@ const useMidiController = ({ onMappedValue }: UseMidiControllerArgs) => {
     cancelLearn,
     removeMapping,
     clearMappings,
-    loadTwisterProfile,
     loadTwisterModeProfile,
     sendMappedFeedback,
     sendControlChange,

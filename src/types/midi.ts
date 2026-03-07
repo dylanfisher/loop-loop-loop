@@ -25,6 +25,8 @@ export type MidiActionId =
   | "twister.deckSelect"
   | "twister.deckPrev"
   | "twister.deckNext"
+  | "twister.playPause"
+  | "deck.loopDelay"
   | "deck.gain"
   | "deck.filter"
   | "deck.resonance"
@@ -143,6 +145,8 @@ export const MIDI_ACTIONS: MidiActionDefinition[] = [
   { id: "twister.deckSelect", label: "Twister Deck Select", min: 0, max: 1, relativeStep: 0.05 },
   { id: "twister.deckPrev", label: "Twister Deck Previous", min: 0, max: 1, relativeStep: 1 },
   { id: "twister.deckNext", label: "Twister Deck Next", min: 0, max: 1, relativeStep: 1 },
+  { id: "twister.playPause", label: "Twister Play/Pause", min: 0, max: 1, relativeStep: 1 },
+  { id: "deck.loopDelay", label: "Loop Delay", min: 0, max: 60, relativeStep: 0.1 },
   { id: "deck.gain", label: "Deck Gain", min: 0, max: 1.5, relativeStep: 0.02 },
   { id: "deck.filter", label: "Deck Filter", min: -1, max: 1, relativeStep: 0.04 },
   { id: "deck.resonance", label: "Deck Resonance", min: 0, max: 24, relativeStep: 0.2 },

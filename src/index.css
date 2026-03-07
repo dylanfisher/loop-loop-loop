@@ -2491,6 +2491,7 @@ body[data-theme="dark"] .peq__node-label {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, #f3ca2f 10%, transparent);
 }
 
+.app--twister-mode.app--twister-module-loopDelay .deck--active .deck__fx-unit--loop-delay .deck__fx-unit-toggle,
 .app--twister-mode.app--twister-module-gain .deck--active .deck__fx-unit--gain .deck__fx-unit-toggle,
 .app--twister-mode.app--twister-module-djFilter .deck--active .deck__fx-unit--filter .deck__fx-unit-toggle,
 .app--twister-mode.app--twister-module-balance .deck--active .deck__fx-unit--balance .deck__fx-unit-toggle,

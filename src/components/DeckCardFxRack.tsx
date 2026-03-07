@@ -254,41 +254,48 @@ const DeckCardFxRack = ({
 
   useEffect(() => {
     if (!twisterScrollToPanel) return;
-    const node = panelRefs.current[twisterScrollToPanel];
-    if (!node) return;
-    const findScrollableAncestor = (element: HTMLElement): HTMLElement | null => {
-      let current: HTMLElement | null = element.parentElement;
-      while (current) {
-        const style = window.getComputedStyle(current);
-        const canScrollY =
-          (style.overflowY === "auto" || style.overflowY === "scroll") &&
-          current.scrollHeight > current.clientHeight;
-        if (canScrollY) return current;
-        current = current.parentElement;
+    const rafId = window.requestAnimationFrame(() => {
+      const node = panelRefs.current[twisterScrollToPanel];
+      if (!node) {
+        return;
       }
-      return null;
-    };
+      const findScrollableAncestor = (element: HTMLElement): HTMLElement | null => {
+        let current: HTMLElement | null = element.parentElement;
+        while (current) {
+          const style = window.getComputedStyle(current);
+          const canScrollY =
+            (style.overflowY === "auto" || style.overflowY === "scroll") &&
+            current.scrollHeight > current.clientHeight;
+          if (canScrollY) return current;
+          current = current.parentElement;
+        }
+        return null;
+      };
 
-    const scrollParent = findScrollableAncestor(node);
-    if (scrollParent) {
-      const parentRect = scrollParent.getBoundingClientRect();
-      const nodeRect = node.getBoundingClientRect();
-      const targetTop =
-        scrollParent.scrollTop + (nodeRect.top - parentRect.top) - (parentRect.height / 2 - nodeRect.height / 2);
-      scrollParent.scrollTo({
-        top: Math.max(0, targetTop),
+      const scrollParent = findScrollableAncestor(node);
+      if (scrollParent) {
+        const parentRect = scrollParent.getBoundingClientRect();
+        const nodeRect = node.getBoundingClientRect();
+        const targetTop =
+          scrollParent.scrollTop +
+          (nodeRect.top - parentRect.top) -
+          (parentRect.height / 2 - nodeRect.height / 2);
+        scrollParent.scrollTo({
+          top: Math.max(0, targetTop),
+          behavior: "smooth",
+        });
+        return;
+      }
+
+      const rect = node.getBoundingClientRect();
+      const absoluteTop = rect.top + window.scrollY;
+      const targetY = absoluteTop - (window.innerHeight / 2 - rect.height / 2);
+      window.scrollTo({
+        top: Math.max(0, targetY),
         behavior: "smooth",
       });
-      return;
-    }
-
-    const rect = node.getBoundingClientRect();
-    const absoluteTop = rect.top + window.scrollY;
-    const targetY = absoluteTop - (window.innerHeight / 2 - rect.height / 2);
-    window.scrollTo({
-      top: Math.max(0, targetY),
-      behavior: "smooth",
     });
+    return () => window.cancelAnimationFrame(rafId);
   }, [twisterScrollToPanel, twisterScrollToken]);
 
   useEffect(() => {
@@ -342,7 +349,7 @@ const DeckCardFxRack = ({
         <div className="deck__fx-row deck__fx-row--core">
           <div
             ref={setPanelRef("loopDelay")}
-            className={`deck__fx-unit deck__fx-unit--gain ${fxPanelOpen.loopDelay ? "" : "is-collapsed"}`.trim()}
+            className={`deck__fx-unit deck__fx-unit--loop-delay ${fxPanelOpen.loopDelay ? "" : "is-collapsed"}`.trim()}
           >
             <button
               type="button"
@@ -354,6 +361,7 @@ const DeckCardFxRack = ({
             </button>
             <Knob
               label="Gap"
+              midiActionId="deck.loopDelay"
               min={0}
               max={60}
               step={0.01}

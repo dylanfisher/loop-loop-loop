@@ -59,6 +59,7 @@ const TWISTER_SLOT_ACTIONS: MidiActionId[] = [
   "twister.slot15",
 ];
 const TWISTER_MODULES: Array<{ id: DeckFxPanel; label: string; actions: MidiActionId[] }> = [
+  { id: "loopDelay", label: "Loop Delay", actions: ["deck.loopDelay"] },
   { id: "gain", label: "Gain", actions: ["deck.gain"] },
   { id: "djFilter", label: "Filter", actions: ["deck.filter", "deck.resonance"] },
   { id: "balance", label: "Balance", actions: ["deck.balance"] },
@@ -157,6 +158,26 @@ const TWISTER_MODULES: Array<{ id: DeckFxPanel; label: string; actions: MidiActi
     ],
   },
 ];
+const TWISTER_PANEL_SELECTOR: Record<DeckFxPanel, string> = {
+  loopDelay: ".deck__fx-unit--loop-delay",
+  gain: ".deck__fx-unit--gain",
+  djFilter: ".deck__fx-unit--filter",
+  resonance: ".deck__fx-unit--filter",
+  eqLow: ".deck__fx-unit--parametric",
+  eqMid: ".deck__fx-unit--parametric",
+  eqHigh: ".deck__fx-unit--parametric",
+  parametricEq: ".deck__fx-unit--parametric",
+  balance: ".deck__fx-unit--balance",
+  pitch: ".deck__fx-unit--pitch",
+  vocoder: ".deck__fx-unit--vocoder",
+  delay: ".deck__fx-unit--delay",
+  spectralSpace: ".deck__fx-unit--spectral-space",
+  rearranger: ".deck__fx-unit--rearranger",
+  stretch: ".deck__fx-unit--stretch",
+};
+const TWISTER_LINKED_PANELS: Partial<Record<DeckFxPanel, DeckFxPanel[]>> = {
+  djFilter: ["djFilter", "resonance"],
+};
 const hexToRgb = (hex: string) => {
   const clean = hex.replace("#", "");
   const normalized = clean.length === 3 ? clean.split("").map((part) => `${part}${part}`).join("") : clean;
@@ -437,6 +458,31 @@ const App = () => {
     },
     [setDeckFxPanelOpen]
   );
+  const syncTwisterModulesForRowChange = useCallback(
+    (deckId: number, previousPanel: DeckFxPanel, nextPanel: DeckFxPanel) => {
+      if (previousPanel === nextPanel || typeof document === "undefined") return;
+      const activeDeckNode = document.querySelector(".deck--active");
+      if (!(activeDeckNode instanceof HTMLElement)) return;
+      const previousNode = activeDeckNode.querySelector(TWISTER_PANEL_SELECTOR[previousPanel]);
+      const nextNode = activeDeckNode.querySelector(TWISTER_PANEL_SELECTOR[nextPanel]);
+      if (!(previousNode instanceof HTMLElement) || !(nextNode instanceof HTMLElement)) return;
+      if (Math.abs(previousNode.offsetTop - nextNode.offsetTop) <= 8) return;
+      const rowPanels = new Set<DeckFxPanel>();
+      (Object.keys(TWISTER_PANEL_SELECTOR) as DeckFxPanel[]).forEach((panel) => {
+        const panelNode = activeDeckNode.querySelector(TWISTER_PANEL_SELECTOR[panel]);
+        if (!(panelNode instanceof HTMLElement)) return;
+        if (Math.abs(panelNode.offsetTop - nextNode.offsetTop) > 8) return;
+        (TWISTER_LINKED_PANELS[panel] ?? [panel]).forEach((linkedPanel) => {
+          rowPanels.add(linkedPanel);
+        });
+      });
+      rowPanels.add(nextPanel);
+      (Object.keys(TWISTER_PANEL_SELECTOR) as DeckFxPanel[]).forEach((panel) => {
+        setDeckFxPanelOpen(deckId, panel, rowPanels.has(panel));
+      });
+    },
+    [setDeckFxPanelOpen]
+  );
   const resolveMidiActionId = useCallback(
     (actionId: MidiActionId): MidiActionId => {
       const slotIndex = TWISTER_SLOT_ACTIONS.indexOf(actionId);
@@ -460,6 +506,11 @@ const App = () => {
         setTwisterScrollToken((prev) => prev + 1);
         return;
       }
+      if (actionId === "twister.playPause") {
+        if (value > 0.5) return;
+        handleFocusedDeckPlaybackToggle();
+        return;
+      }
       if (actionId === "twister.deckSelect") {
         if (decks.length === 0) return;
         const maxIndex = decks.length - 1;
@@ -472,6 +523,9 @@ const App = () => {
         const maxIndex = TWISTER_MODULES.length - 1;
         const nextIndex = clamp(Math.round(clamp(value, 0, 1) * maxIndex), 0, maxIndex);
         const nextModule = TWISTER_MODULES[nextIndex] ?? TWISTER_MODULES[0];
+        if (focusedDeckId !== null) {
+          syncTwisterModulesForRowChange(focusedDeckId, activeTwisterModule.id, nextModule.id);
+        }
         setTwisterModuleIndex(nextIndex);
         if (focusedDeckId !== null) {
           openTwisterModulePanels(focusedDeckId, nextModule.id);
@@ -566,6 +620,10 @@ const App = () => {
       }
       if (actionId === "deck.gain") {
         setDeckGain(deckId, value);
+        return;
+      }
+      if (actionId === "deck.loopDelay") {
+        setDeckLoopDelaySec(deckId, value);
         return;
       }
       if (actionId === "deck.filter") {
@@ -780,7 +838,9 @@ const App = () => {
     },
     [
       activeDeckId,
+      activeTwisterModule.id,
       activeTwisterModule.actions,
+      syncTwisterModulesForRowChange,
       decks,
       focusedDeck,
       focusedDeckId,
@@ -881,6 +941,7 @@ const App = () => {
         return band.wander?.spread ?? 0;
       }
       if (actionId === "deck.gain") return deck.gain;
+      if (actionId === "deck.loopDelay") return deck.loopDelaySec;
       if (actionId === "deck.filter") return deck.djFilter;
       if (actionId === "deck.resonance") return deck.filterResonance;
       if (actionId === "deck.balance") return deck.balance;
@@ -1038,7 +1099,6 @@ const App = () => {
     cancelLearn: cancelMidiLearn,
     removeMapping: removeMidiMapping,
     clearMappings: clearMidiMappings,
-    loadTwisterProfile,
     loadTwisterModeProfile,
     sendMappedFeedback,
     sendControlChange,
@@ -1051,6 +1111,10 @@ const App = () => {
     },
     [beginMidiLearn]
   );
+  const twisterInputSelected = useMemo(() => {
+    const selectedInput = midiInputs.find((input) => input.id === selectedMidiInputId);
+    return (selectedInput?.name ?? "").toLowerCase().includes("midi fighter twister");
+  }, [midiInputs, selectedMidiInputId]);
   const twisterActionToSlotIndex = useMemo(() => {
     const map: Partial<Record<MidiActionId, number>> = {};
     activeTwisterModule.actions.slice(0, TWISTER_SLOT_ACTIONS.length).forEach((actionId, index) => {
@@ -1081,12 +1145,36 @@ const App = () => {
     twisterModeEnabled,
   ]);
   useEffect(() => {
+    if (!twisterInputSelected) {
+      if (twisterModeEnabled) {
+        setTwisterModeEnabled(false);
+      }
+      return;
+    }
+    if (twisterModeEnabled) return;
+    const ok = loadTwisterModeProfile();
+    if (!ok) return;
+    setTwisterModeEnabled(true);
+    if (focusedDeckId !== null) {
+      openTwisterModulePanels(focusedDeckId, activeTwisterModule.id);
+    }
+    setTwisterScrollToken((prev) => prev + 1);
+  }, [
+    activeTwisterModule.id,
+    focusedDeckId,
+    loadTwisterModeProfile,
+    openTwisterModulePanels,
+    twisterInputSelected,
+    twisterModeEnabled,
+  ]);
+  useEffect(() => {
     MIDI_ACTIONS.forEach((action) => {
       if (
         action.id === "twister.moduleSelect" ||
         action.id === "twister.deckSelect" ||
         action.id === "twister.deckPrev" ||
-        action.id === "twister.deckNext"
+        action.id === "twister.deckNext" ||
+        action.id === "twister.playPause"
       ) {
         return;
       }
@@ -1889,7 +1977,7 @@ const App = () => {
         onCancelLearn={cancelMidiLearn}
         onRemoveMapping={removeMidiMapping}
         onClearMappings={clearMidiMappings}
-        onLoadTwisterProfile={loadTwisterProfile}
+        showTwisterMode={twisterInputSelected}
         twisterModeEnabled={twisterModeEnabled}
         onToggleTwisterMode={toggleTwisterMode}
         learnModeEnabled={midiLearnModeEnabled}

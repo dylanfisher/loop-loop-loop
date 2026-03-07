@@ -31,7 +31,7 @@ type MidiPanelProps = {
   onCancelLearn: () => void;
   onRemoveMapping: (id: string) => void;
   onClearMappings: () => void;
-  onLoadTwisterProfile: () => boolean;
+  showTwisterMode: boolean;
   twisterModeEnabled: boolean;
   onToggleTwisterMode: () => void;
   learnModeEnabled: boolean;
@@ -56,7 +56,7 @@ const MidiPanel = ({
   onCancelLearn,
   onRemoveMapping,
   onClearMappings,
-  onLoadTwisterProfile,
+  showTwisterMode,
   twisterModeEnabled,
   onToggleTwisterMode,
   learnModeEnabled,
@@ -102,14 +102,16 @@ const MidiPanel = ({
           >
             MIDI Learn {learnModeEnabled ? "On" : "Off"}
           </button>
-          <button
-            type="button"
-            className={twisterModeEnabled ? "is-active" : undefined}
-            onClick={onToggleTwisterMode}
-            title="Enable dynamic Twister mode (slots 1-15 = module controls, 16 = module select, right-side top/bottom buttons on page-16 mapping = prev/next deck)"
-          >
-            Twister Mode {twisterModeEnabled ? "On" : "Off"}
-          </button>
+          {showTwisterMode ? (
+            <button
+              type="button"
+              className={twisterModeEnabled ? "is-active" : undefined}
+              onClick={onToggleTwisterMode}
+              title="Enable dynamic Twister mode (slots 1-15 = module controls, 16 = module select, right-side top/bottom buttons on page-16 mapping = prev/next deck)"
+            >
+              Twister Mode {twisterModeEnabled ? "On" : "Off"}
+            </button>
+          ) : null}
         </div>
       </div>
       {expanded ? <div className="midi-panel__body">
@@ -188,17 +190,6 @@ const MidiPanel = ({
                 Learn
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                const ok = onLoadTwisterProfile();
-                if (!ok) {
-                  window.alert("Select a MIDI input first, then try loading the Twister profile.");
-                }
-              }}
-            >
-              Load Twister Profile
-            </button>
           </div>
           <div className="midi-panel__hint">
             {learnTarget
