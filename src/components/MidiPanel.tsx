@@ -64,10 +64,20 @@ const MidiPanel = ({
 }: MidiPanelProps) => {
   const [actionId, setActionId] = useState<MidiActionId>("deck.gain");
   const [mode, setMode] = useState<MidiLearnMode>("absolute");
+  const [expanded, setExpanded] = useState(true);
 
   const selectedInputName = useMemo(
     () => inputs.find((input) => input.id === selectedInputId)?.name ?? "All Inputs",
     [inputs, selectedInputId]
+  );
+  const mappingsWithLabels = useMemo(
+    () =>
+      mappings.map((mapping) => ({
+        ...mapping,
+        actionLabel:
+          MIDI_ACTIONS.find((action) => action.id === mapping.actionId)?.label ?? mapping.actionId,
+      })),
+    [mappings]
   );
 
   return (
@@ -81,6 +91,9 @@ const MidiPanel = ({
           <span className="midi-panel__deck">Target: {focusedDeckLabel}</span>
         </div>
         <div className="midi-panel__actions">
+          <button type="button" onClick={() => setExpanded((current) => !current)}>
+            {expanded ? "Hide Panel" : "Show Panel"}
+          </button>
           <button
             type="button"
             className={learnModeEnabled ? "is-active" : undefined}
@@ -99,24 +112,25 @@ const MidiPanel = ({
           </button>
         </div>
       </div>
-      {!supported ? (
-        <div className="midi-panel__message">
-          Web MIDI is unavailable in this browser. Use Chrome/Edge on localhost or HTTPS.
-        </div>
-      ) : null}
-      {supported && !accessGranted ? (
-        <div className="midi-panel__connect">
-          <button type="button" onClick={onRequestAccess}>
-            Connect MIDI
-          </button>
-          <span className="midi-panel__message">
-            Grant browser access to choose MIDI inputs, outputs, and mappings.
-          </span>
-        </div>
-      ) : null}
-      {accessError ? <div className="midi-panel__error">{accessError}</div> : null}
-      {supported && accessGranted ? (
-        <>
+      {expanded ? <div className="midi-panel__body">
+        {!supported ? (
+          <div className="midi-panel__message">
+            Web MIDI is unavailable in this browser. Use Chrome/Edge on localhost or HTTPS.
+          </div>
+        ) : null}
+        {supported && !accessGranted ? (
+          <div className="midi-panel__connect">
+            <button type="button" onClick={onRequestAccess}>
+              Connect MIDI
+            </button>
+            <span className="midi-panel__message">
+              Grant browser access to choose MIDI inputs, outputs, and mappings.
+            </span>
+          </div>
+        ) : null}
+        {accessError ? <div className="midi-panel__error">{accessError}</div> : null}
+        {supported && accessGranted ? (
+          <>
           <div className="midi-panel__row">
             <label>
               Input
@@ -203,16 +217,20 @@ const MidiPanel = ({
             {mappings.length === 0 ? (
               <div className="midi-panel__empty">No mappings yet.</div>
             ) : (
-              <ul>
-                {mappings.map((mapping) => (
-                  <li key={mapping.id}>
-                    <span>
-                      {mapping.inputName} | Ch{mapping.channel + 1}{" "}
-                      {mapping.messageType.toUpperCase()} {mapping.number} {"->"}{" "}
-                      {MIDI_ACTIONS.find((action) => action.id === mapping.actionId)?.label ??
-                        mapping.actionId}{" "}
-                      ({mapping.mode})
-                    </span>
+              <ul className="midi-panel__mapping-list">
+                {mappingsWithLabels.map((mapping) => (
+                  <li key={mapping.id} className="midi-panel__mapping">
+                    <div className="midi-panel__mapping-copy">
+                      <span className="midi-panel__mapping-action">{mapping.actionLabel}</span>
+                      <span className="midi-panel__mapping-source">{mapping.inputName}</span>
+                      <div className="midi-panel__mapping-meta">
+                        <span>Ch {mapping.channel + 1}</span>
+                        <span>
+                          {mapping.messageType.toUpperCase()} {mapping.number}
+                        </span>
+                        <span>{mapping.mode}</span>
+                      </div>
+                    </div>
                     <button type="button" onClick={() => onRemoveMapping(mapping.id)}>
                       Remove
                     </button>
@@ -221,8 +239,9 @@ const MidiPanel = ({
               </ul>
             )}
           </div>
-        </>
-      ) : null}
+          </>
+        ) : null}
+      </div> : null}
     </section>
   );
 };
