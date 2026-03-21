@@ -1,4 +1,4 @@
-import type { EqMode, ParametricEqBand } from "../../types/deck";
+import type { ParametricEqBand } from "../../types/deck";
 import type { OfflineAutomationTrack } from "./automation";
 
 export const PARAMETRIC_EQ_MAX_BANDS = 8;
@@ -105,11 +105,7 @@ export const normalizeParametricEqBands = (bands: ParametricEqBand[] | undefined
   });
 };
 
-export const hasActiveParametricEq = (
-  eqMode: EqMode,
-  bands: ParametricEqBand[] | undefined | null
-) => {
-  if (eqMode !== "parametric") return false;
+export const hasActiveParametricEq = (bands: ParametricEqBand[] | undefined | null) => {
   const normalized = normalizeParametricEqBands(bands);
   return normalized.some((band) => !isNeutralBand(band));
 };
@@ -252,12 +248,10 @@ const solveLinearSystem = (matrix: number[][], rhs: number[]) => {
 };
 
 export const fitParametricEqBandsToCurve = (
-  eqMode: EqMode,
   bands: ParametricEqBand[] | undefined | null,
   sampleRate: number
 ) => {
   const normalized = normalizeParametricEqBands(bands);
-  if (eqMode !== "parametric") return normalized;
   const adjustable = normalized
     .map((band, index) => ({ band, index }))
     .filter((entry) => !isNeutralBand(entry.band));
@@ -305,12 +299,11 @@ const responseDbForBandsAtFrequency = (
 };
 
 export const evaluateParametricEqResponseDb = (
-  eqMode: EqMode,
   bands: ParametricEqBand[] | undefined | null,
   frequency: number,
   sampleRate: number
 ) => {
-  if (!hasActiveParametricEq(eqMode, bands)) return 0;
+  if (!hasActiveParametricEq(bands)) return 0;
   const normalized = normalizeParametricEqBands(bands).filter(
     (band) => !isNeutralBand(band)
   );
@@ -322,12 +315,11 @@ export const evaluateParametricEqResponseDb = (
 };
 
 export const computeParametricEqCompensationGain = (
-  eqMode: EqMode,
   bands: ParametricEqBand[] | undefined | null,
   sampleRate: number
 ) => {
-  if (!hasActiveParametricEq(eqMode, bands)) return 1;
-  const activeBands = fitParametricEqBandsToCurve(eqMode, bands, sampleRate).filter(
+  if (!hasActiveParametricEq(bands)) return 1;
+  const activeBands = fitParametricEqBandsToCurve(bands, sampleRate).filter(
     (band) => band.enabled && Math.abs(band.gain) > 1e-4
   );
   if (activeBands.length === 0) return 1;
@@ -351,7 +343,6 @@ export const computeParametricEqCompensationGain = (
 export const applyParametricEqOffline = (
   context: OfflineAudioContext,
   input: AudioNode,
-  eqMode: EqMode,
   bands: ParametricEqBand[] | undefined | null,
   renderDuration: number,
   bandAutomation?: Array<{
@@ -360,7 +351,7 @@ export const applyParametricEqOffline = (
   }>
 ) => {
   const normalized = normalizeParametricEqBands(bands);
-  const fitted = fitParametricEqBandsToCurve(eqMode, normalized, context.sampleRate);
+  const fitted = fitParametricEqBandsToCurve(normalized, context.sampleRate);
   const hasBandAutomation = (index: number, kind: "frequency" | "gain") => {
     const track = bandAutomation?.[index]?.[kind];
     return (
@@ -373,7 +364,7 @@ export const applyParametricEqOffline = (
   const hasAnyBandAutomation = normalized.some(
     (band, index) => band.enabled && (hasBandAutomation(index, "frequency") || hasBandAutomation(index, "gain"))
   );
-  if (!hasActiveParametricEq(eqMode, bands) && !hasAnyBandAutomation) return input;
+  if (!hasActiveParametricEq(bands) && !hasAnyBandAutomation) return input;
 
   const buildLoopedCurve = (
     track: OfflineAutomationTrack,
@@ -492,7 +483,7 @@ export const applyParametricEqOffline = (
   }
   const outputGain = context.createGain();
   outputGain.gain.setValueAtTime(
-    computeParametricEqCompensationGain(eqMode, fitted, context.sampleRate),
+    computeParametricEqCompensationGain(fitted, context.sampleRate),
     0
   );
   filters[filters.length - 1].connect(outputGain);

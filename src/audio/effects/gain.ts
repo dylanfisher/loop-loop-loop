@@ -1,5 +1,12 @@
+import {
+  scheduleLoopedAutomation,
+  type OfflineAutomationTrack,
+} from "./automation";
+
 export type GainOfflineParams = {
   gain: number;
+  renderDuration?: number;
+  automation?: OfflineAutomationTrack;
   bypassAt?: number;
 };
 
@@ -12,11 +19,23 @@ export const applyGainOffline = (
   params: GainOfflineParams
 ) => {
   const bypassAt = params.bypassAt ?? 1;
-  if (approxEqual(params.gain, bypassAt)) {
+  const automationActive =
+    params.automation?.active === true && (params.automation.durationSec ?? 0) > 0;
+  if (approxEqual(params.gain, bypassAt) && !automationActive) {
     return input;
   }
   const node = context.createGain();
   node.gain.value = params.gain;
+  if (automationActive && (params.renderDuration ?? 0) > 0 && params.automation) {
+    scheduleLoopedAutomation(
+      params.automation.samples,
+      params.automation.durationSec,
+      params.renderDuration ?? 0,
+      (value, time) => {
+        node.gain.setValueAtTime(value, time);
+      }
+    );
+  }
   input.connect(node);
   return node;
 };

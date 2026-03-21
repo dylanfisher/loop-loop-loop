@@ -1,5 +1,4 @@
 export type DeckStatus = "idle" | "loading" | "transcoding" | "ready" | "playing" | "paused" | "error";
-export type EqMode = "eq3" | "parametric";
 export type ParametricEqBandType = "peaking" | "lowshelf" | "highshelf";
 export type ParametricEqAutomationBandIndex = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 export type ParametricEqSimpleAutomationParam =
@@ -89,9 +88,6 @@ export type DeckFxPanel =
   | "gain"
   | "djFilter"
   | "resonance"
-  | "eqLow"
-  | "eqMid"
-  | "eqHigh"
   | "parametricEq"
   | "balance"
   | "pitch"
@@ -165,10 +161,6 @@ export type DeckState = {
   rearrangerRegionsManual?: boolean;
   djFilter: number;
   filterResonance: number;
-  eqMode: EqMode;
-  eqLowGain: number;
-  eqMidGain: number;
-  eqHighGain: number;
   parametricEqBands: ParametricEqBand[];
   parametricEqMotion: ParametricEqMotionState;
   balance: number;

@@ -59,13 +59,11 @@ const useFocusedDeckActions = ({
       gain: isDifferent(deck.gain, 0.9),
       djFilter: isDifferent(deck.djFilter, 0),
       resonance: isDifferent(deck.filterResonance, 0),
-      parametricEq:
-        deck.eqMode === "parametric" &&
-        deck.parametricEqBands.some(
-          (band) =>
-            band.enabled &&
-            (Math.abs(band.gain) > 1e-3 || Math.abs(band.q - 1.2) > 1e-3)
-        ),
+      parametricEq: deck.parametricEqBands.some(
+        (band) =>
+          band.enabled &&
+          (Math.abs(band.gain) > 1e-3 || Math.abs(band.q - 1.2) > 1e-3)
+      ),
       balance: isDifferent(deck.balance, 0),
       pitch: isDifferent(deck.pitchShift, 0),
       vocoder:

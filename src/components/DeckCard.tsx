@@ -3,7 +3,6 @@ import type { DragEvent as ReactDragEvent } from "react";
 import type {
   DeckFxPanel,
   DeckState,
-  EqMode,
   ParametricEqBand,
   ParametricEqMotionState,
   SimpleAutomationParam,
@@ -21,7 +20,6 @@ import {
   buildQuietDeletePreviewRanges,
   createAutomationFallback,
   formatDjFilter,
-  formatEq,
   formatTempo,
   hasAutomationData,
   isDifferent,
@@ -43,10 +41,6 @@ export type DeckCardProps = {
   onGainChange: (id: number, value: number) => void;
   onFilterChange: (id: number, value: number) => void;
   onResonanceChange: (id: number, value: number) => void;
-  onEqLowChange: (id: number, value: number) => void;
-  onEqMidChange: (id: number, value: number) => void;
-  onEqHighChange: (id: number, value: number) => void;
-  onEqModeChange: (id: number, value: EqMode) => void;
   onParametricEqBandsChange: (id: number, bands: ParametricEqBand[]) => void;
   onParametricEqMotionChange: (id: number, value: ParametricEqMotionState) => void;
   onSimpleAutomationSet: (
@@ -239,7 +233,6 @@ const DeckCard = (props: DeckCardProps) => {
     onPlay,
     onPause,
     onStop,
-    onEqModeChange,
     onParametricEqBandsChange,
     carrierDeckOptions,
     vocoderModulatingTargetDeckIds,
@@ -306,9 +299,6 @@ const DeckCard = (props: DeckCardProps) => {
   const gainAutomation = automation?.gain ?? createAutomationFallback(deck.gain);
   const djAutomation = automation?.djFilter ?? createAutomationFallback(djFilter);
   const resonanceAutomation = automation?.resonance ?? createAutomationFallback(resonanceValue);
-  const eqLowAutomation = automation?.eqLow ?? createAutomationFallback(deck.eqLowGain);
-  const eqMidAutomation = automation?.eqMid ?? createAutomationFallback(deck.eqMidGain);
-  const eqHighAutomation = automation?.eqHigh ?? createAutomationFallback(deck.eqHighGain);
   const balanceAutomation = automation?.balance ?? createAutomationFallback(deck.balance);
   const pitchAutomation = automation?.pitch ?? createAutomationFallback(deck.pitchShift);
   const gainValue = gainAutomation.active ? gainAutomation.currentValue : deck.gain;
@@ -316,9 +306,6 @@ const DeckCard = (props: DeckCardProps) => {
   const resonanceDisplayValue = resonanceAutomation.active
     ? resonanceAutomation.currentValue
     : resonanceValue;
-  const eqLowValue = eqLowAutomation.active ? eqLowAutomation.currentValue : deck.eqLowGain;
-  const eqMidValue = eqMidAutomation.active ? eqMidAutomation.currentValue : deck.eqMidGain;
-  const eqHighValue = eqHighAutomation.active ? eqHighAutomation.currentValue : deck.eqHighGain;
   const balanceValue = balanceAutomation.active
     ? balanceAutomation.currentValue
     : deck.balance;
@@ -568,18 +555,10 @@ const DeckCard = (props: DeckCardProps) => {
   }, [allFxOpen, deck.id, onFxPanelsToggleAll]);
   const commitParametricEqBands = useCallback(
     (bands: ParametricEqBand[]) => {
-      if (deck.eqMode !== "parametric") {
-        onEqModeChange(deck.id, "parametric");
-      }
       onParametricEqBandsChange(deck.id, bands);
     },
-    [deck.eqMode, deck.id, onEqModeChange, onParametricEqBandsChange]
+    [deck.id, onParametricEqBandsChange]
   );
-  const activateEq3Mode = useCallback(() => {
-    if (deck.eqMode !== "eq3") {
-      onEqModeChange(deck.id, "eq3");
-    }
-  }, [deck.eqMode, deck.id, onEqModeChange]);
   const fxIndicators: Record<DeckFxPanel, { automation: boolean; modified: boolean }> = {
     loopDelay: {
       automation: false,
@@ -599,23 +578,9 @@ const DeckCard = (props: DeckCardProps) => {
       automation: hasAutomationData(resonanceAutomation),
       modified: isDifferent(deck.filterResonance, 0),
     },
-    eqLow: {
-      automation: hasAutomationData(eqLowAutomation),
-      modified: isDifferent(deck.eqLowGain, 0),
-    },
-    eqMid: {
-      automation: hasAutomationData(eqMidAutomation),
-      modified: isDifferent(deck.eqMidGain, 0),
-    },
-    eqHigh: {
-      automation: hasAutomationData(eqHighAutomation),
-      modified: isDifferent(deck.eqHighGain, 0),
-    },
     parametricEq: {
       automation: false,
-      modified:
-        deck.eqMode === "parametric" &&
-        deck.parametricEqBands.some((band) => band.enabled && Math.abs(band.gain) > 1e-3),
+      modified: deck.parametricEqBands.some((band) => band.enabled && Math.abs(band.gain) > 1e-3),
     },
     balance: {
       automation: hasAutomationData(balanceAutomation),
@@ -1038,9 +1003,6 @@ const DeckCard = (props: DeckCardProps) => {
           offsetSeconds={deck.offsetSeconds}
           zoom={deck.zoom}
           gain={deck.gain}
-          eqLowGain={eqLowValue}
-          eqMidGain={eqMidValue}
-          eqHighGain={eqHighValue}
           loopEnabled={deck.loopEnabled}
           loopStartSeconds={deck.loopStartSeconds}
           loopEndSeconds={deck.loopEndSeconds}
@@ -1202,22 +1164,14 @@ const DeckCard = (props: DeckCardProps) => {
         resonanceMin={resonanceMin}
         resonanceMax={resonanceMax}
         resonanceDisplayValue={resonanceDisplayValue}
-        eqLowValue={eqLowValue}
-        eqMidValue={eqMidValue}
-        eqHighValue={eqHighValue}
         balanceValue={balanceValue}
         pitchValue={pitchValue}
         gainAutomation={gainAutomation}
         djAutomation={djAutomation}
         resonanceAutomation={resonanceAutomation}
-        eqLowAutomation={eqLowAutomation}
-        eqMidAutomation={eqMidAutomation}
-        eqHighAutomation={eqHighAutomation}
         balanceAutomation={balanceAutomation}
         pitchAutomation={pitchAutomation}
         formatDjFilter={formatDjFilter}
-        formatEq={formatEq}
-        activateEq3Mode={activateEq3Mode}
         commitParametricEqBands={commitParametricEqBands}
         onSimpleAutomationSet={props.onSimpleAutomationSet}
         onSimpleAutomationClear={props.onSimpleAutomationClear}

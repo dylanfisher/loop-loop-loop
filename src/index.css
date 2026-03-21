@@ -1893,34 +1893,6 @@ input[type="range"]::-moz-focus-outer {
   gap: 10px;
 }
 
-.deck__eq3-inline {
-  display: grid;
-  gap: 8px;
-}
-
-.deck__eq3-sections {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.deck__eq3-section {
-  position: relative;
-  display: grid;
-  gap: 8px;
-}
-
-.deck__eq3-section:not(:first-child)::before {
-  content: "";
-  position: absolute;
-  left: -11px;
-  top: 8px;
-  bottom: 8px;
-  width: 1px;
-  background: color-mix(in srgb, var(--line) 75%, transparent);
-  pointer-events: none;
-}
-
 .deck__parametric-mode {
   display: flex;
   align-items: center;

@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { DeckState, SimpleAutomationParam } from "../types/deck";
-import type { AutomationParam } from "../types/session";
+import type { AutomationParam, HydratedRearrangerSnapshotSession } from "../types/session";
 import type { AutomationView } from "./useDecksShared";
 import { ensurePitchShiftWorklet } from "../audio/pitchShift";
 import { createPaulStretchNode, ensurePaulStretchWorklet } from "../audio/paulStretch";
 import { applyPitchShiftOffline } from "../audio/effects/pitchShift";
 import { applyDjFilterOffline } from "../audio/effects/djFilter";
-import { applyEq3Offline } from "../audio/effects/eq3";
 import { applyParametricEqOffline } from "../audio/effects/parametricEq";
 import type { OfflineAutomationTrack } from "../audio/effects/automation";
 import { applyBalanceOffline } from "../audio/effects/balance";
@@ -63,6 +62,10 @@ type UseDeckLoopToolsResult = {
   handleRestoreRearrangerSnapshot: (deckId: number) => void;
   hasRearrangerSnapshot: (deckId: number) => boolean;
   getRearrangerSnapshotCapturedAtMs: (deckId: number) => number | null;
+  getRearrangerSnapshotsForSession: () => Map<number, HydratedRearrangerSnapshotSession>;
+  loadRearrangerSnapshotsFromSession: (
+    snapshots: Map<number, HydratedRearrangerSnapshotSession>
+  ) => void;
   handleRearrangeLoop: (
     deckId: number,
     options?: {
@@ -342,9 +345,6 @@ const useDeckLoopTools = ({
         const automation = automationState.get(deckId);
         const djFilterTrack = automation?.djFilter;
         const resonanceTrack = automation?.resonance;
-        const eqLowTrack = automation?.eqLow;
-        const eqMidTrack = automation?.eqMid;
-        const eqHighTrack = automation?.eqHigh;
         const balanceTrack = automation?.balance;
         const pitchTrack = automation?.pitch;
         const gainTrack = automation?.gain;
@@ -353,9 +353,6 @@ const useDeckLoopTools = ({
         const resonanceValue = resonanceTrack?.active
           ? resonanceTrack.currentValue
           : deck.filterResonance;
-        const eqLowValue = eqLowTrack?.active ? eqLowTrack.currentValue : deck.eqLowGain;
-        const eqMidValue = eqMidTrack?.active ? eqMidTrack.currentValue : deck.eqMidGain;
-        const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
         const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
         const pitchValue = pitchTrack?.active ? pitchTrack.currentValue : deck.pitchShift;
         const gainValue = gainTrack?.active ? gainTrack.currentValue : deck.gain;
@@ -366,15 +363,9 @@ const useDeckLoopTools = ({
           !approxEqual(resonanceValue, 0) ||
           djFilterTrack?.active === true ||
           resonanceTrack?.active === true;
-        const needsEq =
-          deck.eqMode === "parametric"
-            ? deck.parametricEqBands.some((band) => band.enabled && Math.abs(band.gain) > 1e-3)
-            : !approxEqual(eqLowValue, 0) ||
-              !approxEqual(eqMidValue, 0) ||
-              !approxEqual(eqHighValue, 0) ||
-              eqLowTrack?.active === true ||
-              eqMidTrack?.active === true ||
-              eqHighTrack?.active === true;
+        const needsEq = deck.parametricEqBands.some(
+          (band) => band.enabled && Math.abs(band.gain) > 1e-3
+        );
         if (needsPitch) {
           try {
             await ensurePitchShiftWorklet(offline);
@@ -428,44 +419,25 @@ const useDeckLoopTools = ({
               }
             : undefined,
         });
-        chain =
-          deck.eqMode === "parametric"
-            ? applyParametricEqOffline(
-                offline,
-                chain,
-                deck.eqMode,
-                deck.parametricEqBands,
-                renderDuration,
-                buildParametricBandAutomation(deck)
-              )
-            : applyEq3Offline(offline, chain, {
-                low: eqLowValue,
-                mid: eqMidValue,
-                high: eqHighValue,
-                renderDuration,
-                lowAutomation: eqLowTrack
-                  ? {
-                      active: eqLowTrack.active,
-                      samples: eqLowTrack.samples,
-                      durationSec: eqLowTrack.durationSec,
-                    }
-                  : undefined,
-                midAutomation: eqMidTrack
-                  ? {
-                      active: eqMidTrack.active,
-                      samples: eqMidTrack.samples,
-                      durationSec: eqMidTrack.durationSec,
-                    }
-                  : undefined,
-                highAutomation: eqHighTrack
-                  ? {
-                      active: eqHighTrack.active,
-                      samples: eqHighTrack.samples,
-                      durationSec: eqHighTrack.durationSec,
-                    }
-                  : undefined,
-              });
-        chain = applyGainOffline(offline, chain, { gain: gainValue, bypassAt: 0.9 });
+        chain = applyParametricEqOffline(
+          offline,
+          chain,
+          deck.parametricEqBands,
+          renderDuration,
+          buildParametricBandAutomation(deck)
+        );
+        chain = applyGainOffline(offline, chain, {
+          gain: gainValue,
+          renderDuration,
+          automation: gainTrack
+            ? {
+                active: gainTrack.active,
+                samples: gainTrack.samples,
+                durationSec: gainTrack.durationSec,
+              }
+            : undefined,
+          bypassAt: 0.9,
+        });
         chain = applyMasterProtectOffline(offline, chain, { enabled: limiterNeeded });
         chain.connect(stretchNode, 0, 0);
         keepAlive.connect(stretchNode, 0, 1);
@@ -780,6 +752,65 @@ const useDeckLoopTools = ({
     [rearrangerSnapshotMetaByDeckId]
   );
 
+  const getRearrangerSnapshotsForSession = useCallback(() => {
+    const snapshots = new Map<number, HydratedRearrangerSnapshotSession>();
+    rearrangerSnapshotByDeckRef.current.forEach((snapshot, deckId) => {
+      const capturedAtMs = rearrangerSnapshotMetaByDeckId[deckId]?.capturedAtMs;
+      if (!Number.isFinite(capturedAtMs)) return;
+      snapshots.set(deckId, {
+        buffer: snapshot.buffer,
+        capturedAtMs,
+        fileName: snapshot.fileName,
+        loopStartSeconds: snapshot.loopStartSeconds,
+        loopEndSeconds: snapshot.loopEndSeconds,
+        rearrangerSlices: snapshot.rearrangerSlices,
+        rearrangerRegions: snapshot.rearrangerRegions ? [...snapshot.rearrangerRegions] : undefined,
+        rearrangerRegionIds: snapshot.rearrangerRegionIds
+          ? [...snapshot.rearrangerRegionIds]
+          : undefined,
+        rearrangerRegionsManual: snapshot.rearrangerRegionsManual ?? false,
+      });
+    });
+    return snapshots;
+  }, [rearrangerSnapshotMetaByDeckId]);
+
+  const loadRearrangerSnapshotsFromSession = useCallback(
+    (snapshots: Map<number, HydratedRearrangerSnapshotSession>) => {
+      rearrangerSnapshotByDeckRef.current = new Map(
+        Array.from(snapshots.entries()).map(([deckId, snapshot]) => [
+          deckId,
+          {
+            buffer: snapshot.buffer,
+            fileName: snapshot.fileName,
+            loopStartSeconds: snapshot.loopStartSeconds,
+            loopEndSeconds: snapshot.loopEndSeconds,
+            rearrangerSlices: snapshot.rearrangerSlices,
+            rearrangerRegions: snapshot.rearrangerRegions
+              ? [...snapshot.rearrangerRegions]
+              : undefined,
+            rearrangerRegionIds: snapshot.rearrangerRegionIds
+              ? [...snapshot.rearrangerRegionIds]
+              : undefined,
+            rearrangerRegionsManual: snapshot.rearrangerRegionsManual ?? false,
+          },
+        ])
+      );
+      setRearrangerSnapshotMetaByDeckId(
+        Array.from(snapshots.entries()).reduce<
+          Record<number, { available: boolean; version: number; capturedAtMs: number }>
+        >((acc, [deckId, snapshot], index) => {
+          acc[deckId] = {
+            available: true,
+            version: index + 1,
+            capturedAtMs: snapshot.capturedAtMs,
+          };
+          return acc;
+        }, {})
+      );
+    },
+    []
+  );
+
   useEffect(() => {
     const activeDeckIds = new Set(decks.map((deck) => deck.id));
     rearrangerSnapshotByDeckRef.current.forEach((_, deckId) => {
@@ -964,6 +995,8 @@ const useDeckLoopTools = ({
     handleRestoreRearrangerSnapshot,
     hasRearrangerSnapshot,
     getRearrangerSnapshotCapturedAtMs,
+    getRearrangerSnapshotsForSession,
+    loadRearrangerSnapshotsFromSession,
     handleRearrangeLoop,
     handleDeleteRearrangerSlice,
     handleAutoSliceRearranger,

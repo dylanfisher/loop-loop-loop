@@ -1,7 +1,7 @@
 import type { MutableRefObject } from "react";
-import type { EqMode, ParametricEqBand, DeckState } from "../types/deck";
+import type { ParametricEqBand, DeckState } from "../types/deck";
 import { normalizeParametricEqBands } from "../audio/effects/parametricEq";
-import { EQ_MAX_DB, clamp, type AutomationDeck } from "./useDecksShared";
+import { clamp, type AutomationDeck } from "./useDecksShared";
 
 type Args = {
   decks: DeckState[];
@@ -14,10 +14,6 @@ type Args = {
   setDeckFilter: (id: number, value: number) => void;
   setDeckHighpass: (id: number, value: number) => void;
   setDeckResonance: (id: number, value: number) => void;
-  setDeckEqLow: (id: number, value: number) => void;
-  setDeckEqMid: (id: number, value: number) => void;
-  setDeckEqHigh: (id: number, value: number) => void;
-  setDeckEqMode: (id: number, value: EqMode) => void;
   setDeckParametricEqBands: (id: number, bands: ParametricEqBand[]) => void;
   setDeckPitchShift: (id: number, value: number) => void;
   setDeckDelayTime: (id: number, value: number) => void;
@@ -108,10 +104,6 @@ export const createDeckParameterSetters = ({
   setDeckFilter,
   setDeckHighpass,
   setDeckResonance,
-  setDeckEqLow,
-  setDeckEqMid,
-  setDeckEqHigh,
-  setDeckEqMode,
   setDeckParametricEqBands,
   setDeckPitchShift,
   setDeckDelayTime,
@@ -198,51 +190,6 @@ export const createDeckParameterSetters = ({
       updateAutomationView,
       updateAutomationTickEnabled
     );
-  };
-
-  const setDeckEqLowValue = (id: number, value: number) => {
-    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
-    setDeckEqLow(id, clamped);
-    updateDeck(id, { eqLowGain: clamped }, false);
-    deactivateAutomationTrack(
-      automationRef,
-      id,
-      "eqLow",
-      updateAutomationView,
-      updateAutomationTickEnabled
-    );
-  };
-
-  const setDeckEqMidValue = (id: number, value: number) => {
-    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
-    setDeckEqMid(id, clamped);
-    updateDeck(id, { eqMidGain: clamped }, false);
-    deactivateAutomationTrack(
-      automationRef,
-      id,
-      "eqMid",
-      updateAutomationView,
-      updateAutomationTickEnabled
-    );
-  };
-
-  const setDeckEqHighValue = (id: number, value: number) => {
-    const clamped = clamp(value, -EQ_MAX_DB, EQ_MAX_DB);
-    setDeckEqHigh(id, clamped);
-    updateDeck(id, { eqHighGain: clamped }, false);
-    deactivateAutomationTrack(
-      automationRef,
-      id,
-      "eqHigh",
-      updateAutomationView,
-      updateAutomationTickEnabled
-    );
-  };
-
-  const setDeckEqModeValue = (id: number, value: EqMode) => {
-    const mode: EqMode = value === "parametric" ? "parametric" : "eq3";
-    setDeckEqMode(id, mode);
-    updateDeck(id, { eqMode: mode }, false);
   };
 
   const setDeckParametricEqBandsValue = (id: number, bands: ParametricEqBand[]) => {
@@ -577,10 +524,6 @@ export const createDeckParameterSetters = ({
     setDeckGainValue,
     setDeckFilterValue,
     setDeckResonanceValue,
-    setDeckEqLowValue,
-    setDeckEqMidValue,
-    setDeckEqHighValue,
-    setDeckEqModeValue,
     setDeckParametricEqBandsValue,
     setDeckPitchShiftValue,
     setDeckDelayTimeValue,

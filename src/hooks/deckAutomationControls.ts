@@ -13,9 +13,6 @@ type Args = {
   setDeckGainValue: (id: number, value: number) => void;
   setDeckFilterValue: (id: number, value: number) => void;
   setDeckResonanceValue: (id: number, value: number) => void;
-  setDeckEqLowValue: (id: number, value: number) => void;
-  setDeckEqMidValue: (id: number, value: number) => void;
-  setDeckEqHighValue: (id: number, value: number) => void;
   setDeckBalanceValue: (id: number, value: number) => void;
   setDeckPitchShiftValue: (id: number, value: number) => void;
 };
@@ -24,9 +21,6 @@ const getDeckParamValue = (deck: DeckState, param: AutomationParam) => {
   if (param === "gain") return deck.gain;
   if (param === "djFilter") return deck.djFilter;
   if (param === "resonance") return deck.filterResonance;
-  if (param === "eqLow") return deck.eqLowGain;
-  if (param === "eqMid") return deck.eqMidGain;
-  if (param === "eqHigh") return deck.eqHighGain;
   if (param === "balance") return deck.balance;
   return deck.pitchShift;
 };
@@ -41,9 +35,6 @@ export const createDeckAutomationControls = ({
   setDeckGainValue,
   setDeckFilterValue,
   setDeckResonanceValue,
-  setDeckEqLowValue,
-  setDeckEqMidValue,
-  setDeckEqHighValue,
   setDeckBalanceValue,
   setDeckPitchShiftValue,
 }: Args) => {
@@ -104,12 +95,6 @@ export const createDeckAutomationControls = ({
       setDeckFilterValue(id, value);
     } else if (param === "resonance") {
       setDeckResonanceValue(id, value);
-    } else if (param === "eqLow") {
-      setDeckEqLowValue(id, value);
-    } else if (param === "eqMid") {
-      setDeckEqMidValue(id, value);
-    } else if (param === "eqHigh") {
-      setDeckEqHighValue(id, value);
     } else if (param === "balance") {
       setDeckBalanceValue(id, value);
     } else {
@@ -166,4 +151,3 @@ export const createDeckAutomationControls = ({
     resetAutomationTrack,
   };
 };
-

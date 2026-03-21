@@ -89,9 +89,9 @@ describe("applyParametricEqOffline", () => {
       },
     });
 
-    const output = applyParametricEqOffline(context, input, "parametric", [band], renderDuration);
+    const output = applyParametricEqOffline(context, input, [band], renderDuration);
     const node = nodes[0];
-    const outputGain = gains[0];
+    const outputGain = gains.at(-1);
     expect(output).toBe(outputGain);
     expect((input.connect as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toBe(node);
     expect(node.connect).toHaveBeenCalledWith(outputGain);
@@ -125,9 +125,9 @@ describe("applyParametricEqOffline", () => {
       },
     });
 
-    applyParametricEqOffline(context, input, "parametric", [band], renderDuration);
+    applyParametricEqOffline(context, input, [band], renderDuration);
     const node = nodes[0];
-    const outputGain = gains[0];
+    const outputGain = gains.at(-1)!;
 
     expect(node.frequency.setValueCurveAtTime).not.toHaveBeenCalled();
     expect(node.gain.setValueCurveAtTime).not.toHaveBeenCalled();
@@ -143,7 +143,7 @@ describe("applyParametricEqOffline", () => {
     const renderDuration = 2;
     const band = createBaseBand({ gain: 0 });
 
-    applyParametricEqOffline(context, input, "parametric", [band], renderDuration, [
+    applyParametricEqOffline(context, input, [band], renderDuration, [
       {
         gain: {
           active: true,
@@ -165,17 +165,15 @@ describe("applyParametricEqOffline", () => {
       createBaseBand({ id: "c", frequency: 1200, gain: 0.5, q: 1.5 }),
     ];
 
-    const naiveAtA = evaluateParametricEqResponseDb("parametric", bands, bands[0].frequency, sampleRate);
-    const naiveAtB = evaluateParametricEqResponseDb("parametric", bands, bands[1].frequency, sampleRate);
-    const fitted = fitParametricEqBandsToCurve("parametric", bands, sampleRate);
+    const naiveAtA = evaluateParametricEqResponseDb(bands, bands[0].frequency, sampleRate);
+    const naiveAtB = evaluateParametricEqResponseDb(bands, bands[1].frequency, sampleRate);
+    const fitted = fitParametricEqBandsToCurve(bands, sampleRate);
     const fittedAtA = evaluateParametricEqResponseDb(
-      "parametric",
       fitted,
       bands[0].frequency,
       sampleRate
     );
     const fittedAtB = evaluateParametricEqResponseDb(
-      "parametric",
       fitted,
       bands[1].frequency,
       sampleRate

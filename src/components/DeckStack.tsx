@@ -4,7 +4,6 @@ import type { DragEvent as ReactDragEvent } from "react";
 import type {
   DeckFxPanel,
   DeckState,
-  EqMode,
   ParametricEqBand,
   ParametricEqMotionState,
   SimpleAutomationParam,
@@ -39,10 +38,6 @@ export type DeckStackProps = {
   onGainChange: (id: number, value: number) => void;
   onFilterChange: (id: number, value: number) => void;
   onResonanceChange: (id: number, value: number) => void;
-  onEqLowChange: (id: number, value: number) => void;
-  onEqMidChange: (id: number, value: number) => void;
-  onEqHighChange: (id: number, value: number) => void;
-  onEqModeChange: (id: number, value: EqMode) => void;
   onParametricEqBandsChange: (id: number, bands: ParametricEqBand[]) => void;
   onParametricEqMotionChange: (id: number, value: ParametricEqMotionState) => void;
   onSimpleAutomationSet: (
@@ -209,10 +204,6 @@ const DeckStack = ({
   onGainChange,
   onFilterChange,
   onResonanceChange,
-  onEqLowChange,
-  onEqMidChange,
-  onEqHighChange,
-  onEqModeChange,
   onParametricEqBandsChange,
   onParametricEqMotionChange,
   onSimpleAutomationSet,
@@ -491,10 +482,6 @@ const DeckStack = ({
                 onGainChange={onGainChange}
                 onFilterChange={onFilterChange}
                 onResonanceChange={onResonanceChange}
-                onEqLowChange={onEqLowChange}
-                onEqMidChange={onEqMidChange}
-                onEqHighChange={onEqHighChange}
-                onEqModeChange={onEqModeChange}
                 onParametricEqBandsChange={onParametricEqBandsChange}
                 onParametricEqMotionChange={onParametricEqMotionChange}
                 onSimpleAutomationSet={onSimpleAutomationSet}

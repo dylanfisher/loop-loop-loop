@@ -1,7 +1,6 @@
 import type {
   DeckFxPanelState,
   DeckSimpleAutomation,
-  EqMode,
   ParametricEqBand,
   ParametricEqMotionState,
 } from "./deck";
@@ -10,9 +9,6 @@ export type AutomationParam =
   | "gain"
   | "djFilter"
   | "resonance"
-  | "eqLow"
-  | "eqMid"
-  | "eqHigh"
   | "balance"
   | "pitch";
 
@@ -24,6 +20,22 @@ export type AutomationSnapshot = {
   currentValue: number;
 };
 
+export type RearrangerSnapshotSession = {
+  wavBlobId?: string;
+  capturedAtMs: number;
+  fileName?: string;
+  loopStartSeconds: number;
+  loopEndSeconds: number;
+  rearrangerSlices: number;
+  rearrangerRegions?: number[];
+  rearrangerRegionIds?: number[];
+  rearrangerRegionsManual?: boolean;
+};
+
+export type HydratedRearrangerSnapshotSession = Omit<RearrangerSnapshotSession, "wavBlobId"> & {
+  buffer: AudioBuffer;
+};
+
 export type DeckSession = {
   id: number;
   fileName?: string;
@@ -31,10 +43,6 @@ export type DeckSession = {
   gain: number;
   djFilter: number;
   filterResonance: number;
-  eqMode?: EqMode;
-  eqLowGain: number;
-  eqMidGain: number;
-  eqHighGain: number;
   parametricEqBands?: ParametricEqBand[];
   parametricEqMotion?: ParametricEqMotionState;
   simpleAutomation?: DeckSimpleAutomation;
@@ -109,6 +117,7 @@ export type DeckSession = {
   rearrangerRegions?: number[];
   rearrangerRegionIds?: number[];
   rearrangerRegionsManual?: boolean;
+  rearrangerSnapshot?: RearrangerSnapshotSession;
   fxPanelOpen?: DeckFxPanelState;
   automation: Record<AutomationParam, AutomationSnapshot>;
 };
@@ -149,10 +158,6 @@ export type ClipSettings = {
   gain: number;
   djFilter: number;
   filterResonance: number;
-  eqMode?: EqMode;
-  eqLowGain: number;
-  eqMidGain: number;
-  eqHighGain: number;
   parametricEqBands?: ParametricEqBand[];
   simpleAutomation?: DeckSimpleAutomation;
   balance: number;
@@ -246,6 +251,9 @@ export type SessionMeta = {
 
 export type SessionFileDeck = Omit<DeckSession, "wavBlobId"> & {
   wavFile?: string;
+  rearrangerSnapshot?: Omit<RearrangerSnapshotSession, "wavBlobId"> & {
+    wavFile?: string;
+  };
 };
 
 export type SessionDeckUndoRedoHistory = {

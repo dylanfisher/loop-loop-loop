@@ -70,7 +70,9 @@ import {
   ensureRearrangerPingPongWorklet,
   type RearrangerPingPongConfig,
 } from "./rearrangerPingPong";
-import type { EqMode, ParametricEqBand } from "../types/deck";
+import type { ParametricEqBand } from "../types/deck";
+
+type EqMode = "parametric" | "eq3";
 
 type DeckEndedCallback = () => void;
 

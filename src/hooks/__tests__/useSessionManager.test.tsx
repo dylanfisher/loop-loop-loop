@@ -91,6 +91,8 @@ describe("useSessionManager blob reuse", () => {
         setMasterGainValue: vi.fn(),
         applyDeckFxPanelStatePatch: vi.fn(),
         setClips: vi.fn(),
+        getRearrangerSnapshotsForSessionRef: { current: null },
+        loadRearrangerSnapshotsFromSessionRef: { current: null },
       })
     );
 
@@ -133,6 +135,8 @@ describe("useSessionManager blob reuse", () => {
         setMasterGainValue: vi.fn(),
         applyDeckFxPanelStatePatch: vi.fn(),
         setClips: vi.fn(),
+        getRearrangerSnapshotsForSessionRef: { current: null },
+        loadRearrangerSnapshotsFromSessionRef: { current: null },
       })
     );
 
@@ -148,6 +152,79 @@ describe("useSessionManager blob reuse", () => {
     const secondSession = hoisted.saveSessionState.mock.calls[1][0];
     expect(firstSession.decks[0]?.wavBlobId).toBe(secondSession.decks[0]?.wavBlobId);
     expect(hoisted.encodeWavOffThread).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists rearranger snapshots into saved sessions", async () => {
+    const deckBuffer = {
+      duration: 1,
+      sampleRate: 44100,
+      length: 44100,
+    } as AudioBuffer;
+    const snapshotBuffer = {
+      duration: 1,
+      sampleRate: 44100,
+      length: 44100,
+    } as AudioBuffer;
+    const getRearrangerSnapshotsForSession = vi.fn(() =>
+      new Map([
+        [
+          1,
+          {
+            buffer: snapshotBuffer,
+            capturedAtMs: 1234,
+            fileName: "Snapshot",
+            loopStartSeconds: 0,
+            loopEndSeconds: 1,
+            rearrangerSlices: 4,
+            rearrangerRegions: [0, 0.25, 0.5, 0.75, 1],
+            rearrangerRegionIds: [0, 1, 2, 3],
+            rearrangerRegionsManual: true,
+          },
+        ],
+      ])
+    );
+
+    const { result } = renderHook(() =>
+      useSessionManager({
+        decks: [{ id: 1, buffer: deckBuffer }] as Parameters<typeof useSessionManager>[0]["decks"],
+        clips: [],
+        clipsRef: { current: [] },
+        clipIdRef: { current: 1 },
+        clipNameRef: { current: 1 },
+        decodeFile: vi.fn(async () => deckBuffer),
+        getSessionDecks: vi.fn(() => [{ id: 1 } as DeckSession]),
+        getDeckUndoRedoHistorySnapshots: vi.fn(() => ({ past: [], future: [] })),
+        loadSessionDecks: vi.fn(),
+        resetDecks: vi.fn(),
+        masterGain: 0.9,
+        setMasterGainValue: vi.fn(),
+        applyDeckFxPanelStatePatch: vi.fn(),
+        setClips: vi.fn(),
+        getRearrangerSnapshotsForSessionRef: { current: getRearrangerSnapshotsForSession },
+        loadRearrangerSnapshotsFromSessionRef: { current: null },
+      })
+    );
+
+    await waitFor(() => expect(hoisted.loadSessionState).toHaveBeenCalled());
+
+    await act(async () => {
+      await result.current.triggerAutosaveNow();
+    });
+
+    const savedSession = hoisted.saveSessionState.mock.calls[0][0] as SessionState;
+    const savedBlobs = hoisted.saveSessionState.mock.calls[0][1] as Map<string, Blob>;
+    expect(savedSession.decks[0]?.rearrangerSnapshot).toMatchObject({
+      capturedAtMs: 1234,
+      fileName: "Snapshot",
+      loopStartSeconds: 0,
+      loopEndSeconds: 1,
+      rearrangerSlices: 4,
+      rearrangerRegions: [0, 0.25, 0.5, 0.75, 1],
+      rearrangerRegionIds: [0, 1, 2, 3],
+      rearrangerRegionsManual: true,
+    });
+    expect(savedSession.decks[0]?.rearrangerSnapshot?.wavBlobId).toBeTruthy();
+    expect(savedBlobs.size).toBe(2);
   });
 
   it("reuses the current session id across repeated manual saves", async () => {
@@ -167,6 +244,8 @@ describe("useSessionManager blob reuse", () => {
         setMasterGainValue: vi.fn(),
         applyDeckFxPanelStatePatch: vi.fn(),
         setClips: vi.fn(),
+        getRearrangerSnapshotsForSessionRef: { current: null },
+        loadRearrangerSnapshotsFromSessionRef: { current: null },
       })
     );
 
@@ -202,6 +281,8 @@ describe("useSessionManager blob reuse", () => {
         setMasterGainValue: vi.fn(),
         applyDeckFxPanelStatePatch: vi.fn(),
         setClips: vi.fn(),
+        getRearrangerSnapshotsForSessionRef: { current: null },
+        loadRearrangerSnapshotsFromSessionRef: { current: null },
       })
     );
 
@@ -254,6 +335,8 @@ describe("useSessionManager blob reuse", () => {
         setMasterGainValue: vi.fn(),
         applyDeckFxPanelStatePatch: vi.fn(),
         setClips: vi.fn(),
+        getRearrangerSnapshotsForSessionRef: { current: null },
+        loadRearrangerSnapshotsFromSessionRef: { current: null },
       })
     );
 
@@ -306,6 +389,8 @@ describe("useSessionManager blob reuse", () => {
         setMasterGainValue: vi.fn(),
         applyDeckFxPanelStatePatch: vi.fn(),
         setClips: vi.fn(),
+        getRearrangerSnapshotsForSessionRef: { current: null },
+        loadRearrangerSnapshotsFromSessionRef: { current: null },
       })
     );
 
@@ -406,6 +491,8 @@ describe("useSessionManager blob reuse", () => {
         setMasterGainValue: vi.fn(),
         applyDeckFxPanelStatePatch: vi.fn(),
         setClips: vi.fn(),
+        getRearrangerSnapshotsForSessionRef: { current: null },
+        loadRearrangerSnapshotsFromSessionRef: { current: null },
       })
     );
 
@@ -509,6 +596,8 @@ describe("useSessionManager blob reuse", () => {
         setMasterGainValue: vi.fn(),
         applyDeckFxPanelStatePatch: vi.fn(),
         setClips: vi.fn(),
+        getRearrangerSnapshotsForSessionRef: { current: null },
+        loadRearrangerSnapshotsFromSessionRef: { current: null },
       })
     );
 

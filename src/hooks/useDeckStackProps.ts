@@ -28,10 +28,6 @@ type UseDeckStackPropsArgs = {
   setDeckGain: (id: number, value: number) => void;
   setDeckFilter: (id: number, value: number) => void;
   setDeckResonance: (id: number, value: number) => void;
-  setDeckEqLow: (id: number, value: number) => void;
-  setDeckEqMid: (id: number, value: number) => void;
-  setDeckEqHigh: (id: number, value: number) => void;
-  setDeckEqMode: DeckStackProps["onEqModeChange"];
   setDeckParametricEqBands: DeckStackProps["onParametricEqBandsChange"];
   setDeckParametricEqMotion: DeckStackProps["onParametricEqMotionChange"];
   setDeckSimpleAutomation: (
@@ -175,10 +171,6 @@ const useDeckStackProps = ({
   setDeckGain,
   setDeckFilter,
   setDeckResonance,
-  setDeckEqLow,
-  setDeckEqMid,
-  setDeckEqHigh,
-  setDeckEqMode,
   setDeckParametricEqBands,
   setDeckParametricEqMotion,
   setDeckSimpleAutomation,
@@ -364,10 +356,6 @@ const useDeckStackProps = ({
     onGainChange: setDeckGain,
     onFilterChange: setDeckFilter,
     onResonanceChange: setDeckResonance,
-    onEqLowChange: setDeckEqLow,
-    onEqMidChange: setDeckEqMid,
-    onEqHighChange: setDeckEqHigh,
-    onEqModeChange: setDeckEqMode,
     onParametricEqBandsChange: setDeckParametricEqBands,
     onParametricEqMotionChange: setDeckParametricEqMotion,
     onSimpleAutomationSet: setDeckSimpleAutomation,

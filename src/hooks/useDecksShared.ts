@@ -2,7 +2,6 @@ import type {
   DeckSimpleAutomation,
   DeckFxPanelState,
   DeckState,
-  EqMode,
   ParametricEqBand,
   ParametricEqSimpleAutomationParam,
   ParametricEqMotionState,
@@ -79,7 +78,6 @@ export const DEFAULT_REARRANGER_SLICE_DELAY_SEC = 0;
 export const DEFAULT_REARRANGER_PINGPONG = 0;
 export const DEFAULT_REARRANGER_AUTO = false;
 export const DEFAULT_RESONANCE = 0;
-export const DEFAULT_EQ_MODE: EqMode = "parametric";
 export const DEFAULT_PARAMETRIC_EQ_MOTION_CYCLE_SEC = 4;
 export const DEFAULT_PARAMETRIC_EQ_MOTION_STATE: ParametricEqMotionState = {
   preset: null,
@@ -155,9 +153,6 @@ const DEFAULT_FX_PANEL_OPEN: DeckFxPanelState = {
   gain: false,
   djFilter: false,
   resonance: false,
-  eqLow: false,
-  eqMid: false,
-  eqHigh: false,
   parametricEq: false,
   balance: false,
   pitch: false,
@@ -311,9 +306,6 @@ export type AutomationDeck = {
   gain: AutomationTrack;
   djFilter: AutomationTrack;
   resonance: AutomationTrack;
-  eqLow: AutomationTrack;
-  eqMid: AutomationTrack;
-  eqHigh: AutomationTrack;
   balance: AutomationTrack;
   pitch: AutomationTrack;
 };
@@ -363,10 +355,6 @@ export const buildInitialDecks = (): DeckState[] => [
     gain: 0.9,
     djFilter: 0,
     filterResonance: 0,
-    eqLowGain: 0,
-    eqMidGain: 0,
-    eqHighGain: 0,
-    eqMode: DEFAULT_EQ_MODE,
     parametricEqBands: cloneDefaultParametricEqBands(),
     parametricEqMotion: { ...DEFAULT_PARAMETRIC_EQ_MOTION_STATE },
     balance: 0,

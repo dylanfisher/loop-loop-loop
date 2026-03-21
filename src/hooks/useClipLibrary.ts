@@ -11,7 +11,7 @@ type UseClipLibraryArgs = {
     number,
     Partial<
       Record<
-        "gain" | "djFilter" | "resonance" | "eqLow" | "eqMid" | "eqHigh" | "balance" | "pitch",
+        "gain" | "djFilter" | "resonance" | "balance" | "pitch",
         {
           samples: Float32Array;
           durationSec: number;
@@ -227,10 +227,6 @@ const useClipLibrary = ({
         gain: deck.gain,
         djFilter: deck.djFilter,
         filterResonance: deck.filterResonance,
-        eqLowGain: deck.eqLowGain,
-        eqMidGain: deck.eqMidGain,
-        eqHighGain: deck.eqHighGain,
-        eqMode: deck.eqMode,
         parametricEqBands: deck.parametricEqBands,
         simpleAutomation: deck.simpleAutomation,
         balance: deck.balance,
@@ -304,9 +300,6 @@ const useClipLibrary = ({
           gain: toSnapshot(automation?.gain, deck.gain),
           djFilter: toSnapshot(automation?.djFilter, deck.djFilter),
           resonance: toSnapshot(automation?.resonance, deck.filterResonance),
-          eqLow: toSnapshot(automation?.eqLow, deck.eqLowGain),
-          eqMid: toSnapshot(automation?.eqMid, deck.eqMidGain),
-          eqHigh: toSnapshot(automation?.eqHigh, deck.eqHighGain),
           balance: toSnapshot(automation?.balance, deck.balance),
           pitch: toSnapshot(automation?.pitch, deck.pitchShift),
         },

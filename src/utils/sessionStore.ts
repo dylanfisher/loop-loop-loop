@@ -39,6 +39,7 @@ const transactionDone = (tx: IDBTransaction) =>
 const collectSessionBlobIds = (session: SessionState, blobIds: Set<string>) => {
   session.decks.forEach((deck) => {
     if (deck.wavBlobId) blobIds.add(deck.wavBlobId);
+    if (deck.rearrangerSnapshot?.wavBlobId) blobIds.add(deck.rearrangerSnapshot.wavBlobId);
   });
   session.deckUndoRedoHistory?.past.forEach((snapshot) => {
     snapshot.forEach((deck) => {

@@ -32,6 +32,7 @@ import { buildTimestampedAudioFilename, formatEstimateDuration } from "./utils/a
 import { MIDI_ACTIONS, type MidiActionId, type MidiMappedValue } from "./types/midi";
 import { STRETCH_WINDOW_SIZES } from "./hooks/useDecksShared";
 import type { DeckFxPanel } from "./types/deck";
+import type { HydratedRearrangerSnapshotSession } from "./types/session";
 
 type PerformanceMemory = {
   usedJSHeapSize: number;
@@ -163,9 +164,6 @@ const TWISTER_PANEL_SELECTOR: Record<DeckFxPanel, string> = {
   gain: ".deck__fx-unit--gain",
   djFilter: ".deck__fx-unit--filter",
   resonance: ".deck__fx-unit--filter",
-  eqLow: ".deck__fx-unit--parametric",
-  eqMid: ".deck__fx-unit--parametric",
-  eqHigh: ".deck__fx-unit--parametric",
   parametricEq: ".deck__fx-unit--parametric",
   balance: ".deck__fx-unit--balance",
   pitch: ".deck__fx-unit--pitch",
@@ -339,10 +337,6 @@ const App = () => {
     setDeckGain,
     setDeckFilter,
     setDeckResonance,
-    setDeckEqLow,
-    setDeckEqMid,
-    setDeckEqHigh,
-    setDeckEqMode,
     setDeckParametricEqBands,
     setDeckParametricEqMotion,
     setDeckSimpleAutomation,
@@ -643,18 +637,6 @@ const App = () => {
         setDeckPitchShift(deckId, value);
         return;
       }
-      if (actionId === "deck.eqLow") {
-        setDeckEqLow(deckId, value);
-        return;
-      }
-      if (actionId === "deck.eqMid") {
-        setDeckEqMid(deckId, value);
-        return;
-      }
-      if (actionId === "deck.eqHigh") {
-        setDeckEqHigh(deckId, value);
-        return;
-      }
       if (actionId === "deck.vocoderMix") {
         setDeckVocoderMix(deckId, value);
         return;
@@ -859,9 +841,6 @@ const App = () => {
       setDeckDelayMix,
       setDeckDelayTime,
       setDeckDelayTone,
-      setDeckEqHigh,
-      setDeckEqLow,
-      setDeckEqMid,
       setDeckFilter,
       setDeckGain,
       setDeckPitchShift,
@@ -947,9 +926,6 @@ const App = () => {
       if (actionId === "deck.resonance") return deck.filterResonance;
       if (actionId === "deck.balance") return deck.balance;
       if (actionId === "deck.pitch") return deck.pitchShift;
-      if (actionId === "deck.eqLow") return deck.eqLowGain;
-      if (actionId === "deck.eqMid") return deck.eqMidGain;
-      if (actionId === "deck.eqHigh") return deck.eqHighGain;
       if (actionId === "deck.vocoderMix") return deck.vocoderMix;
       if (actionId === "deck.vocoderMonitor") return deck.vocoderModulatorMonitor;
       if (actionId === "deck.vocoderModDrive") return deck.vocoderModDrive;
@@ -1246,6 +1222,12 @@ const App = () => {
     setActiveDeckId,
     setScrollToDeckId,
   });
+  const getRearrangerSnapshotsForSessionRef = useRef<
+    (() => Map<number, HydratedRearrangerSnapshotSession>) | null
+  >(null);
+  const loadRearrangerSnapshotsFromSessionRef = useRef<
+    ((snapshots: Map<number, HydratedRearrangerSnapshotSession>) => void) | null
+  >(null);
   const {
     sessionBusy,
     sessionStatus,
@@ -1288,6 +1270,8 @@ const App = () => {
     setMasterGainValue,
     applyDeckFxPanelStatePatch,
     setClips,
+    getRearrangerSnapshotsForSessionRef,
+    loadRearrangerSnapshotsFromSessionRef,
   });
   const { recording, savingRecording, handleRecordToggle } = useRecordingManager({
     decodeFile,
@@ -1301,6 +1285,8 @@ const App = () => {
     handleRestoreRearrangerSnapshot,
     hasRearrangerSnapshot,
     getRearrangerSnapshotCapturedAtMs,
+    getRearrangerSnapshotsForSession,
+    loadRearrangerSnapshotsFromSession,
     handleRearrangeLoop,
     handleDeleteRearrangerSlice,
     handleAutoSliceRearranger,
@@ -1317,6 +1303,8 @@ const App = () => {
     setStretchEstimateByDeckId,
     setStretchCalibration,
   });
+  getRearrangerSnapshotsForSessionRef.current = getRearrangerSnapshotsForSession;
+  loadRearrangerSnapshotsFromSessionRef.current = loadRearrangerSnapshotsFromSession;
   useEffect(() => {
     if (!sessionStatus) return undefined;
     if (statusTimeoutRef.current !== null) {
@@ -1570,6 +1558,7 @@ const App = () => {
         automationState,
         durationSec: exportDurationSec,
         sessionName,
+        masterGain,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -1589,6 +1578,7 @@ const App = () => {
     exportMinutes,
     exportSeconds,
     exporting,
+    masterGain,
     setSessionStatus,
     sessionName,
   ]);
@@ -1699,10 +1689,6 @@ const App = () => {
     setDeckGain,
     setDeckFilter,
     setDeckResonance,
-    setDeckEqLow,
-    setDeckEqMid,
-    setDeckEqHigh,
-    setDeckEqMode,
     setDeckParametricEqBands,
     setDeckParametricEqMotion,
     setDeckSimpleAutomation,

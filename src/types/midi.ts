@@ -32,9 +32,6 @@ export type MidiActionId =
   | "deck.resonance"
   | "deck.balance"
   | "deck.pitch"
-  | "deck.eqLow"
-  | "deck.eqMid"
-  | "deck.eqHigh"
   | "deck.vocoderMix"
   | "deck.vocoderMonitor"
   | "deck.vocoderModDrive"
@@ -152,9 +149,6 @@ export const MIDI_ACTIONS: MidiActionDefinition[] = [
   { id: "deck.resonance", label: "Deck Resonance", min: 0, max: 24, relativeStep: 0.2 },
   { id: "deck.balance", label: "Deck Balance", min: -1, max: 1, relativeStep: 0.04 },
   { id: "deck.pitch", label: "Deck Pitch", min: -24, max: 24, relativeStep: 0.2 },
-  { id: "deck.eqLow", label: "Deck EQ Low", min: -18, max: 18, relativeStep: 0.4 },
-  { id: "deck.eqMid", label: "Deck EQ Mid", min: -18, max: 18, relativeStep: 0.4 },
-  { id: "deck.eqHigh", label: "Deck EQ High", min: -18, max: 18, relativeStep: 0.4 },
   { id: "deck.vocoderMix", label: "Vocoder Mix", min: 0, max: 1, relativeStep: 0.02 },
   { id: "deck.vocoderMonitor", label: "Vocoder Monitor", min: 0, max: 1, relativeStep: 0.02 },
   { id: "deck.vocoderModDrive", label: "Vocoder Mod Drive", min: 0.5, max: 10, relativeStep: 0.1 },
@@ -243,9 +237,6 @@ export const TWISTER_PROFILE_PAGES: Array<{ bank: 1 | 2 | 3 | 4; actions: MidiAc
       "deck.filter",
       "deck.balance",
       "deck.pitch",
-      "deck.eqLow",
-      "deck.eqMid",
-      "deck.eqHigh",
       "master.gain",
       "deck.delayMix",
       "deck.delayTime",
@@ -281,9 +272,6 @@ export const TWISTER_PROFILE_PAGES: Array<{ bank: 1 | 2 | 3 | 4; actions: MidiAc
   {
     bank: 3,
     actions: [
-      "deck.eqLow",
-      "deck.eqMid",
-      "deck.eqHigh",
       "deck.filter",
       "deck.gain",
       "deck.pitch",
@@ -303,9 +291,6 @@ export const TWISTER_PROFILE_PAGES: Array<{ bank: 1 | 2 | 3 | 4; actions: MidiAc
     bank: 4,
     actions: [
       "deck.gain",
-      "deck.eqLow",
-      "deck.eqMid",
-      "deck.eqHigh",
       "deck.delayMix",
       "deck.delayFeedback",
       "deck.delayTime",

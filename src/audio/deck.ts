@@ -66,7 +66,9 @@ import {
   normalizeVocoderReleaseMs,
   type ChannelVocoderNodes,
 } from "./effects/vocoder";
-import type { EqMode, ParametricEqBand } from "../types/deck";
+import type { ParametricEqBand } from "../types/deck";
+
+type EqMode = "parametric" | "eq3";
 
 type DeckEndedCallback = () => void;
 
@@ -312,14 +314,13 @@ const resetParametricBandNode = (node: BiquadFilterNode, now: number) => {
 
 const applyParametricEq = (
   filters: BiquadFilterNode[],
-  eqMode: EqMode,
   bands: ParametricEqBand[] | undefined,
   sampleRate: number
 ) => {
-  const isActive = hasActiveParametricEq(eqMode, bands);
+  const isActive = hasActiveParametricEq(bands);
   const now = filters[0]?.context.currentTime ?? 0;
   const activeBands = isActive
-    ? fitParametricEqBandsToCurve(eqMode, normalizeParametricEqBands(bands), sampleRate)
+    ? fitParametricEqBandsToCurve(normalizeParametricEqBands(bands), sampleRate)
     : [];
   for (let i = 0; i < filters.length; i += 1) {
     const filter = filters[i];
@@ -338,14 +339,13 @@ const applyParametricEq = (
 
 const applyParametricEqOutputGain = (
   node: GainNode,
-  eqMode: EqMode,
   bands: ParametricEqBand[] | undefined,
   sampleRate: number
 ) => {
   const now = node.context.currentTime;
   setSmoothedAudioParam(
     node.gain,
-    computeParametricEqCompensationGain(eqMode, bands, sampleRate),
+    computeParametricEqCompensationGain(bands, sampleRate),
     now
   );
 };
@@ -989,7 +989,6 @@ const ensureDeckNodes = (
       pendingParametricEqBands.get(deckId) ?? parametricEqBands;
     const parametricActive = applyParametricEq(
       parametricEq,
-      resolvedEqMode,
       resolvedParametricBands,
       context.sampleRate
     );
@@ -1223,7 +1222,7 @@ const ensureDeckNodes = (
     );
     const nextVocoderPostDelay = pendingVocoderPostDelay.get(deckId) ?? vocoderPostDelay;
     const postEq = context.createGain();
-    applyParametricEqOutputGain(postEq, resolvedEqMode, resolvedParametricBands, context.sampleRate);
+    applyParametricEqOutputGain(postEq, resolvedParametricBands, context.sampleRate);
     const vocoder = createChannelVocoder(context, {
       mix: nextVocoderMix,
       modDrive: nextVocoderModDrive,
@@ -1594,13 +1593,11 @@ const ensureDeckNodes = (
       pendingParametricEqBands.get(deckId) ?? parametricEqBands;
     const parametricActive = applyParametricEq(
       nodes.parametricEq,
-      resolvedEqMode,
       resolvedParametricBands,
       context.sampleRate
     );
     applyParametricEqOutputGain(
       nodes.postEq,
-      resolvedEqMode,
       resolvedParametricBands,
       context.sampleRate
     );
@@ -2119,11 +2116,10 @@ export const setDeckEqModeValue = (deckId: number, value: EqMode) => {
     const bands = pendingParametricEqBands.get(deckId) ?? [];
     const parametricActive = applyParametricEq(
       nodes.parametricEq,
-      mode,
       bands,
       nodes.gain.context.sampleRate
     );
-    applyParametricEqOutputGain(nodes.postEq, mode, bands, nodes.gain.context.sampleRate);
+    applyParametricEqOutputGain(nodes.postEq, bands, nodes.gain.context.sampleRate);
     setParametricRouting(nodes, !parametricActive);
     pendingEqMode.delete(deckId);
   } else {
@@ -2140,13 +2136,11 @@ export const setDeckParametricEqBandsValue = (
   if (nodes) {
     const parametricActive = applyParametricEq(
       nodes.parametricEq,
-      nodes.eqMode,
       normalized,
       nodes.gain.context.sampleRate
     );
     applyParametricEqOutputGain(
       nodes.postEq,
-      nodes.eqMode,
       normalized,
       nodes.gain.context.sampleRate
     );

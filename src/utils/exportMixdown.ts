@@ -3,7 +3,6 @@ import { ensurePitchShiftWorklet } from "../audio/pitchShift";
 import { applyPostEqEffectsOffline } from "../audio/effects/postEqPipeline";
 import { applyPitchShiftOffline } from "../audio/effects/pitchShift";
 import { applyDjFilterOffline } from "../audio/effects/djFilter";
-import { applyEq3Offline } from "../audio/effects/eq3";
 import { applyParametricEqOffline } from "../audio/effects/parametricEq";
 import type { OfflineAutomationTrack } from "../audio/effects/automation";
 import { applyBalanceOffline } from "../audio/effects/balance";
@@ -39,11 +38,9 @@ type AutomationTrackView = {
 };
 
 type DeckAutomationView = {
+  gain?: AutomationTrackView;
   djFilter?: AutomationTrackView;
   resonance?: AutomationTrackView;
-  eqLow?: AutomationTrackView;
-  eqMid?: AutomationTrackView;
-  eqHigh?: AutomationTrackView;
   balance?: AutomationTrackView;
   pitch?: AutomationTrackView;
 };
@@ -53,6 +50,7 @@ type RenderMixdownArgs = {
   automationState: Map<number, DeckAutomationView>;
   durationSec: number;
   sessionName: string;
+  masterGain: number;
 };
 
 export const renderMixdownBlob = async ({
@@ -60,6 +58,7 @@ export const renderMixdownBlob = async ({
   automationState,
   durationSec,
   sessionName,
+  masterGain: rawMasterGain,
 }: RenderMixdownArgs): Promise<Blob> => {
   const exportStartedAt = performance.now();
   const timings = new Map<string, number>();
@@ -226,7 +225,7 @@ export const renderMixdownBlob = async ({
 
   const masterMix = offline.createGain();
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.9;
+  masterGain.gain.value = Math.min(Math.max(rawMasterGain, 0), 1.5);
   masterMix.connect(masterGain);
   masterGain.connect(offline.destination);
 
@@ -438,21 +437,17 @@ export const renderMixdownBlob = async ({
     };
 
     const automation = automationState.get(deck.id);
+    const gainTrack = automation?.gain;
     const djFilterTrack = automation?.djFilter;
     const resonanceTrack = automation?.resonance;
-    const eqLowTrack = automation?.eqLow;
-    const eqMidTrack = automation?.eqMid;
-    const eqHighTrack = automation?.eqHigh;
     const balanceTrack = automation?.balance;
     const pitchTrack = automation?.pitch;
 
+    const gainValue = gainTrack?.active ? gainTrack.currentValue : deck.gain;
     const djFilterValue = djFilterTrack?.active ? djFilterTrack.currentValue : deck.djFilter;
     const resonanceValue = resonanceTrack?.active
       ? resonanceTrack.currentValue
       : deck.filterResonance;
-    const eqLowValue = eqLowTrack?.active ? eqLowTrack.currentValue : deck.eqLowGain;
-    const eqMidValue = eqMidTrack?.active ? eqMidTrack.currentValue : deck.eqMidGain;
-    const eqHighValue = eqHighTrack?.active ? eqHighTrack.currentValue : deck.eqHighGain;
     const balanceValue = balanceTrack?.active ? balanceTrack.currentValue : deck.balance;
     const loopStart = deck.loopStartSeconds ?? 0;
     const loopEnd =
@@ -548,43 +543,13 @@ export const renderMixdownBlob = async ({
         : undefined,
     });
     const parametricBandAutomation = buildParametricBandAutomationForExport(deck);
-    const postEq: AudioNode =
-      deck.eqMode === "parametric"
-        ? applyParametricEqOffline(
-            offline,
-            postFilter,
-            deck.eqMode,
-            deck.parametricEqBands,
-            durationSec,
-            parametricBandAutomation
-          )
-        : applyEq3Offline(offline, postFilter, {
-            low: eqLowValue,
-            mid: eqMidValue,
-            high: eqHighValue,
-            renderDuration: durationSec,
-            lowAutomation: eqLowTrack
-              ? {
-                  active: eqLowTrack.active,
-                  samples: eqLowTrack.samples,
-                  durationSec: eqLowTrack.durationSec,
-                }
-              : undefined,
-            midAutomation: eqMidTrack
-              ? {
-                  active: eqMidTrack.active,
-                  samples: eqMidTrack.samples,
-                  durationSec: eqMidTrack.durationSec,
-                }
-              : undefined,
-            highAutomation: eqHighTrack
-              ? {
-                  active: eqHighTrack.active,
-                  samples: eqHighTrack.samples,
-                  durationSec: eqHighTrack.durationSec,
-                }
-              : undefined,
-          });
+    const postEq: AudioNode = applyParametricEqOffline(
+      offline,
+      postFilter,
+      deck.parametricEqBands,
+      durationSec,
+      parametricBandAutomation
+    );
     let postFxInput: AudioNode = postEq;
     const hasSelectedVocoderSource =
       deck.vocoderCarrierDeckId !== null && deck.vocoderCarrierDeckId !== deck.id;
@@ -684,7 +649,15 @@ export const renderMixdownBlob = async ({
       postFx = vocoder.output;
     }
     const postGain = applyGainOffline(offline, postFx, {
-      gain: deck.gain * modulatorOutputGain,
+      gain: gainValue * modulatorOutputGain,
+      renderDuration: durationSec,
+      automation: gainTrack
+        ? {
+            active: gainTrack.active,
+            samples: gainTrack.samples,
+            durationSec: gainTrack.durationSec,
+          }
+        : undefined,
       bypassAt: 0.9,
     });
     const protectedOut = applyMasterProtectOffline(offline, postGain, { enabled: true });

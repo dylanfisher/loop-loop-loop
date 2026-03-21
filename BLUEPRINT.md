@@ -36,7 +36,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
   - If BPM is known, enable beat-grid snapping for loop/seek (post-MVP).
 
 ### Deck Model
-- Deck as a graph: source -> per-deck FX -> deck bus (includes a per-deck limiter and soft clipper after EQ).
+- Deck as a graph: source -> per-deck FX -> deck bus (includes a per-deck limiter and soft clipper after parametric EQ).
 - Sources: file drop, mic input, oscillator/sampler, granular buffer.
 - Looping, slicing, cueing, and morphing controls.
 
@@ -50,7 +50,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Clip Recorder supports source-select recording: app master output or user input device (microphone/interface).
 - Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
-- Parametric EQ UI is now an EQ Eight-style panel: draggable numbered nodes in the graph plus per-band strips for `Freq`/`Gain`; deck EQ focuses on parametric workflow (EQ3 mode toggle removed from deck FX UI).
+- Parametric EQ UI is now the only deck EQ workflow: an EQ Eight-style panel with draggable numbered nodes in the graph plus per-band strips for `Freq`/`Gain`.
 - Parametric EQ always exposes 8 bands (defaulted per slot); neutral default bands are skipped by curve fitting/offline filter construction so they do not add unnecessary processing.
 - Parametric EQ per-band strip now exposes `On` toggle, `Mode` (shape/type), and `Q` at the bottom of each band column; the inspector is focused on per-band motion (`Jitter`/`Spread`) and global parametric controls (`Scale` and output `Gain`).
 - Parametric EQ now uses a fit-to-drawn-curve model (live + offline): enabled node gains are solved so the resulting response better matches drawn node targets at node frequencies, reducing additive boost buildup from clustered nodes while preserving intended curve shape.
@@ -77,7 +77,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Header `Restore + Export` panel includes a destructive `Clear All Storage` action that wipes browser-local IndexedDB sessions/blobs and localStorage app settings, then reloads the app.
 - Rearranger includes an `Auto Slice` checkbox plus sensitivity control; when enabled, changing the `Slices` knob re-runs transient boundary detection (adaptive threshold + minimum spacing) and writes boundaries as manual slice regions.
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.
-- Rearranger includes per-deck `Snapshot` and `Restore` actions that capture the current deck buffer + loop/slice metadata in-memory and restore that captured state after destructive rearrange operations.
+- Rearranger includes per-deck `Snapshot` and `Restore` actions that capture the current deck buffer + loop/slice metadata and persist that snapshot through autosave/manual session save, browser refresh hydration, and session zip export/import.
 - `Delete Quiet` exposes a per-deck quiet-threshold control to tune how aggressively low-energy spans are classified for removal.
 - Rearranger includes a per-deck slice-fade control to soften slice edges and reduce clicks.
 - Rearranger slice-fade defaults to `0ms` on new decks/sessions.
@@ -186,7 +186,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - App-level pure helpers are extracted to `src/utils/appHelpers.ts` to keep `App.tsx` focused on orchestration.
 - `useDecks` shared constants/defaults/automation helper types are extracted to `src/hooks/useDecksShared.ts` to keep deck lifecycle/state transitions centralized in the hook body.
 - `useDecks` session deck serialization/hydration helpers are extracted to `src/hooks/deckSessionSerialization.ts` to keep session I/O shaping isolated from hook orchestration.
-- `useDecks` repeated parameter setter logic (gain/filter/EQ/delay/vocoder/transient controls) is extracted to `src/hooks/deckParameterSetters.ts` to reduce duplication and keep the hook API wiring DRY.
+- `useDecks` repeated parameter setter logic (gain/filter/parametric EQ/delay/vocoder/transient controls) is extracted to `src/hooks/deckParameterSetters.ts` to reduce duplication and keep the hook API wiring DRY.
 - `useDecks` automation runtime controls (record/start/stop/update/toggle/reset/playhead) are extracted to `src/hooks/deckAutomationControls.ts` to keep automation behavior modular and reduce hook body size.
 - `useDecks` loop/tempo mutation controls (loop toggle/bounds, loop-bound history commit, tempo offset/sync) are extracted to `src/hooks/deckLoopTempoControls.ts` to isolate playback-timeline mutation logic.
 - `useDecks` stretch/rearranger/fx-panel state setters are extracted to `src/hooks/deckUiSetters.ts` so UI-bound parameter mutation stays modular and DRY.
