@@ -1,5 +1,4 @@
 type ImportTranscodeTarget = "mp3" | "wav";
-import ffmpegClassWorkerUrl from "@ffmpeg/ffmpeg/worker?url";
 import ffmpegCoreJsUrl from "@ffmpeg/core?url";
 import ffmpegCoreWasmUrl from "@ffmpeg/core/wasm?url";
 
@@ -32,7 +31,6 @@ const loadFfmpeg = async () => {
 
     ffmpegLoadPromise ??= (async () => {
       await ffmpeg.load({
-        classWorkerURL: ffmpegClassWorkerUrl,
         coreURL: ffmpegCoreJsUrl,
         wasmURL: ffmpegCoreWasmUrl,
       });

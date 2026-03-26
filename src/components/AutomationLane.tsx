@@ -58,6 +58,8 @@ const AutomationLane = ({
   const getPlayheadRef = useRef(getPlayhead);
   const [liveValue, setLiveValue] = useState<number | null>(null);
   const dragStateRef = useRef<{ startY: number; startDuration: number } | null>(null);
+  const lastDrawValueRef = useRef<number | null>(null);
+  const lastDurationValueRef = useRef<number | null>(null);
   const [liveDuration, setLiveDuration] = useState<number | null>(null);
   const [themeToken, setThemeToken] = useState(0);
 
@@ -164,7 +166,11 @@ const AutomationLane = ({
       const clampedY = clamp(event.clientY - rect.top, 0, rect.height);
       const normalized = 1 - clampedY / rect.height;
       const next = min + normalized * (max - min);
-      setLiveValue(next);
+      if (lastDrawValueRef.current !== null && Math.abs(lastDrawValueRef.current - next) < 1e-4) {
+        return;
+      }
+      lastDrawValueRef.current = next;
+      setLiveValue((prev) => (prev !== null && Math.abs(prev - next) < 1e-4 ? prev : next));
       onDrawValueChange(next);
     },
     [disabled, max, min, onDrawValueChange]
@@ -173,6 +179,7 @@ const AutomationLane = ({
   const handleDrawEnd = useCallback(() => {
     if (disabled) return;
     setLiveValue(null);
+    lastDrawValueRef.current = null;
     onDrawEnd();
   }, [disabled, onDrawEnd]);
 
@@ -194,12 +201,17 @@ const AutomationLane = ({
       const deltaY = dragStateRef.current.startY - event.clientY;
       const next = dragStateRef.current.startDuration + deltaY * 0.02;
       const clamped = clamp(next, 0.25, 60);
-      setLiveDuration(clamped);
+      if (lastDurationValueRef.current !== null && Math.abs(lastDurationValueRef.current - clamped) < 1e-4) {
+        return;
+      }
+      lastDurationValueRef.current = clamped;
+      setLiveDuration((prev) => (prev !== null && Math.abs(prev - clamped) < 1e-4 ? prev : clamped));
       onDurationChange(clamped);
     };
     const handleUp = () => {
       if (!dragStateRef.current) return;
       dragStateRef.current = null;
+      lastDurationValueRef.current = null;
       setLiveDuration(null);
     };
     window.addEventListener("pointermove", handleMove);

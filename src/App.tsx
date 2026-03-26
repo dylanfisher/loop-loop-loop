@@ -264,6 +264,8 @@ const App = () => {
   const [exportSeconds, setExportSeconds] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportEstimateLabel, setExportEstimateLabel] = useState<string | null>(null);
+  const [exportFadeInEnabled, setExportFadeInEnabled] = useState(false);
+  const [exportFadeOutEnabled, setExportFadeOutEnabled] = useState(false);
   const [masterGain, setMasterGainValue] = useState(0.9);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
@@ -1559,6 +1561,8 @@ const App = () => {
         durationSec: exportDurationSec,
         sessionName,
         masterGain,
+        fadeIn: exportFadeInEnabled,
+        fadeOut: exportFadeOutEnabled,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -1577,6 +1581,8 @@ const App = () => {
     decks,
     exportMinutes,
     exportSeconds,
+    exportFadeInEnabled,
+    exportFadeOutEnabled,
     exporting,
     masterGain,
     setSessionStatus,
@@ -1940,6 +1946,10 @@ const App = () => {
         exportSeconds={exportSeconds}
         onExportMinutesChange={handleExportMinutesChange}
         onExportSecondsChange={handleExportSecondsChange}
+        exportFadeInEnabled={exportFadeInEnabled}
+        exportFadeOutEnabled={exportFadeOutEnabled}
+        onExportFadeInEnabledChange={setExportFadeInEnabled}
+        onExportFadeOutEnabledChange={setExportFadeOutEnabled}
         onExportMix={exportMixdown}
         exporting={exporting}
         hasExportDecks={hasExportDecks}

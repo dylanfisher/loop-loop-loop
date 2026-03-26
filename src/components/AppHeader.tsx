@@ -58,6 +58,10 @@ type AppHeaderProps = {
   exportSeconds: number;
   onExportMinutesChange: (value: number) => void;
   onExportSecondsChange: (value: number) => void;
+  exportFadeInEnabled: boolean;
+  exportFadeOutEnabled: boolean;
+  onExportFadeInEnabledChange: (value: boolean) => void;
+  onExportFadeOutEnabledChange: (value: boolean) => void;
   onExportMix: () => Promise<void>;
   exporting: boolean;
   hasExportDecks: boolean;
@@ -111,6 +115,10 @@ const AppHeader = ({
   exportSeconds,
   onExportMinutesChange,
   onExportSecondsChange,
+  exportFadeInEnabled,
+  exportFadeOutEnabled,
+  onExportFadeInEnabledChange,
+  onExportFadeOutEnabledChange,
   onExportMix,
   exporting,
   hasExportDecks,
@@ -421,6 +429,22 @@ const AppHeader = ({
                     idleLabel="Export Mix"
                     busyLabel="Exporting..."
                   />
+                  <label className="transport__fade-option">
+                    <input
+                      type="checkbox"
+                      checked={exportFadeInEnabled}
+                      onChange={(event) => onExportFadeInEnabledChange(event.target.checked)}
+                    />
+                    Fade In 5s
+                  </label>
+                  <label className="transport__fade-option">
+                    <input
+                      type="checkbox"
+                      checked={exportFadeOutEnabled}
+                      onChange={(event) => onExportFadeOutEnabledChange(event.target.checked)}
+                    />
+                    Fade Out 5s
+                  </label>
                   {!hasExportDecks ? (
                     <span className="transport__estimate">No export decks selected</span>
                   ) : exportEstimateLabel ? (

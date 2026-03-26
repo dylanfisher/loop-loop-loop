@@ -1003,6 +1003,9 @@ const DeckCard = (props: DeckCardProps) => {
           offsetSeconds={deck.offsetSeconds}
           zoom={deck.zoom}
           gain={deck.gain}
+          gainAutomationSamples={gainAutomation.samples}
+          gainAutomationDurationSec={gainAutomation.durationSec}
+          gainAutomationActive={gainAutomation.active}
           loopEnabled={deck.loopEnabled}
           loopStartSeconds={deck.loopStartSeconds}
           loopEndSeconds={deck.loopEndSeconds}

@@ -920,14 +920,56 @@ const useDecks = () => {
     const automation = automationRef.current.get(deckId);
     if (!automation) return;
     setAutomationState((prev) => {
-      const next = new Map(prev);
-      next.set(deckId, {
+      const nextView = {
         gain: toAutomationView(automation.gain),
         djFilter: toAutomationView(automation.djFilter),
         resonance: toAutomationView(automation.resonance),
         balance: toAutomationView(automation.balance),
         pitch: toAutomationView(automation.pitch),
-      });
+      };
+      const prevView = prev.get(deckId);
+      if (
+        prevView &&
+        prevView.gain.samples === nextView.gain.samples &&
+        prevView.gain.previewSamples === nextView.gain.previewSamples &&
+        prevView.gain.durationSec === nextView.gain.durationSec &&
+        prevView.gain.recording === nextView.gain.recording &&
+        prevView.gain.active === nextView.gain.active &&
+        prevView.gain.currentValue === nextView.gain.currentValue &&
+        prevView.gain.amplitudeScale === nextView.gain.amplitudeScale &&
+        prevView.djFilter.samples === nextView.djFilter.samples &&
+        prevView.djFilter.previewSamples === nextView.djFilter.previewSamples &&
+        prevView.djFilter.durationSec === nextView.djFilter.durationSec &&
+        prevView.djFilter.recording === nextView.djFilter.recording &&
+        prevView.djFilter.active === nextView.djFilter.active &&
+        prevView.djFilter.currentValue === nextView.djFilter.currentValue &&
+        prevView.djFilter.amplitudeScale === nextView.djFilter.amplitudeScale &&
+        prevView.resonance.samples === nextView.resonance.samples &&
+        prevView.resonance.previewSamples === nextView.resonance.previewSamples &&
+        prevView.resonance.durationSec === nextView.resonance.durationSec &&
+        prevView.resonance.recording === nextView.resonance.recording &&
+        prevView.resonance.active === nextView.resonance.active &&
+        prevView.resonance.currentValue === nextView.resonance.currentValue &&
+        prevView.resonance.amplitudeScale === nextView.resonance.amplitudeScale &&
+        prevView.balance.samples === nextView.balance.samples &&
+        prevView.balance.previewSamples === nextView.balance.previewSamples &&
+        prevView.balance.durationSec === nextView.balance.durationSec &&
+        prevView.balance.recording === nextView.balance.recording &&
+        prevView.balance.active === nextView.balance.active &&
+        prevView.balance.currentValue === nextView.balance.currentValue &&
+        prevView.balance.amplitudeScale === nextView.balance.amplitudeScale &&
+        prevView.pitch.samples === nextView.pitch.samples &&
+        prevView.pitch.previewSamples === nextView.pitch.previewSamples &&
+        prevView.pitch.durationSec === nextView.pitch.durationSec &&
+        prevView.pitch.recording === nextView.pitch.recording &&
+        prevView.pitch.active === nextView.pitch.active &&
+        prevView.pitch.currentValue === nextView.pitch.currentValue &&
+        prevView.pitch.amplitudeScale === nextView.pitch.amplitudeScale
+      ) {
+        return prev;
+      }
+      const next = new Map(prev);
+      next.set(deckId, nextView);
       return next;
     });
   }, []);

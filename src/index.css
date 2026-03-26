@@ -2945,6 +2945,16 @@ button:active {
   border-radius: 8px;
 }
 
+.transport__export .transport__fade-option {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+}
+
+.transport__export .transport__fade-option input {
+  width: auto;
+  padding: 0;
+}
+
 .transport__estimate {
   color: var(--muted);
   font-size: 0.6rem;

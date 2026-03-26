@@ -16,7 +16,7 @@ const DEFAULT_FFT_FRAME_SIZE = 1024;
 const DEFAULT_OSAMP = 8;
 const ZERO_THRESHOLD = 0.001;
 
-import pitchVocoderUrl from "./worklets/pitchVocoderProcessor.ts?worker&url";
+const pitchVocoderUrl = new URL("./worklets/pitchVocoderProcessor.ts", import.meta.url).href;
 import {
   ensureDspCoreWasmForContext,
   getDspCoreWasmForContext,

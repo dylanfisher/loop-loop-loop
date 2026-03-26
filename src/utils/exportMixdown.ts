@@ -29,6 +29,7 @@ import { setPerfCounter, setPerfTiming } from "./perf";
 
 const MAX_EXPORT_AUTO_REARRANGE_CYCLES = 4096;
 const EXPORT_PROFILE_ENABLED = import.meta.env.DEV;
+const GLOBAL_EXPORT_FADE_SEC = 5;
 
 type AutomationTrackView = {
   active: boolean;
@@ -51,6 +52,8 @@ type RenderMixdownArgs = {
   durationSec: number;
   sessionName: string;
   masterGain: number;
+  fadeIn?: boolean;
+  fadeOut?: boolean;
 };
 
 export const renderMixdownBlob = async ({
@@ -59,6 +62,8 @@ export const renderMixdownBlob = async ({
   durationSec,
   sessionName,
   masterGain: rawMasterGain,
+  fadeIn = false,
+  fadeOut = false,
 }: RenderMixdownArgs): Promise<Blob> => {
   const exportStartedAt = performance.now();
   const timings = new Map<string, number>();
@@ -225,7 +230,25 @@ export const renderMixdownBlob = async ({
 
   const masterMix = offline.createGain();
   const masterGain = offline.createGain();
-  masterGain.gain.value = Math.min(Math.max(rawMasterGain, 0), 1.5);
+  const clampedMasterGain = Math.min(Math.max(rawMasterGain, 0), 1.5);
+  const fadeEdgeSec = Math.min(GLOBAL_EXPORT_FADE_SEC, Math.max(0, durationSec * 0.5));
+  if (fadeIn && fadeOut && fadeEdgeSec > 0) {
+    const fadeOutStart = Math.max(0, durationSec - fadeEdgeSec);
+    masterGain.gain.setValueAtTime(0, 0);
+    masterGain.gain.linearRampToValueAtTime(clampedMasterGain, fadeEdgeSec);
+    masterGain.gain.setValueAtTime(clampedMasterGain, fadeOutStart);
+    masterGain.gain.linearRampToValueAtTime(0, durationSec);
+  } else if (fadeIn && fadeEdgeSec > 0) {
+    masterGain.gain.setValueAtTime(0, 0);
+    masterGain.gain.linearRampToValueAtTime(clampedMasterGain, fadeEdgeSec);
+  } else if (fadeOut && fadeEdgeSec > 0) {
+    const fadeOutStart = Math.max(0, durationSec - fadeEdgeSec);
+    masterGain.gain.setValueAtTime(clampedMasterGain, 0);
+    masterGain.gain.setValueAtTime(clampedMasterGain, fadeOutStart);
+    masterGain.gain.linearRampToValueAtTime(0, durationSec);
+  } else {
+    masterGain.gain.setValueAtTime(clampedMasterGain, 0);
+  }
   masterMix.connect(masterGain);
   masterGain.connect(offline.destination);
 

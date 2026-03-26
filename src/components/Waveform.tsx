@@ -15,6 +15,9 @@ type WaveformProps = {
   offsetSeconds?: number;
   zoom?: number;
   gain?: number;
+  gainAutomationSamples?: Float32Array;
+  gainAutomationDurationSec?: number;
+  gainAutomationActive?: boolean;
   eqLowGain?: number;
   eqMidGain?: number;
   eqHighGain?: number;
@@ -274,7 +277,8 @@ const drawWaveform = (
   canvas: HTMLCanvasElement,
   peaks: Array<{ min: number; max: number }>,
   color: string,
-  scale: number
+  scale: number,
+  scaleForPeak?: (index: number, count: number) => number
 ) => {
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -299,11 +303,12 @@ const drawWaveform = (
     maxAbs = Math.max(maxAbs, Math.abs(peak.min), Math.abs(peak.max));
   }
   const normalize = maxAbs > 1 ? 1 / maxAbs : 1;
-  const finalScale = scale * normalize;
   const step = width / count;
   const barWidth = Math.max(1, Math.ceil(step));
   for (let i = 0; i < count; i += 1) {
     const peak = peaks[i];
+    const peakScale = scaleForPeak ? scaleForPeak(i, count) : scale;
+    const finalScale = peakScale * normalize;
     const scaledMin = Math.max(-1, Math.min(1, peak.min * finalScale));
     const scaledMax = Math.max(-1, Math.min(1, peak.max * finalScale));
     const yMin = amp + scaledMin * amp;
@@ -334,6 +339,9 @@ const Waveform = ({
   offsetSeconds,
   zoom = 1,
   gain = 1,
+  gainAutomationSamples,
+  gainAutomationDurationSec = 0,
+  gainAutomationActive = false,
   eqLowGain = 0,
   eqMidGain = 0,
   eqHighGain = 0,
@@ -445,6 +453,42 @@ const Waveform = ({
     const safeGain = Number.isFinite(gain) ? gain : 1;
     return Math.min(Math.max(safeGain, 0), 3);
   }, [gain]);
+  const waveformUsesGainAutomation =
+    gainAutomationActive &&
+    Boolean(gainAutomationSamples) &&
+    (gainAutomationSamples?.length ?? 0) > 1 &&
+    gainAutomationDurationSec > 0;
+  const resolveWaveformGainScale = useCallback(
+    (index: number, count: number) => {
+      if (!waveformUsesGainAutomation || !gainAutomationSamples) return waveformGainScale;
+      const resolvedDuration = getResolvedDurationRef.current();
+      if (!resolvedDuration || count <= 0) return waveformGainScale;
+      const visualDuration =
+        visualDurationRef.current > 0
+          ? visualDurationRef.current
+          : resolvedDuration / Math.max(1, zoom);
+      if (!visualDuration || !Number.isFinite(visualDuration)) return waveformGainScale;
+      const progress = (index + 0.5) / count;
+      const absoluteSeconds = windowStartRef.current + progress * visualDuration;
+      const cyclePosition =
+        ((absoluteSeconds % gainAutomationDurationSec) + gainAutomationDurationSec) %
+        gainAutomationDurationSec;
+      const sampleIndex = Math.min(
+        gainAutomationSamples.length - 1,
+        Math.floor((cyclePosition / gainAutomationDurationSec) * gainAutomationSamples.length)
+      );
+      const sample = gainAutomationSamples[sampleIndex] ?? waveformGainScale;
+      const safeGain = Number.isFinite(sample) ? sample : waveformGainScale;
+      return Math.min(Math.max(safeGain, 0), 3);
+    },
+    [
+      gainAutomationDurationSec,
+      gainAutomationSamples,
+      waveformGainScale,
+      waveformUsesGainAutomation,
+      zoom,
+    ]
+  );
 
   const getPlayback = useCallback(() => getPlaybackSnapshot?.() ?? null, [getPlaybackSnapshot]);
   const rearrangerRegionsKey =
@@ -731,7 +775,7 @@ const Waveform = ({
       overlayContext.clip();
       const styles = getComputedStyle(document.body);
       const accent = styles.getPropertyValue("--canvas-accent").trim() || "#0074FF";
-      drawWaveform(overlay, peaks, accent, waveformGainScale);
+      drawWaveform(overlay, peaks, accent, waveformGainScale, resolveWaveformGainScale);
       overlayContext.restore();
     }
 
@@ -951,6 +995,7 @@ const Waveform = ({
     rearrangerDeleteMode,
     effectiveDeleteSliceIndex,
     showRearrangerSlices,
+    resolveWaveformGainScale,
   ]);
 
   useLayoutEffect(() => {
@@ -1154,7 +1199,7 @@ const Waveform = ({
       const styles = getComputedStyle(document.body);
       const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
       fillWaveformBackground(canvas);
-      drawWaveform(canvas, peaksRef.current, ink, waveformGainScale);
+      drawWaveform(canvas, peaksRef.current, ink, waveformGainScale, resolveWaveformGainScale);
       renderOverlayRef.current();
     };
 
@@ -1205,6 +1250,7 @@ const Waveform = ({
     computePeaksPerSecond,
     resolveBandPeaks,
     waveformGainScale,
+    resolveWaveformGainScale,
     zoom,
   ]);
 
@@ -1251,7 +1297,13 @@ const Waveform = ({
     const styles = getComputedStyle(document.body);
     const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
     fillWaveformBackground(canvasRef.current);
-    drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
+    drawWaveform(
+      canvasRef.current,
+      peaksRef.current,
+      ink,
+      waveformGainScale,
+      resolveWaveformGainScale
+    );
     renderOverlayRef.current();
   }, [
     buffer,
@@ -1267,6 +1319,7 @@ const Waveform = ({
     computePeaksPerSecond,
     resolveBandPeaks,
     waveformGainScale,
+    resolveWaveformGainScale,
     zoom,
   ]);
 
@@ -1334,6 +1387,7 @@ const Waveform = ({
     startedAtMs,
     fillWaveformBackground,
     waveformGainScale,
+    resolveWaveformGainScale,
     zoom,
   ]);
 
@@ -1505,7 +1559,13 @@ const Waveform = ({
           const styles = getComputedStyle(document.body);
           const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
           fillWaveformBackground(canvasRef.current);
-          drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
+          drawWaveform(
+            canvasRef.current,
+            peaksRef.current,
+            ink,
+            waveformGainScale,
+            resolveWaveformGainScale
+          );
           visualDurationRef.current = visualDuration;
           renderOverlay();
         }
@@ -1575,7 +1635,13 @@ const Waveform = ({
             const styles = getComputedStyle(document.body);
             const ink = styles.getPropertyValue("--canvas-ink").trim() || "#111111";
             fillWaveformBackground(canvasRef.current);
-            drawWaveform(canvasRef.current, peaksRef.current, ink, waveformGainScale);
+            drawWaveform(
+              canvasRef.current,
+              peaksRef.current,
+              ink,
+              waveformGainScale,
+              resolveWaveformGainScale
+            );
             visualDurationRef.current = duration / Math.max(1, zoom);
             renderOverlay();
           }

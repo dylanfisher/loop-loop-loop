@@ -85,6 +85,7 @@ class FakeAudioParam {
   value = 0;
 
   setValueAtTime = vi.fn();
+  linearRampToValueAtTime = vi.fn();
 }
 
 class FakeAudioNode {
@@ -110,8 +111,10 @@ class FakeStereoPannerNode extends FakeAudioNode {
 }
 
 class FakeOfflineAudioContext {
+  static lastInstance: FakeOfflineAudioContext | null = null;
   destination = new FakeAudioNode();
   sampleRate: number;
+  createdGains: FakeGainNode[] = [];
 
   constructor(
     public numberOfChannels: number,
@@ -119,10 +122,13 @@ class FakeOfflineAudioContext {
     sampleRate: number
   ) {
     this.sampleRate = sampleRate;
+    FakeOfflineAudioContext.lastInstance = this;
   }
 
   createGain() {
-    return new FakeGainNode();
+    const node = new FakeGainNode();
+    this.createdGains.push(node);
+    return node;
   }
 
   createStereoPanner() {
@@ -205,5 +211,27 @@ describe("renderMixdownBlob", () => {
       bypassAt: 0.9,
     });
     expect(encodeWavOffThread).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies global export fade-out envelope to master gain", async () => {
+    const { renderMixdownBlob } = await import("../exportMixdown");
+    const deck = createDeck();
+
+    await renderMixdownBlob({
+      decks: [deck],
+      automationState: new Map(),
+      durationSec: 600,
+      sessionName: "test",
+      masterGain: 1,
+      fadeOut: true,
+    });
+
+    const context = FakeOfflineAudioContext.lastInstance;
+    expect(context).not.toBeNull();
+    const masterGainNode = context!.createdGains[1];
+    expect(masterGainNode).toBeDefined();
+    expect(masterGainNode.gain.setValueAtTime).toHaveBeenCalledWith(1, 0);
+    expect(masterGainNode.gain.setValueAtTime).toHaveBeenCalledWith(1, 595);
+    expect(masterGainNode.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 600);
   });
 });
