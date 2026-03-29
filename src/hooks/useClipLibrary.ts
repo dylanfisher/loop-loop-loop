@@ -341,6 +341,14 @@ const useClipLibrary = ({
 
   const handleLoadClipToDeck = useCallback(
     async (deckId: number, clip: ClipItem) => {
+      const targetDeck = decks.find((item) => item.id === deckId);
+      if (targetDeck?.buffer) {
+        const existingName = targetDeck.fileName ? ` "${targetDeck.fileName}"` : "";
+        const confirmed = window.confirm(
+          `Replace deck${existingName} with "${clip.name}"?`
+        );
+        if (!confirmed) return;
+      }
       const applyFxSettings = Boolean(clip.settings && clip.applyFxSettings);
       const makeClipFile = (blob: Blob, ext: string, fallbackType: string) =>
         new File([blob], `${clip.name}.${ext}`, {
@@ -360,7 +368,7 @@ const useClipLibrary = ({
         }
       );
     },
-    [handleFileSelected]
+    [decks, handleFileSelected]
   );
 
   const handleSaveLoopClip = useCallback(
