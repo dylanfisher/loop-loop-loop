@@ -123,6 +123,8 @@ const computeBufferPeak = (buffer: AudioBuffer) => {
   return peak;
 };
 
+const DEFAULT_DECK_GAIN = 0.9;
+
 const computeActiveRms = (
   buffer: AudioBuffer,
   startSample: number,
@@ -662,6 +664,13 @@ const useDeckLoopTools = ({
             { chaosSeed }
           );
         }
+        if (options?.transient) {
+          const gainTrack = automationState.get(deckId)?.gain;
+          const gainValue = gainTrack?.active ? gainTrack.currentValue : deck.gain;
+          if (Number.isFinite(gainValue) && gainValue > 1e-4) {
+            applyBufferGain(rearranged, DEFAULT_DECK_GAIN / gainValue);
+          }
+        }
         const name = buildDerivedDeckName(deck.fileName, "Rearranged");
         const wasPlaying = deck.status === "playing";
         if (options?.transient) {
@@ -681,7 +690,7 @@ const useDeckLoopTools = ({
         rearrangeBusyByDeckRef.current.set(deckId, false);
       }
     },
-    [decks, getDeckPlaybackSnapshot, loadDeckBuffer, markSkipNextAutosave]
+    [automationState, decks, getDeckPlaybackSnapshot, loadDeckBuffer, markSkipNextAutosave]
   );
 
   const handleCaptureRearrangerSnapshot = useCallback(

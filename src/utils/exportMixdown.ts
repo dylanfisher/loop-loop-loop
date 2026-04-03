@@ -733,7 +733,44 @@ export const renderMixdownBlob = async ({
           rearrangerSliceDelaySec >= 0.01
             ? Math.max(rearrangerSliceFadeMs, 1)
             : rearrangerSliceFadeMs;
-        let currentBuffer = sliceDelayedLoopBuffer ?? loopSegment;
+        const withSliceDelay = (buffer: AudioBuffer, regions: number[]) => {
+          if (rearrangerSliceDelayRenderSec < 0.01) {
+            return { buffer, regions };
+          }
+          const delayed = rearrangeBufferSegment(
+            buffer,
+            0,
+            buffer.duration,
+            {
+              slices: deck.rearrangerSlices,
+              swapCount: 0,
+              chaos: 0,
+              reverse: 0,
+              regions,
+              sliceFadeMs: effectiveSliceFadeMs,
+              sliceDelaySec: rearrangerSliceDelayRenderSec,
+            },
+            { chaosSeed: 0 }
+          );
+          const delayedRegions = deriveRearrangedRegions(
+            {
+              slices: deck.rearrangerSlices,
+              swapCount: 0,
+              chaos: 0,
+              reverse: 0,
+              regions,
+              sliceFadeMs: effectiveSliceFadeMs,
+              sliceDelaySec: rearrangerSliceDelayRenderSec,
+            },
+            {
+              chaosSeed: 0,
+              segmentSamples: buffer.length,
+              sampleRate: buffer.sampleRate,
+            }
+          );
+          return { buffer: delayed, regions: delayedRegions };
+        };
+        let currentDryBuffer = loopSegment;
         let currentRegions = normalizeRearrangerRegions(
           deck.rearrangerRegions,
           deck.rearrangerSlices
@@ -746,18 +783,19 @@ export const renderMixdownBlob = async ({
 
         for (let cycle = 0; cycle < cyclesToRender && timelineSec < durationSec; cycle += 1) {
           const cycleStartSec = timelineSec;
-          const cycleDurationSec = Math.max(0.001, currentBuffer.duration / tempoRatio);
+          const playback = withSliceDelay(currentDryBuffer, currentRegions);
+          const cycleDurationSec = Math.max(0.001, playback.buffer.duration / tempoRatio);
           if (pingPongAmount > 0.001) {
             scheduleRearrangerPingPongSpan(
               rearrangerPanner,
               cycleStartSec,
               cycleDurationSec,
-              currentRegions,
+              playback.regions,
               pingPongAmount
             );
           }
           const source = offline.createBufferSource();
-          source.buffer = currentBuffer;
+          source.buffer = playback.buffer;
           source.playbackRate.value = tempoRatio;
           source.connect(deckInput);
           source.start(cycleStartSec, 0);
@@ -773,12 +811,12 @@ export const renderMixdownBlob = async ({
             reverse: rearrangerReverse,
             regions: currentRegions,
             sliceFadeMs: effectiveSliceFadeMs,
-            sliceDelaySec: rearrangerSliceDelayRenderSec,
+            sliceDelaySec: 0,
           };
           const nextBuffer = rearrangeBufferSegment(
-            currentBuffer,
+            currentDryBuffer,
             0,
-            currentBuffer.duration,
+            currentDryBuffer.duration,
             rearrangerParams,
             { chaosSeed }
           );
@@ -786,38 +824,39 @@ export const renderMixdownBlob = async ({
           incCounter("autoRearrangeCycles");
           currentRegions = deriveRearrangedRegions(rearrangerParams, {
             chaosSeed,
-            segmentSamples: currentBuffer.length,
-            sampleRate: currentBuffer.sampleRate,
+            segmentSamples: currentDryBuffer.length,
+            sampleRate: currentDryBuffer.sampleRate,
           });
           currentRegionIds = deriveRearrangedRegionIds(
             rearrangerParams,
             currentRegionIds,
             { chaosSeed }
           );
-          currentBuffer = nextBuffer;
+          currentDryBuffer = nextBuffer;
         }
 
         if (timelineSec < durationSec) {
+          const tailPlayback = withSliceDelay(currentDryBuffer, currentRegions);
           if (pingPongAmount > 0.001) {
-            const cycleDurationSec = Math.max(0.001, currentBuffer.duration / tempoRatio);
+            const cycleDurationSec = Math.max(0.001, tailPlayback.buffer.duration / tempoRatio);
             let pingPongTime = timelineSec;
             while (pingPongTime < durationSec) {
               scheduleRearrangerPingPongSpan(
                 rearrangerPanner,
                 pingPongTime,
                 cycleDurationSec,
-                currentRegions,
+                tailPlayback.regions,
                 pingPongAmount
               );
               pingPongTime += cycleDurationSec;
             }
           }
           const tail = offline.createBufferSource();
-          tail.buffer = currentBuffer;
+          tail.buffer = tailPlayback.buffer;
           tail.playbackRate.value = tempoRatio;
           tail.loop = true;
           tail.loopStart = 0;
-          tail.loopEnd = currentBuffer.duration;
+          tail.loopEnd = tailPlayback.buffer.duration;
           tail.connect(deckInput);
           tail.start(timelineSec, 0);
         }

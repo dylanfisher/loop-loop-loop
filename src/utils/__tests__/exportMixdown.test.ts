@@ -234,4 +234,32 @@ describe("renderMixdownBlob", () => {
     expect(masterGainNode.gain.setValueAtTime).toHaveBeenCalledWith(1, 595);
     expect(masterGainNode.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 600);
   });
+
+  it("keeps slice delay constant across auto-rearrange export cycles", async () => {
+    const { renderMixdownBlob } = await import("../exportMixdown");
+    const rearranger = await import("../rearranger");
+    const deck = createDeck();
+    deck.loopEnabled = true;
+    deck.rearrangerAuto = true;
+    deck.rearrangerSlices = 4;
+    deck.rearrangerSwapCount = 2;
+    deck.rearrangerSliceDelaySec = 0.25;
+    deck.loopStartSeconds = 0;
+    deck.loopEndSeconds = 1;
+
+    await renderMixdownBlob({
+      decks: [deck],
+      automationState: new Map(),
+      durationSec: 3,
+      sessionName: "test",
+      masterGain: 1,
+    });
+
+    const rearrangeMock = vi.mocked(rearranger.rearrangeBufferSegment);
+    const cycleCalls = rearrangeMock.mock.calls.filter((call) => (call[3]?.swapCount ?? 0) > 0);
+    expect(cycleCalls.length).toBeGreaterThan(0);
+    cycleCalls.forEach((call) => {
+      expect(call[3]?.sliceDelaySec ?? 0).toBe(0);
+    });
+  });
 });
