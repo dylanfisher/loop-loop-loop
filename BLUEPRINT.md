@@ -77,6 +77,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Header `Restore + Export` mix export controls include optional `Fade In 5s` and `Fade Out 5s` checkboxes; enabled options apply a global master-gain edge fade during Export Mix offline render.
 - Header `Restore + Export` panel includes a destructive `Clear All Storage` action that wipes browser-local IndexedDB sessions/blobs and localStorage app settings, then reloads the app.
 - Rearranger includes an `Auto Slice` checkbox plus sensitivity control; when enabled, changing the `Slices` knob re-runs transient boundary detection (adaptive threshold + minimum spacing) and writes boundaries as manual slice regions.
+- Rearranger supports up to `128` slices per deck across UI knobs, MIDI mapping, runtime playback, and offline export.
 - Rearranger also includes a `Delete Quiet` action that auto-detects low-energy spans inside the current loop and destructively removes them from deck audio.
 - Rearranger includes per-deck `Snapshot` and `Restore` actions that capture the current deck buffer + loop/slice metadata and persist that snapshot through autosave/manual session save, browser refresh hydration, and session zip export/import.
 - `Delete Quiet` exposes a per-deck quiet-threshold control to tune how aggressively low-energy spans are classified for removal.

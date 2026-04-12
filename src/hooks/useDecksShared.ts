@@ -137,7 +137,7 @@ export const SIMPLE_AUTOMATION_PARAM_LIMITS: Record<
   vocoderReleaseMs: { min: 1, max: 1200 },
   vocoderNoiseMix: { min: 0, max: 1 },
   vocoderGateThreshold: { min: 0, max: 1 },
-  rearrangerSwapCount: { min: 0, max: 64 },
+  rearrangerSwapCount: { min: 0, max: MAX_REARRANGER_SLICES },
   rearrangerChaos: { min: 0, max: 1 },
   rearrangerReverse: { min: 0, max: 1 },
   rearrangerSliceFadeMs: { min: 0, max: 12 },

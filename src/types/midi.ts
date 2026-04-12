@@ -197,8 +197,8 @@ export const MIDI_ACTIONS: MidiActionDefinition[] = [
     max: 1,
     relativeStep: 0.02,
   },
-  { id: "deck.rearrangerSlices", label: "Rearranger Slices", min: 1, max: 64, relativeStep: 1 },
-  { id: "deck.rearrangerSwaps", label: "Rearranger Swaps", min: 0, max: 64, relativeStep: 1 },
+  { id: "deck.rearrangerSlices", label: "Rearranger Slices", min: 1, max: 128, relativeStep: 1 },
+  { id: "deck.rearrangerSwaps", label: "Rearranger Swaps", min: 0, max: 128, relativeStep: 1 },
   { id: "deck.rearrangerChaos", label: "Rearranger Chaos", min: 0, max: 1, relativeStep: 0.02 },
   { id: "deck.rearrangerReverse", label: "Rearranger Reverse", min: 0, max: 1, relativeStep: 0.02 },
   {

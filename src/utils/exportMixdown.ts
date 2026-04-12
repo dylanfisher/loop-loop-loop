@@ -503,7 +503,7 @@ export const renderMixdownBlob = async ({
     const rearrangerSwapCount = Math.round(
       Math.min(
         Math.max(resolveSimpleValue(deck, "rearrangerSwapCount", deck.rearrangerSwapCount ?? 0), 0),
-        Math.max(64, Math.round(deck.rearrangerSlices || 0))
+        Math.max(128, Math.round(deck.rearrangerSlices || 0))
       )
     );
     const rearrangerChaos = Math.min(
