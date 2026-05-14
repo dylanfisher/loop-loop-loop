@@ -1,4 +1,4 @@
-const paulStretchUrl = new URL("./worklets/paulStretchProcessor.ts", import.meta.url).href;
+import paulStretchUrl from "./worklets/paulStretchProcessor.ts?worker&url";
 import {
   ensureDspCoreWasmForContext,
   getDspCoreWasmForContext,

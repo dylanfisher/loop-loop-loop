@@ -1,7 +1,4 @@
-const rearrangerPingPongUrl = new URL(
-  "./worklets/rearrangerPingPongProcessor.ts",
-  import.meta.url
-).href;
+import rearrangerPingPongUrl from "./worklets/rearrangerPingPongProcessor.ts?worker&url";
 
 export type RearrangerPingPongConfig = {
   enabled: boolean;
