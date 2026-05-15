@@ -2965,6 +2965,16 @@ button:active {
   position: relative;
 }
 
+.transport__recover-recording {
+  border-color: color-mix(in oklab, #ff3b30 62%, var(--line));
+  background: color-mix(in oklab, #ff3b30 22%, transparent);
+  color: #111111;
+}
+
+body[data-theme="dark"] .transport__recover-recording {
+  color: #ffffff;
+}
+
 .transport__record[data-active="true"] {
   padding-right: 22px;
 }

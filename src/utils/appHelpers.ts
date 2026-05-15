@@ -329,7 +329,7 @@ const toProjectSlug = (name: string) => {
 export const buildTimestampedAudioFilename = (
   prefix: "loop-loop-loop-recording" | "loop-loop-loop-export",
   projectName: string,
-  extension: "wav" | "webm"
+  extension: "wav" | "webm" | "ogg" | "m4a"
 ) => {
   const now = new Date();
   const month = now.getMonth() + 1;

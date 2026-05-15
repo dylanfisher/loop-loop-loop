@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type RefObject } from "react";
 import AsyncActionButton from "./AsyncActionButton";
 import Knob from "./Knob";
+import type { RecordingDraft } from "../utils/sessionStore";
 
 type SessionOption = {
   id: string;
@@ -34,6 +35,9 @@ type AppHeaderProps = {
   recording: boolean;
   savingRecording: boolean;
   onRecordToggle: () => void;
+  recordingDrafts: RecordingDraft[];
+  onRecoverRecordingDraft: (draft: RecordingDraft) => Promise<void>;
+  onDiscardRecordingDraft: (draftId: string) => Promise<void>;
   showSessionPanel: boolean;
   onToggleSessionPanel: () => void;
   deckLayoutMode: "single" | "two";
@@ -44,7 +48,7 @@ type AppHeaderProps = {
   showKeyboardShortcuts: boolean;
   theme: "light" | "dark";
   onToggleTheme: () => void;
-  importInputRef: RefObject<HTMLInputElement>;
+  importInputRef: RefObject<HTMLInputElement | null>;
   onImportChange: (event: ChangeEvent<HTMLInputElement>) => void;
   sessionBusy: boolean;
   onSaveSession: () => void;
@@ -91,6 +95,9 @@ const AppHeader = ({
   recording,
   savingRecording,
   onRecordToggle,
+  recordingDrafts,
+  onRecoverRecordingDraft,
+  onDiscardRecordingDraft,
   showSessionPanel,
   onToggleSessionPanel,
   deckLayoutMode,
@@ -239,6 +246,27 @@ const AppHeader = ({
             data-active={recording ? "true" : "false"}
           />
         </button>
+        {!recording && recordingDrafts.length > 0 ? (
+          <>
+            <button
+              type="button"
+              className="transport__recover-recording"
+              onClick={() => void onRecoverRecordingDraft(recordingDrafts[0])}
+              disabled={savingRecording}
+              title="Download the latest interrupted global recording"
+            >
+              Recover Recording
+            </button>
+            <button
+              type="button"
+              onClick={() => void onDiscardRecordingDraft(recordingDrafts[0].id)}
+              disabled={savingRecording}
+              title="Delete the latest interrupted global recording draft"
+            >
+              Discard
+            </button>
+          </>
+        ) : null}
       </div>
       <div className="app__header-right">
         <button

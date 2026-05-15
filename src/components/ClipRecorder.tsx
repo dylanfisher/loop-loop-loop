@@ -7,6 +7,14 @@ import {
   decodeAndNormalizeImportedAudio,
   shouldNormalizeImportedAudioFile,
 } from "../utils/audioImport";
+import {
+  appendRecordingDraftChunk,
+  createRecordingDraft,
+  deleteRecordingDraft,
+  listRecordingDrafts,
+  loadRecordingDraftChunks,
+  type RecordingDraft,
+} from "../utils/sessionStore";
 
 type ClipRecorderProps = {
   decks: DeckState[];
@@ -26,6 +34,13 @@ type PendingClipImport = {
   id: number;
   name: string;
 };
+const RECORDING_TIMESLICE_MS = 2000;
+
+const getRecorderErrorMessage = (event: Event) => {
+  const recorderError = (event as Event & { error?: DOMException }).error;
+  if (!recorderError) return "Unknown MediaRecorder error.";
+  return `${recorderError.name}: ${recorderError.message}`;
+};
 
 const ClipRecorder = ({
   decks,
@@ -38,6 +53,7 @@ const ClipRecorder = ({
   onRemoveClip,
 }: ClipRecorderProps) => {
   const [recording, setRecording] = useState(false);
+  const [savingRecording, setSavingRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -46,7 +62,9 @@ const ClipRecorder = ({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const inputStreamActiveRef = useRef(false);
-  const chunksRef = useRef<Blob[]>([]);
+  const draftIdRef = useRef<string | null>(null);
+  const chunkIndexRef = useRef(0);
+  const chunkWriteRef = useRef<Promise<void>>(Promise.resolve());
   const timerRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement | null>>(new Map());
@@ -56,7 +74,16 @@ const ClipRecorder = ({
   const [previewingClipId, setPreviewingClipId] = useState<number | null>(null);
   const [themeToken, setThemeToken] = useState(0);
   const [pendingClipImports, setPendingClipImports] = useState<PendingClipImport[]>([]);
+  const [recordingDrafts, setRecordingDrafts] = useState<RecordingDraft[]>([]);
   const pendingClipImportIdRef = useRef(1);
+
+  const refreshRecordingDrafts = () => {
+    void listRecordingDrafts("clip")
+      .then(setRecordingDrafts)
+      .catch((err) => {
+        console.error("Failed to list clip recording drafts", err);
+      });
+  };
 
   useEffect(() => {
     const previewAudios = previewAudioByClipRef.current;
@@ -70,6 +97,10 @@ const ClipRecorder = ({
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
+  }, []);
+
+  useEffect(() => {
+    refreshRecordingDrafts();
   }, []);
 
   useEffect(() => {
@@ -180,6 +211,42 @@ const ClipRecorder = ({
     }
   };
 
+  const recoverRecordingDraft = async (draft: RecordingDraft) => {
+    setError(null);
+    setSavingRecording(true);
+    try {
+      const chunks = await loadRecordingDraftChunks(draft.id);
+      const blob = new Blob(chunks, { type: draft.mimeType || "audio/webm" });
+      onAddClip({
+        name: draft.source === "input" ? "(input)" : undefined,
+        blob,
+        durationSec: Math.max(0.1, (draft.updatedAt - draft.startedAt) / 1000),
+        gain: 0.9,
+        balance: 0,
+        pitchShift: 0,
+        tempoOffset: 0,
+      });
+      await deleteRecordingDraft(draft.id);
+      refreshRecordingDrafts();
+    } catch (err) {
+      console.error("Failed to recover clip recording", err);
+      setError("Failed to recover clip recording.");
+    } finally {
+      setSavingRecording(false);
+    }
+  };
+
+  const discardRecordingDraft = async (draftId: string) => {
+    setError(null);
+    try {
+      await deleteRecordingDraft(draftId);
+      refreshRecordingDrafts();
+    } catch (err) {
+      console.error("Failed to discard clip recording", err);
+      setError("Failed to discard clip recording.");
+    }
+  };
+
   const stopPreview = () => {
     if (previewingClipId === null) return;
     const activeAudio = previewAudioByClipRef.current.get(previewingClipId);
@@ -226,7 +293,7 @@ const ClipRecorder = ({
   };
 
   const startRecording = async () => {
-    if (recording) return;
+    if (recording || savingRecording) return;
     setError(null);
     setElapsed(0);
 
@@ -249,12 +316,44 @@ const ClipRecorder = ({
       inputStreamActiveRef.current = recordingSource === "input";
       const recorder = new MediaRecorder(stream);
       recorderRef.current = recorder;
-      chunksRef.current = [];
+      draftIdRef.current = null;
+      chunkIndexRef.current = 0;
+      chunkWriteRef.current = createRecordingDraft({
+        kind: "clip",
+        source: recordingSource,
+        mimeType: recorder.mimeType || "audio/webm",
+      }).then((draft) => {
+        draftIdRef.current = draft.id;
+        refreshRecordingDrafts();
+      });
       startTimeRef.current = performance.now();
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
+          const blob = event.data;
+          const index = chunkIndexRef.current;
+          chunkIndexRef.current += 1;
+          chunkWriteRef.current = chunkWriteRef.current
+            .then(() => {
+              const draftId = draftIdRef.current;
+              if (!draftId) return;
+              return appendRecordingDraftChunk(draftId, index, blob);
+            })
+            .catch((err) => {
+              console.error("Failed to persist clip recording chunk", err);
+            });
+        }
+      };
+
+      recorder.onerror = (event) => {
+        console.error("[clip-recorder] MediaRecorder error", getRecorderErrorMessage(event), event);
+        setError("Recording failed. Any persisted draft chunks can be recovered.");
+        if (recorder.state !== "inactive") {
+          recorder.stop();
+        } else {
+          stopTimer();
+          setRecording(false);
+          setSavingRecording(false);
         }
       };
 
@@ -263,18 +362,6 @@ const ClipRecorder = ({
         const durationSec = startTimeRef.current
           ? (performance.now() - startTimeRef.current) / 1000
           : elapsed;
-        const mimeType = recorder.mimeType || "audio/webm";
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        onAddClip({
-          name: recordingSource === "input" ? "(input)" : undefined,
-          blob,
-          durationSec,
-          gain: 0.9,
-          balance: 0,
-          pitchShift: 0,
-          tempoOffset: 0,
-        });
-        chunksRef.current = [];
         recorderRef.current = null;
         if (inputStreamActiveRef.current && streamRef.current) {
           streamRef.current.getTracks().forEach((track) => track.stop());
@@ -282,11 +369,39 @@ const ClipRecorder = ({
         streamRef.current = null;
         inputStreamActiveRef.current = false;
         setRecording(false);
+        setSavingRecording(true);
         setElapsed(0);
         startTimeRef.current = null;
+        void chunkWriteRef.current
+          .then(async () => {
+            const draftId = draftIdRef.current;
+            if (!draftId) return;
+            const chunks = await loadRecordingDraftChunks(draftId);
+            const mimeType = recorder.mimeType || "audio/webm";
+            const blob = new Blob(chunks, { type: mimeType });
+            onAddClip({
+              name: recordingSource === "input" ? "(input)" : undefined,
+              blob,
+              durationSec,
+              gain: 0.9,
+              balance: 0,
+              pitchShift: 0,
+              tempoOffset: 0,
+            });
+            await deleteRecordingDraft(draftId);
+          })
+          .catch((err) => {
+            console.error("Failed to save clip recording", err);
+            setError("Failed to save clip recording.");
+          })
+          .finally(() => {
+            draftIdRef.current = null;
+            refreshRecordingDrafts();
+            setSavingRecording(false);
+          });
       };
 
-      recorder.start(250);
+      recorder.start(RECORDING_TIMESLICE_MS);
       setRecording(true);
 
       timerRef.current = window.setInterval(() => {
@@ -419,7 +534,7 @@ const ClipRecorder = ({
         <div className="clip-rack__title">
           <span>Clip Recorder</span>
           <span className="clip-rack__meta">
-            {recording ? `Recording ${elapsed.toFixed(1)}s` : "Idle"}
+            {savingRecording ? "Saving" : recording ? `Recording ${elapsed.toFixed(1)}s` : "Idle"}
           </span>
         </div>
         <div className="panel__actions">
@@ -428,7 +543,7 @@ const ClipRecorder = ({
               type="button"
               className={recordingSource === "master" ? "is-active" : undefined}
               onClick={() => setRecordingSource("master")}
-              disabled={recording}
+              disabled={recording || savingRecording}
               title="Record app output (master bus)"
             >
               App
@@ -437,7 +552,7 @@ const ClipRecorder = ({
               type="button"
               className={recordingSource === "input" ? "is-active" : undefined}
               onClick={() => setRecordingSource("input")}
-              disabled={recording}
+              disabled={recording || savingRecording}
               title="Record from input device (microphone/interface)"
             >
               Input
@@ -451,6 +566,7 @@ const ClipRecorder = ({
             <button
               type="button"
               onClick={startRecording}
+              disabled={savingRecording}
               title={
                 recordingSource === "input"
                   ? "Start recording from input device"
@@ -463,6 +579,25 @@ const ClipRecorder = ({
         </div>
       </div>
       {error ? <div className="clip-rack__error">{error}</div> : null}
+      {!recording && recordingDrafts.length > 0 ? (
+        <div className="clip-rack__error">
+          Interrupted clip recording found.
+          <button
+            type="button"
+            onClick={() => void recoverRecordingDraft(recordingDrafts[0])}
+            disabled={savingRecording}
+          >
+            Recover
+          </button>
+          <button
+            type="button"
+            onClick={() => void discardRecordingDraft(recordingDrafts[0].id)}
+            disabled={savingRecording}
+          >
+            Discard
+          </button>
+        </div>
+      ) : null}
       <div className="clip-rack__list">
         {clips.length === 0 && pendingClipImports.length === 0 ? (
           <div className="clip-rack__empty">No clips yet.</div>

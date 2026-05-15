@@ -1,8 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  appendRecordingDraftChunk,
+  createRecordingDraft,
   createSessionId,
+  deleteRecordingDraft,
   listSessionMetas,
+  listRecordingDrafts,
   loadSessionState,
+  loadRecordingDraftChunks,
   saveSessionState,
 } from "../sessionStore";
 import type { SessionState } from "../../types/session";
@@ -74,10 +79,21 @@ class FakeObjectStore {
     return request;
   }
 
-  put(value: unknown, key: IDBValidKey) {
+  put(value: unknown, key?: IDBValidKey) {
     const request = new FakeIDBRequest(() => {
-      this.store.set(key, value);
-      return key;
+      const resolvedKey =
+        key ??
+        (value &&
+        typeof value === "object" &&
+        "draftId" in value &&
+        "index" in value
+          ? [value.draftId, value.index]
+          : undefined);
+      if (resolvedKey === undefined) {
+        throw new Error("Missing fake IndexedDB key");
+      }
+      this.store.set(resolvedKey as IDBValidKey, value);
+      return resolvedKey as IDBValidKey;
     });
     this.transaction.track(request);
     return request;
@@ -106,6 +122,45 @@ class FakeObjectStore {
     this.transaction.track(request);
     return request;
   }
+
+  index(name: string) {
+    if (name !== "draftId") {
+      throw new Error(`Unsupported index ${name}`);
+    }
+    return {
+      getAll: (draftId: IDBValidKey) => {
+        const request = new FakeIDBRequest(() =>
+          Array.from(this.store.values()).filter(
+            (value) =>
+              value &&
+              typeof value === "object" &&
+              "draftId" in value &&
+              value.draftId === draftId
+          )
+        );
+        this.transaction.track(request);
+        return request;
+      },
+      getAllKeys: (draftId: IDBValidKey) => {
+        const request = new FakeIDBRequest(() =>
+          Array.from(this.store.entries())
+            .filter(([, value]) => {
+              return (
+                value &&
+                typeof value === "object" &&
+                "draftId" in value &&
+                value.draftId === draftId
+              );
+            })
+            .map(([key]) => key)
+        );
+        this.transaction.track(request);
+        return request;
+      },
+    };
+  }
+
+  createIndex() {}
 }
 
 class FakeDatabase {
@@ -115,7 +170,7 @@ class FakeDatabase {
 
   constructor(private stores: StoreMap) {}
 
-  createObjectStore(name: string) {
+  createObjectStore(name: string, _options?: IDBObjectStoreParameters) {
     if (!this.stores.has(name)) {
       this.stores.set(name, new Map());
     }
@@ -383,5 +438,28 @@ describe("sessionStore", () => {
     const loaded = await loadSessionState(sessionId);
     expect(loaded?.blobs.get("blob-first-only")).toBeUndefined();
     expect(loaded?.blobs.get("blob-second")).toBeInstanceOf(Blob);
+  });
+
+  it("stores, loads, and deletes recording draft chunks", async () => {
+    const draft = await createRecordingDraft({
+      kind: "global",
+      mimeType: "audio/webm",
+      sessionName: "Draft Test",
+    });
+
+    await appendRecordingDraftChunk(draft.id, 1, new Blob(["two"], { type: "audio/webm" }));
+    await appendRecordingDraftChunk(draft.id, 0, new Blob(["one"], { type: "audio/webm" }));
+
+    const drafts = await listRecordingDrafts("global");
+    const chunks = await loadRecordingDraftChunks(draft.id);
+
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].chunkCount).toBe(2);
+    expect(chunks.map((chunk) => chunk.size)).toEqual([3, 3]);
+
+    await deleteRecordingDraft(draft.id);
+
+    expect(await listRecordingDrafts("global")).toHaveLength(0);
+    expect(await loadRecordingDraftChunks(draft.id)).toHaveLength(0);
   });
 });

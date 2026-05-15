@@ -1,5 +1,6 @@
 import {
   BLOB_STORE_NAME,
+  SESSION_DB_VERSION,
   SESSION_DB_NAME,
   SESSION_STORE_NAME,
 } from "./sessionStore";
@@ -41,7 +42,7 @@ const requestToPromise = <T>(request: IDBRequest<T>) =>
 
 const openDb = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(SESSION_DB_NAME, 1);
+    const request = indexedDB.open(SESSION_DB_NAME, SESSION_DB_VERSION);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });

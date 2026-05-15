@@ -48,6 +48,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Deck cards support drag-to-reorder in the deck stack (drop before/after target card).
 - Clip Recorder supports drag-and-drop audio import, with drop-target highlighting while files are dragged over it. Non-portable import formats (for example `m4a`, `flac`, `aiff`) are normalized on ingest (prefers MP3 via lazy `ffmpeg.wasm` transcode, with WAV fallback) for compatibility, including a decode-failure recovery path for browser-unsupported codecs/containers.
 - Clip Recorder supports source-select recording: app master output or user input device (microphone/interface).
+- Clip Recorder and Global Recorder stream 2-second `MediaRecorder` chunks into IndexedDB recording drafts while capture is active, then assemble/delete the draft on stop; interrupted drafts are recoverable on the next app load.
 - Session zip import supports drag-and-drop onto the app root (with global drop-target hint) in addition to the Import button/file picker.
 - Deck FX layout supports a wider stretch unit (spans two grid columns) to host extra Paulstretch controls.
 - Parametric EQ UI is now the only deck EQ workflow: an EQ Eight-style panel with draggable numbered nodes in the graph plus per-band strips for `Freq`/`Gain`.
@@ -121,7 +122,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ### Audio Quality (Current)
 - Export Mix outputs stereo `WAV` (`16-bit PCM`) using the first active deck buffer sample rate (fallback `44.1 kHz`).
-- Global recording captures from the master stream via browser `MediaRecorder` (browser codec; typically compressed/lossy) and then converts that capture to stereo `WAV` (`16-bit PCM`) for download.
+- Global recording captures from the master stream via browser `MediaRecorder` (browser codec; typically compressed/lossy), persists capture chunks as an IndexedDB recording draft while active, and then converts shorter captures to stereo `WAV` (`16-bit PCM`) for download. Captures over 10 minutes skip in-browser WAV conversion and download the compressed browser-native recording directly to avoid large decode/encode memory spikes.
 - Result: Export Mix is the highest-fidelity output path.
 
 ### File Modularity (Constraint)
@@ -135,6 +136,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Presets for FX chains, deck states, and mappings.
 - Session persistence: save/load session JSON to IndexedDB plus audio blobs for deck/clip audio.
 - Session persistence now performs blob garbage collection on save/autosave: unreferenced IndexedDB blobs are pruned based on currently stored session references.
+- Active recorder chunks are stored in separate IndexedDB recording draft stores, not `localStorage` and not the session blob store. Drafts are excluded from session blob garbage collection and are deleted after successful stop/recovery or explicit discard.
 - Repeated saves/autosaves reuse existing blob IDs for unchanged in-memory deck/clip sources to avoid unbounded IndexedDB blob growth during a working session.
 - Clip session persistence now preserves original clip blob format (for example `audio/webm` from Clip Recorder) instead of re-encoding unchanged clips to WAV on each autosave.
 - Deck UI state (including per-effect FX panel open/closed state) is persisted in sessions and exported/imported project zips.

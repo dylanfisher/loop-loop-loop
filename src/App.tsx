@@ -1275,7 +1275,14 @@ const App = () => {
     getRearrangerSnapshotsForSessionRef,
     loadRearrangerSnapshotsFromSessionRef,
   });
-  const { recording, savingRecording, handleRecordToggle } = useRecordingManager({
+  const {
+    recording,
+    savingRecording,
+    recordingDrafts,
+    handleRecordToggle,
+    recoverRecordingDraft,
+    discardRecordingDraft,
+  } = useRecordingManager({
     decodeFile,
     getRecordStream,
     sessionName,
@@ -1917,6 +1924,9 @@ const App = () => {
         recording={recording}
         savingRecording={savingRecording}
         onRecordToggle={handleRecordToggle}
+        recordingDrafts={recordingDrafts}
+        onRecoverRecordingDraft={recoverRecordingDraft}
+        onDiscardRecordingDraft={discardRecordingDraft}
         showSessionPanel={showSessionPanel}
         onToggleSessionPanel={() => setShowSessionPanel((prev) => !prev)}
         deckLayoutMode={deckLayoutMode}
