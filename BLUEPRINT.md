@@ -97,6 +97,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 - Delay includes `Spectral` controls (`Spectral Mix`, `Spectral Spread`, `Spectral Motion`) that run a parallel 3-band delay branch (low/mid/high with independent time/feedback/pan shaping plus motion-driven modulation).
 - Deck FX includes a dedicated `Spectral Space` module (Mix/Spread/Motion/Tilt/Low Mono/Transient) after Delay in both live and offline post-EQ pipelines.
 - Keyboard shortcut layer targets the currently active deck (last interacted deck), includes transport/loop/rearranger/zoom/crop/duplicate/remove/session actions, and exposes a toggleable `?` shortcuts overlay from keyboard and header button.
+- The app registers a playback navigation guard while any deck is actively playing, prompting before browser refresh/close/navigation and same-tab link navigation so active audio is not stopped accidentally.
 - Stretch actions show a rough render-time estimate based on loop duration, stretch amount, and window size.
 - Stretch estimate uses live per-device calibration (EMA factor stored locally) from measured render durations.
 - Brand-new projects show a dismissible Welcome panel above the clip recorder with selectable first-run guidance, quickstart steps, and concise interaction hints for non-musicians.
@@ -122,7 +123,7 @@ Purpose: A browser-based, experimental DJ system focused on live manipulation, n
 
 ### Audio Quality (Current)
 - Export Mix outputs stereo `WAV` (`16-bit PCM`) using the first active deck buffer sample rate (fallback `44.1 kHz`).
-- Global recording captures from the master stream via browser `MediaRecorder` (browser codec; typically compressed/lossy), persists capture chunks as an IndexedDB recording draft while active, and then converts shorter captures to stereo `WAV` (`16-bit PCM`) for download. Captures over 10 minutes skip in-browser WAV conversion and download the compressed browser-native recording directly to avoid large decode/encode memory spikes.
+- Global recording captures the record/export master stream as `16-bit PCM` chunks, persists those chunks as an IndexedDB `audio/wav` recording draft while active, then prepends a WAV header for stop/recovery download. Large WAV drafts stream chunk-by-chunk through the File System Access API when available, avoiding whole-recording WebM decode and whole-buffer WAV encode memory spikes while keeping long recordings as WAV.
 - Result: Export Mix is the highest-fidelity output path.
 
 ### File Modularity (Constraint)

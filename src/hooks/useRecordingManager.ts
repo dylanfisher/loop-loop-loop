@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { encodeWav } from "../utils/audio";
 import { buildTimestampedAudioFilename } from "../utils/appHelpers";
+import { encodePcm16WavHeader, PcmWavRecorder } from "../utils/pcmWavRecorder";
 import {
   appendRecordingDraftChunk,
   createRecordingDraft,
   deleteRecordingDraft,
   listRecordingDrafts,
+  loadRecordingDraftChunk,
   loadRecordingDraftChunks,
   type RecordingDraft,
 } from "../utils/sessionStore";
@@ -16,41 +18,21 @@ type UseRecordingManagerArgs = {
   sessionName: string;
 };
 
-const RECORDING_MIME_PREFERENCES = [
-  "audio/webm;codecs=opus",
-  "audio/ogg;codecs=opus",
-  "audio/mp4;codecs=mp4a.40.2",
-  "audio/webm",
-  "audio/ogg",
-  "audio/mp4",
-];
-const RECORDING_TIMESLICE_MS = 2000;
 const WAV_CONVERSION_MAX_DURATION_MS = 10 * 60 * 1000;
+const STREAM_SAVE_MIN_BYTES = 100 * 1024 * 1024;
 
-const getRecorderErrorMessage = (event: Event) => {
-  const recorderError = (event as Event & { error?: DOMException }).error;
-  if (!recorderError) return "Unknown MediaRecorder error.";
-  return `${recorderError.name}: ${recorderError.message}`;
-};
-
-const createBestRecorder = (stream: MediaStream) => {
-  const highQualityOptions: MediaRecorderOptions = {
-    audioBitsPerSecond: 192000,
-  };
-  for (const mimeType of RECORDING_MIME_PREFERENCES) {
-    if (!MediaRecorder.isTypeSupported(mimeType)) continue;
-    try {
-      return new MediaRecorder(stream, { ...highQualityOptions, mimeType });
-    } catch {
-      continue;
-    }
-  }
-  try {
-    return new MediaRecorder(stream, highQualityOptions);
-  } catch {
-    return new MediaRecorder(stream);
-  }
-};
+type SaveFilePicker = (options?: {
+  suggestedName?: string;
+  types?: Array<{
+    description?: string;
+    accept: Record<string, string[]>;
+  }>;
+}) => Promise<{
+  createWritable: () => Promise<{
+    write: (data: Blob | BufferSource | string) => Promise<void>;
+    close: () => Promise<void>;
+  }>;
+}>;
 
 const getCompressedRecordingExtension = (mimeType: string) => {
   if (mimeType.includes("ogg")) return "ogg";
@@ -67,15 +49,23 @@ const downloadBlob = (
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = buildTimestampedAudioFilename(
-    "loop-loop-loop-recording",
-    filenameSessionName,
-    extension
-  );
+  link.download = getRecordingFilename(filenameSessionName, extension);
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+};
+
+const getRecordingFilename = (
+  filenameSessionName: string,
+  extension: "wav" | "webm" | "ogg" | "m4a"
+) => buildTimestampedAudioFilename("loop-loop-loop-recording", filenameSessionName, extension);
+
+const getSaveFilePicker = () => {
+  const picker = (globalThis as typeof globalThis & {
+    showSaveFilePicker?: SaveFilePicker;
+  }).showSaveFilePicker;
+  return typeof picker === "function" ? picker.bind(globalThis) : null;
 };
 
 const useRecordingManager = ({
@@ -86,10 +76,9 @@ const useRecordingManager = ({
   const [recording, setRecording] = useState(false);
   const [savingRecording, setSavingRecording] = useState(false);
   const [recordingDrafts, setRecordingDrafts] = useState<RecordingDraft[]>([]);
-  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recorderRef = useRef<PcmWavRecorder | null>(null);
   const draftIdRef = useRef<string | null>(null);
   const recordingStartedAtRef = useRef<number | null>(null);
-  const chunkIndexRef = useRef(0);
   const chunkWriteRef = useRef<Promise<void>>(Promise.resolve());
 
   const refreshRecordingDrafts = useCallback(() => {
@@ -99,6 +88,47 @@ const useRecordingManager = ({
         console.error("Failed to list recording drafts", error);
       });
   }, []);
+
+  const downloadPcmWavDraft = useCallback(
+    async (draft: RecordingDraft, filenameSessionName = sessionName) => {
+      if (!draft.sampleRate || !draft.channelCount) {
+        throw new Error("PCM recording draft is missing WAV metadata.");
+      }
+      const header = encodePcm16WavHeader(draft.totalBytes, draft.sampleRate, draft.channelCount);
+      const saveFilePicker = getSaveFilePicker();
+      if (saveFilePicker && draft.totalBytes >= STREAM_SAVE_MIN_BYTES) {
+        const writable = await saveFilePicker({
+          suggestedName: getRecordingFilename(filenameSessionName, "wav"),
+          types: [
+            {
+              description: "WAV audio",
+              accept: { "audio/wav": [".wav"] },
+            },
+          ],
+        }).then((handle) => handle.createWritable());
+        try {
+          await writable.write(header);
+          for (let index = 0; index < draft.chunkCount; index += 1) {
+            const chunk = await loadRecordingDraftChunk(draft.id, index);
+            if (chunk) {
+              await writable.write(chunk);
+            }
+          }
+        } finally {
+          await writable.close();
+        }
+        return;
+      }
+
+      const chunks = await loadRecordingDraftChunks(draft.id);
+      downloadBlob(
+        new Blob([header, ...chunks], { type: "audio/wav" }),
+        filenameSessionName,
+        "wav"
+      );
+    },
+    [sessionName]
+  );
 
   const downloadRecordingBlob = useCallback(
     (blob: Blob, filenameSessionName = sessionName, durationMs?: number) => {
@@ -141,6 +171,12 @@ const useRecordingManager = ({
     async (draft: RecordingDraft) => {
       setSavingRecording(true);
       try {
+        if (draft.mimeType.includes("wav")) {
+          await downloadPcmWavDraft(draft, draft.sessionName ?? sessionName);
+          await deleteRecordingDraft(draft.id);
+          refreshRecordingDrafts();
+          return;
+        }
         const chunks = await loadRecordingDraftChunks(draft.id);
         const blob = new Blob(chunks, { type: draft.mimeType || "audio/webm" });
         await downloadRecordingBlob(
@@ -154,7 +190,7 @@ const useRecordingManager = ({
         setSavingRecording(false);
       }
     },
-    [downloadRecordingBlob, refreshRecordingDrafts, sessionName]
+    [downloadPcmWavDraft, downloadRecordingBlob, refreshRecordingDrafts, sessionName]
   );
 
   const discardRecordingDraft = useCallback(
@@ -173,75 +209,19 @@ const useRecordingManager = ({
     if (savingRecording) return;
     if (recording) {
       const recorder = recorderRef.current;
-      if (recorder && recorder.state !== "inactive") {
-        setSavingRecording(true);
-        recorder.stop();
-      }
-      return;
-    }
-    const stream = getRecordStream();
-    if (!stream) return;
-    const recorder = createBestRecorder(stream);
-    console.log("[recording] MediaRecorder config", {
-      mimeType: recorder.mimeType || "default",
-      audioBitsPerSecond:
-        Number.isFinite(recorder.audioBitsPerSecond) && recorder.audioBitsPerSecond > 0
-          ? recorder.audioBitsPerSecond
-          : "default",
-    });
-    recorderRef.current = recorder;
-    draftIdRef.current = null;
-    recordingStartedAtRef.current = null;
-    chunkIndexRef.current = 0;
-    chunkWriteRef.current = createRecordingDraft({
-      kind: "global",
-      mimeType: recorder.mimeType || "audio/webm",
-      sessionName,
-    }).then((draft) => {
-      draftIdRef.current = draft.id;
-      recordingStartedAtRef.current = draft.startedAt;
-      refreshRecordingDrafts();
-    });
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        const blob = event.data;
-        const index = chunkIndexRef.current;
-        chunkIndexRef.current += 1;
-        chunkWriteRef.current = chunkWriteRef.current
-          .then(() => {
-            const draftId = draftIdRef.current;
-            if (!draftId) return;
-            return appendRecordingDraftChunk(draftId, index, blob);
-          })
-          .catch((error) => {
-            console.error("Failed to persist recording chunk", error);
-          });
-      }
-    };
-    recorder.onerror = (event) => {
-      console.error("[recording] MediaRecorder error", getRecorderErrorMessage(event), event);
-      setRecording(false);
-      if (recorder.state !== "inactive") {
-        setSavingRecording(true);
-        recorder.stop();
-      }
-    };
-    recorder.onstop = () => {
+      if (!recorder) return;
+      setSavingRecording(true);
+      recorder.stop();
       setRecording(false);
       recorderRef.current = null;
       void chunkWriteRef.current
         .then(async () => {
           const draftId = draftIdRef.current;
           if (!draftId) return;
-          const chunks = await loadRecordingDraftChunks(draftId);
-          const blob = new Blob(chunks, {
-            type: recorder.mimeType || "audio/webm",
-          });
-          const durationMs =
-            recordingStartedAtRef.current === null
-              ? undefined
-              : Date.now() - recordingStartedAtRef.current;
-          await downloadRecordingBlob(blob, sessionName, durationMs);
+          const drafts = await listRecordingDrafts("global");
+          const draft = drafts.find((candidate) => candidate.id === draftId);
+          if (!draft) return;
+          await downloadPcmWavDraft(draft, sessionName);
           await deleteRecordingDraft(draftId);
         })
         .catch((error) => {
@@ -253,12 +233,60 @@ const useRecordingManager = ({
           refreshRecordingDrafts();
           setSavingRecording(false);
         });
-    };
-    recorder.start(RECORDING_TIMESLICE_MS);
-    setSavingRecording(false);
-    setRecording(true);
+      return;
+    }
+    const stream = getRecordStream();
+    if (!stream) return;
+    setSavingRecording(true);
+    const recorder = new PcmWavRecorder();
+    draftIdRef.current = null;
+    recordingStartedAtRef.current = null;
+    chunkWriteRef.current = Promise.resolve();
+    let resolveDraftReady: () => void;
+    const draftReady = new Promise<void>((resolve) => {
+      resolveDraftReady = resolve;
+    });
+    void recorder
+      .start(stream, ({ blob, index }) => {
+        chunkWriteRef.current = chunkWriteRef.current
+          .then(() => draftReady)
+          .then(() => {
+            const draftId = draftIdRef.current;
+            if (!draftId) return;
+            return appendRecordingDraftChunk(draftId, index, blob);
+          })
+          .catch((error) => {
+            console.error("Failed to persist recording chunk", error);
+          });
+      })
+      .then(async () => {
+        const metadata = recorder.metadata;
+        if (!metadata) throw new Error("PCM recorder did not report WAV metadata.");
+        const draft = await createRecordingDraft({
+          kind: "global",
+          mimeType: "audio/wav",
+          sampleRate: metadata.sampleRate,
+          channelCount: metadata.channelCount,
+          sessionName,
+        });
+        draftIdRef.current = draft.id;
+        recordingStartedAtRef.current = draft.startedAt;
+        recorderRef.current = recorder;
+        console.log("[recording] PCM WAV recorder config", metadata);
+        resolveDraftReady();
+        refreshRecordingDrafts();
+        setSavingRecording(false);
+        setRecording(true);
+      })
+      .catch((error) => {
+        console.error("[recording] Failed to start PCM WAV recorder", error);
+        resolveDraftReady();
+        recorder.stop();
+        setSavingRecording(false);
+        setRecording(false);
+      });
   }, [
-    downloadRecordingBlob,
+    downloadPcmWavDraft,
     getRecordStream,
     recording,
     refreshRecordingDrafts,

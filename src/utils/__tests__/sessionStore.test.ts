@@ -4,6 +4,7 @@ import {
   createRecordingDraft,
   createSessionId,
   deleteRecordingDraft,
+  loadRecordingDraftChunk,
   listSessionMetas,
   listRecordingDrafts,
   loadSessionState,
@@ -68,7 +69,18 @@ class FakeObjectStore {
   ) {}
 
   get(key: IDBValidKey) {
-    const request = new FakeIDBRequest(() => this.store.get(key));
+    const request = new FakeIDBRequest(() => {
+      if (Array.isArray(key)) {
+        return Array.from(this.store.entries()).find(([candidate]) => {
+          return (
+            Array.isArray(candidate) &&
+            candidate.length === key.length &&
+            candidate.every((part, index) => part === key[index])
+          );
+        })?.[1];
+      }
+      return this.store.get(key);
+    });
     this.transaction.track(request);
     return request;
   }
@@ -452,14 +464,17 @@ describe("sessionStore", () => {
 
     const drafts = await listRecordingDrafts("global");
     const chunks = await loadRecordingDraftChunks(draft.id);
+    const secondChunk = await loadRecordingDraftChunk(draft.id, 1);
 
     expect(drafts).toHaveLength(1);
     expect(drafts[0].chunkCount).toBe(2);
     expect(chunks.map((chunk) => chunk.size)).toEqual([3, 3]);
+    expect(secondChunk?.size).toBe(3);
 
     await deleteRecordingDraft(draft.id);
 
     expect(await listRecordingDrafts("global")).toHaveLength(0);
     expect(await loadRecordingDraftChunks(draft.id)).toHaveLength(0);
+    expect(await loadRecordingDraftChunk(draft.id, 0)).toBeNull();
   });
 });

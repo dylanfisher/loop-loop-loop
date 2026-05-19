@@ -20,6 +20,7 @@ import useDeckStackProps from "./hooks/useDeckStackProps";
 import useMidiController from "./hooks/useMidiController";
 import useRearrangerRuntime from "./hooks/useRearrangerRuntime";
 import useRecordingManager from "./hooks/useRecordingManager";
+import usePlaybackNavigationGuard from "./hooks/usePlaybackNavigationGuard";
 import PerfOverlay from "./components/PerfOverlay";
 import { clearSessionStorage } from "./utils/sessionStore";
 import { renderMixdownBlob } from "./utils/exportMixdown";
@@ -1354,6 +1355,7 @@ const App = () => {
   }, [cancelMidiLearn, handleNewSession]);
 
   const hasActivePlayback = decks.some((deck) => deck.status === "playing");
+  usePlaybackNavigationGuard(hasActivePlayback);
   const hasExportDecks = decks.some(
     (deck) => deck.buffer && deck.includeInRecordExport !== false
   );

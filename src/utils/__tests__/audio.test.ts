@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { encodeWav, sliceBuffer } from "../audio";
+import { encodePcm16WavHeader } from "../pcmWavRecorder";
 
 class MockAudioBuffer {
   numberOfChannels: number;
@@ -86,6 +87,25 @@ describe("audio utils", () => {
     expect(wave).toBe("WAVE");
     expect(view.getInt16(44, true)).toBe(32767);
     expect(view.getInt16(46, true)).toBe(-32768);
+  });
+
+  it("encodes a chunked pcm wav header", async () => {
+    const header = encodePcm16WavHeader(3200, 8000, 2);
+    const view = new DataView(await header.arrayBuffer());
+
+    const riff = String.fromCharCode(
+      view.getUint8(0),
+      view.getUint8(1),
+      view.getUint8(2),
+      view.getUint8(3)
+    );
+    expect(riff).toBe("RIFF");
+    expect(view.getUint32(4, true)).toBe(3236);
+    expect(view.getUint16(22, true)).toBe(2);
+    expect(view.getUint32(24, true)).toBe(8000);
+    expect(view.getUint32(28, true)).toBe(32000);
+    expect(view.getUint16(34, true)).toBe(16);
+    expect(view.getUint32(40, true)).toBe(3200);
   });
 
   it("slices audio buffers with clamped bounds", () => {

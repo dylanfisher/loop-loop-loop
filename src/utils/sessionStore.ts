@@ -16,6 +16,8 @@ export type RecordingDraft = {
   kind: RecordingDraftKind;
   source?: RecordingDraftSource;
   mimeType: string;
+  sampleRate?: number;
+  channelCount?: number;
   startedAt: number;
   updatedAt: number;
   sessionName?: string;
@@ -207,6 +209,18 @@ export const loadRecordingDraftChunks = async (draftId: string) => {
   const chunks = (await requestToPromise(index.getAll(draftId))) as RecordingDraftChunk[];
   db.close();
   return chunks.sort((a, b) => a.index - b.index).map((chunk) => chunk.blob);
+};
+
+export const loadRecordingDraftChunk = async (draftId: string, index: number) => {
+  const db = await openSessionDb();
+  const chunk = (await requestToPromise(
+    db
+      .transaction(RECORDING_DRAFT_CHUNK_STORE_NAME, "readonly")
+      .objectStore(RECORDING_DRAFT_CHUNK_STORE_NAME)
+      .get([draftId, index])
+  )) as RecordingDraftChunk | undefined;
+  db.close();
+  return chunk?.blob ?? null;
 };
 
 export const deleteRecordingDraft = async (draftId: string) => {
